@@ -5,7 +5,10 @@ the wire form of a piece of UI is negotiated per request over a set of encodings
 compiler has proven equivalent, instead of being frozen at build time.
 
 The design is in `docs/` — [the architecture proposal](docs/weft-and-warp.html), [the API
-sketch](docs/weft-by-example.html), and [the research dossier](docs/field-notes.html).
+sketch](docs/weft-by-example.html), and [the research dossier](docs/field-notes.html). Those
+are the design *as written*, before any of it was built; four of their claims have since been
+falsified by building it, and [`spec/FINDINGS.md`](spec/FINDINGS.md) is the claim-by-claim
+record of what measurement did to the design.
 
 **No framework exists yet, on purpose.** Phase zero is the benchmark harness and the two
 versioned formats everything else depends on, because the speed claim is unfalsifiable
@@ -16,6 +19,7 @@ without a harness and a wire format cannot be versioned retroactively.
 | Template IR, `weft.template-ir/2` | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir` | 2.0.0 — one form fewer than major 1 |
 | Warp frames, `weft.warp/1` | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp` | 1.0.0, and now exercised end to end |
 | Versioning contract | [`spec/VERSIONING.md`](spec/VERSIONING.md) | Majors refuse, minors round-trip |
+| What measurement changed | [`spec/FINDINGS.md`](spec/FINDINGS.md) | Four claims reversed, two untestable so far |
 | Device and engine reality | [`spec/baseline/devices.md`](spec/baseline/devices.md) | Written before the numbers |
 | Template compiler | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler` | TSX to IR, on Oxc, with type-driven escape elision |
 | Client runtime | [`spec/client/adoption.md`](spec/client/adoption.md), `packages/client` | Adoption, signals, surgical deltas, resident templates over Warp |
