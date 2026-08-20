@@ -13,25 +13,31 @@ without a harness and a wire format cannot be versioned retroactively.
 
 | What | Where | Status |
 | --- | --- | --- |
-| Template IR, `weft.template-ir/1` | [`spec/ir/template-ir-1.md`](spec/ir/template-ir-1.md), `packages/ir` | 1.0.0, sealed and validated |
+| Template IR, `weft.template-ir/1` | [`spec/ir/template-ir-1.md`](spec/ir/template-ir-1.md), `packages/ir` | 1.1.0, sealed and validated |
 | Warp frames, `weft.warp/1` | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp` | 1.0.0, both framings, negotiation |
 | Versioning contract | [`spec/VERSIONING.md`](spec/VERSIONING.md) | Majors refuse, minors round-trip |
 | Device and engine reality | [`spec/baseline/devices.md`](spec/baseline/devices.md) | Written before the numbers |
+| Template compiler | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler` | TSX to IR, on Oxc. Refuses what it cannot lower |
 | Benchmark harness | `packages/bench` | Three axes measured, three await a client runtime |
-| Template compiler | — | Not started. The IR is hand-built in the workloads |
 
 ## Running it
 
-No install, no build step — Node 22.18+ strips the types.
+No build step — Node 22.18+ strips the types. One install, for the compiler's parser.
 
 ```sh
-node packages/bench/src/cli.ts list                       # axes, scenarios, candidates
-node packages/bench/src/cli.ts verify                      # every wire form must agree
-node packages/bench/src/cli.ts run                         # measure and write a report
-node packages/bench/src/cli.ts run --transport buffered     # the intercepted-webview path
-node packages/bench/src/cli.ts ir cart                      # the sealed, versioned IR
-node --test packages/*/test/*.test.ts                       # 51 conformance tests
+pnpm install                                                # Oxc, for the compiler only
+
+node packages/compiler/src/cli.ts packages/compiler/fixtures/*.tsx --out build/ir
+node packages/bench/src/cli.ts list                         # axes, scenarios, candidates
+node packages/bench/src/cli.ts verify                       # every wire form must agree
+node packages/bench/src/cli.ts run                          # measure and write a report
+node packages/bench/src/cli.ts run --transport buffered      # the intercepted-webview path
+node packages/bench/src/cli.ts ir cart                       # the compiled, sealed IR
+node --test packages/*/test/*.test.ts                        # 69 conformance tests
 ```
+
+The benchmark compiles [its fixtures](packages/compiler/fixtures) in-process, so every
+number is measured against emitted IR rather than an IR written by hand to flatter it.
 
 `run` writes a markdown report and the raw JSON to `results/`. Third-party candidates
 are configured, never vendored: `--external candidates.json` spawns another framework's
@@ -64,41 +70,56 @@ prints; these are one machine's numbers and not a published claim.
 
 | Scenario | Segments | Control | |
 | --- | --- | --- | --- |
-| shell, 701 B | 1,415,732 renders/s | 636,972 | 2.22× |
-| cart, 12 rows | 251,318 | 169,328 | 1.48× |
-| feed, 50 rows | 65,552 | 43,113 | 1.52× |
+| shell, 707 B | 1,165,022 renders/s | 594,914 | 1.96× |
+| cart, 12 rows | 236,539 | 167,419 | 1.41× |
+| feed, 50 rows | 62,492 | 43,807 | 1.43× |
+
+Both candidates render the same compiled templates — one as byte segments, one as
+JavaScript strings — so this compares the mechanism and nothing else.
 
 **Bytes per server-driven update** — one row's quantity and price change:
 
 | Scenario | Form | Raw | Brotli |
 | --- | --- | --- | --- |
-| feed | `html` | 6,283 | 601 |
-| feed | `data` | 3,100 | 600 |
-| feed | `delta` | 371 | 186 |
+| feed | `html` | 6,289 | 605 |
+| feed | `data` | 3,100 | 599 |
+| feed | `delta` | 371 | 187 |
 
 The uncomfortable finding is in that last table, and it is the kind of thing phase zero
 exists to surface: **the `data` form's byte win does not survive compression.** Raw it is
 half the size of `html`; after brotli it is 600 bytes against 601, because compression
 already removes the template redundancy that `data` removes semantically. Only `delta`
-wins on the wire that actually ships — 186 bytes against 601, 3.2×. So `data`'s case has
+wins on the wire that actually ships — 187 bytes against 605, 3.2×. So `data`'s case has
 to rest on the client-side work it avoids, not on payload size, and that is a claim the
 current harness cannot yet measure.
 
+The second finding is the price of a syntax-only compiler. The hand-written IR this
+replaced marked numeric holes `proven-safe`; the compiler cannot prove that about a prop
+without type information, so it escapes by default and gives back 5–12% of the
+throughput win. Escape elision is a type-checker feature, not a syntax feature — that is
+the strongest argument for feeding `tsc`'s types into the pass.
+
 **Shell TTFB** is not yet a meaningful comparison. Over loopback with a warm cache both
 candidates land under 0.1 ms and are usually not separable; the only scenario with a
-resolvable difference is the 50-row feed, at 1.42×. Testing the real claim needs a slow
+resolvable difference is the 50-row feed, at 1.62×. Testing the real claim needs a slow
 data source behind a hole and a network with latency in it.
 
 ## What has to be true next
 
 In the order the design says to disprove things:
 
-1. A template-to-IR compiler, so the IR is emitted rather than hand-written.
-2. A route with a slow hole and simulated network latency, which is where the
-   precomputed-shell claim is either true or it is not.
-3. A tuned React Router 7 app as an external candidate. Until then the control is a
-   string-concatenation renderer, which is the right *shape* of comparison but not a
-   framework anyone ships.
+1. A tuned React Router 7 app as an external candidate, plus a route with a slow hole and
+   simulated network latency. That is the phase-zero gate: beat it on shell TTFB
+   reproducibly, or the central premise is wrong. Until then the control is a
+   string-concatenation renderer — the right *shape* of comparison, but not a framework
+   anyone ships.
+2. Type information in the compiler, to recover the escape elision a syntax-only pass
+   has to give up.
+3. Whether the `data` form survives the client-work measurement, or comes out of the
+   negotiated set. Cutting a form is a win: one less column in the differential matrix
+   forever.
 4. Incremental declarative-shadow-DOM parsing tested on real iOS, Android WebView, and
    WebKitGTK. If the engines diverge the filler script becomes the primary path, which
    is survivable and changes what can be claimed.
+5. Component composition in the compiler. Today `<Widget/>` is a refusal, and a fragment
+   is a whole template.
