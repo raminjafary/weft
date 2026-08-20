@@ -1,41 +1,136 @@
 export type Subscriber = () => void
 
-export interface Signal<T> {
+/** Anything a wiring entry can bind to: a signal, or a value computed from signals. */
+export interface Readable<T> {
   (): T
-  set(next: T): void
   subscribe(run: Subscriber): () => void
 }
 
+export interface Signal<T> extends Readable<T> {
+  set(next: T): void
+}
+
+export type Computed<T> = Readable<T>
+
+/*
+ * The graph is doubly linked in both directions: every dependency edge is one `Link`
+ * that sits in the dependency's subscriber list and in the subscriber's dependency list
+ * at the same time. That is the whole reason this is not a `Set` per node — removing an
+ * edge is four pointer writes with no hashing and no allocation, and re-running a
+ * subscriber walks its existing links in order and reuses them rather than rebuilding a
+ * collection per run.
+ */
+interface Link {
+  dep: Node
+  sub: Node
+  prevDep: Link | undefined
+  nextDep: Link | undefined
+  prevSub: Link | undefined
+  nextSub: Link | undefined
+}
+
+interface Node {
+  flags: number
+  /** As a dependency: the head and tail of the list of edges pointing at this node. */
+  subs: Link | undefined
+  subsTail: Link | undefined
+  /** As a subscriber: the head and tail of the list of edges this node reads through. */
+  deps: Link | undefined
+  depsTail: Link | undefined
+  value?: unknown
+  fn?: () => unknown
+}
+
+/*
+ * Status is bitflags on one integer field rather than booleans or a string, so a node's
+ * whole state is one machine word and a check is a mask.
+ */
+const MUTABLE = 1 << 0 /* recomputes its own value: a computed */
+const WATCHING = 1 << 1 /* runs an effect when it settles dirty */
+const DIRTY = 1 << 2 /* a direct dependency changed */
+const PENDING = 1 << 3 /* something upstream changed; may or may not have reached here */
+const QUEUED = 1 << 4 /* already in the flush queue */
+const TRACKED = 1 << 5 /* re-reads its dependencies on every run */
+
+let activeSub: Node | undefined
 let batchDepth = 0
-const pending = new Set<Subscriber>()
+let flushing = false
+const queue: Node[] = []
 
 /**
- * The smallest graph that serves the wiring table: a value, its subscribers, and a batch
- * so that two writes in one turn produce one DOM write. Built on the shape of the TC39
- * Signals proposal so it can be deleted rather than migrated when that ships.
+ * A value and its edges. Built on the shape of the TC39 Signals proposal so it can be
+ * deleted rather than migrated when that ships.
  */
 export function signal<T>(initial: T): Signal<T> {
-  let value = initial
-  const subscribers = new Set<Subscriber>()
+  const node: Node = {
+    flags: 0,
+    subs: undefined,
+    subsTail: undefined,
+    deps: undefined,
+    depsTail: undefined,
+    value: initial,
+  }
 
-  const read = (() => value) as Signal<T>
+  const read = (() => {
+    if (activeSub !== undefined) link(node, activeSub)
+    return node.value as T
+  }) as Signal<T>
 
   read.set = (next: T): void => {
-    if (next === value) return
-    value = next
-    if (batchDepth > 0) {
-      for (const run of subscribers) pending.add(run)
-      return
-    }
-    for (const run of subscribers) run()
+    if (next === node.value) return
+    node.value = next
+    if (node.subs !== undefined) propagate(node.subs, DIRTY)
+    flush()
   }
 
-  read.subscribe = (run: Subscriber): (() => void) => {
-    subscribers.add(run)
-    return () => subscribers.delete(run)
-  }
-
+  read.subscribe = (run) => watch(node, run)
   return read
+}
+
+/**
+ * A value derived from other values. Lazy: it recomputes on read, and only after a pull
+ * up its own dependencies establishes that something it reads actually changed. Two
+ * writes that cancel out cost one recompute here and zero writes downstream.
+ */
+export function computed<T>(fn: () => T): Computed<T> {
+  const node: Node = {
+    flags: MUTABLE | DIRTY,
+    subs: undefined,
+    subsTail: undefined,
+    deps: undefined,
+    depsTail: undefined,
+    value: undefined,
+    fn: fn as () => unknown,
+  }
+
+  const read = (() => {
+    if (node.flags & (DIRTY | PENDING)) update(node)
+    if (activeSub !== undefined) link(node, activeSub)
+    return node.value as T
+  }) as Computed<T>
+
+  read.subscribe = (run) => {
+    if (node.flags & (DIRTY | PENDING)) update(node)
+    return watch(node, run)
+  }
+  return read
+}
+
+/**
+ * Runs now, tracking whatever it reads, and again whenever any of it changes. Returns
+ * the disposer. This is the auto-tracking front door; `subscribe` is the narrow one.
+ */
+export function effect(fn: () => void): () => void {
+  const node: Node = {
+    flags: WATCHING | TRACKED,
+    subs: undefined,
+    subsTail: undefined,
+    deps: undefined,
+    depsTail: undefined,
+    fn,
+  }
+  runNode(node)
+  return () => dispose(node)
 }
 
 export function batch(work: () => void): void {
@@ -44,10 +139,183 @@ export function batch(work: () => void): void {
     work()
   } finally {
     batchDepth--
-    if (batchDepth === 0) {
-      const runs = [...pending]
-      pending.clear()
-      for (const run of runs) run()
+    flush()
+  }
+}
+
+/** Reads inside `fn` establish no dependency. */
+export function untrack<T>(fn: () => T): T {
+  const prev = activeSub
+  activeSub = undefined
+  try {
+    return fn()
+  } finally {
+    activeSub = prev
+  }
+}
+
+/*
+ * A watcher bound to exactly one dependency and tracking nothing. Adoption wires one
+ * binding to one node, and the value is already in the DOM, so a watcher that ran on
+ * creation would rewrite what the server just rendered.
+ */
+function watch(dep: Node, run: Subscriber): () => void {
+  const node: Node = {
+    flags: WATCHING,
+    subs: undefined,
+    subsTail: undefined,
+    deps: undefined,
+    depsTail: undefined,
+    fn: run,
+  }
+  link(dep, node)
+  return () => dispose(node)
+}
+
+function dispose(node: Node): void {
+  let edge = node.deps
+  while (edge !== undefined) edge = unlink(edge, node)
+  node.flags = 0
+}
+
+function link(dep: Node, sub: Node): void {
+  const prevDep = sub.depsTail
+  if (prevDep !== undefined && prevDep.dep === dep) return
+  // A re-run that reads the same dependencies in the same order walks this list and
+  // allocates nothing.
+  const nextDep = prevDep === undefined ? sub.deps : prevDep.nextDep
+  if (nextDep !== undefined && nextDep.dep === dep) {
+    sub.depsTail = nextDep
+    return
+  }
+
+  const edge: Link = { dep, sub, prevDep, nextDep, prevSub: dep.subsTail, nextSub: undefined }
+  sub.depsTail = edge
+  if (prevDep === undefined) sub.deps = edge
+  else prevDep.nextDep = edge
+  if (nextDep !== undefined) nextDep.prevDep = edge
+  if (dep.subsTail === undefined) dep.subs = edge
+  else dep.subsTail.nextSub = edge
+  dep.subsTail = edge
+}
+
+function unlink(edge: Link, sub: Node): Link | undefined {
+  const { dep, prevDep, nextDep, prevSub, nextSub } = edge
+
+  if (nextDep !== undefined) nextDep.prevDep = prevDep
+  else sub.depsTail = prevDep
+  if (prevDep !== undefined) prevDep.nextDep = nextDep
+  else sub.deps = nextDep
+
+  if (nextSub !== undefined) nextSub.prevSub = prevSub
+  else dep.subsTail = prevSub
+  if (prevSub !== undefined) prevSub.nextSub = nextSub
+  else dep.subs = nextSub
+
+  // A computed nobody watches any more goes cold: it drops its own edges and will
+  // recompute from scratch if anyone reads it again.
+  if (dep.subs === undefined && dep.flags & MUTABLE) {
+    dep.flags |= DIRTY
+    let inner = dep.deps
+    while (inner !== undefined) inner = unlink(inner, dep)
+  }
+  return nextDep
+}
+
+/*
+ * Push. A write marks its direct subscribers dirty and everything further downstream
+ * merely pending — pending means "a dependency of a dependency moved", which is a
+ * question, not an answer. Answering it is the pull half, and it happens at most once,
+ * at flush, rather than once per edge crossed.
+ */
+function propagate(from: Link, mark: number): void {
+  let edge: Link | undefined = from
+  do {
+    const sub = edge.sub
+    const flags = sub.flags
+    if ((flags & (DIRTY | PENDING)) === 0) {
+      sub.flags = flags | mark
+      if (flags & WATCHING) enqueue(sub)
+      else if (sub.subs !== undefined) propagate(sub.subs, PENDING)
+    } else if (mark === DIRTY && (flags & DIRTY) === 0) {
+      // Already reached as pending on another path; downstream is marked already.
+      sub.flags = (flags & ~PENDING) | DIRTY
     }
+    edge = edge.nextSub
+  } while (edge !== undefined)
+}
+
+function enqueue(node: Node): void {
+  if (node.flags & QUEUED) return
+  node.flags |= QUEUED
+  queue.push(node)
+}
+
+/*
+ * Pull. Walks up the pending edges recomputing only the computeds that claim to have
+ * moved, and stops at the first one that actually did. A computed whose recompute lands
+ * on the same value ends the propagation there — the effect below it never runs.
+ */
+function checkDirty(node: Node): boolean {
+  if (node.flags & DIRTY) {
+    node.flags &= ~(DIRTY | PENDING)
+    return true
+  }
+  if ((node.flags & PENDING) === 0) return false
+
+  let dirty = false
+  for (let edge = node.deps; edge !== undefined; edge = edge.nextDep) {
+    const dep = edge.dep
+    if (dep.flags & MUTABLE && dep.flags & (DIRTY | PENDING) && update(dep)) {
+      dirty = true
+      break
+    }
+  }
+  node.flags &= ~(DIRTY | PENDING)
+  return dirty
+}
+
+/** Recomputes if it has to, and reports whether the value moved. */
+function update(node: Node): boolean {
+  if ((node.flags & DIRTY) === 0 && !checkDirty(node)) return false
+  const prev = node.value
+  runNode(node)
+  return node.value !== prev
+}
+
+function runNode(node: Node): void {
+  const prevSub = activeSub
+  activeSub = node
+  node.depsTail = undefined
+  node.flags &= ~(DIRTY | PENDING)
+  try {
+    const next = (node.fn as () => unknown)()
+    if (node.flags & MUTABLE) node.value = next
+  } finally {
+    // Whatever this run did not read is no longer a dependency.
+    const tail = node.depsTail as Link | undefined
+    let stale = tail === undefined ? node.deps : tail.nextDep
+    while (stale !== undefined) stale = unlink(stale, node)
+    activeSub = prevSub
+  }
+}
+
+function flush(): void {
+  if (batchDepth > 0 || flushing) return
+  flushing = true
+  try {
+    // Re-read the length every turn: an effect that writes queues more work, and that
+    // work belongs to this flush rather than to a second one.
+    for (let i = 0; i < queue.length; i++) {
+      const node = queue[i] as Node
+      node.flags &= ~QUEUED
+      if (!(node.flags & WATCHING)) continue
+      if (!checkDirty(node)) continue
+      if (node.flags & TRACKED) runNode(node)
+      else (node.fn as Subscriber)()
+    }
+  } finally {
+    queue.length = 0
+    flushing = false
   }
 }
