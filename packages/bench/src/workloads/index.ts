@@ -1,25 +1,20 @@
-import type { Hole, SignalDecl, Values, WiringEntry } from '../../../ir/src/index.ts'
-
-export interface Authored {
-  id: string
-  /** parts.length must be holes.length + 1 — the same invariant the IR enforces. */
-  parts: string[]
-  holes: Hole[]
-  wiring?: WiringEntry[]
-  signals?: SignalDecl[]
-}
+import { fileURLToPath } from 'node:url'
+import type { Values } from '../../../ir/src/index.ts'
 
 export interface Scenario {
   id: string
   label: string
   route: string
-  root: Authored
-  row?: { authored: Authored; binding: string; count: number }
+  /** The .tsx the templates are compiled from. Nothing here is a hand-written IR. */
+  fixture: string
+  /** Root values, excluding the list binding, which comes from rows(). */
   values(): Values
   rows(): Values[]
   /** The state transition the update-bytes axis measures: a realistic partial change. */
   transition(rows: Values[]): Values[]
 }
+
+const fixture = (name: string) => fileURLToPath(new URL(`../../../compiler/fixtures/${name}`, import.meta.url))
 
 function lcg(seed: number): () => number {
   let s = seed >>> 0
@@ -40,98 +35,33 @@ const PRODUCTS = [
   'Bulgur #2',
 ]
 
-function hole(index: number, binding: string, opts: Partial<Hole> = {}): Hole {
-  return {
-    index,
-    kind: opts.kind ?? 'text',
-    escape: opts.escape ?? 'escape',
-    binding,
-    path: opts.path ?? [index],
-    ...(opts.attr ? { attr: opts.attr } : {}),
-    ...(opts.provenance ? { provenance: opts.provenance } : {}),
-  }
-}
-
-const HEAD = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
-
 const shell: Scenario = {
   id: 'shell',
   label: 'Static shell with streaming holes',
   route: '/cart',
-  root: {
-    id: 'route/cart#shell',
-    parts: [
-      `${HEAD}<title>`,
-      `</title><link rel="stylesheet" href="/a/route.`,
-      `.css"><script type="module" src="/a/runtime.`,
-      `.js"></script></head><body data-flags="`,
-      `"><header class="top"><a href="/" class="brand">Souq</a><nav><a href="/orders">Orders</a><a href="/cart">Cart (`,
-      `)</a></nav></header><main><section id="cart-lines"><template shadowrootmode="open"><slot name="cart-lines">`,
-      `</slot></template></section><section id="recommendations"><template shadowrootmode="open"><slot name="recs">`,
-      `</slot></template></section></main><footer>`,
-      `</footer></body></html>`,
-    ],
-    holes: [
-      hole(0, 'title'),
-      hole(1, 'cssVersion', { escape: 'proven-safe' }),
-      hole(2, 'runtimeVersion', { escape: 'proven-safe' }),
-      hole(3, 'flags', { escape: 'proven-safe' }),
-      hole(4, 'cartCount', { escape: 'proven-safe' }),
-      hole(5, 'cartLinesFallback', { kind: 'slot' }),
-      hole(6, 'recsFallback', { kind: 'slot' }),
-      hole(7, 'footer'),
-    ],
-  },
+  fixture: fixture('shell.tsx'),
   values: () => ({
     title: 'Your cart — Souq',
-    cssVersion: 'a91f3c',
-    runtimeVersion: 'c01277',
+    cssVersion: '/a/route.a91f3c.css',
+    runtimeVersion: '/a/runtime.c01277.js',
     flags: '3f2a',
     cartCount: 3,
-    cartLinesFallback: '',
-    recsFallback: '',
+    cartLines: '',
+    recs: '',
     footer: '© 2026 Souq',
   }),
   rows: () => [],
   transition: (rows) => rows,
 }
 
-function listScenario(id: string, label: string, route: string, count: number): Scenario {
+function lines(id: string, label: string, route: string, count: number): Scenario {
   const seed = [...id].reduce((acc, c) => acc * 31 + c.charCodeAt(0), 7919)
   return {
     id,
     label,
     route,
-    root: {
-      id: `route${route}#lines`,
-      parts: [`<ul class="lines" data-epoch="`, `">`, `</ul><p class="total">Total: `, ` IQD</p>`],
-      holes: [
-        hole(0, 'epoch', { escape: 'proven-safe', attr: 'data-epoch', kind: 'attr' }),
-        hole(1, 'rows', { kind: 'list', escape: 'trusted-raw', provenance: `${route}#row template` }),
-        hole(2, 'total', { escape: 'proven-safe' }),
-      ],
-    },
-    row: {
-      binding: 'rows',
-      count,
-      authored: {
-        id: `route${route}#row`,
-        parts: [`<li data-sku="`, `"><span class="name">`, `</span><span class="qty">`, `</span><span class="price">`, `</span></li>`],
-        holes: [
-          hole(0, 'sku', { kind: 'attr', attr: 'data-sku', escape: 'proven-safe' }),
-          hole(1, 'name'),
-          hole(2, 'qty', { escape: 'proven-safe' }),
-          hole(3, 'price', { escape: 'proven-safe' }),
-        ],
-        wiring: [
-          { path: [0, 2], op: 'text', binding: 'qty' },
-          { path: [0, 3], op: 'text', binding: 'price' },
-          { path: [0], op: 'event', binding: 'qty', event: 'input', intent: '7f3' },
-        ],
-        signals: [{ id: 'qty', type: 'number', init: 1 }],
-      },
-    },
-    values: () => ({ epoch: 'e7', total: 12000, rows: [] }),
+    fixture: fixture('lines.tsx'),
+    values: () => ({ epoch: 'e7', total: 12000 }),
     rows: () => {
       const rand = lcg(seed)
       return Array.from({ length: count }, (_, i) => ({
@@ -148,8 +78,8 @@ function listScenario(id: string, label: string, route: string, count: number): 
 
 export const SCENARIOS: Scenario[] = [
   shell,
-  listScenario('cart', 'Cart lines, 12 rows', '/cart', 12),
-  listScenario('feed', 'Product feed, 50 rows', '/feed', 50),
+  lines('cart', 'Cart lines, 12 rows', '/cart', 12),
+  lines('feed', 'Product feed, 50 rows', '/feed', 50),
 ]
 
 export function scenario(id: string): Scenario {

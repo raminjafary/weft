@@ -5,9 +5,10 @@ import { join } from 'node:path'
 import { AXES } from './axes.ts'
 import type { Candidate } from './candidate.ts'
 import { externalCandidate, type ExternalConfig } from './candidates/external.ts'
-import { segmentsCandidate, prepareSegments } from './candidates/segments.ts'
+import { segmentsCandidate } from './candidates/segments.ts'
 import { stringSsrCandidate } from './candidates/string-ssr.ts'
 import { checkAll } from './equivalence.ts'
+import { compileScenario } from './compiled.ts'
 import { renderMarkdown, comparison } from './report.ts'
 import { run } from './runner.ts'
 import { SCENARIOS, scenario as scenarioById } from './workloads/index.ts'
@@ -109,7 +110,7 @@ async function main(): Promise<number> {
 
   if (command === 'ir') {
     const target = positional[0] ?? 'cart'
-    const compiled = await prepareSegments(scenarioById(target))
+    const compiled = await compileScenario(scenarioById(target))
     if (compiled.row) process.stdout.write(`${stringify(compiled.row)}\n`)
     process.stdout.write(`${stringify(compiled.root)}\n`)
     return 0
@@ -118,7 +119,7 @@ async function main(): Promise<number> {
   if (command === 'verify') {
     const candidates = candidatesFrom(flags)
     const scenarios = (csv(flags.scenarios) ?? SCENARIOS.map((s) => s.id)).map(scenarioById)
-    for (const s of scenarios) await prepareSegments(s)
+    for (const s of scenarios) await compileScenario(s)
     const reports = await checkAll(scenarios, candidates)
     let failed = false
     for (const report of reports) {

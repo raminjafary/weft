@@ -6,7 +6,7 @@ import { measureBytes } from './measure/bytes.ts'
 import { ENGINE_PROXIES, loadPlaywright, measureBrowser, type EngineName } from './measure/browser.ts'
 import { measureHttp } from './measure/http.ts'
 import { measureThroughput, opsPerSecond } from './measure/throughput.ts'
-import { prepareSegments } from './candidates/segments.ts'
+import { compileScenario, compiledFor } from './compiled.ts'
 import { summarize, type Summary } from './stats.ts'
 import { scenario as scenarioById, type Scenario } from './workloads/index.ts'
 
@@ -77,7 +77,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
   const warnings: string[] = []
   const rows: Row[] = []
 
-  for (const scenario of scenarios) await prepareSegments(scenario)
+  for (const scenario of scenarios) await compileScenario(scenario)
 
   const equivalence = await checkAll(scenarios, candidates)
   const broken = equivalence.filter((r) => !r.ok)
@@ -177,7 +177,7 @@ function inProcess(axis: Axis, scenario: Scenario, candidate: Candidate, m: Meth
     if (!candidate.updateForms) {
       return [unavailable(axis, scenario, candidate, candidate.unsupported?.[axis.id] ?? 'no update payloads')]
     }
-    if (!scenario.row) {
+    if (!compiledFor(scenario).rowBinding) {
       return [unavailable(axis, scenario, candidate, 'scenario has no updatable region')]
     }
     const values = scenario.values()

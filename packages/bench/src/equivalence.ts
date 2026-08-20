@@ -7,7 +7,8 @@ import {
   render,
 } from '../../ir/src/index.ts'
 import type { Candidate } from './candidate.ts'
-import { prepareSegments, segmentsCandidate } from './candidates/segments.ts'
+import { segmentsCandidate } from './candidates/segments.ts'
+import { compileScenario, withRows } from './compiled.ts'
 import type { Scenario } from './workloads/index.ts'
 
 export interface Check {
@@ -42,13 +43,11 @@ function firstDifference(a: Uint8Array, b: Uint8Array): string {
  */
 export async function checkScenario(scenario: Scenario, candidates: Candidate[]): Promise<EquivalenceReport> {
   const checks: Check[] = []
-  const compiled = await prepareSegments(scenario)
+  const compiled = await compileScenario(scenario)
 
   const values = scenario.values()
   const rows = scenario.rows()
-  const withRows: Values = scenario.row
-    ? { ...values, [scenario.row.binding]: rows as unknown as Values[string] }
-    : values
+  const rooted: Values = withRows(compiled, values, rows)
 
   const reference = segmentsCandidate.render?.(scenario, values, rows)
   if (!reference) throw new Error('E_NO_REFERENCE_RENDER')
@@ -77,14 +76,14 @@ export async function checkScenario(scenario: Scenario, candidates: Candidate[])
     })
   }
 
-  if (compiled.root.forms.includes('delta') && scenario.row) {
+  if (compiled.root.forms.includes('delta') && compiled.rowBinding) {
     const nextRows = scenario.transition(rows)
-    const nextValues: Values = { ...values, [scenario.row.binding]: nextRows as unknown as Values[string] }
+    const nextValues: Values = withRows(compiled, values, nextRows)
     const expected = render(compiled.root, nextValues, compiled.resolve)
     const delta = JSON.parse(
       decoder.decode(segmentsCandidate.updateForms?.(scenario, values, rows, nextRows).delta as Uint8Array),
     ) as DeltaPayload
-    const reconstructed = render(compiled.root, applyDelta(withRows, delta), compiled.resolve)
+    const reconstructed = render(compiled.root, applyDelta(rooted, delta), compiled.resolve)
     const ok = reconstructed.length === expected.length && reconstructed.every((b, i) => b === expected[i])
     checks.push({
       name: 'delta applied to the base render reproduces the html bytes',
