@@ -51,3 +51,7 @@ interesting failures.
 
 `pnpm changelog` regenerates `CHANGELOG.md` from the history. It is generated, never
 edited: if an entry reads badly, the commit message was the problem.
+
+One quirk of the parser worth knowing: a body line that begins with a word followed by a
+colon is read as a git trailer, and commitlint then warns that a footer needs a blank line
+before it. Start such a sentence differently, or accept the warning.
