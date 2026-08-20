@@ -5,6 +5,7 @@ import { environment, type Environment } from './env.ts'
 import { measureBytes } from './measure/bytes.ts'
 import { ENGINE_PROXIES, loadPlaywright, measureBrowser, type EngineName } from './measure/browser.ts'
 import { measureHttp } from './measure/http.ts'
+import { withLatency } from './measure/latency.ts'
 import { measureThroughput, opsPerSecond } from './measure/throughput.ts'
 import { compileScenario, compiledFor } from './compiled.ts'
 import { summarize, type Summary } from './stats.ts'
@@ -29,6 +30,7 @@ export interface Methodology {
   warmup: number
   connection: 'warm' | 'cold'
   transport: 'stream' | 'buffered'
+  latencyMs: number
   batches: number
   opsPerBatch: number
   browserIterations: number
@@ -51,6 +53,7 @@ export interface RunOptions {
   warmup?: number
   connection?: 'warm' | 'cold'
   transport?: 'stream' | 'buffered'
+  latencyMs?: number
   batches?: number
   opsPerBatch?: number
   browserIterations?: number
@@ -65,6 +68,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
     warmup: options.warmup ?? 30,
     connection: options.connection ?? 'warm',
     transport: options.transport ?? 'stream',
+    latencyMs: options.latencyMs ?? 0,
     batches: options.batches ?? 25,
     opsPerBatch: options.opsPerBatch ?? 200,
     browserIterations: options.browserIterations ?? 5,
@@ -102,6 +106,21 @@ export async function run(options: RunOptions): Promise<RunResult> {
   if (methodology.engines.includes('webkit')) {
     warnings.push(
       `webkit stands for ${ENGINE_PROXIES.webkit.standsFor}, but it is not ${ENGINE_PROXIES.webkit.notA}: do not publish a webkit number as an iOS number`,
+    )
+  }
+  if (methodology.latencyMs === 0 && axes.some((a) => a.needs === 'http')) {
+    warnings.push(
+      'no injected latency: loopback has no network in it, so an early flush cannot be distinguished from a late one. Run --latency 40 or higher for a shell-TTFB claim',
+    )
+  }
+  if (methodology.latencyMs > 0) {
+    warnings.push(
+      `injected ${methodology.latencyMs} ms RTT, latency only: bandwidth, loss, and congestion control are not modelled, and the TCP handshake is not delayed, so a cold-connection number understates a real one`,
+    )
+  }
+  if (scenarios.every((s) => !s.slowMs) && axes.some((a) => a.needs === 'http')) {
+    warnings.push(
+      'every scenario resolves its data instantly: the precomputed-shell claim is about a route whose data is slow. Include the slow-feed scenario',
     )
   }
   if (methodology.transport === 'buffered') {
@@ -217,8 +236,9 @@ async function overHttp(axis: Axis, scenario: Scenario, candidate: Candidate, m:
     return [unavailable(axis, scenario, candidate, candidate.unsupported?.[axis.id] ?? 'candidate does not serve HTTP')]
   }
   const handle = await candidate.serve(scenario, { transport: m.transport })
+  const proxy = m.latencyMs > 0 ? await withLatency(handle.url, { rttMs: m.latencyMs }) : null
   try {
-    const samples = await measureHttp(handle.url, {
+    const samples = await measureHttp(proxy?.url ?? handle.url, {
       iterations: m.iterations,
       warmup: m.warmup,
       connection: m.connection,
@@ -237,10 +257,13 @@ async function overHttp(axis: Axis, scenario: Scenario, candidate: Candidate, m:
           bytes: samples[0]?.bytes ?? 0,
           connection: m.connection,
           transport: m.transport,
+          rtt: m.latencyMs,
+          ...(scenario.slowMs ? { queryMs: scenario.slowMs } : {}),
         },
       },
     ]
   } finally {
+    await proxy?.close()
     await handle.close()
   }
 }

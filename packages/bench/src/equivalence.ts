@@ -100,8 +100,42 @@ export async function checkScenario(scenario: Scenario, candidates: Candidate[])
   return { scenario: scenario.id, ok: checks.every((c) => c.ok), checks }
 }
 
+/**
+ * The measured path is the served one, and a streaming server assembles its response
+ * separately from the in-process renderer. Byte equality in memory does not imply byte
+ * equality on the wire, so both are checked.
+ */
+export async function checkServed(scenario: Scenario, candidates: Candidate[]): Promise<Check[]> {
+  const checks: Check[] = []
+  const servers = candidates.filter((c) => c.serve && !c.thirdParty)
+  if (servers.length < 2) return checks
+
+  const handles = await Promise.all(servers.map((c) => c.serve!(scenario)))
+  try {
+    const bodies = await Promise.all(handles.map(async (h) => new Uint8Array(await (await fetch(h.url)).arrayBuffer())))
+    const reference = bodies[0] as Uint8Array
+    servers.forEach((candidate, i) => {
+      if (i === 0) return
+      const actual = bodies[i] as Uint8Array
+      const ok = actual.length === reference.length && actual.every((b, j) => b === reference[j])
+      checks.push({
+        name: `served bytes over http: ${servers[0]?.id} vs ${candidate.id}`,
+        ok,
+        ...(ok ? {} : { detail: firstDifference(reference, actual) }),
+      })
+    })
+  } finally {
+    await Promise.all(handles.map((h) => h.close()))
+  }
+  return checks
+}
+
 export async function checkAll(scenarios: Scenario[], candidates: Candidate[]): Promise<EquivalenceReport[]> {
   const reports: EquivalenceReport[] = []
-  for (const scenario of scenarios) reports.push(await checkScenario(scenario, candidates))
+  for (const scenario of scenarios) {
+    const report = await checkScenario(scenario, candidates)
+    const served = await checkServed(scenario, candidates)
+    reports.push({ ...report, checks: [...report.checks, ...served], ok: report.ok && served.every((c) => c.ok) })
+  }
   return reports
 }

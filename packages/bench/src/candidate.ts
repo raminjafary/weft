@@ -30,6 +30,8 @@ export interface Candidate {
   serve?(scenario: Scenario, options?: ServeOptions): Promise<ServeHandle>
   /** Set when a candidate cannot support an axis, so the report says why instead of omitting it. */
   unsupported?: Partial<Record<string, string>>
+  /** A third-party framework: measured, but never expected to produce our bytes. */
+  thirdParty?: boolean
 }
 
 export function supports(candidate: Candidate, needs: 'in-process' | 'http' | 'browser'): boolean {

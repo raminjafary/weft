@@ -7,6 +7,7 @@ import type { Candidate } from './candidate.ts'
 import { externalCandidate, type ExternalConfig } from './candidates/external.ts'
 import { segmentsCandidate } from './candidates/segments.ts'
 import { stringSsrCandidate } from './candidates/string-ssr.ts'
+import { blockingSsrCandidate } from './candidates/blocking-ssr.ts'
 import { checkAll } from './equivalence.ts'
 import { compileScenario } from './compiled.ts'
 import { renderMarkdown, comparison } from './report.ts'
@@ -15,7 +16,7 @@ import { SCENARIOS, scenario as scenarioById } from './workloads/index.ts'
 import { stringify } from '../../ir/src/index.ts'
 import type { EngineName } from './measure/browser.ts'
 
-const BUILT_IN: Candidate[] = [segmentsCandidate, stringSsrCandidate]
+const BUILT_IN: Candidate[] = [segmentsCandidate, stringSsrCandidate, blockingSsrCandidate]
 
 function parseArgs(argv: string[]): { command: string; flags: Record<string, string>; positional: string[] } {
   const [command = 'help', ...rest] = argv
@@ -80,6 +81,7 @@ run flags
   --warmup N        HTTP warmup requests (default 30)
   --connection      warm | cold (default warm)
   --transport       stream | buffered (default stream; buffered is the intercepted-webview path)
+  --latency N       injected round-trip time in ms; required for any shell-TTFB claim
   --batches N       in-process timing batches (default 25)
   --ops N           renders per batch (default 200)
   --engines         chromium,firefox,webkit (browser axes; requires playwright)
@@ -147,6 +149,7 @@ async function main(): Promise<number> {
     ...(flags.warmup ? { warmup: Number(flags.warmup) } : {}),
     ...(flags.connection ? { connection: flags.connection as 'warm' | 'cold' } : {}),
     ...(flags.transport ? { transport: flags.transport as 'stream' | 'buffered' } : {}),
+    ...(flags.latency ? { latencyMs: Number(flags.latency) } : {}),
     ...(flags.batches ? { batches: Number(flags.batches) } : {}),
     ...(flags.ops ? { opsPerBatch: Number(flags.ops) } : {}),
     ...(flags.engines ? { engines: csv(flags.engines) as EngineName[] } : {}),

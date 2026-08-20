@@ -35,7 +35,7 @@ export const AXES: Axis[] = [
     expectation: 'beat',
     budget: { value: 15, statistic: 'p50', note: 'warm shell cache' },
     caveat:
-      'Measured over loopback, so it isolates server work and excludes network time. Sub-millisecond differences here are not user-visible TTFB claims; the number that matters is whether server work stays flat as the route gets more expensive.',
+      'Without --latency this measures server work only, and loopback has no network in it. A shell-TTFB claim needs injected RTT and a scenario whose data is genuinely slow, because the question is whether the shell is downstream of the query, not how fast the renderer is.',
   },
   {
     id: 'server-throughput',

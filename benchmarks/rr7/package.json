@@ -1,0 +1,16 @@
+{
+  "name": "@weft/benchmark-rr7",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A React Router 7 app serving the same document as the harness scenarios, for the shell-TTFB axis.",
+  "scripts": {
+    "start": "node server.js",
+    "start:blocking": "MODE=blocking node server.js"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router": "^7.18.2"
+  }
+}

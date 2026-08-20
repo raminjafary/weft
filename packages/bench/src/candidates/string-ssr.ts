@@ -1,7 +1,7 @@
 import type { Hole, Json, TemplateIR, Values } from '../../../ir/src/index.ts'
 import type { Candidate, ServeHandle, ServeOptions, UpdatePayloads } from '../candidate.ts'
 import { compileScenario, compiledFor, type Compiled } from '../compiled.ts'
-import type { Scenario } from '../workloads/index.ts'
+import { sleep, type Scenario } from '../workloads/index.ts'
 import { createServer } from 'node:http'
 
 const utf8 = new TextEncoder()
@@ -102,12 +102,14 @@ function renderSplit(scenario: Scenario, values: Values, rows: Values[]): { pref
 
   let rest = ''
   for (const row of rows) rest += renderTemplate(compiled.row, row, compiled)
+  // A segment always precedes the hole that follows it; reversing these silently
+  // relocates a value and keeps the byte count identical.
   for (let i = listIndex + 1; i < template.parts.length; i++) {
+    rest += template.parts[i]
     const hole = template.holes[i]
     if (hole) {
       rest += hole.escape === 'trusted-raw' ? stringify(values[hole.binding]) : escape(stringify(values[hole.binding]), hole.kind === 'attr')
     }
-    rest += template.parts[i]
   }
   return { prefix, rest }
 }
@@ -149,7 +151,14 @@ export const stringSsrCandidate: Candidate = {
       }
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
       res.write(split.prefix)
-      res.end(split.rest)
+      if (!scenario.slowMs) {
+        res.end(split.rest)
+        return
+      }
+      void sleep(scenario.slowMs).then(() => {
+        const fresh = renderSplit(scenario, values, scenario.rows())
+        res.end(fresh ? fresh.rest : '')
+      })
     })
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
     const address = server.address()

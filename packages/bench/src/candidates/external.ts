@@ -42,6 +42,7 @@ export function externalCandidate(config: ExternalConfig): Candidate {
     id: config.id,
     label: config.label,
     mechanism: config.mechanism,
+    thirdParty: true,
     unsupported: {
       'server-throughput': 'in-process rendering is not reachable across a process boundary',
       'update-bytes': 'update payloads are framework-internal; measure over HTTP instead',

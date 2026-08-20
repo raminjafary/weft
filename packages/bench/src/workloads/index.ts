@@ -10,6 +10,11 @@ export interface Scenario {
   /** Root values, excluding the list binding, which comes from rows(). */
   values(): Values
   rows(): Values[]
+  /**
+   * Milliseconds the row data takes to resolve, per request. A route whose data is
+   * genuinely slow is the only place the precomputed-shell claim can be tested.
+   */
+  slowMs?: number
   /** The state transition the update-bytes axis measures: a realistic partial change. */
   transition(rows: Values[]): Values[]
 }
@@ -54,13 +59,14 @@ const shell: Scenario = {
   transition: (rows) => rows,
 }
 
-function lines(id: string, label: string, route: string, count: number): Scenario {
+function lines(id: string, label: string, route: string, count: number, slowMs?: number): Scenario {
   const seed = [...id].reduce((acc, c) => acc * 31 + c.charCodeAt(0), 7919)
   return {
     id,
     label,
     route,
     fixture: fixture('lines.tsx'),
+    ...(slowMs === undefined ? {} : { slowMs }),
     values: () => ({ epoch: 'e7', total: 12000 }),
     rows: () => {
       const rand = lcg(seed)
@@ -80,7 +86,12 @@ export const SCENARIOS: Scenario[] = [
   shell,
   lines('cart', 'Cart lines, 12 rows', '/cart', 12),
   lines('feed', 'Product feed, 50 rows', '/feed', 50),
+  lines('slow-feed', 'Product feed, 50 rows behind a 40 ms query', '/feed', 50, 40),
 ]
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 export function scenario(id: string): Scenario {
   const found = SCENARIOS.find((s) => s.id === id)

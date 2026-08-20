@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.0.0",
-  "engines": { "node": ">=22.18.0" },
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "scripts": {
     "compile": "node packages/compiler/src/cli.ts",
     "bench": "node packages/bench/src/cli.ts run",
@@ -12,6 +14,10 @@
     "test": "node --test packages/*/test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "devDependencies": {},
-  "workspaces": ["packages/*"]
+  "devDependencies": {
+    "@types/node": "^26.2.0"
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 }
