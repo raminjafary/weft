@@ -68,6 +68,9 @@ export function validateTemplate(ir: TemplateIR): ValidationResult {
     } else if (h.props !== undefined) {
       fail('E_PROPS_KIND', `holes[${i}]`, 'only a component hole projects props')
     }
+    if (h.isolated && h.kind !== 'component') {
+      fail('E_ISOLATED_KIND', `holes[${i}]`, 'only a component hole can be its own cache unit')
+    }
     if (h.nested !== undefined) {
       if (h.kind !== 'list' && h.kind !== 'component')
         fail('E_NESTED_KIND', `holes[${i}]`, 'only a list or component hole can name a nested template')

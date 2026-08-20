@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { assertValidTemplate, draftTemplate, seal, type Hole, type TemplateIR } from '../../ir/src/index.ts'
+import {
+  assertValidTemplate,
+  draftTemplate,
+  render,
+  seal,
+  type Hole,
+  type TemplateIR,
+} from '../../ir/src/index.ts'
 import { fillFor, splitAtSlots, streamRoute, type Route } from '../src/index.ts'
 
 const decoder = new TextDecoder()
@@ -142,4 +149,56 @@ test('a route with no slots streams as one document and needs no filler', async 
     ),
   )
   assert.equal(text, '<p>x</p>')
+})
+
+test('an isolated instance is cut out of the shell exactly as a slot is', async () => {
+  const child = await seal(
+    draftTemplate({
+      id: 'who',
+      segments: ['<b>', '</b>'],
+      holes: [{ index: 0, kind: 'text', escape: 'escape', binding: 'name', path: [0] }],
+    }),
+  )
+  const shellIr = await seal(
+    draftTemplate({
+      id: 'shell',
+      segments: ['<p>', '', '</p>'],
+      holes: [
+        { index: 0, kind: 'text', escape: 'escape', binding: 'currency', path: [0] },
+        {
+          index: 1,
+          kind: 'component',
+          escape: 'trusted-raw',
+          binding: 'c0',
+          path: [0, 0],
+          nested: child.version,
+          props: { name: 'who' },
+          provenance: 'who',
+          isolated: true,
+        },
+      ],
+    }),
+  )
+  const resolve = (v: string) => (v === child.version ? child : undefined)
+
+  // The shell renders without the private child in it, which is the whole point: those
+  // bytes are cacheable for everyone.
+  assert.equal(decoder.decode(render(shellIr, { currency: 'IQD', who: 'Sara' }, resolve)), '<p>IQD</p>')
+
+  const split = splitAtSlots(shellIr, { currency: 'IQD' }, resolve)
+  assert.deepEqual(split.slots, ['c0'], 'the instance is a cut, not a value')
+  assert.equal(split.chunks.length, 2)
+
+  const streamed = await collect(
+    streamRoute(
+      {
+        template: shellIr,
+        values: { currency: 'IQD' },
+        resolve,
+        slots: { c0: async () => render(child, { name: 'Sara' }) },
+      },
+      { order: 'in-order' },
+    ),
+  )
+  assert.equal(streamed.text, '<p>IQD<b>Sara</b></p>', 'composed at stream time, from two cache entries')
 })

@@ -40,6 +40,13 @@ export interface Hole {
    */
   props?: Record<string, BindingId>
   /**
+   * For a `component` hole: the instance is its own cache unit and the parent does not
+   * render it. Set when the child is private and the parent is not — containment, so that
+   * one private fragment does not make a whole shared route private. The parent leaves a
+   * boundary the kernel fills, exactly as it does for a `slot`.
+   */
+  isolated?: boolean
+  /**
    * For a `text` hole: the ordinal of the marker comment its value follows, counted in
    * document order within the fragment and skipping list-hole subtrees. Absent means the
    * value is the only text child of the element at `path`.
@@ -157,7 +164,9 @@ export function draftTemplate(t: DraftTemplate): TemplateIR {
  */
 export function derivableForms(holes: Hole[]): WireForm[] {
   const forms: WireForm[] = ['html', 'bundle', 'split', 'patch']
-  const projectable = holes.every((h) => h.kind !== 'slot')
+  // An isolated instance is structurally a hole this render does not fill, which is what
+  // a slot is. Neither can be projected from values the parent holds.
+  const projectable = holes.every((h) => h.kind !== 'slot' && !h.isolated)
   if (projectable) forms.push('delta')
   return forms
 }

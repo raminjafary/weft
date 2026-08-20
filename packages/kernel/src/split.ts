@@ -10,10 +10,12 @@ export interface SlotSplit {
 }
 
 /**
- * Cuts the shell at its slot holes. Everything between two slots is bytes the server can
- * send before it knows anything about the slow work, which is the whole reason a slot
- * exists: a fragment that reads something slow becomes a hole by construction, so the
- * shell is never downstream of the query.
+ * Cuts the shell at its slot holes, and at every instance the compiler isolated. Everything
+ * between two of them is bytes the server can send before it knows anything about the slow
+ * work, which is the whole reason a slot exists: a fragment that reads something slow
+ * becomes a hole by construction, so the shell is never downstream of the query. An
+ * isolated instance is the same cut made for a different reason — the child is private and
+ * the shell is not, so they cannot share one cache entry.
  */
 export function splitAtSlots(ir: TemplateIR, values: Values, resolve?: Resolver): SlotSplit {
   const chunks: Uint8Array[] = []
@@ -37,7 +39,10 @@ export function splitAtSlots(ir: TemplateIR, values: Values, resolve?: Resolver)
     pending.push(ir.segments[i] as Uint8Array)
     const hole = ir.holes[i]
     if (!hole) continue
-    if (hole.kind === 'slot') {
+    // A slot and an isolated instance are the same shape of hole: bytes this render does
+    // not own. One was left for slow work, the other for work with a different cache
+    // class, and the shell is sent before either resolves.
+    if (hole.kind === 'slot' || hole.isolated) {
       flush()
       slots.push(hole.binding)
       continue

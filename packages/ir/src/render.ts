@@ -234,6 +234,9 @@ function writeTemplate(
     const hole = ir.holes[i]
     if (!hole) continue
     if (hole.kind === 'component') {
+      // An isolated instance is not this render's to produce: it has its own cache entry,
+      // and the kernel composes it in the same pass that fills a slot.
+      if (hole.isolated) continue
       off = writeTemplate(child(hole, resolve), componentValues(hole, values), resolve, out, off)
       continue
     }
@@ -306,6 +309,7 @@ export function byteLength(ir: TemplateIR, supplied: Values, resolve?: Resolver)
     const hole = ir.holes[i]
     if (!hole) continue
     if (hole.kind === 'component') {
+      if (hole.isolated) continue
       total += byteLength(child(hole, resolve), componentValues(hole, values), resolve)
       continue
     }
