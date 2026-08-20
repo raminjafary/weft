@@ -6,8 +6,8 @@ later means every client already in the field is unversioned.
 
 | Spec             | Id                   | Version | Reference implementation |
 | ---------------- | -------------------- | ------- | ------------------------ |
-| Template IR      | `weft.template-ir/2` | 2.1.0   | `packages/ir`            |
-| Payloads (delta) | `weft.payload/2`     | 2.1.0   | `packages/ir`            |
+| Template IR      | `weft.template-ir/2` | 2.2.0   | `packages/ir`            |
+| Payloads (delta) | `weft.payload/2`     | 2.2.0   | `packages/ir`            |
 | Warp frames      | `weft.warp/1`        | 1.0.0   | `packages/warp`          |
 
 ## What each version component means
@@ -45,6 +45,28 @@ requires nothing resident on the client, which is why it is the fallback wheneve
 versions disagree: a version mismatch costs a form, never the page.
 
 ## Changelog
+
+### Template IR 2.2.0 — the derived table
+
+`derived` carries values computed from other bindings, encoded as an expression tree
+rather than compiled to a function. The server evaluates it to render, and the client
+evaluates the same tree inside a computed, which is what makes `{qty() * 100}` reactive
+without shipping a component. The operator set is closed and every operator in it is
+total over JSON values, so an evaluator on either side is a switch with no escape hatch —
+an unknown operator is `E_DERIVED_EXPR` at validation, not a surprise at runtime.
+
+Two rules split ownership. A derived value that reaches a signal is the client's: the
+server renders it once from the signal's initial value and never speaks about it again.
+Everything else is the server's, and rides in the delta like any other value. A delta
+that carried a client-owned derived value would overwrite whatever the user had already
+done to it.
+
+Declaration order is evaluation order, so one derived value may read another declared
+before it and never one declared after (`E_DERIVED_FORWARD_READ`). That is what keeps the
+table acyclic without a graph walk.
+
+Additive, so a minor: a 2.1.0 document simply has no derived values, and the registered
+migration defaults the field rather than rewriting anything.
 
 ### Template IR 2.1.0 — anchors on holes
 

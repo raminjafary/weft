@@ -31,19 +31,44 @@ export default fragment(({ epoch, rows, total }) => (
 No sigils, no `'use client'`, no directives. `fragment` and `signal` are ordinary
 imports, and the compiler recognises them by resolving the import rather than by name.
 
-| Construct                                   | Lowers to                                                                          |
-| ------------------------------------------- | ---------------------------------------------------------------------------------- |
-| HTML element, static attributes             | bytes in a segment                                                                 |
-| `attr={expr}`                               | an `attr` hole inside the quoted value                                             |
-| `disabled={expr}` (known boolean attribute) | an `attr-bool` hole; the name is the value                                         |
-| `{expr}` between nodes                      | a `text` hole                                                                      |
-| `{'literal'}`, `{42}`                       | folded into the segment — no hole at all                                           |
-| `{raw(x)}`                                  | a `trusted-raw` hole whose provenance is the source text of `x`                    |
-| `{rows.map((row) => …)}`                    | a `list` hole plus a nested template, sealed first so the parent names its version |
-| `onEvent={imported}`                        | a wiring `event` op carrying an intent id derived from the module and export       |
-| `signal()` read                             | a hole plus a wiring op, since only a signal can change on the client              |
-| `<slot>{fallback}</slot>`                   | a `slot` hole: the base render emits nothing and a later frame fills it            |
-| `<>…</>` at the root                        | a template with no wrapper element                                                 |
+| Construct                                   | Lowers to                                                                           |
+| ------------------------------------------- | ----------------------------------------------------------------------------------- |
+| HTML element, static attributes             | bytes in a segment                                                                  |
+| `attr={expr}`                               | an `attr` hole inside the quoted value                                              |
+| `disabled={expr}` (known boolean attribute) | an `attr-bool` hole; the name is the value                                          |
+| `{expr}` between nodes                      | a `text` hole                                                                       |
+| `{'literal'}`, `{42}`                       | folded into the segment — no hole at all                                            |
+| `{raw(x)}`                                  | a `trusted-raw` hole whose provenance is the source text of `x`                     |
+| `{rows.map((row) => …)}`                    | a `list` hole plus a nested template, sealed first so the parent names its version  |
+| `onEvent={imported}`                        | a wiring `event` op carrying an intent id derived from the module and export        |
+| `signal()` read                             | a hole plus a wiring op, since only a signal can change on the client               |
+| `{a * 2}`, `{qty() > 9}`, `{(a + b) / 2}`   | a hole plus a `derived` entry: the expression tree, wired only if it reads a signal |
+| `<slot>{fallback}</slot>`                   | a `slot` hole: the base render emits nothing and a later frame fills it             |
+| `<>…</>` at the root                        | a template with no wrapper element                                                  |
+
+## Derived values
+
+An arithmetic or comparison expression becomes a `derived` entry in the IR — the
+expression tree, not compiled code — and a hole bound to it. The server evaluates it to
+render; the client evaluates the same tree inside a computed, so `{qty() * 100}` moves
+when the signal does without a component ever running.
+
+Whether it is wired follows from what it reads. An expression that reaches a signal is
+the client's and gets a wiring entry; one over props alone is the server's and gets none.
+Nothing is declared, both cases are written identically, and the split is visible in the
+IR rather than in a convention.
+
+The operator set is closed: `! - + ~` and `+ - * / % ** < > <= >= === !== == !=`. An
+operator outside it is `E_OPERATOR_UNSUPPORTED` rather than a silent fallback to
+server-only evaluation, because a value that stops updating is harder to notice than a
+build error. Logical operators, ternaries, and calls are not in the set yet.
+
+The escape class still comes from the syntax: arithmetic and comparison cannot produce
+markup and are `proven-safe`, while `+` can concatenate a string and stays `escape`.
+
+Scope rules do not change. A signal read inside an expression inside a list row is still
+`E_SIGNAL_IN_LIST` — a row is its own template, and the expression is lowered through the
+same classifier every other interpolation uses.
 
 ## Effects
 
@@ -127,7 +152,7 @@ moving any sibling.
 | `E_COMPUTED_MEMBER`             | `{o[k]}` has no static binding name                             |
 | `E_UNKNOWN_BINDING`             | the identifier is not a prop of this fragment                   |
 | `E_SIGNAL_NOT_READ`             | `{n}` where `n` is a signal — write `{n()}`                     |
-| `E_DERIVED_SIGNAL_UNSUPPORTED`  | `{n() * 2}` needs client-side computation                       |
+| `E_OPERATOR_UNSUPPORTED`        | the operator is outside the set the client can evaluate         |
 | `E_SIGNAL_IN_LIST`              | a row is its own template and cannot close over an outer signal |
 | `E_OUT_OF_ROW_SCOPE`            | a row referenced a value that is not its item                   |
 | `E_LIST_NOT_SOLE_CHILD`         | a list must be the only child of its element                    |

@@ -123,6 +123,44 @@ holes (IR 2.1.0) a delta is applied as designed — one write per changed value 
 The lesson is not about deltas. A measurement of a capability that does not exist yet
 measures the stand-in, and reports it as if it were the thing.
 
+## Paid for, honestly: the signal graph rewrite
+
+The graph was rewritten to alien-signals' shape — doubly linked dependency edges, bitflag
+node status, push-pull propagation with a lazy `checkDirty` — replacing a value with a
+`Set` of subscribers. The stated reason was derived values: nothing computed on the
+client, so the compiler had to refuse `{n() * 2}`.
+
+Measured back to back on one machine on the `isolated-dom-update` axis, the rewrite made
+the one-signal-one-node case **slower**: 0.28 → 0.31 µs on Chromium, 0.72 → 0.74 µs on
+WebKit, a tie on Firefox. The old code went straight from `set` to the subscriber call;
+this one pushes through propagate, a queue and a flush. The runtime grew 1,695 → 2,583
+bytes brotli. The axis expects a tie against Solid, Svelte 5 and Vue Vapor, and it is
+still a tie — but a rewrite that costs 7% on its own referee is not a performance win, and
+recording it as one would be the same error as the `delta` correction below.
+
+What it bought is one step out, and it is real: on the `derived` scenario, one signal
+write reaching a node **through a computed** is not separable from the direct write at
+this sample size in any of the three engines. The harness refused all three comparisons
+rather than report a difference inside its own noise. Laziness, diamond dedup and dynamic
+dependencies arrived at no measurable per-write cost — which is the claim worth making,
+rather than a throughput one.
+
+## Caught by a gate: a delta was carrying values nothing could write
+
+Adding a scenario whose holes are computed rather than bound directly made the
+cross-engine conformance check fail on "a delta writes one value per changed path". Two
+distinct bugs were behind it, both older than derived values:
+
+A delta diffed the whole value set, including bindings with **no hole in the template**. A
+prop that appears only inside an expression has nothing to be written into, so the client
+skipped it — one write for two paths. Deltas now carry only what the template can address.
+
+The scenario's own transition moved a **signal**, asking the server to re-render state the
+client owns. That is not a bug in the delta; it is a category error in the scenario, and
+the fix was to move a prop instead. The rule it forced into the format is worth more than
+the fix: a derived value that reaches a signal is the client's, and a delta must never
+carry it.
+
 ## Two claims the design makes that cannot be tested yet
 
 **Effect-tracked rendering.** _Partly answered since this page was written._ The compiler
