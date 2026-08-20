@@ -2,6 +2,7 @@ import type { EscapeClass, Hole, SignalDecl, WiringEntry } from '../../ir/src/in
 import { BOOLEAN_ATTRIBUTES, VOID_ELEMENTS, isSurviving, name, node, nodes, trimJsxText, type Node } from './ast.ts'
 import { CompileError, locate } from './errors.ts'
 import { intentId } from './intents.ts'
+import { cannotBeMarkup, type TypeOracle } from './types.ts'
 
 export interface ImportRef {
   module: string
@@ -65,6 +66,8 @@ export interface LowerInput {
   scope: Scope
   file: string
   source: string
+  /** When present, escaping is decided by the value's type rather than by its syntax. */
+  types?: TypeOracle
 }
 
 export function lower(input: LowerInput): Lowered {
@@ -110,6 +113,21 @@ function source(input: LowerInput, at: Node): string {
 }
 
 function classify(expr: Node, input: LowerInput, em: Emitter): Classified {
+  return withTypeInformation(expr, input, classifyBySyntax(expr, input, em))
+}
+
+/**
+ * Syntax can only prove a value safe in a handful of shapes. A type says so for any
+ * expression, which is where the elided escaping the syntax pass gives up comes back.
+ */
+function withTypeInformation(expr: Node, input: LowerInput, classified: Classified): Classified {
+  if (!input.types) return classified
+  if (classified.escape !== 'escape' || classified.constant !== undefined) return classified
+  const kind = input.types.kindAt(input.file, expr.start ?? -1, expr.end ?? -1)
+  return cannotBeMarkup(kind) ? { ...classified, escape: 'proven-safe' } : classified
+}
+
+function classifyBySyntax(expr: Node, input: LowerInput, em: Emitter): Classified {
   const scope = input.scope
 
   if (expr.type === 'Literal') {
@@ -435,6 +453,7 @@ function lowerList(list: { array: Node; callback: Node }, path: number[], em: Em
     root: rowRoot,
     file: input.file,
     source: input.source,
+    ...(input.types ? { types: input.types } : {}),
     scope: { ...input.scope, itemParam: name(param), signals: input.scope.signals },
   })
 

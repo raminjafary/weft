@@ -1,4 +1,5 @@
 export * from './compile.ts'
+export * from './types.ts'
 export * from './errors.ts'
 export { intentId } from './intents.ts'
 export type { ImportRef, Lowered, Scope } from './lower.ts'

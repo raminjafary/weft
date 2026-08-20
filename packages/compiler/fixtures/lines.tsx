@@ -1,7 +1,20 @@
 import { fragment } from 'weft'
 import { setQuantity } from './intents.ts'
 
-export default fragment(({ epoch, rows, total }) => (
+interface Row {
+  sku: number
+  name: string
+  qty: number
+  price: number
+}
+
+interface LinesProps {
+  epoch: string
+  rows: Row[]
+  total: number
+}
+
+export default fragment(({ epoch, rows, total }: LinesProps) => (
   <>
     <ul class="lines" data-epoch={epoch}>
       {rows.map((row) => (

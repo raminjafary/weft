@@ -66,7 +66,7 @@ function fromBase64(b64: string): Uint8Array {
  * into the line, so text framing is not byte-transparent and production uses binary.
  */
 export function encodeTextFrame(f: Frame): string {
-  const parts = [f.kind]
+  const parts: string[] = [f.kind]
   const header = encodeHeader(f.header)
   if (header) parts.push(header)
   if (f.body) {
@@ -137,7 +137,7 @@ export interface Decoder {
 }
 
 export function createBinaryDecoder(options: DecoderOptions = {}): Decoder {
-  let buf = new Uint8Array(0)
+  let buf: Uint8Array<ArrayBufferLike> = new Uint8Array(0)
   let sawPreamble = false
   const state: Decoder = {
     peer: null,

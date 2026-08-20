@@ -12,6 +12,7 @@ import {
 import { name, node, nodes, type Node } from './ast.ts'
 import { CompileError, locate } from './errors.ts'
 import { lower, returnedJsx, type ImportRef, type Lowered, type Scope } from './lower.ts'
+import { createTypeOracle, type TypeOracle } from './types.ts'
 
 export interface CompiledFragment {
   /** The root template, plus every nested row template it needs, sealed. */
@@ -31,6 +32,8 @@ export interface CompileOptions {
    * an absolute path would make a template's version depend on where it was checked out.
    */
   root?: string
+  /** Type information for escape elision. Without it the compiler escapes by default. */
+  types?: TypeOracle
 }
 
 function moduleId(file: string, root?: string): string {
@@ -182,7 +185,7 @@ export async function compileSource(source: string, file: string, options?: Comp
     const { props, propsIdent } = readProps(nodes(fn.params)[0])
     const scope: Scope = { props, signals, imports, ...(propsIdent ? { propsIdent } : {}) }
     const id = `${moduleId(file, options?.root)}#${exportName}`
-    const input = { id, root: body, scope, file, source }
+    const input = { id, root: body, scope, file, source, ...(options?.types ? { types: options.types } : {}) }
     const root = body.type === 'BlockStatement' ? returnedJsx(body, input) : body
 
     const lowered = lower({ ...input, root })
@@ -195,4 +198,40 @@ export async function compileSource(source: string, file: string, options?: Comp
 
 export async function compileFile(path: string, options?: CompileOptions): Promise<CompiledModule> {
   return compileSource(await readFile(path, 'utf8'), path, options)
+}
+
+/**
+ * Compiles with type information. Building a checker over the whole file set once is
+ * far cheaper than one program per file, so this is the entry point a build should use.
+ */
+export async function compileFiles(
+  files: string[],
+  options?: Omit<CompileOptions, 'types'> & { types?: boolean },
+): Promise<{ modules: CompiledModule[]; diagnostics: string[] }> {
+  let oracle: TypeOracle | undefined
+  let diagnostics: string[] = []
+  if (options?.types !== false) {
+    try {
+      oracle = createTypeOracle(files, options?.root)
+      diagnostics = oracle.diagnostics()
+    } catch {
+      // TypeScript is an optional peer: without it the compiler falls back to syntax.
+      oracle = undefined
+    }
+  }
+  try {
+    const modules: CompiledModule[] = []
+    for (const file of files) {
+      modules.push(
+        await compileFile(file, {
+          ...(options?.root ? { root: options.root } : {}),
+          ...(oracle ? { types: oracle } : {}),
+        }),
+      )
+    }
+    return { modules, diagnostics }
+  } finally {
+    // The checker runs as a separate process; leaving it up would hang the caller.
+    oracle?.dispose()
+  }
 }

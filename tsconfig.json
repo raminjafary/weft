@@ -2,6 +2,7 @@
   "compilerOptions": {
     "target": "es2023",
     "lib": ["es2023", "dom"],
+    "jsx": "preserve",
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "allowImportingTsExtensions": true,
@@ -14,5 +15,10 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["packages/*/src/**/*.ts", "packages/*/test/**/*.ts"]
+  "include": [
+    "packages/*/src/**/*.ts",
+    "packages/*/test/**/*.ts",
+    "packages/compiler/types/*.d.ts",
+    "packages/compiler/fixtures/**/*.tsx"
+  ]
 }

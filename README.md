@@ -17,7 +17,7 @@ without a harness and a wire format cannot be versioned retroactively.
 | Warp frames, `weft.warp/1` | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp` | 1.0.0, both framings, negotiation |
 | Versioning contract | [`spec/VERSIONING.md`](spec/VERSIONING.md) | Majors refuse, minors round-trip |
 | Device and engine reality | [`spec/baseline/devices.md`](spec/baseline/devices.md) | Written before the numbers |
-| Template compiler | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler` | TSX to IR, on Oxc. Refuses what it cannot lower |
+| Template compiler | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler` | TSX to IR, on Oxc, with type-driven escape elision |
 | Benchmark harness | `packages/bench` | Three axes measured, three await a client runtime |
 | React Router 7 candidate | [`benchmarks/rr7`](benchmarks/rr7) | The phase-zero gate, tuned and default shapes |
 
@@ -29,6 +29,7 @@ No build step — Node 22.18+ strips the types. One install, for the compiler's 
 pnpm install                                                # Oxc, for the compiler only
 
 node packages/compiler/src/cli.ts packages/compiler/fixtures/*.tsx --out build/ir
+node packages/compiler/src/cli.ts fixtures/*.tsx --no-types   # syntax-only elision
 node packages/bench/src/cli.ts list                         # axes, scenarios, candidates
 node packages/bench/src/cli.ts verify                       # every wire form must agree
 node packages/bench/src/cli.ts run                          # measure and write a report
@@ -36,7 +37,8 @@ node packages/bench/src/cli.ts run --transport buffered      # the intercepted-w
 node packages/bench/src/cli.ts run --axes shell-ttfb --scenarios slow-feed \
   --latency 40 --external benchmarks/rr7/candidates.json    # the gate, against RR7
 node packages/bench/src/cli.ts ir cart                       # the compiled, sealed IR
-node --test packages/*/test/*.test.ts                        # 73 conformance tests
+npm run typecheck                                            # TypeScript 7, clean
+node --test packages/*/test/*.test.ts                        # 81 conformance tests
 node packages/bench/src/cli.ts run --axes client-work         # what each form costs a client
 ```
 
@@ -121,11 +123,34 @@ Applying a delta *surgically* needs anchors on holes, which is
 [a known gap](spec/ir/template-ir-2.md) left deliberately open until a client runtime
 exists to consume it.
 
-The second finding is the price of a syntax-only compiler. The hand-written IR this
-replaced marked numeric holes `proven-safe`; the compiler cannot prove that about a prop
-without type information, so it escapes by default and gives back 5–12% of the
-throughput win. Escape elision is a type-checker feature, not a syntax feature — that is
-the strongest argument for feeding `tsc`'s types into the pass.
+## A correction
+
+An earlier version of this file claimed that syntax-only escape elision cost 5–12% of the
+throughput win, and that feeding types into the compiler would recover it. The compiler
+now has type information — it asks the TypeScript checker, so `{total}` is `proven-safe`
+when `total` is a number and escaped when it is a string — and the recovery **did not
+happen**. Measured directly, on the same templates with elision on and off:
+
+| | ns per render |
+| --- | --- |
+| Typed, 4 holes elided | 16,780 |
+| Syntax-only, 0 elided | 16,503 |
+
+Elision is worth nothing here, and the reason is that the renderer already elides at
+runtime: it scans a value before escaping it and writes it untouched when the scan finds
+nothing, which for `"8715"` is a few nanoseconds. The compile-time proof saves the scan
+and the scan was never the cost.
+
+The real 7.9% was the **marker comments**. The compiler emits `<!>` before a dynamic text
+run so the text node is addressable, and the hand-written IR it replaced had none. That is
+a genuine cost for a genuine capability, and mis-attributing it to escaping was a guess
+dressed as a finding.
+
+The type oracle stays, on a smaller and honest justification: it makes the IR's escape
+class *true* rather than conservative. A JavaScript renderer can afford to scan; a native
+codec crossing a WASM boundary per hole, or a client projecting values into a resident
+template, cannot. An escape class that says "escape" about a number is a lie the format
+should not carry, whatever this particular renderer does with it.
 
 ## The phase-zero gate, and its answer
 
