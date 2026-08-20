@@ -42,9 +42,14 @@ OS-level suspension. Every report labels it as a proxy, and the runner emits a w
 whenever `webkit` is in the engine list. A webkit number is never published as an iOS
 number.
 
+One of these has since been answered for desktop builds: incremental declarative shadow DOM
+works in Chromium, Firefox and WebKit — see
+[the streaming spec](../kernel/streaming.md). That removes the desktop half of the risk and
+none of the device half.
+
 Three things need real devices and are therefore out of the harness's reach today:
 
-1. Whether incremental DSD parsing works on a given iOS version.
+1. Whether incremental DSD parsing works on a given iOS version, on a device.
 2. What a host app's request interception does to first-byte timing.
 3. How often a backgrounded webview is evicted, and what `RESUME` recovers in practice.
 

@@ -9,6 +9,8 @@ import { segmentsCandidate } from './candidates/segments.ts'
 import { stringSsrCandidate } from './candidates/string-ssr.ts'
 import { blockingSsrCandidate } from './candidates/blocking-ssr.ts'
 import { measureBudgets } from './budget.ts'
+import { fillerSize } from '../../kernel/src/index.ts'
+import { DELAYS, measureSlots, probeIncrementalDsd } from './measure/slots.ts'
 import { checkAll } from './equivalence.ts'
 import { measureClientRuntime } from './measure/client-runtime.ts'
 import { compileScenario } from './compiled.ts'
@@ -73,6 +75,7 @@ const HELP = `weft-bench — phase-zero benchmark harness
   verify    check that every wire form of a fragment produces identical bytes
   client    run the client runtime's own conformance checks in every engine
   budget    bundle each entry and measure it against its byte budget
+  slots     stream a route in both orders, and probe incremental shadow DOM
   list      list axes, scenarios, and candidates
   ir        print the sealed, versioned IR for a scenario
 
@@ -120,6 +123,40 @@ async function main(): Promise<number> {
     if (compiled.row) process.stdout.write(`${stringify(compiled.row)}\n`)
     process.stdout.write(`${stringify(compiled.root)}\n`)
     return 0
+  }
+
+  if (command === 'slots') {
+    const engines = (csv(flags.engines) ?? ['chromium', 'firefox', 'webkit']) as EngineName[]
+    const p50 = (xs: number[]) => {
+      const sorted = [...xs].sort((a, b) => a - b)
+      return sorted[Math.floor(sorted.length / 2)] ?? NaN
+    }
+    let failed = false
+
+    process.stdout.write(`the slow region is first in document order, ${DELAYS.feed}ms against ${DELAYS.recs}ms\n\n`)
+    for (const engine of engines) {
+      const run = await measureSlots(engine, Number(flags.iterations ?? 5))
+      if (!run.sameDom) {
+        failed = true
+        process.stdout.write(`FAIL  ${engine}: the two orders end at different DOM\n      ${run.domDetail}\n`)
+      }
+      process.stdout.write(
+        `${engine.padEnd(9)} in-order      slow ${p50(run.inOrder.map((t) => t.feed)).toFixed(0).padStart(4)}ms  fast ${p50(run.inOrder.map((t) => t.recs)).toFixed(0).padStart(4)}ms\n`,
+      )
+      process.stdout.write(
+        `${''.padEnd(9)} out-of-order  slow ${p50(run.outOfOrder.map((t) => t.feed)).toFixed(0).padStart(4)}ms  fast ${p50(run.outOfOrder.map((t) => t.recs)).toFixed(0).padStart(4)}ms  (+${fillerSize()} B inline)\n`,
+      )
+    }
+
+    process.stdout.write('\nincremental declarative shadow DOM, host closes at 60ms\n\n')
+    for (const engine of engines) {
+      const probe = await probeIncrementalDsd(engine)
+      const incremental = probe.shadowRootMs !== null && probe.shadowRootMs < 55
+      process.stdout.write(
+        `${engine.padEnd(9)} shadow root at ${probe.shadowRootMs === null ? 'never' : `${probe.shadowRootMs.toFixed(0)}ms`}  slotted at ${probe.slottedMs === null ? 'never' : `${probe.slottedMs.toFixed(0)}ms`}  rendered ${probe.renderedBeforeClose}  ${incremental ? 'incremental' : 'NOT INCREMENTAL'}\n`,
+      )
+    }
+    return failed ? 1 : 0
   }
 
   if (command === 'budget') {

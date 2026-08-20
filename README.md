@@ -19,6 +19,7 @@ without a harness and a wire format cannot be versioned retroactively.
 | Device and engine reality | [`spec/baseline/devices.md`](spec/baseline/devices.md) | Written before the numbers |
 | Template compiler | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler` | TSX to IR, on Oxc, with type-driven escape elision |
 | Client runtime | [`spec/client/adoption.md`](spec/client/adoption.md), `packages/client` | Adoption, signals, surgical deltas, resident templates over Warp |
+| Route streaming | [`spec/kernel/streaming.md`](spec/kernel/streaming.md), `packages/kernel` | Slots streamed in order or fastest-first |
 | Benchmark harness | `packages/bench` | All six axes measured |
 | React Router 7 candidate | [`benchmarks/rr7`](benchmarks/rr7) | The phase-zero gate, tuned and default shapes |
 
@@ -35,13 +36,14 @@ node packages/bench/src/cli.ts list                         # axes, scenarios, c
 node packages/bench/src/cli.ts verify                       # every wire form must agree
 node packages/bench/src/cli.ts client                      # adopt and patch, in three engines
 node packages/bench/src/cli.ts budget                      # bundle each entry against its byte budget
+node packages/bench/src/cli.ts slots                       # both stream orders, and the shadow-DOM probe
 node packages/bench/src/cli.ts run                          # measure and write a report
 node packages/bench/src/cli.ts run --transport buffered      # the intercepted-webview path
 node packages/bench/src/cli.ts run --axes shell-ttfb --scenarios slow-feed \
   --latency 40 --external benchmarks/rr7/candidates.json    # the gate, against RR7
 node packages/bench/src/cli.ts ir cart                       # the compiled, sealed IR
 npm run typecheck                                            # TypeScript 7, clean
-node --test packages/*/test/*.test.ts                        # 101 conformance tests
+node --test packages/*/test/*.test.ts                        # 110 conformance tests
 node packages/bench/src/cli.ts run --axes client-work         # what each form costs a client
 ```
 
@@ -156,6 +158,35 @@ several holes — a quantity is an input's value, an output's text, and a button
 flag — and the first implementation wrote only to the last of the three. It also caught a
 benchmark measuring an empty loop, because the template under test wired nothing at all
 and `set()` was updating a number and touching no DOM.
+
+## Streaming, and the platform risk that did not materialise
+
+Streaming is the largest advantage measured anywhere in this project — 2.19× to first byte
+against RR7's default shape — and it now belongs to a route rather than to a benchmark
+candidate. A slot is a hole the shell refuses to wait for, and a route can stream its slots
+two ways. With the slow region first, at 80 ms against 20 ms:
+
+| | Chromium | Firefox | WebKit |
+| --- | --- | --- | --- |
+| in-order, fast region | 103 ms | 104 ms | 103 ms |
+| out-of-order, fast region | **22 ms** | **23 ms** | **22 ms** |
+
+4.7× earlier, for 329 bytes of inline script, with identical final DOM in all three
+engines.
+
+**The design's largest platform risk does not materialise.** Incremental declarative
+shadow DOM — attaching a shadow root while its host is still streaming — works in
+Chromium, Firefox and WebKit alike: the root exists at 8–38 ms against a host that does not
+close until 60 ms, and slotted content renders as it arrives. Zero-JavaScript hole filling
+is real, not a hope.
+
+**But it sharpens into something less convenient than hoped.** Zero-JavaScript filling and
+out-of-order filling are mutually exclusive. Slot assignment works on the children of a
+host that is *still open*, and keeping a host open until its content arrives is exactly
+in-order streaming — which needs no fill mechanism at all. Out-of-order needs every host
+closed, so content must arrive elsewhere and be moved, and moving a node is JavaScript. The
+329 bytes are not a fallback for weaker engines; they are the price of fastest-first on
+every engine.
 
 ## Byte budgets
 
