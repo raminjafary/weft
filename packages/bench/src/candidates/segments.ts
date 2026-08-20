@@ -1,74 +1,12 @@
-import {
-  type Resolver,
-  renderHole,
-  type TemplateIR,
-  type Values,
-  assertValidTemplate,
-  baseRenderId,
-  dataPayload,
-  deltaPayload,
-  draftTemplate,
-  render,
-  seal,
-} from '../../../ir/src/index.ts'
+import { baseRenderId, dataPayload, deltaPayload, render } from '../../../ir/src/index.ts'
 import type { Candidate, ServeHandle, ServeOptions, UpdatePayloads } from '../candidate.ts'
-import type { Authored, Scenario } from '../workloads/index.ts'
+import { compileScenario, compiledFor, withRows, type Compiled } from '../compiled.ts'
+import type { Scenario } from '../workloads/index.ts'
 import { createServer } from 'node:http'
+import type { TemplateIR, Values } from '../../../ir/src/index.ts'
+import { renderHole } from '../../../ir/src/index.ts'
 
 const utf8 = new TextEncoder()
-
-export interface Compiled {
-  root: TemplateIR
-  row?: TemplateIR
-  resolve: Resolver
-}
-
-const cache = new Map<string, Compiled>()
-
-async function sealAuthored(a: Authored): Promise<TemplateIR> {
-  const ir = draftTemplate({
-    id: a.id,
-    segments: a.parts,
-    holes: a.holes,
-    ...(a.wiring ? { wiring: a.wiring } : {}),
-    ...(a.signals ? { signals: a.signals } : {}),
-  })
-  return assertValidTemplate(await seal(ir))
-}
-
-/** Compiles the scenario once. The row template is sealed first so the root can name its version. */
-export async function prepareSegments(scenario: Scenario): Promise<Compiled> {
-  const hit = cache.get(scenario.id)
-  if (hit) return hit
-
-  const row = scenario.row ? await sealAuthored(scenario.row.authored) : undefined
-  let root = scenario.root
-  if (row && scenario.row) {
-    const binding = scenario.row.binding
-    root = {
-      ...scenario.root,
-      holes: scenario.root.holes.map((h) => (h.binding === binding && h.kind === 'list' ? { ...h, nested: row.version } : h)),
-    }
-  }
-  const compiled: Compiled = {
-    root: await sealAuthored(root),
-    ...(row ? { row } : {}),
-    resolve: (version) => (row && version === row.version ? row : undefined),
-  }
-  cache.set(scenario.id, compiled)
-  return compiled
-}
-
-function compiledFor(scenario: Scenario): Compiled {
-  const compiled = cache.get(scenario.id)
-  if (!compiled) throw new Error(`E_NOT_PREPARED: call prepareSegments(${scenario.id}) first`)
-  return compiled
-}
-
-function valuesWithRows(scenario: Scenario, values: Values, rows: Values[]): Values {
-  if (!scenario.row) return values
-  return { ...values, [scenario.row.binding]: rows as unknown as Values[string] }
-}
 
 /**
  * The first byte a client can be sent: everything up to the first hole whose content
@@ -90,17 +28,17 @@ export const segmentsCandidate: Candidate = {
   id: 'segments',
   label: 'Weft pre-encoded segments',
   mechanism:
-    'Templates compile to a versioned IR of constant Uint8Array segments plus holes. Rendering is memcpy with escaping only where the compiler could not elide it, and the same render function projects the data form on the client.',
+    'The compiler emits constant Uint8Array segments plus holes. Rendering copies the segments and encodes hole values straight into the destination buffer, escaping only where the compiler could not elide it. The same function projects the data form on the client.',
 
   render(scenario, values, rows) {
     const compiled = compiledFor(scenario)
-    return render(compiled.root, valuesWithRows(scenario, values, rows), compiled.resolve)
+    return render(compiled.root, withRows(compiled, values, rows), compiled.resolve)
   },
 
   updateForms(scenario, values, prev, next): UpdatePayloads {
     const compiled = compiledFor(scenario)
-    const nextValues = valuesWithRows(scenario, values, next)
-    const prevValues = valuesWithRows(scenario, values, prev)
+    const nextValues = withRows(compiled, values, next)
+    const prevValues = withRows(compiled, values, prev)
     const out: UpdatePayloads = { html: render(compiled.root, nextValues, compiled.resolve) }
 
     if (compiled.root.forms.includes('data')) {
@@ -114,8 +52,8 @@ export const segmentsCandidate: Candidate = {
   },
 
   async serve(scenario, options?: ServeOptions): Promise<ServeHandle> {
-    const compiled = await prepareSegments(scenario)
-    const values = valuesWithRows(scenario, scenario.values(), scenario.rows())
+    const compiled: Compiled = await compileScenario(scenario)
+    const values = withRows(compiled, scenario.values(), scenario.rows())
     const buffer = Buffer.from(render(compiled.root, values, compiled.resolve))
     const etag = `"${compiled.root.version.slice(0, 16)}"`
     const stream = (options?.transport ?? 'stream') === 'stream'

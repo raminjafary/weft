@@ -1,9 +1,30 @@
-import type { Json, Values } from '../../../ir/src/index.ts'
+import type { Hole, Json, TemplateIR, Values } from '../../../ir/src/index.ts'
 import type { Candidate, ServeHandle, ServeOptions, UpdatePayloads } from '../candidate.ts'
-import type { Authored, Scenario } from '../workloads/index.ts'
+import { compileScenario, compiledFor, type Compiled } from '../compiled.ts'
+import type { Scenario } from '../workloads/index.ts'
 import { createServer } from 'node:http'
 
 const utf8 = new TextEncoder()
+const decoder = new TextDecoder()
+
+interface StringTemplate {
+  parts: string[]
+  holes: Hole[]
+}
+
+const templates = new Map<string, StringTemplate>()
+
+/**
+ * What a string-concatenation SSR compiler would have emitted from the same source:
+ * the segments as JavaScript string literals rather than as bytes.
+ */
+function asStrings(ir: TemplateIR): StringTemplate {
+  const hit = templates.get(ir.version)
+  if (hit) return hit
+  const value: StringTemplate = { parts: ir.segments.map((s) => decoder.decode(s)), holes: ir.holes }
+  templates.set(ir.version, value)
+  return value
+}
 
 function escape(s: string, attr: boolean): string {
   let out = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -22,12 +43,12 @@ function truthy(v: Json | undefined): boolean {
   return v !== undefined && v !== null && v !== false && v !== '' && v !== 0
 }
 
-/** The control path: concatenate strings, escape every interpolation, encode once. */
-function renderAuthored(a: Authored, values: Values, listOverride?: string): string {
+function renderTemplate(ir: TemplateIR, values: Values, compiled: Compiled): string {
+  const template = asStrings(ir)
   let out = ''
-  for (let i = 0; i < a.parts.length; i++) {
-    out += a.parts[i]
-    const hole = a.holes[i]
+  for (let i = 0; i < template.parts.length; i++) {
+    out += template.parts[i]
+    const hole = template.holes[i]
     if (!hole) continue
     const value = values[hole.binding]
     switch (hole.kind) {
@@ -39,52 +60,63 @@ function renderAuthored(a: Authored, values: Values, listOverride?: string): str
       case 'attr-presence':
         if (truthy(value)) out += `${hole.attr ?? ''}="${escape(stringify(value), true)}"`
         break
-      case 'list':
-        if (listOverride !== undefined) out += listOverride
-        else if (Array.isArray(value)) out += value.map((v) => stringify(v)).join('')
+      case 'list': {
+        if (!Array.isArray(value)) break
+        const nested = hole.nested ? compiled.resolve(hole.nested) : undefined
+        if (!nested) throw new Error(`E_NESTED_UNRESOLVED: ${hole.nested ?? 'unnamed'}`)
+        for (const item of value) out += renderTemplate(nested, item as Values, compiled)
         break
-      default: {
-        const isAttr = hole.kind === 'attr'
-        out += hole.escape === 'trusted-raw' ? stringify(value) : escape(stringify(value), isAttr)
       }
+      default:
+        out += hole.escape === 'trusted-raw' ? stringify(value) : escape(stringify(value), hole.kind === 'attr')
     }
   }
   return out
 }
 
 function renderDocument(scenario: Scenario, values: Values, rows: Values[]): string {
-  if (!scenario.row) return renderAuthored(scenario.root, values)
-  const rowsHtml = rows.map((r) => renderAuthored(scenario.row!.authored, r)).join('')
-  return renderAuthored(scenario.root, values, rowsHtml)
+  const compiled = compiledFor(scenario)
+  const all = compiled.rowBinding ? { ...values, [compiled.rowBinding]: rows as unknown as Values[string] } : values
+  return renderTemplate(compiled.root, all, compiled)
 }
 
 /**
- * The control flushes early too — that is what streaming SSR does — but it has to
- * build each piece as a string before it can send it, and it cannot know the total
- * length in advance, so the response is chunked.
+ * The control flushes early too — that is what streaming SSR does — but it has to build
+ * each piece as a string before it can send it, and it cannot know the total length in
+ * advance, so the response is chunked.
  */
 function renderSplit(scenario: Scenario, values: Values, rows: Values[]): { prefix: string; rest: string } | null {
-  const listIndex = scenario.root.holes.findIndex((h) => h.kind === 'list')
-  if (listIndex < 0 || !scenario.row) return null
-  const head: Authored = {
-    ...scenario.root,
-    parts: scenario.root.parts.slice(0, listIndex + 1),
-    holes: scenario.root.holes.slice(0, listIndex),
+  const compiled = compiledFor(scenario)
+  const listIndex = compiled.root.holes.findIndex((h) => h.kind === 'list')
+  if (listIndex < 0 || !compiled.row) return null
+
+  const template = asStrings(compiled.root)
+  let prefix = ''
+  for (let i = 0; i <= listIndex; i++) {
+    prefix += template.parts[i]
+    const hole = template.holes[i]
+    if (hole && i < listIndex) {
+      prefix += hole.escape === 'trusted-raw' ? stringify(values[hole.binding]) : escape(stringify(values[hole.binding]), hole.kind === 'attr')
+    }
   }
-  const tail: Authored = {
-    ...scenario.root,
-    parts: scenario.root.parts.slice(listIndex + 1),
-    holes: scenario.root.holes.slice(listIndex + 1),
+
+  let rest = ''
+  for (const row of rows) rest += renderTemplate(compiled.row, row, compiled)
+  for (let i = listIndex + 1; i < template.parts.length; i++) {
+    const hole = template.holes[i]
+    if (hole) {
+      rest += hole.escape === 'trusted-raw' ? stringify(values[hole.binding]) : escape(stringify(values[hole.binding]), hole.kind === 'attr')
+    }
+    rest += template.parts[i]
   }
-  const rowsHtml = rows.map((r) => renderAuthored(scenario.row!.authored, r)).join('')
-  return { prefix: renderAuthored(head, values), rest: rowsHtml + renderAuthored(tail, values) }
+  return { prefix, rest }
 }
 
 export const stringSsrCandidate: Candidate = {
   id: 'string-ssr',
   label: 'String-concatenation SSR (control)',
   mechanism:
-    'The path Solid and Svelte SSR take: build the document as a JavaScript string, escape every interpolation, encode to bytes once at the end. No precomputed shell.',
+    'The same compiled templates as JavaScript strings rather than bytes: build the document by concatenation, escape every interpolation, encode to bytes once at the end. No precomputed shell.',
 
   render(scenario, values, rows) {
     return utf8.encode(renderDocument(scenario, values, rows))
@@ -100,6 +132,7 @@ export const stringSsrCandidate: Candidate = {
   },
 
   async serve(scenario, options?: ServeOptions): Promise<ServeHandle> {
+    await compileScenario(scenario)
     const values = scenario.values()
     const rows = scenario.rows()
     const stream = (options?.transport ?? 'stream') === 'stream'
