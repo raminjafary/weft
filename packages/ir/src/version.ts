@@ -1,8 +1,8 @@
 export const TEMPLATE_IR_SPEC = 'weft.template-ir/2'
-export const TEMPLATE_IR_VERSION = '2.2.0'
+export const TEMPLATE_IR_VERSION = '2.3.0'
 
 export const PAYLOAD_SPEC = 'weft.payload/2'
-export const PAYLOAD_VERSION = '2.2.0'
+export const PAYLOAD_VERSION = '2.3.0'
 
 export interface SemVer {
   major: number
@@ -115,6 +115,10 @@ export function migrate(
 }
 
 /**
+ * 2.2.0 -> 2.3.0 added the `component` hole kind, which projects a parent's values through
+ * a sealed child template. A 2.2.0 document has none, so the migration restamps and changes
+ * nothing else.
+ *
  * 2.1.0 -> 2.2.0 added `derived`, the table of values computed from other bindings. A
  * 2.1.0 document simply has none, so the migration is a default rather than a rewrite.
  *
@@ -127,6 +131,7 @@ export function migrate(
 function installBuiltIns(): void {
   registerMigration('2.0.0', '2.1.0', (doc) => doc)
   registerMigration('2.1.0', '2.2.0', (doc) => ({ ...doc, derived: doc.derived ?? [] }))
+  registerMigration('2.2.0', '2.3.0', (doc) => doc)
 }
 
 installBuiltIns()

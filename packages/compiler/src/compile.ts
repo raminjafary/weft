@@ -13,7 +13,8 @@ import {
 import { name, node, nodes, type Node } from './ast.ts'
 import { CompileError, locate } from './errors.ts'
 import { inferEffects } from './effects.ts'
-import { lower, returnedJsx, type ImportRef, type Lowered, type Scope } from './lower.ts'
+import { unionEffects } from '../../ir/src/effects.ts'
+import { lower, returnedJsx, type ComponentRef, type ImportRef, type Lowered, type Scope } from './lower.ts'
 import { createTypeOracle, type TypeOracle } from './types.ts'
 
 export interface CompiledFragment {
@@ -153,28 +154,67 @@ function fragmentCall(declaration: Node, imports: Map<string, ImportRef>): Node 
 }
 
 interface Discovered {
+  /** The name the module knows it by, which is also how a sibling fragment renders it. */
+  local: string
   exportName: string
   call: Node
+  /** Only an exported fragment is an entry point; a local one exists to be composed. */
+  exported: boolean
 }
 
 function discover(program: Node, imports: Map<string, ImportRef>): Discovered[] {
   const found: Discovered[] = []
+
+  const fromDeclaration = (declaration: Node, exported: boolean): void => {
+    if (declaration.type !== 'VariableDeclaration') return
+    for (const declarator of nodes(declaration.declarations)) {
+      const call = declarator.init ? fragmentCall(node(declarator.init), imports) : null
+      if (!call) continue
+      const local = name(node(declarator.id))
+      found.push({ local, exportName: local, call, exported })
+    }
+  }
+
   for (const statement of nodes(program.body)) {
     if (statement.type === 'ExportDefaultDeclaration') {
       const call = fragmentCall(node(statement.declaration), imports)
-      if (call) found.push({ exportName: 'default', call })
+      if (call) found.push({ local: 'default', exportName: 'default', call, exported: true })
       continue
     }
     if (statement.type === 'ExportNamedDeclaration' && statement.declaration) {
-      const declaration = node(statement.declaration)
-      if (declaration.type !== 'VariableDeclaration') continue
-      for (const declarator of nodes(declaration.declarations)) {
-        const call = declarator.init ? fragmentCall(node(declarator.init), imports) : null
-        if (call) found.push({ exportName: name(node(declarator.id)), call })
+      fromDeclaration(node(statement.declaration), true)
+      continue
+    }
+    // A fragment that is never exported is not an entry point, but a sibling may still
+    // render it — which is the ordinary shape of a component in one file.
+    fromDeclaration(statement, false)
+  }
+  return found
+}
+
+/**
+ * Which fragments are rendered by another fragment in this module. Read syntactically,
+ * before anything is lowered, so the answer does not depend on the order the compiler
+ * happens to reach them in — a template's version must not depend on that.
+ */
+function composedNames(declarations: Discovered[]): Set<string> {
+  const used = new Set<string>()
+  const stack: Node[] = declarations.map((d) => d.call)
+  while (stack.length) {
+    const current = stack.pop() as Node
+    if (current.type === 'JSXOpeningElement') {
+      const tag = name(node(current.name))
+      if (/^[A-Z]/.test(tag)) used.add(tag)
+    }
+    for (const value of Object.values(current)) {
+      if (Array.isArray(value)) {
+        for (const item of value) if (item && typeof item === 'object') stack.push(node(item))
+      } else if (value && typeof value === 'object' && 'type' in (value as Node)) {
+        stack.push(node(value))
       }
     }
   }
-  return found
+  return used
 }
 
 /** Nested rows are sealed first, so a parent can name the exact version it projects through. */
@@ -187,7 +227,11 @@ async function sealTree(
 
   for (const nested of lowered.nested) {
     const child = await sealTree(nested.lowered)
-    all.push(...child.all)
+    // One component used five times is one sealed template, because the version is the
+    // content. Emitting it five times would make a resident client store five copies.
+    for (const template of child.all) {
+      if (!all.some((t) => t.version === template.version)) all.push(template)
+    }
     const parentHole = holes[nested.holeIndex]
     if (!parentHole) throw new Error(`E_NESTED_HOLE_MISSING: ${nested.id}`)
     holes[nested.holeIndex] = { ...parentHole, nested: child.entry.version }
@@ -204,7 +248,7 @@ async function sealTree(
     meta: { markers: lowered.markers },
   })
   const entry = assertValidTemplate(await seal(draft))
-  all.push(entry)
+  if (!all.some((t) => t.version === entry.version)) all.push(entry)
   return { entry, all }
 }
 
@@ -222,14 +266,37 @@ export async function compileSource(
   const program = node(parsed.program)
   const imports = readImports(program)
   const fragments: CompiledFragment[] = []
+  const declarations = discover(program, imports)
 
-  for (const { exportName, call } of discover(program, imports)) {
-    const fn = nodes(call.arguments)[0]
+  /**
+   * A fragment's own reads, before the fragments it renders are folded in. Keyed by the
+   * name the module knows it by.
+   */
+  const own = new Map<string, EffectSet>()
+  const lowerings = new Map<string, Lowered>()
+  const inProgress = new Set<string>()
+
+  const components = new Map<string, ComponentRef>()
+  const composed = composedNames(declarations)
+
+  const prepare = (found: Discovered): { lowered: Lowered; effects: EffectSet } => {
+    const cached = lowerings.get(found.local)
+    if (cached) return { lowered: cached, effects: own.get(found.local) as EffectSet }
+    if (inProgress.has(found.local)) {
+      throw new CompileError(
+        'E_COMPONENT_CYCLE',
+        `${found.local} renders itself, directly or through another fragment in this module`,
+        locate(file, source, found.call.start ?? 0),
+      )
+    }
+    inProgress.add(found.local)
+
+    const fn = nodes(found.call.arguments)[0]
     if (!fn || (fn.type !== 'ArrowFunctionExpression' && fn.type !== 'FunctionExpression')) {
       throw new CompileError(
         'E_FRAGMENT_ARGUMENT',
         'fragment() takes a function',
-        locate(file, source, call.start ?? 0),
+        locate(file, source, found.call.start ?? 0),
       )
     }
     const body = node(fn.body)
@@ -241,16 +308,53 @@ export async function compileSource(
       signals,
       imports,
       locals,
+      components,
+      ...(composed.has(found.local) ? { wireProps: true } : {}),
       ...(ctxParam ? { ctxParam } : {}),
     }
-    const id = `${moduleId(file, options?.root)}#${exportName}`
+    const id = `${moduleId(file, options?.root)}#${found.exportName}`
     const input = { id, root: body, scope, file, source, ...(options?.types ? { types: options.types } : {}) }
     const root = body.type === 'BlockStatement' ? returnedJsx(body, input) : body
 
     const effects = inferEffects({ fn, file, source, ...(ctxParam ? { ctxParam } : {}) })
     const lowered = lower({ ...input, root })
-    const { entry, all } = await sealTree(lowered, effects)
-    fragments.push({ entry, templates: all, exportName })
+
+    inProgress.delete(found.local)
+    lowerings.set(found.local, lowered)
+    own.set(found.local, effects)
+    return { lowered, effects }
+  }
+
+  const byId = new Map<string, Discovered>()
+  for (const found of declarations) {
+    const id = `${moduleId(file, options?.root)}#${found.exportName}`
+    byId.set(id, found)
+    const fn = nodes(found.call.arguments)[0]
+    const declared = new Set<string>()
+    if (fn && (fn.type === 'ArrowFunctionExpression' || fn.type === 'FunctionExpression')) {
+      collectProps(nodes(fn.params)[0], declared)
+    }
+    components.set(found.local, { id, props: declared, lower: () => prepare(found).lowered })
+  }
+
+  /** A fragment's effects are its own plus every fragment it renders, transitively. */
+  const composedEffects = (local: string, seen = new Set<string>()): EffectSet => {
+    if (seen.has(local)) return unionEffects([])
+    seen.add(local)
+    const lowered = lowerings.get(local)
+    const sets: EffectSet[] = [own.get(local) ?? unionEffects([])]
+    for (const id of lowered?.components ?? []) {
+      const child = byId.get(id)
+      if (child) sets.push(composedEffects(child.local, seen))
+    }
+    return unionEffects(sets)
+  }
+
+  for (const found of declarations) {
+    if (!found.exported) continue
+    const { lowered } = prepare(found)
+    const { entry, all } = await sealTree(lowered, composedEffects(found.local))
+    fragments.push({ entry, templates: all, exportName: found.exportName })
   }
 
   return { file, fragments }

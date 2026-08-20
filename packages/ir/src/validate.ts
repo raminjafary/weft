@@ -54,9 +54,23 @@ export function validateTemplate(ir: TemplateIR): ValidationResult {
         fail('E_ANCHOR_SHAPE', `holes[${i}].anchor`, 'anchor is a non-negative marker ordinal')
       }
     }
+    if (h.kind === 'component') {
+      if (!h.nested) {
+        fail('E_COMPONENT_NESTED', `holes[${i}]`, 'a component hole must name the template it renders')
+      }
+      if (!h.props) {
+        fail(
+          'E_COMPONENT_PROPS',
+          `holes[${i}]`,
+          'a component hole must name the parent binding behind each prop, even if that is an empty set',
+        )
+      }
+    } else if (h.props !== undefined) {
+      fail('E_PROPS_KIND', `holes[${i}]`, 'only a component hole projects props')
+    }
     if (h.nested !== undefined) {
-      if (h.kind !== 'list')
-        fail('E_NESTED_KIND', `holes[${i}]`, 'only a list hole can name a nested template')
+      if (h.kind !== 'list' && h.kind !== 'component')
+        fail('E_NESTED_KIND', `holes[${i}]`, 'only a list or component hole can name a nested template')
       if (!HEX128.test(h.nested)) {
         fail(
           'E_NESTED_SHAPE',

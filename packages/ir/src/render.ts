@@ -1,4 +1,5 @@
 import { resolveDerived } from './derived.ts'
+import { componentValues } from './template-ir.ts'
 import type { DeltaPayload, Hole, Json, TemplateIR, Values } from './template-ir.ts'
 
 const utf8 = new TextEncoder()
@@ -88,6 +89,10 @@ export type Resolver = (version: string) => TemplateIR | undefined
 export function renderHole(hole: Hole, value: Json | undefined, resolve?: Resolver): Uint8Array {
   switch (hole.kind) {
     case 'slot':
+      return EMPTY
+    // A component is projected from the whole parent value set, not from one value, so it
+    // is rendered by `render`. Reaching it here means a caller had only the one value.
+    case 'component':
       return EMPTY
     case 'attr-bool':
       return truthy(value) ? utf8.encode(hole.attr ?? '') : EMPTY
@@ -227,9 +232,20 @@ function writeTemplate(
   for (let i = 0; i < ir.segments.length; i++) {
     off = writeBytes(ir.segments[i] as Uint8Array, out, off)
     const hole = ir.holes[i]
-    if (hole) off = writeValue(hole, values[hole.binding], out, off, resolve)
+    if (!hole) continue
+    if (hole.kind === 'component') {
+      off = writeTemplate(child(hole, resolve), componentValues(hole, values), resolve, out, off)
+      continue
+    }
+    off = writeValue(hole, values[hole.binding], out, off, resolve)
   }
   return off
+}
+
+function child(hole: Hole, resolve: Resolver | undefined): TemplateIR {
+  const nested = hole.nested ? resolve?.(hole.nested) : undefined
+  if (!nested) throw new Error(`E_NESTED_UNRESOLVED: hole ${hole.index} needs template ${hole.nested ?? '?'}`)
+  return nested
 }
 
 export const renderHtml = render
@@ -288,7 +304,12 @@ export function byteLength(ir: TemplateIR, supplied: Values, resolve?: Resolver)
   for (let i = 0; i < ir.segments.length; i++) {
     total += (ir.segments[i] as Uint8Array).length
     const hole = ir.holes[i]
-    if (hole) total += renderHole(hole, values[hole.binding], resolve).length
+    if (!hole) continue
+    if (hole.kind === 'component') {
+      total += byteLength(child(hole, resolve), componentValues(hole, values), resolve)
+      continue
+    }
+    total += renderHole(hole, values[hole.binding], resolve).length
   }
   return total
 }

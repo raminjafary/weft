@@ -39,10 +39,15 @@ declare module 'weft' {
     raw<T>(read: () => T): T
   }
 
-  /** A fragment is a slot: it has a cache key, a wire form, an executor, and a budget. */
-  export function fragment(render: (ctx: Ctx) => unknown): (ctx: Ctx) => unknown
-  export function fragment<P>(render: (props: P) => unknown): (props: P) => unknown
-  export function fragment<P>(render: (props: P, ctx: Ctx) => unknown): (props: P) => unknown
+  /**
+   * A fragment is a slot: it has a cache key, a wire form, an executor, and a budget. It
+   * returns a component so that one fragment can render another — the return type has to
+   * be `JSX.Element` for the checker to accept `<Widget/>`, even though the value is never
+   * called at runtime and the compiler resolves the tag statically.
+   */
+  export function fragment(render: (ctx: Ctx) => unknown): (ctx: Ctx) => JSX.Element
+  export function fragment<P>(render: (props: P) => unknown): (props: P) => JSX.Element
+  export function fragment<P>(render: (props: P, ctx: Ctx) => unknown): (props: P) => JSX.Element
 
   export function signal<T>(initial: T): Signal<T>
 
