@@ -35,7 +35,7 @@ export interface Methodology {
   batches: number
   opsPerBatch: number
   browserIterations: number
-  engines: string[]
+  engines: EngineName[]
 }
 
 export interface RunResult {

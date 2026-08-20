@@ -1,6 +1,17 @@
 import { fragment, raw } from 'weft'
 
-export default fragment(({ title, cssVersion, runtimeVersion, flags, cartCount, cartLines, recs, footer }) => (
+interface ShellProps {
+  title: string
+  cssVersion: string
+  runtimeVersion: string
+  flags: string
+  cartCount: number
+  cartLines: string
+  recs: string
+  footer: string
+}
+
+export default fragment(({ title, cssVersion, runtimeVersion, flags, cartCount, cartLines, recs, footer }: ShellProps) => (
   <>
     {raw('<!doctype html>')}
     <html lang="en">

@@ -45,19 +45,49 @@ imports, and the compiler recognises them by resolving the import rather than by
 | `<slot>{fallback}</slot>` | a `slot` hole: the base render emits nothing and a later frame fills it |
 | `<>…</>` at the root | a template with no wrapper element |
 
-## Escape elision is syntax-only, and that is a real limit
+## Escape elision asks the type checker
 
-The compiler marks a hole `proven-safe` only when the syntax alone proves the value
-cannot be markup: a numeric or boolean literal, unary `!`/`-`/`+`/`~`, arithmetic and
-comparison operators, or a signal declared with a numeric or boolean initialiser. String
-concatenation with `+` and the logical operators pass values through, so they stay
-`escape`.
+Two passes decide whether a hole is `escape` or `proven-safe`.
 
-Everything else — including a prop the author knows is a number — defaults to `escape`.
-That default is correct and it costs measurable throughput: the same templates with
-elision applied to numeric props render 5–12% faster. **Recovering that requires the
-type checker**, which is the strongest argument for wiring `tsc`'s type information into
-the pass rather than staying syntax-only.
+**Syntax**, which proves a handful of shapes safe on its own: a numeric or boolean
+literal, unary `!`/`-`/`+`/`~`, arithmetic and comparison operators, or a signal declared
+with a numeric or boolean initialiser. String concatenation with `+` and the logical
+operators pass values through, so they stay `escape`.
+
+**Types**, for everything else. `{total}` cannot be classified by looking at it — it is
+safe when `total` is a number and unsafe when it is a string, and the expression says
+neither. The compiler builds a TypeScript program over the files being compiled and asks
+the checker, treating a value as unable to contain markup only when every constituent of
+its type is numeric or boolean. `any` and `unknown` are not proofs and escape.
+
+`--no-types` falls back to the syntax pass alone, which is correct and more conservative.
+Type diagnostics are printed and never fatal: a template still lowers.
+
+One honest note on what this buys. It does **not** measurably speed up the JavaScript
+renderer, which already elides at runtime by scanning a value and writing it untouched
+when the scan finds nothing — 16,780 ns per render with four holes elided against 16,503
+without. What it buys is an escape class that is true rather than conservative, which
+matters for any consumer that cannot afford the scan: a native codec crossing a WASM
+boundary per hole, or a client projecting values into a resident template.
+
+### Where the types come from
+
+TypeScript 7's package entry point exposes only `version` — the checker lives behind
+`typescript/unstable/sync`, a client to the native compiler running as a separate
+process. The oracle uses that: `updateSnapshot` for the file set, `getTokenAtPosition`
+from `typescript/unstable/ast` to find the token at a span, then `parent` walking to widen
+to the whole expression, then `checker.getTypeAtLocation`.
+
+Three consequences worth knowing before touching this file:
+
+- **`unstable` means unstable.** This is the one place in the repository bound to an API
+  that can move between TypeScript releases. `--no-types` is the escape hatch, and the
+  fallback is a correct compile rather than a failed one.
+- **The checker is project-based.** A file must belong to a `tsconfig.json` for its types
+  to be known; a file outside every project gets `other` for everything, which escapes.
+  The oracle's tests write a `tsconfig.json` next to their fixtures for that reason.
+- **The checker is a process.** `dispose()` is not optional, and `compileFiles` shuts it
+  down in a `finally`.
 
 ## Addressing: what building the compiler changed about the IR
 

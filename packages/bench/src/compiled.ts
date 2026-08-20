@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import { compileFile } from '../../compiler/src/index.ts'
+import { compileFiles } from '../../compiler/src/index.ts'
 import type { Resolver, TemplateIR, Values } from '../../ir/src/index.ts'
 import type { Scenario } from './workloads/index.ts'
 
@@ -21,8 +21,8 @@ export async function compileScenario(scenario: Scenario): Promise<Compiled> {
   const hit = cache.get(scenario.id)
   if (hit) return hit
 
-  const module = await compileFile(scenario.fixture, { root: ROOT })
-  const fragment = module.fragments[0]
+  const { modules } = await compileFiles([scenario.fixture], { root: ROOT })
+  const fragment = modules[0]?.fragments[0]
   if (!fragment) throw new Error(`E_NO_FRAGMENT: ${scenario.fixture} has no fragment() export`)
 
   const root = fragment.entry

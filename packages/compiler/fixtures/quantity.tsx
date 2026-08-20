@@ -1,7 +1,7 @@
 import { fragment, signal } from 'weft'
 import { addToCart, setQuantity } from './intents.ts'
 
-export default fragment(({ sku }) => {
+export default fragment(({ sku }: { sku: number }) => {
   const qty = signal(1)
   return (
     <form data-sku={sku} onSubmit={addToCart}>
