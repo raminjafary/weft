@@ -5,7 +5,7 @@ import { negotiate, readResident, residentFrame, warpFrame, type ClientHello } f
 const modern: ClientHello = {
   warp: '1.0.0',
   ir: '1.0.0',
-  forms: ['html', 'bundle', 'split', 'patch', 'data', 'delta'],
+  forms: ['html', 'bundle', 'split', 'patch', 'delta'],
   transport: 'stream',
   dsd: true,
   vt: true,

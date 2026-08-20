@@ -6,8 +6,8 @@ later means every client already in the field is unversioned.
 
 | Spec | Id | Version | Reference implementation |
 | --- | --- | --- | --- |
-| Template IR | `weft.template-ir/1` | 1.1.0 | `packages/ir` |
-| Payloads (data, delta) | `weft.payload/1` | 1.1.0 | `packages/ir` |
+| Template IR | `weft.template-ir/2` | 2.0.0 | `packages/ir` |
+| Payloads (delta) | `weft.payload/2` | 2.0.0 | `packages/ir` |
 | Warp frames | `weft.warp/1` | 1.0.0 | `packages/warp` |
 
 ## What each version component means
@@ -45,6 +45,32 @@ requires nothing resident on the client, which is why it is the fallback wheneve
 versions disagree: a version mismatch costs a form, never the page.
 
 ## Changelog
+
+### Template IR 2.0.0 — the `data` form was cut
+
+A form left the vocabulary, so a 1.x document is no longer valid. That is a wire break,
+which means a major: `weft.template-ir/2`, and **no migration**, because a migration may
+not cross a major. A 1.x document is refused with `E_SPEC_MISMATCH` rather than upgraded.
+
+The evidence, all of it from the harness:
+
+- **Bytes.** Raw, `data` was half the size of `html`. After brotli it was 599 bytes
+  against 605 — a 1% difference, because compression already removes the template
+  redundancy that `data` removed semantically.
+- **Client work.** Turning a payload into DOM cost 1.16-1.33x *more* for `data` than for
+  `html` in Chromium, Firefox, and WebKit alike. Values have to be parsed and projected
+  before anything can be handed to the HTML parser, and the parser is native code.
+- **Redundancy.** The decisive argument is architectural rather than numeric. A `data`
+  refresh into a resident template is a `delta` that has declined to diff. There is no
+  regime where it is the best available form: a full-region refresh is cheaper as `html`,
+  and a partial one is cheaper as `delta`.
+
+`delta` stays. It is 16.9x smaller raw and 3.2x smaller after brotli, and nothing else in
+the field offers it without a stateful process per connection.
+
+Cutting a form is a real win and not only a simplification: form negotiation's cost is a
+combinatorial correctness problem, and every form removed is a column that never has to
+be differentially tested again.
 
 ### Template IR 1.1.0
 

@@ -17,35 +17,42 @@ test('accepts an exact match', () => {
   assert.equal(result.ok && result.mode, 'exact')
 })
 
-test('the built-in chain upgrades a 1.0.0 document to the reader version', () => {
+test('a document from the previous major is refused, not migrated', () => {
   resetMigrations()
-  const { doc, applied } = migrate({ spec: TEMPLATE_IR_SPEC, irVersion: '1.0.0' })
-  assert.equal(doc.irVersion, TEMPLATE_IR_VERSION)
-  assert.deepEqual(applied, ['1.0.0 -> 1.1.0'])
+  const previous = accepts({ spec: 'weft.template-ir/1', irVersion: '1.1.0' })
+  assert.equal(previous.ok, false)
+  assert.equal(previous.ok === false && previous.code, 'E_SPEC_MISMATCH')
+  // Even with the current spec id, the major gate holds.
+  const wrongMajor = accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '1.1.0' })
+  assert.equal(wrongMajor.ok === false && wrongMajor.code, 'E_MAJOR_UNSUPPORTED')
 })
 
 test('rejects a different major as a wire break', () => {
-  const result = accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '2.0.0' })
+  const result = accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '3.0.0' })
   assert.equal(result.ok, false)
   assert.equal(result.ok === false && result.code, 'E_MAJOR_UNSUPPORTED')
 })
 
 test('rejects a different spec id outright', () => {
-  const result = accepts({ spec: 'weft.plan/1', irVersion: '1.0.0' })
+  const result = accepts({ spec: 'weft.plan/1', irVersion: TEMPLATE_IR_VERSION })
   assert.equal(result.ok === false && result.code, 'E_SPEC_MISMATCH')
 })
 
 test('accepts a newer minor as forward-compatible', () => {
-  const result = accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '1.9.0' })
+  const result = accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '2.9.0' })
   assert.equal(result.ok && result.mode, 'forward')
 })
 
-test('treats an older minor as upgradable and a different major as a break', () => {
-  assert.equal(accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '1.0.0' }).ok, true)
-  assert.equal(accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '1.0.0' }).ok && accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '1.0.0' }).mode, 'upgrade')
-  const older = accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '0.9.0' })
-  assert.equal(older.ok === false && older.code, 'E_MAJOR_UNSUPPORTED')
-  assert.equal(compareVersions('1.0.0', '1.0.1') < 0, true)
+test('an older minor of this major is upgradable', () => {
+  clearMigrations()
+  registerMigration('2.0.0', '2.1.0', (doc) => ({ ...doc, added: true }))
+  const reader = { spec: TEMPLATE_IR_SPEC, version: '2.1.0' }
+  const result = accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '2.0.0' }, reader)
+  assert.equal(result.ok && result.mode, 'upgrade')
+  const { doc } = migrate({ spec: TEMPLATE_IR_SPEC, irVersion: '2.0.0' }, '2.1.0')
+  assert.equal(doc.added, true)
+  assert.equal(compareVersions('2.0.0', '2.0.1') < 0, true)
+  resetMigrations()
 })
 
 test('chains registered migrations up to the reader version', () => {
@@ -59,12 +66,13 @@ test('chains registered migrations up to the reader version', () => {
 })
 
 test('refuses a migration that crosses a major', () => {
-  assert.throws(() => registerMigration('1.0.0', '2.0.0', (d) => d), /E_MIGRATION_MAJOR/)
+  assert.throws(() => registerMigration('2.0.0', '3.0.0', (d) => d), /E_MIGRATION_MAJOR/)
 })
 
 test('reports a missing migration instead of guessing', () => {
   clearMigrations()
-  assert.throws(() => migrate({ spec: TEMPLATE_IR_SPEC, irVersion: '1.0.0' }, '1.2.0'), /E_MIGRATION_MISSING/)
+  assert.throws(() => migrate({ spec: TEMPLATE_IR_SPEC, irVersion: '2.0.0' }, '2.2.0'), /E_MIGRATION_MISSING/)
+  resetMigrations()
 })
 
 after(resetMigrations)

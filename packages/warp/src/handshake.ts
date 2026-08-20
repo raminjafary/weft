@@ -1,7 +1,7 @@
 import { frame, list, str, type Frame } from './frames.ts'
 import { WARP_SPEC, WARP_VERSION } from './version.ts'
 
-export type WireForm = 'html' | 'bundle' | 'split' | 'patch' | 'data' | 'delta' | 'remote'
+export type WireForm = 'html' | 'bundle' | 'split' | 'patch' | 'delta' | 'remote'
 
 /**
  * How the document itself reached the client. `buffered` is the webview case: an app
@@ -42,7 +42,7 @@ export interface ServerCapabilities {
 export const SERVER_DEFAULTS: ServerCapabilities = {
   warp: WARP_VERSION,
   ir: '1.0.0',
-  forms: ['html', 'bundle', 'split', 'patch', 'data', 'delta'],
+  forms: ['html', 'bundle', 'split', 'patch', 'delta'],
 }
 
 export interface Negotiation {

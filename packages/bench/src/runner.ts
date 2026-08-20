@@ -4,6 +4,7 @@ import { checkAll, type EquivalenceReport } from './equivalence.ts'
 import { environment, type Environment } from './env.ts'
 import { measureBytes } from './measure/bytes.ts'
 import { ENGINE_PROXIES, loadPlaywright, measureBrowser, type EngineName } from './measure/browser.ts'
+import { measureClientWork } from './measure/client-work.ts'
 import { measureHttp } from './measure/http.ts'
 import { withLatency } from './measure/latency.ts'
 import { measureThroughput, opsPerSecond } from './measure/throughput.ts'
@@ -213,7 +214,7 @@ function inProcess(axis: Axis, scenario: Scenario, candidate: Candidate, m: Meth
       summary: summarize([s.raw]),
       extra: { gzip: s.gzip, brotli: s.brotli },
     }))
-    for (const form of ['data', 'delta']) {
+    for (const form of ['delta']) {
       if (!payloads[form]) {
         out.push(
           unavailable(
@@ -269,6 +270,38 @@ async function overHttp(axis: Axis, scenario: Scenario, candidate: Candidate, m:
 }
 
 async function inBrowser(axis: Axis, scenario: Scenario, candidate: Candidate, m: Methodology): Promise<Row[]> {
+  if (axis.id === 'client-work') {
+    // The forms are a property of the IR, not of a candidate, so this axis runs once.
+    if (candidate.id !== 'segments') {
+      return [unavailable(axis, scenario, candidate, 'wire forms belong to the IR; measured once under the segments candidate')]
+    }
+    if (!(await loadPlaywright())) {
+      return [unavailable(axis, scenario, candidate, 'playwright is not installed: browser axes were not run')]
+    }
+    const out: Row[] = []
+    for (const engine of m.engines) {
+      const run = await measureClientWork(scenario, {
+        engine,
+        iterations: Math.max(10, m.browserIterations * 4),
+        warmup: 2,
+        batch: 100,
+      })
+      for (const [form, samples] of Object.entries(run.samples)) {
+        out.push({
+          axis: axis.id,
+          scenario: scenario.id,
+          candidate: `${form} form`,
+          engine,
+          unit: axis.unit,
+          status: 'measured',
+          summary: summarize(samples),
+          extra: { engineVersion: run.engineVersion, nodes: run.nodes },
+        })
+      }
+    }
+    return out
+  }
+
   if (axis.id === 'isolated-dom-update') {
     return [
       unavailable(

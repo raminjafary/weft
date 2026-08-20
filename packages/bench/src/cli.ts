@@ -160,9 +160,12 @@ async function main(): Promise<number> {
   process.stdout.write(`${markdown}\n`)
 
   for (const axis of new Set(result.rows.map((r) => r.axis))) {
-    for (const scenario of new Set(result.rows.filter((r) => r.axis === axis).map((r) => r.scenario))) {
-      const line = comparison(result, axis, scenario)
-      if (line) process.stdout.write(`${line}\n`)
+    const inAxis = result.rows.filter((r) => r.axis === axis)
+    for (const scenario of new Set(inAxis.map((r) => r.scenario))) {
+      for (const engine of new Set(inAxis.map((r) => r.engine ?? ''))) {
+        const line = comparison(result, axis, scenario, engine)
+        if (line) process.stdout.write(`${line}\n`)
+      }
     }
   }
 

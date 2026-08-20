@@ -129,8 +129,7 @@ export const stringSsrCandidate: Candidate = {
   },
 
   unsupported: {
-    'update-bytes:data': 'no template on the client to project values through',
-    'update-bytes:delta': 'no addressable base render to diff against',
+    'update-bytes:delta': 'no addressable base render to diff against, and no resident template to write into',
   },
 
   async serve(scenario, options?: ServeOptions): Promise<ServeHandle> {

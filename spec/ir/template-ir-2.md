@@ -1,6 +1,6 @@
-# Template IR, version 1
+# Template IR, version 2
 
-`weft.template-ir/1` — the compiler's output for one template. Reference implementation
+`weft.template-ir/2` — the compiler's output for one template. Reference implementation
 in `packages/ir`, conformance tests in `packages/ir/test`.
 
 A template compiles to constant UTF-8 byte segments with typed holes between them.
@@ -9,12 +9,15 @@ compiler could not prove unnecessary, and it is the same operation on the server
 `html` form) and on the client (the `data` form). That identity is the entire basis for
 negotiating the wire form of a fragment at runtime.
 
+Major 2 is smaller than major 1 by one form. See [the changelog](../VERSIONING.md) for
+why `data` was cut; the short version is that measurement did not support it.
+
 ## Document
 
 ```jsonc
 {
-  "spec": "weft.template-ir/1",
-  "irVersion": "1.1.0",
+  "spec": "weft.template-ir/2",
+  "irVersion": "2.0.0",
   "id": "app/routes/cart#lines",     // authoring identity, stable across edits
   "version": "9f2c…",                 // content address, 32 lowercase hex (SHA-256/128)
   "encoding": "base64",
@@ -22,7 +25,7 @@ negotiating the wire form of a fragment at runtime.
   "holes": [ /* see below */ ],
   "wiring": [ /* see below */ ],
   "signals": [{ "id": "qty", "type": "number", "init": 1 }],
-  "forms": ["html", "bundle", "split", "patch", "data", "delta"],
+  "forms": ["html", "bundle", "split", "patch", "delta"],
   "effects": { "reads": [], "writes": [], "envelope": [], "residency": "server" }
 }
 ```
@@ -90,20 +93,19 @@ does not invalidate every resident client's copy.
 Template versions are cache-key inputs, compression-dictionary ids, and the thing a
 client claims to hold in `RESIDENT`, so they get a real digest. Base-render ids, used
 only to recover the base a `delta` is computed against, use a fast 64-bit hash: a
-collision there degrades the delta to the data form, which is a performance event and
-not a correctness one.
+collision there means the base cannot be recovered and the region is re-sent as `html`,
+which is a performance event and not a correctness one.
 
 ## Which forms a template can serve
 
 Derived, never declared by hand. `html`, `bundle`, `split`, and `patch` are always
-available. `data` and `delta` additionally require every hole to be value-projectable,
-which a structural `slot` hole is not — declaring them anyway is `E_FORM_UNPROVABLE`.
+available. `delta` additionally requires every hole to be value-projectable, which a
+structural `slot` hole is not — declaring it anyway is `E_FORM_UNPROVABLE`.
 
 ## Payloads
 
 ```jsonc
-{ "spec": "weft.payload/1", "form": "data",  "tpl": "9f2c…", "values": { … } }
-{ "spec": "weft.payload/1", "form": "delta", "tpl": "9f2c…", "base": "a1b2…",
+{ "spec": "weft.payload/2", "form": "delta", "tpl": "9f2c…", "base": "a1b2…",
   "changed": { "rows[3].qty": 4 } }
 ```
 
@@ -112,3 +114,16 @@ in list *length* is structural and sends the list whole — a diff that tried to
 about insertions would have to reason about identity, which is the case that is known to
 go wrong. Applying a delta to its base and rendering must produce bytes identical to
 rendering the new values directly; that check runs in the harness for every scenario.
+
+### Known gap: a delta cannot yet be applied surgically
+
+A delta's whole justification is writing only what changed, and today only *wired*
+bindings — signal reads — carry addressing. A value that came from the server has a hole
+with an element `path` but no anchor, so a client cannot locate its text node and has to
+re-project the whole region. The measured client cost of `delta` reflects that
+re-projection, not the design's intent.
+
+Closing this means putting anchors on holes rather than only on wiring entries, which is
+an additive change and therefore a minor. It is deliberately not done here: the client
+runtime that would consume it does not exist yet, and inventing addressing that nothing
+reads is how a format acquires fields nobody honours.

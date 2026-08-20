@@ -141,8 +141,19 @@ function verb(unit: string, direction: 'lower-better' | 'higher-better'): string
   return 'faster'
 }
 
-export function comparison(result: RunResult, axisId: string, scenarioId: string): string | null {
-  const rows = result.rows.filter((r) => r.axis === axisId && r.scenario === scenarioId && r.status === 'measured')
+/**
+ * Comparisons are made within one engine. Ranking a chromium number against a webkit one
+ * is the cross-engine aggregation this harness exists to refuse.
+ */
+export function comparison(
+  result: RunResult,
+  axisId: string,
+  scenarioId: string,
+  engine = '',
+): string | null {
+  const rows = result.rows.filter(
+    (r) => r.axis === axisId && r.scenario === scenarioId && r.status === 'measured' && (r.engine ?? '') === engine,
+  )
   if (rows.length < 2) return null
   const axis = axisById(axisId)
   const best = rows.reduce((a, b) => {
@@ -156,10 +167,11 @@ export function comparison(result: RunResult, axisId: string, scenarioId: string
       const bv = (best.summary as Summary).p50
       const rv = (r.summary as Summary).p50
       if (!separable(best.summary as Summary, r.summary as Summary)) {
-        return `${axisId}/${scenarioId}: ${best.candidate} and ${r.candidate} are not separable at this sample size — no claim`
+        return `${axisId}/${scenarioId}${engine ? ` on ${engine}` : ''}: ${best.candidate} and ${r.candidate} are not separable at this sample size — no claim`
       }
       const factor = axis.direction === 'lower-better' ? rv / bv : bv / rv
-      return `${best.candidate} is ${factor.toFixed(2)}x ${verb(axis.unit, axis.direction)} than ${r.candidate} on ${axisId}/${scenarioId}`
+      const where = `${axisId}/${scenarioId}${engine ? ` on ${engine}` : ''}`
+      return `${best.candidate} is ${factor.toFixed(2)}x ${verb(axis.unit, axis.direction)} than ${r.candidate}, ${where}`
     })
     .join('\n')
 }
