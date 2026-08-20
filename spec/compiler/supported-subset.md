@@ -88,10 +88,37 @@ composes carries none — the client skips a wiring entry with no source, so a c
 passes a plain value costs nothing at runtime and the byte cost lands only where
 composition actually happens.
 
-**Same module, for now.** `<Widget/>` resolves against the fragments declared in the file,
-exported or not. Composition across modules needs a build graph that orders compilation by
-dependency, because a parent cannot name a child's version before the child is sealed.
-That is `E_COMPONENT_UNRESOLVED` rather than a silent inline, and it is the next step.
+**Across modules.** `<Widget/>` resolves against the fragments declared in the file first,
+exported or not, then against imports. Cross-module composition needs an order — a parent
+cannot name a child's version before the child is sealed — so it is `compileFiles` that
+supports it: the build parses every file, resolves which fragments are rendered from where,
+sorts by dependency, and compiles children first. Modules come back in the order the caller
+asked for, not the order they had to be built in. Two modules that render each other are
+`E_COMPONENT_CYCLE` naming the path, never unrolled. `compileFile` on its own still sees
+only its own module, which is why an unresolved tag is `E_COMPONENT_UNRESOLVED`.
+
+Whether a fragment wires its props is decided for the whole build, not per file: an export
+another module renders is composable, and one nobody renders is not. That means a fragment
+gains prop wiring the first time somebody composes it, and its version moves. That is
+correct — a composable template is not the same template — but it is worth knowing before
+it surprises you.
+
+**Contagion.** A component's reads compose into its caller's, except that a private child
+inside a non-private caller is isolated into its own cache unit instead. See
+[effects](effects.md).
+
+## Controls
+
+`<input value={n()}>` renders the attribute — that is what the parser builds the control
+from — and wires a `prop` op, so the client writes `element.value` rather than the
+attribute. The two stop agreeing the moment a user types, and after that a write to the
+attribute changes nothing anyone can see. The IR has carried a `prop` op since 2.0.0 and
+the runtime now honours it.
+
+Which attributes bind to the property is a small table keyed by tag: `value`, `checked` and
+`indeterminate` on `input`, `value` on `textarea` and `select`, `selected` on `option`,
+`value` on `progress`. The same attribute on an element that is not a control stays an
+attribute.
 
 ## Effects
 

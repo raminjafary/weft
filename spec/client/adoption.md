@@ -78,6 +78,13 @@ harness measured a delta by re-projecting the whole region, and reported it _wor
 sending markup. Applied as designed it is 20-93× cheaper than the parse it replaces,
 which is what the form was for.
 
+## Controls
+
+A control's attribute and its property stop agreeing the moment a user types. The server
+renders the attribute — it is what the parser builds the control from — and the client
+writes the property behind it, through a `prop` wiring op. Checked across all three engines
+by editing the control first and then writing the binding: the property has to win.
+
 ## Instances
 
 A component is adopted the way a list row is: the instance renders one root element, so
@@ -97,8 +104,6 @@ per changed path is what caught it.
   component may not be rendered inside a list row.
 - Nothing resumes. Adoption assumes the templates are already in hand, so the resident
   set, `TPL` frames, and version negotiation are not exercised here.
-- An `input` binding sets the attribute, not the property, so a user's edit is not
-  reconciled. The IR has a `prop` op for this and the runtime does not honour it yet.
 - No comparison against React Router 7 hydration, which would need a client build the
   benchmark app does not have. The parse column is the honest neighbour instead.
 
