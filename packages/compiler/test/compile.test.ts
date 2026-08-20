@@ -180,9 +180,61 @@ test('the compiler refuses what it cannot lower instead of guessing', async () =
     'export default fragment(() => { const n = signal(1); return <p>{n}</p> })',
     'E_SIGNAL_NOT_READ',
   )
-  await rejects(
+})
+
+test('a derived value is encoded as an expression, not compiled to code', async () => {
+  const ir = await only('export default fragment(({ a }) => <p>{a * 2}</p>)')
+  assert.equal(ir.derived.length, 1)
+  assert.deepEqual(ir.derived[0], {
+    id: 'd0',
+    expr: { k: 'bin', op: '*', a: { k: 'ref', id: 'a' }, b: { k: 'lit', v: 2 } },
+  })
+  assert.equal(ir.holes[0]?.binding, 'd0')
+  assert.equal(decode(render(ir, { a: 21 })), '<p>42</p>')
+})
+
+test('a derived value over a signal is wired, one over a prop is not', async () => {
+  const reactive = await only(
     'export default fragment(() => { const n = signal(1); return <p>{n() * 2}</p> })',
-    'E_DERIVED_SIGNAL_UNSUPPORTED',
+  )
+  assert.equal(reactive.wiring.length, 1)
+  assert.equal(reactive.wiring[0]?.binding, 'd0')
+  assert.equal(reactive.wiring[0]?.op, 'text')
+  assert.equal(decode(render(reactive, { n: 3 })), '<p>6</p>')
+
+  const fixed = await only('export default fragment(({ a }) => <p>{a * 2}</p>)')
+  assert.deepEqual(fixed.wiring, [])
+})
+
+test('a derived value nests, and reads more than one binding', async () => {
+  const ir = await only('export default fragment(({ a, b }) => <p>{(a + b) * 2}</p>)')
+  assert.equal(ir.derived.length, 1)
+  assert.equal(decode(render(ir, { a: 2, b: 3 })), '<p>10</p>')
+})
+
+test('a derived value in an attribute is wired like any other', async () => {
+  const ir = await only(
+    'export default fragment(() => { const n = signal(1); return <p data-n={n() + 1}>x</p> })',
+  )
+  assert.equal(ir.wiring[0]?.op, 'attr')
+  assert.equal(ir.wiring[0]?.attr, 'data-n')
+  assert.equal(decode(render(ir, { n: 4 })), '<p data-n="5">x</p>')
+})
+
+test('a comparison is proven safe; a concatenation is not', async () => {
+  const compared = await only('export default fragment(({ a }) => <p>{a > 2}</p>)')
+  assert.equal(compared.holes[0]?.escape, 'proven-safe')
+  assert.equal(decode(render(compared, { a: 3 })), '<p>true</p>')
+
+  const joined = await only('export default fragment(({ a }) => <p>{a + "!"}</p>)')
+  assert.equal(joined.holes[0]?.escape, 'escape')
+  assert.equal(decode(render(joined, { a: '<b>' })), '<p>&lt;b&gt;!</p>')
+})
+
+test('a signal read inside a derived value still cannot cross into a list row', async () => {
+  await rejects(
+    'export default fragment(({ rows }) => { const n = signal(1); return <ul>{rows.map((r) => <li>{r.qty * n()}</li>)}</ul> })',
+    'E_SIGNAL_IN_LIST',
   )
 })
 

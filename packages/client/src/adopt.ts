@@ -1,5 +1,6 @@
 import type { ClientHole, ClientTemplate, Json, Resident } from './template.ts'
-import type { Signal } from './signal.ts'
+import type { Readable } from './signal.ts'
+import { bindDerived } from './derived.ts'
 
 export type Target =
   | { kind: 'text'; node: Text }
@@ -21,7 +22,7 @@ export interface AdoptOptions {
   root: Element
   template: ClientTemplate
   resident?: Resident
-  signals?: Record<string, Signal<unknown>>
+  signals?: Record<string, Readable<unknown>>
   onIntent?: (intent: string, event: Event) => void
   /**
    * `container` — `root`'s element children are the template's top-level nodes, which is
@@ -182,6 +183,10 @@ function writeTarget(target: Target, value: Json): void {
 }
 
 function wire(adopted: Adopted, options: AdoptOptions, markers: Comment[]): void {
+  // A derived value is a binding like any other by the time wiring resolves it; what
+  // makes it derived is that its readable was built from the wire, not handed in.
+  const sources = bindDerived(options.template.derived, options.signals)
+
   for (const entry of options.template.wiring) {
     if (entry.op === 'event') {
       if (!entry.event || !entry.intent) continue
@@ -192,7 +197,7 @@ function wire(adopted: Adopted, options: AdoptOptions, markers: Comment[]): void
       continue
     }
 
-    const source = options.signals?.[entry.binding]
+    const source = sources[entry.binding]
     if (!source) continue
     // Each wiring entry carries its own address: one signal bound three times is three
     // subscriptions, not one shared target.

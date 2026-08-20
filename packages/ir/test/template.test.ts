@@ -243,3 +243,108 @@ test('a nested template version must be a sealed hash', () => {
   })
   assert.equal(validateTemplate(ir).errors[0]?.code, 'E_NESTED_SHAPE')
 })
+
+test('a derived value is resolved at render, not carried by the caller', async () => {
+  const ir = await seal(
+    draftTemplate({
+      id: 'derived',
+      segments: ['<p>', '</p>'],
+      holes: [hole(0, 'd0')],
+      derived: [{ id: 'd0', expr: { k: 'bin', op: '*', a: { k: 'ref', id: 'a' }, b: { k: 'lit', v: 3 } } }],
+    }),
+  )
+  assert.equal(decode(render(ir, { a: 7 })), '<p>21</p>')
+  assert.equal(decode(render(ir, { a: 2 })), '<p>6</p>')
+})
+
+test('a stale derived value in the caller value set is recomputed, not trusted', async () => {
+  const ir = await seal(
+    draftTemplate({
+      id: 'stale',
+      segments: ['<p>', '</p>'],
+      holes: [hole(0, 'd0')],
+      derived: [{ id: 'd0', expr: { k: 'bin', op: '+', a: { k: 'ref', id: 'a' }, b: { k: 'lit', v: 1 } } }],
+    }),
+  )
+  assert.equal(decode(render(ir, { a: 1, d0: 999 })), '<p>2</p>')
+})
+
+test('a delta carries a server-owned derived value and never a client-owned one', async () => {
+  const ir = await seal(
+    draftTemplate({
+      id: 'split',
+      segments: ['<p>', '', '</p>'],
+      holes: [hole(0, 'd0'), hole(1, 'd1')],
+      signals: [{ id: 'n', type: 'number', init: 1 }],
+      derived: [
+        { id: 'd0', expr: { k: 'bin', op: '*', a: { k: 'ref', id: 'a' }, b: { k: 'lit', v: 2 } } },
+        { id: 'd1', expr: { k: 'bin', op: '*', a: { k: 'ref', id: 'n' }, b: { k: 'lit', v: 2 } } },
+      ],
+    }),
+  )
+  const delta = deltaPayload(ir, 'base', { a: 1, n: 1 }, { a: 5, n: 9 })
+  assert.equal(delta.changed.d0, 10, 'a is the server’s, so its derived value ships')
+  assert.equal('d1' in delta.changed, false, 'n is the client’s, and so is what it derives')
+})
+
+test('a derived table that reads forward would never settle, so it is refused', () => {
+  const ir = draftTemplate({
+    id: 'cycle',
+    segments: ['<p>', '</p>'],
+    holes: [hole(0, 'd0')],
+    derived: [
+      { id: 'd0', expr: { k: 'ref', id: 'd1' } },
+      { id: 'd1', expr: { k: 'lit', v: 1 } },
+    ],
+  })
+  const result = validateTemplate(ir)
+  assert.equal(result.ok, false)
+  assert.equal(result.errors[0]?.code, 'E_DERIVED_FORWARD_READ')
+})
+
+test('an operator outside the closed set is refused rather than evaluated', () => {
+  const ir = draftTemplate({
+    id: 'open',
+    segments: ['<p>', '</p>'],
+    holes: [hole(0, 'd0')],
+    derived: [
+      { id: 'd0', expr: { k: 'bin', op: '>>>' as never, a: { k: 'lit', v: 1 }, b: { k: 'lit', v: 1 } } },
+    ],
+  })
+  const result = validateTemplate(ir)
+  assert.equal(result.ok, false)
+  assert.equal(result.errors[0]?.code, 'E_DERIVED_EXPR')
+})
+
+test('the derived table survives the JSON round trip and is part of the version', async () => {
+  const ir = await seal(
+    draftTemplate({
+      id: 'round',
+      segments: ['<p>', '</p>'],
+      holes: [hole(0, 'd0')],
+      derived: [{ id: 'd0', expr: { k: 'un', op: '-', a: { k: 'ref', id: 'a' } } }],
+    }),
+  )
+  const back = parse(stringify(ir)).ir
+  assert.deepEqual(back.derived, ir.derived)
+  assert.equal((await verifySealed(back)).ok, true)
+
+  const other = await seal({ ...ir, derived: [{ id: 'd0', expr: { k: 'ref', id: 'a' } }], version: '' })
+  assert.notEqual(other.version, ir.version, 'changing the expression must move the version')
+})
+
+test('a delta carries nothing the client has no hole to write into', async () => {
+  const ir = await seal(
+    draftTemplate({
+      id: 'unaddressable',
+      segments: ['<p>', '</p>'],
+      holes: [hole(0, 'd0')],
+      derived: [
+        { id: 'd0', expr: { k: 'bin', op: '/', a: { k: 'ref', id: 'price' }, b: { k: 'lit', v: 100 } } },
+      ],
+    }),
+  )
+  const delta = deltaPayload(ir, 'base', { price: 100 }, { price: 250 })
+  assert.deepEqual(Object.keys(delta.changed), ['d0'], 'price itself has no hole')
+  assert.equal(delta.changed.d0, 2.5)
+})

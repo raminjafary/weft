@@ -11,6 +11,7 @@ const KNOWN_KEYS = new Set([
   'holes',
   'wiring',
   'signals',
+  'derived',
   'forms',
   'effects',
   'meta',
@@ -42,6 +43,7 @@ export interface SerializedTemplate {
   holes: Json
   wiring: Json
   signals: Json
+  derived: Json
   forms: Json
   effects: Json
   meta?: Json
@@ -60,6 +62,7 @@ export function toJSON(ir: TemplateIR, forward: Record<string, Json> = {}): Seri
     holes: ir.holes as unknown as Json,
     wiring: ir.wiring as unknown as Json,
     signals: ir.signals as unknown as Json,
+    derived: ir.derived as unknown as Json,
     forms: ir.forms as unknown as Json,
     effects: ir.effects as unknown as Json,
     ...(ir.meta ? { meta: ir.meta as unknown as Json } : {}),
@@ -104,6 +107,7 @@ export function fromJSON(input: unknown): ParseResult {
     holes: (doc.holes ?? []) as TemplateIR['holes'],
     wiring: (doc.wiring ?? []) as TemplateIR['wiring'],
     signals: (doc.signals ?? []) as TemplateIR['signals'],
+    derived: (doc.derived ?? []) as TemplateIR['derived'],
     forms: (doc.forms ?? []) as TemplateIR['forms'],
     effects: (doc.effects ?? {
       reads: [],

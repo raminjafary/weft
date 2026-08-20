@@ -96,9 +96,24 @@ const quantity: Scenario = {
   transition: (rows) => rows,
 }
 
+const derived: Scenario = {
+  id: 'derived',
+  label: 'Quantity editor whose holes are computed from the signal, not the signal itself',
+  route: '/derived',
+  fixture: fixture('derived.tsx'),
+  values: () => ({ sku: 1042, price: 2599, qty: 1 }),
+  // The transition moves a prop, not the signal: a delta is the server's update, and a
+  // signal is the client's state. Moving qty here would ask the server to re-render
+  // something it does not own.
+  transitionValues: (values) => ({ ...values, price: Number(values.price) + 400 }),
+  rows: () => [],
+  transition: (rows) => rows,
+}
+
 export const SCENARIOS: Scenario[] = [
   shell,
   quantity,
+  derived,
   lines('cart', 'Cart lines, 12 rows', '/cart', 12),
   lines('feed', 'Product feed, 50 rows', '/feed', 50),
   lines('slow-feed', 'Product feed, 50 rows behind a 40 ms query', '/feed', 50, 40),

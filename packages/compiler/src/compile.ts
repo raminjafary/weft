@@ -199,6 +199,7 @@ async function sealTree(
     holes,
     wiring: lowered.wiring,
     signals: lowered.signals,
+    derived: lowered.derived,
     ...(effects ? { effects } : {}),
     meta: { markers: lowered.markers },
   })

@@ -1,3 +1,4 @@
+import { clientOwned, resolveDerived, type DerivedDecl } from './derived.ts'
 import { PAYLOAD_SPEC, PAYLOAD_VERSION, TEMPLATE_IR_SPEC, TEMPLATE_IR_VERSION } from './version.ts'
 
 export type Json = string | number | boolean | null | Json[] | { [k: string]: Json }
@@ -82,6 +83,11 @@ export interface TemplateIR {
   holes: Hole[]
   wiring: WiringEntry[]
   signals: SignalDecl[]
+  /**
+   * Values computed from other bindings. A decl whose expression reads a signal is
+   * reactive on the client; one that reads only props is resolved once, at render.
+   */
+  derived: DerivedDecl[]
   forms: WireForm[]
   effects: EffectSet
   meta?: Record<string, Json>
@@ -106,6 +112,7 @@ export interface DraftTemplate {
   holes: Hole[]
   wiring?: WiringEntry[]
   signals?: SignalDecl[]
+  derived?: DerivedDecl[]
   forms?: WireForm[]
   effects?: EffectSet
   meta?: Record<string, Json>
@@ -124,6 +131,7 @@ export function draftTemplate(t: DraftTemplate): TemplateIR {
     holes: t.holes,
     wiring: t.wiring ?? [],
     signals: t.signals ?? [],
+    derived: t.derived ?? [],
     forms: t.forms ?? derivableForms(t.holes),
     effects: t.effects ?? EMPTY_EFFECTS,
     ...(t.meta ? { meta: t.meta } : {}),
@@ -144,13 +152,22 @@ export function derivableForms(holes: Hole[]): WireForm[] {
 }
 
 export function deltaPayload(ir: TemplateIR, base: string, prev: Values, next: Values): DeltaPayload {
+  const changed = diffValues(resolveDerived(ir.derived, prev), resolveDerived(ir.derived, next))
+  const addressable = new Set(ir.holes.map((h) => h.binding))
+  const owned = clientOwned(ir.derived, ir.signals)
+  for (const key of Object.keys(changed)) {
+    const root = (key.split('.')[0] as string).replace(/\[\d+\]$/, '')
+    // Two things never travel: a value with no hole, which the client could not write
+    // anywhere, and a derived value the client recomputes for itself.
+    if (!addressable.has(root) || owned.has(root)) delete changed[key]
+  }
   return {
     spec: PAYLOAD_SPEC,
     irVersion: PAYLOAD_VERSION,
     form: 'delta',
     tpl: ir.version,
     base,
-    changed: diffValues(prev, next),
+    changed,
   }
 }
 

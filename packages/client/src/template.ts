@@ -23,10 +23,23 @@ export interface ClientWiring {
   anchor?: number
 }
 
+/** The client's mirror of the IR's derived-expression encoding. */
+export type ClientExpr =
+  | { k: 'ref'; id: string }
+  | { k: 'lit'; v: Json }
+  | { k: 'un'; op: string; a: ClientExpr }
+  | { k: 'bin'; op: string; a: ClientExpr; b: ClientExpr }
+
+export interface ClientDerived {
+  id: string
+  expr: ClientExpr
+}
+
 export interface ClientTemplate {
   version: string
   holes: ClientHole[]
   wiring: ClientWiring[]
+  derived?: ClientDerived[]
 }
 
 /** Templates the client holds, by version. A TPL frame adds to this. */

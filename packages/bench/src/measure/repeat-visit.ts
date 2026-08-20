@@ -34,7 +34,7 @@ export interface RepeatVisitRun {
 }
 
 function clientTemplate(ir: TemplateIR): Record<string, unknown> {
-  return { version: ir.version, holes: ir.holes, wiring: ir.wiring }
+  return { version: ir.version, holes: ir.holes, wiring: ir.wiring, derived: ir.derived }
 }
 
 function toBase64(bytes: Uint8Array): string {

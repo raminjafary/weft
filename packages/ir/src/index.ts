@@ -1,5 +1,6 @@
 export * from './version.ts'
 export * from './template-ir.ts'
+export * from './derived.ts'
 export * from './effects.ts'
 export * from './hash.ts'
 export * from './validate.ts'

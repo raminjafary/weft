@@ -1,4 +1,14 @@
-import type { EscapeClass, Hole, SignalDecl, WiringEntry } from '../../ir/src/index.ts'
+import type {
+  BinaryOp,
+  DerivedDecl,
+  DerivedExpr,
+  EscapeClass,
+  Hole,
+  SignalDecl,
+  UnaryOp,
+  WiringEntry,
+} from '../../ir/src/index.ts'
+import { BINARY_OPS, UNARY_OPS } from '../../ir/src/index.ts'
 import {
   BOOLEAN_ATTRIBUTES,
   VOID_ELEMENTS,
@@ -43,6 +53,7 @@ export interface Lowered {
   holes: Hole[]
   wiring: WiringEntry[]
   signals: SignalDecl[]
+  derived: DerivedDecl[]
   nested: NestedRequest[]
   markers: number
 }
@@ -54,7 +65,7 @@ interface Emitter {
   wiring: WiringEntry[]
   nested: NestedRequest[]
   markers: number
-  derived: number
+  derived: DerivedDecl[]
 }
 
 function escapeStatic(text: string, attr: boolean): string {
@@ -71,6 +82,8 @@ interface Classified {
   signal?: SignalDecl
   /** Set when the expression folds to a constant the compiler can put in a segment. */
   constant?: string
+  /** Set when a derived expression reads a signal, so its hole has to be wired. */
+  reactive?: boolean
 }
 
 export interface LowerInput {
@@ -84,7 +97,7 @@ export interface LowerInput {
 }
 
 export function lower(input: LowerInput): Lowered {
-  const em: Emitter = { parts: [], buffer: '', holes: [], wiring: [], nested: [], markers: 0, derived: 0 }
+  const em: Emitter = { parts: [], buffer: '', holes: [], wiring: [], nested: [], markers: 0, derived: [] }
   const root = input.root
   if (root.type === 'JSXFragment') {
     lowerChildren(nodes(root.children), [], em, input, '')
@@ -104,6 +117,7 @@ export function lower(input: LowerInput): Lowered {
     holes: em.holes,
     wiring: em.wiring,
     signals: [...input.scope.signals.values()],
+    derived: em.derived,
     nested: em.nested,
     markers: em.markers,
   }
@@ -241,8 +255,15 @@ function classifyBySyntax(expr: Node, input: LowerInput, em: Emitter): Classifie
 
   if (expr.type === 'UnaryExpression' || expr.type === 'BinaryExpression') {
     const safe = provablyNotMarkup(expr)
-    dependsOnNoSignal(expr, input)
-    return { binding: `d${em.derived++}`, escape: safe ? 'proven-safe' : 'escape' }
+    const reads: SignalDecl[] = []
+    const tree = derivedExpr(expr, input, em, reads)
+    const id = `d${em.derived.length}`
+    em.derived.push({ id, expr: tree })
+    return {
+      binding: id,
+      escape: safe ? 'proven-safe' : 'escape',
+      ...(reads.length ? { reactive: true } : {}),
+    }
   }
 
   throw fail(input, expr, 'E_EXPRESSION_UNSUPPORTED', `${expr.type} is not supported in a template`)
@@ -257,6 +278,10 @@ function outOfRowScope(input: LowerInput, at: Node, ident: string): CompileError
   )
 }
 
+function isReactive(classified: Classified): boolean {
+  return classified.signal !== undefined || classified.reactive === true
+}
+
 /** Arithmetic and comparison cannot produce markup; `+` and logical operators can. */
 function provablyNotMarkup(expr: Node): boolean {
   if (expr.type === 'UnaryExpression') return ['!', '-', '+', '~'].includes(String(expr.operator))
@@ -264,29 +289,45 @@ function provablyNotMarkup(expr: Node): boolean {
   return ['-', '*', '/', '%', '**', '<', '>', '<=', '>=', '===', '!==', '==', '!='].includes(operator)
 }
 
-function dependsOnNoSignal(expr: Node, input: LowerInput): void {
-  const stack: Node[] = [expr]
-  while (stack.length) {
-    const current = stack.pop() as Node
-    if (current.type === 'CallExpression') {
-      const callee = node(current.callee)
-      if (callee.type === 'Identifier' && input.scope.signals.has(name(callee))) {
-        throw fail(
-          input,
-          current,
-          'E_DERIVED_SIGNAL_UNSUPPORTED',
-          `${name(callee)}() appears inside a computed expression; the prototype wires direct signal reads only`,
-        )
-      }
+/**
+ * Turns an arithmetic or comparison expression into the encoded tree the IR carries, so
+ * the client can evaluate the same expression the server did without being shipped code.
+ * Leaves go back through the same classifier every other interpolation uses, which is
+ * what keeps scope rules — row scope, context reads, unknown bindings — in one place.
+ */
+function derivedExpr(expr: Node, input: LowerInput, em: Emitter, reads: SignalDecl[]): DerivedExpr {
+  if (expr.type === 'UnaryExpression') {
+    const op = String(expr.operator)
+    if (!UNARY_OPS.includes(op as UnaryOp)) {
+      throw fail(input, expr, 'E_OPERATOR_UNSUPPORTED', `unary ${op} cannot be evaluated on the client`)
     }
-    for (const value of Object.values(current)) {
-      if (Array.isArray(value)) {
-        for (const item of value) if (item && typeof item === 'object') stack.push(node(item))
-      } else if (value && typeof value === 'object' && 'type' in (value as Node)) {
-        stack.push(node(value))
-      }
+    return { k: 'un', op: op as UnaryOp, a: derivedExpr(node(expr.argument), input, em, reads) }
+  }
+
+  if (expr.type === 'BinaryExpression') {
+    const op = String(expr.operator)
+    if (!BINARY_OPS.includes(op as BinaryOp)) {
+      throw fail(input, expr, 'E_OPERATOR_UNSUPPORTED', `binary ${op} cannot be evaluated on the client`)
+    }
+    return {
+      k: 'bin',
+      op: op as BinaryOp,
+      a: derivedExpr(node(expr.left), input, em, reads),
+      b: derivedExpr(node(expr.right), input, em, reads),
     }
   }
+
+  const leaf = classifyBySyntax(expr, input, em)
+  if (leaf.constant !== undefined) return { k: 'lit', v: literal(expr, leaf.constant) }
+  if (leaf.signal) reads.push(leaf.signal)
+  return { k: 'ref', id: leaf.binding }
+}
+
+/** A folded leaf keeps the type it was written with; only its string form was folded. */
+function literal(expr: Node, folded: string): string | number | boolean {
+  const value = expr.type === 'Literal' ? expr.value : undefined
+  if (typeof value === 'number' || typeof value === 'boolean') return value
+  return folded
 }
 
 function mapCall(expr: Node): { array: Node; callback: Node } | null {
@@ -374,7 +415,7 @@ function lowerAttribute(attribute: Node, path: number[], em: Emitter, input: Low
   if (BOOLEAN_ATTRIBUTES.has(attr)) {
     emit(em, ' ')
     hole(em, { kind: 'attr-bool', escape: 'proven-safe', binding: classified.binding, path, attr })
-    if (classified.signal) em.wiring.push({ path, op: 'bool', binding: classified.binding, attr })
+    if (isReactive(classified)) em.wiring.push({ path, op: 'bool', binding: classified.binding, attr })
     return
   }
 
@@ -388,7 +429,7 @@ function lowerAttribute(attribute: Node, path: number[], em: Emitter, input: Low
     ...(classified.provenance ? { provenance: classified.provenance } : {}),
   })
   emit(em, '"')
-  if (classified.signal) em.wiring.push({ path, op: 'attr', binding: classified.binding, attr })
+  if (isReactive(classified)) em.wiring.push({ path, op: 'attr', binding: classified.binding, attr })
 }
 
 function lowerEvent(attr: string, expression: Node, path: number[], em: Emitter, input: LowerInput): void {
@@ -499,7 +540,7 @@ function lowerChildren(
       em.markers++
     }
 
-    if (classified.signal) {
+    if (isReactive(classified)) {
       em.wiring.push({
         path,
         op: 'text',
