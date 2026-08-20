@@ -11,7 +11,7 @@ three frames in. The server's first frame is `WARP`, which states the versions a
 strategy it settled on:
 
 ```
-WARP spec=weft.warp/1 v=1.0.0 ir=1.0.0 forms=html,data,delta strategy=stream fill=dsd
+WARP spec=weft.warp/1 v=1.0.0 ir=2.0.0 forms=html,delta strategy=stream fill=dsd
      commit=view-transition residency=indexeddb resume=true downgrade=…
 ```
 
@@ -87,7 +87,7 @@ form, a fill mechanism, or an animation — never correctness. `negotiate()` ret
 
 | Field | Meaning | Degraded value |
 | --- | --- | --- |
-| `forms` | wire forms this client can be sent | `['html']` on an IR major mismatch |
+| `forms` | wire forms this client can be sent, from the IR's vocabulary | `['html']` on an IR major mismatch |
 | `strategy` | `stream`, `collapse`, or `socket` | `collapse` when the document response is buffered |
 | `fill` | who fills an out-of-order hole | `script` — the ~1 KB filler — without incremental DSD parsing |
 | `commit` | how an epoch commits | `instant` without same-document View Transitions |

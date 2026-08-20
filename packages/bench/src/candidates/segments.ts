@@ -1,4 +1,4 @@
-import { baseRenderId, dataPayload, deltaPayload, render } from '../../../ir/src/index.ts'
+import { baseRenderId, deltaPayload, render } from '../../../ir/src/index.ts'
 import type { Candidate, ServeHandle, ServeOptions, UpdatePayloads } from '../candidate.ts'
 import { compileScenario, compiledFor, withRows, type Compiled } from '../compiled.ts'
 import { sleep, type Scenario } from '../workloads/index.ts'
@@ -41,9 +41,6 @@ export const segmentsCandidate: Candidate = {
     const prevValues = withRows(compiled, values, prev)
     const out: UpdatePayloads = { html: render(compiled.root, nextValues, compiled.resolve) }
 
-    if (compiled.root.forms.includes('data')) {
-      out.data = utf8.encode(JSON.stringify(dataPayload(compiled.root, nextValues)))
-    }
     if (compiled.root.forms.includes('delta')) {
       const base = baseRenderId(compiled.root, prevValues)
       out.delta = utf8.encode(JSON.stringify(deltaPayload(compiled.root, base, prevValues, nextValues)))

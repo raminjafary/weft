@@ -2,9 +2,9 @@ import { PAYLOAD_SPEC, PAYLOAD_VERSION, TEMPLATE_IR_SPEC, TEMPLATE_IR_VERSION } 
 
 export type Json = string | number | boolean | null | Json[] | { [k: string]: Json }
 
-export type WireForm = 'html' | 'bundle' | 'split' | 'patch' | 'data' | 'delta' | 'remote'
+export type WireForm = 'html' | 'bundle' | 'split' | 'patch' | 'delta' | 'remote'
 
-export const ALL_FORMS: readonly WireForm[] = ['html', 'bundle', 'split', 'patch', 'data', 'delta', 'remote']
+export const ALL_FORMS: readonly WireForm[] = ['html', 'bundle', 'split', 'patch', 'delta', 'remote']
 
 /**
  * `escape` is applied at render time; `proven-safe` is the escape-elision class the
@@ -80,14 +80,6 @@ export interface TemplateIR {
 
 export type Values = Record<BindingId, Json>
 
-export interface DataPayload {
-  spec: typeof PAYLOAD_SPEC
-  irVersion: string
-  form: 'data'
-  tpl: string
-  values: Values
-}
-
 export interface DeltaPayload {
   spec: typeof PAYLOAD_SPEC
   irVersion: string
@@ -132,18 +124,14 @@ export function draftTemplate(t: DraftTemplate): TemplateIR {
 /**
  * Which wire forms this template can serve, derived rather than declared.
  * `html` is unconditional — it is the floor that needs nothing resident on the client.
- * `data` and `delta` require every hole to be value-projectable through a template the
- * client already holds, which a structural `slot` hole is not.
+ * `delta` requires every hole to be value-projectable through a template the client
+ * already holds, which a structural `slot` hole is not.
  */
 export function derivableForms(holes: Hole[]): WireForm[] {
   const forms: WireForm[] = ['html', 'bundle', 'split', 'patch']
   const projectable = holes.every((h) => h.kind !== 'slot')
-  if (projectable) forms.push('data', 'delta')
+  if (projectable) forms.push('delta')
   return forms
-}
-
-export function dataPayload(ir: TemplateIR, values: Values): DataPayload {
-  return { spec: PAYLOAD_SPEC, irVersion: PAYLOAD_VERSION, form: 'data', tpl: ir.version, values }
 }
 
 export function deltaPayload(ir: TemplateIR, base: string, prev: Values, next: Values): DeltaPayload {

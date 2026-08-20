@@ -13,7 +13,7 @@ without a harness and a wire format cannot be versioned retroactively.
 
 | What | Where | Status |
 | --- | --- | --- |
-| Template IR, `weft.template-ir/1` | [`spec/ir/template-ir-1.md`](spec/ir/template-ir-1.md), `packages/ir` | 1.1.0, sealed and validated |
+| Template IR, `weft.template-ir/2` | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir` | 2.0.0 — one form fewer than major 1 |
 | Warp frames, `weft.warp/1` | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp` | 1.0.0, both framings, negotiation |
 | Versioning contract | [`spec/VERSIONING.md`](spec/VERSIONING.md) | Majors refuse, minors round-trip |
 | Device and engine reality | [`spec/baseline/devices.md`](spec/baseline/devices.md) | Written before the numbers |
@@ -37,6 +37,7 @@ node packages/bench/src/cli.ts run --axes shell-ttfb --scenarios slow-feed \
   --latency 40 --external benchmarks/rr7/candidates.json    # the gate, against RR7
 node packages/bench/src/cli.ts ir cart                       # the compiled, sealed IR
 node --test packages/*/test/*.test.ts                        # 73 conformance tests
+node packages/bench/src/cli.ts run --axes client-work         # what each form costs a client
 ```
 
 The benchmark compiles [its fixtures](packages/compiler/fixtures) in-process, so every
@@ -88,16 +89,37 @@ JavaScript strings — so this compares the mechanism and nothing else.
 | Scenario | Form | Raw | Brotli |
 | --- | --- | --- | --- |
 | feed | `html` | 6,289 | 605 |
-| feed | `data` | 3,100 | 599 |
 | feed | `delta` | 371 | 187 |
 
-The uncomfortable finding is in that last table, and it is the kind of thing phase zero
-exists to surface: **the `data` form's byte win does not survive compression.** Raw it is
-half the size of `html`; after brotli it is 600 bytes against 601, because compression
-already removes the template redundancy that `data` removes semantically. Only `delta`
-wins on the wire that actually ships — 187 bytes against 605, 3.2×. So `data`'s case has
-to rest on the client-side work it avoids, not on payload size, and that is a claim the
-current harness cannot yet measure.
+## A form was cut
+
+The `data` form — values only, projected through a template the client already holds —
+was the most distinctive thing in the negotiated set. It is gone, and the harness is why.
+
+| Evidence | Result |
+| --- | --- |
+| Bytes, raw | 3,100 against `html`'s 6,289 — a 2× win |
+| Bytes, brotli | 599 against 605. **1%.** Compression already removes the template redundancy that `data` removed semantically |
+| Client work, Chromium | 1.16× *more* than `html` |
+| Client work, Firefox | 1.33× more |
+| Client work, WebKit | 1.07× more |
+
+Values have to be parsed and projected before anything can reach the HTML parser, and the
+parser is native code — which is the same observation the design already makes about why
+server-rendered DOM beats client-constructed DOM. It applies to our own form too.
+
+The decisive argument is architectural rather than numeric, though. **A `data` refresh
+into a resident template is a `delta` that has declined to diff.** There is no regime
+where it is the best form available: a full-region refresh is cheaper as `html`, and a
+partial one is cheaper as `delta`. So it went, as IR 2.0.0 — a form leaving the vocabulary
+is a wire break, and the versioning contract says a major refuses rather than migrates.
+
+`delta` stays: 16.9× smaller raw, 3.2× after brotli, and nothing else in the field offers
+it without a stateful process per connection. With one honest caveat — its measured client
+cost is a full re-projection, because only signal-wired bindings carry addressing today.
+Applying a delta *surgically* needs anchors on holes, which is
+[a known gap](spec/ir/template-ir-2.md) left deliberately open until a client runtime
+exists to consume it.
 
 The second finding is the price of a syntax-only compiler. The hand-written IR this
 replaced marked numeric holes `proven-safe`; the compiler cannot prove that about a prop
@@ -145,11 +167,10 @@ What the test does establish is worth more than the claim it replaces:
 
 In the order the design says to disprove things:
 
-1. Whether the `data` form survives a client-work measurement, or comes out of the
-   negotiated set. Cutting a form is a win: one less column in the differential matrix
-   forever.
-2. Type information in the compiler, to recover the escape elision a syntax-only pass
+1. Type information in the compiler, to recover the escape elision a syntax-only pass
    has to give up.
+2. Anchors on holes, so a delta can be applied surgically rather than by re-projecting the
+   region — but only alongside the client runtime that would read them.
 3. A bandwidth and loss model in the latency proxy. It delays packets and nothing else,
    so it understates what a slow link does to an 18% byte difference — which is now one
    of the few measured advantages, so it deserves a better instrument.

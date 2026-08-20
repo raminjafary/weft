@@ -1,9 +1,7 @@
 import {
-  type DataPayload,
   type DeltaPayload,
   type Values,
   applyDelta,
-  projectData,
   render,
 } from '../../ir/src/index.ts'
 import type { Candidate } from './candidate.ts'
@@ -60,19 +58,6 @@ export async function checkScenario(scenario: Scenario, candidates: Candidate[])
       name: `html bytes: segments vs ${candidate.id}`,
       ok,
       ...(ok ? {} : { detail: firstDifference(reference, actual) }),
-    })
-  }
-
-  if (compiled.root.forms.includes('data')) {
-    const payload = JSON.parse(
-      decoder.decode(segmentsCandidate.updateForms?.(scenario, values, rows, rows).data as Uint8Array),
-    ) as DataPayload
-    const projected = projectData(compiled.root, payload, compiled.resolve)
-    const ok = projected.length === reference.length && projected.every((b, i) => b === reference[i])
-    checks.push({
-      name: 'data form projects to the same bytes as html',
-      ok,
-      ...(ok ? {} : { detail: firstDifference(reference, projected) }),
     })
   }
 

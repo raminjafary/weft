@@ -27,17 +27,22 @@ test('a workload produces the same values every time it is asked', () => {
   assert.deepEqual(s.values(), s.values())
 })
 
-test('the delta form is smaller than data, which is smaller than html', async () => {
+test('the delta form is the only one smaller than html after compression', async () => {
   const s = scenario('cart')
   await compileScenario(s)
   const rows = s.rows()
   const payloads = segmentsCandidate.updateForms!(s, s.values(), rows, s.transition(rows))
-  const sizes = new Map(measureBytes(payloads).map((x) => [x.form, x.raw]))
-  const delta = sizes.get('delta') as number
-  const data = sizes.get('data') as number
-  const html = sizes.get('html') as number
-  assert.equal(delta < data, true, `delta ${delta} should be under data ${data}`)
-  assert.equal(data < html, true, `data ${data} should be under html ${html}`)
+  const sizes = measureBytes(payloads)
+  assert.deepEqual(
+    sizes.map((x) => x.form).sort(),
+    ['delta', 'html'],
+    'the data form was cut; nothing should still emit it',
+  )
+  const delta = sizes.find((x) => x.form === 'delta')
+  const html = sizes.find((x) => x.form === 'html')
+  assert.ok(delta && html)
+  assert.equal(delta.raw < html.raw, true, `delta ${delta.raw} should be under html ${html.raw}`)
+  assert.equal(delta.brotli < html.brotli, true, `the win has to survive brotli: ${delta.brotli} vs ${html.brotli}`)
 })
 
 test('a served document is identical whether the transport streams or buffers', async () => {

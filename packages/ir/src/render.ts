@@ -1,4 +1,4 @@
-import type { DataPayload, DeltaPayload, Hole, Json, TemplateIR, Values } from './template-ir.ts'
+import type { DeltaPayload, Hole, Json, TemplateIR, Values } from './template-ir.ts'
 
 const utf8 = new TextEncoder()
 const EMPTY = new Uint8Array(0)
@@ -217,11 +217,11 @@ function writeTemplate(
 
 export const renderHtml = render
 
-export function projectData(ir: TemplateIR, payload: DataPayload, resolve?: Resolver): Uint8Array {
+/** A delta is only applicable to the template version it was computed against. */
+export function assertSameTemplate(ir: TemplateIR, payload: { tpl: string }): void {
   if (payload.tpl !== ir.version) {
     throw new Error(`E_TPL_MISMATCH: payload targets ${payload.tpl}, template is ${ir.version}`)
   }
-  return render(ir, payload.values, resolve)
 }
 
 const PATH_TOKEN = /^([^[.]+)(?:\[(\d+)\])?$/

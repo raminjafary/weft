@@ -61,6 +61,18 @@ export const AXES: Axis[] = [
       'Payload size only. It does not price the server-side base-render recovery a delta needs, which is where LiveView pays with a stateful process per connection.',
   },
   {
+    id: 'client-work',
+    label: 'Client work per wire form',
+    unit: 'ms',
+    direction: 'lower-better',
+    needs: 'browser',
+    sota: 'Every framework ships one form. htmx and Datastar always send markup; a client-rendered app always sends data and pays a JavaScript DOM-construction path for it.',
+    gap: 'If a form is negotiable, the cheaper one can be chosen per request — but only if it is actually cheaper, which is what this axis decides.',
+    expectation: 'unknown',
+    caveat:
+      'Measured as the whole job: bytes turned into DOM in the document, parse included, because every form has to end with the region on screen. It does not model the cost of holding a template resident, which is where the repeat-visit axis belongs.',
+  },
+  {
     id: 'tti-server-rendered',
     label: 'Time to interactive, server-rendered',
     unit: 'ms',

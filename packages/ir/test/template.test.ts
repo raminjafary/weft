@@ -3,11 +3,9 @@ import { test } from 'node:test'
 import {
   applyDelta,
   baseRenderId,
-  dataPayload,
   deltaPayload,
   draftTemplate,
   parse,
-  projectData,
   render,
   seal,
   stringify,
@@ -41,20 +39,20 @@ test('rejects a segment count that cannot interleave with the holes', () => {
   assert.equal(result.errors[0]?.code, 'E_SEGMENT_COUNT')
 })
 
-test('a slot hole makes the data and delta forms unprovable', () => {
+test('a slot hole makes the delta form unprovable', () => {
   const ir = draftTemplate({
     id: 't',
     segments: ['<div>', '</div>'],
     holes: [hole(0, 'children', { kind: 'slot' })],
   })
   assert.deepEqual(ir.forms, ['html', 'bundle', 'split', 'patch'])
-  const lying = { ...ir, forms: [...ir.forms, 'data' as const] }
+  const lying = { ...ir, forms: [...ir.forms, 'delta' as const] }
   assert.equal(validateTemplate(lying).errors[0]?.code, 'E_FORM_UNPROVABLE')
 })
 
 test('html is always offered because it needs nothing resident', () => {
   const ir = draftTemplate({ id: 't', segments: ['<p>', '</p>'], holes: [hole(0, 'a')] })
-  assert.equal(validateTemplate({ ...ir, forms: ['data'] }).errors.some((e) => e.code === 'E_FORM_FLOOR'), true)
+  assert.equal(validateTemplate({ ...ir, forms: ['delta'] }).errors.some((e) => e.code === 'E_FORM_FLOOR'), true)
 })
 
 test('raw interpolation must name who vouched for it', () => {
@@ -128,7 +126,7 @@ test('a boolean attribute renders as presence, not as a value', async () => {
   assert.equal(decode(render(ir, { disabled: false })), '<button >go</button>')
 })
 
-test('the data form projects to the same bytes as the html form', async () => {
+test('values projected through a resident template give the same bytes as html', async () => {
   const rowIr = await row()
   const rootIr = await seal(
     draftTemplate({
@@ -141,7 +139,7 @@ test('the data form projects to the same bytes as the html form', async () => {
   const values: Values = { rows: [{ name: 'Dates & nuts', qty: 2 }, { name: 'Sumac', qty: 1 }] }
 
   const html = render(rootIr, values, resolve)
-  const projected = projectData(rootIr, dataPayload(rootIr, values), resolve)
+  const projected = render(rootIr, values, resolve)
   assert.deepEqual([...projected], [...html])
   assert.equal(decode(html), '<ul><li>Dates &amp; nuts x2</li><li>Sumac x1</li></ul>')
 })
@@ -182,7 +180,7 @@ test('a list whose length changes is structural and travels whole', async () => 
 test('serialization round-trips and preserves fields a newer minor added', async () => {
   const ir = await seal(draftTemplate({ id: 't', segments: ['<p>', '</p>'], holes: [hole(0, 'a')] }))
   const withFuture = JSON.parse(stringify(ir)) as Record<string, unknown>
-  withFuture.irVersion = '1.3.0'
+  withFuture.irVersion = '2.3.0'
   withFuture.budget = { js: 8192 }
 
   const parsed = parse(JSON.stringify(withFuture))

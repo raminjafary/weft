@@ -27,7 +27,7 @@ capability costs a wire form, a fill mechanism, or an animation.
 | Same-document View Transitions | iOS 18, WebView 111+ | `COMMIT` is an instant swap; epochs lose polish, not correctness |
 | `requestIdleCallback` | Flag-gated in WKWebView | `when.idle` lands on the timeout rung of its ladder |
 | Service workers | Gated behind app-bound domains in WKWebView | Resident templates go to IndexedDB, then the HTTP cache |
-| Compression dictionaries, Speculation Rules | Chromium only | Pure bonus; the `delta` and `data` forms already cut semantic redundancy |
+| Compression dictionaries, Speculation Rules | Chromium only | Pure bonus; the `delta` form already cuts semantic redundancy |
 
 Because incremental DSD parsing is tracked separately from DSD support, the honest claim
 is "zero JavaScript hole filling where incremental parsing works, plus at worst 1 KB
