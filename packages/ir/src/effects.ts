@@ -3,6 +3,29 @@ import type { EffectSet } from './template-ir.ts'
 export type CacheClass = 'static' | 'shared' | 'private'
 
 /**
+ * What a fragment reads includes what the fragments it renders read. A component that
+ * reads identity makes its caller private, which is the whole reason the sets compose
+ * rather than being recorded per template and compared later.
+ */
+export function unionEffects(sets: readonly EffectSet[]): EffectSet {
+  const reads = new Set<string>()
+  const writes = new Set<string>()
+  const envelope = new Set<string>()
+  for (const set of sets) {
+    for (const r of set.reads) reads.add(r)
+    for (const w of set.writes) writes.add(w)
+    for (const e of set.envelope) envelope.add(e)
+  }
+  const sorted = [...reads].sort()
+  return {
+    reads: sorted,
+    writes: [...writes].sort(),
+    envelope: [...envelope].sort(),
+    residency: sorted.length ? 'server' : 'either',
+  }
+}
+
+/**
  * Everything about cacheability is derived from what a render read. Nothing here is
  * declared by an author, which is the point: a cache class that can be asserted can be
  * asserted wrongly.

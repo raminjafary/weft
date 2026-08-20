@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import {
   applyDelta,
   baseRenderId,
+  byteLength,
   deltaPayload,
   draftTemplate,
   parse,
@@ -221,7 +222,7 @@ test('a list whose length changes is structural and travels whole', async () => 
 test('serialization round-trips and preserves fields a newer minor added', async () => {
   const ir = await seal(draftTemplate({ id: 't', segments: ['<p>', '</p>'], holes: [hole(0, 'a')] }))
   const withFuture = JSON.parse(stringify(ir)) as Record<string, unknown>
-  withFuture.irVersion = '2.3.0'
+  withFuture.irVersion = '2.4.0'
   withFuture.budget = { js: 8192 }
 
   const parsed = parse(JSON.stringify(withFuture))
@@ -347,4 +348,114 @@ test('a delta carries nothing the client has no hole to write into', async () =>
   const delta = deltaPayload(ir, 'base', { price: 100 }, { price: 250 })
   assert.deepEqual(Object.keys(delta.changed), ['d0'], 'price itself has no hole')
   assert.equal(delta.changed.d0, 2.5)
+})
+
+async function badge(): Promise<TemplateIR> {
+  return seal(
+    draftTemplate({
+      id: 'badge',
+      segments: ['<span class="', '">', '</span>'],
+      holes: [
+        { index: 0, kind: 'attr', escape: 'escape', binding: 'tone', path: [0], attr: 'class' },
+        hole(1, 'label', { path: [0] }),
+      ],
+    }),
+  )
+}
+
+test('a component hole renders a child template through a projection of the parent values', async () => {
+  const child = await badge()
+  const parent = await seal(
+    draftTemplate({
+      id: 'parent',
+      segments: ['<p>', '</p>'],
+      holes: [
+        {
+          index: 0,
+          kind: 'component',
+          escape: 'trusted-raw',
+          binding: 'c0',
+          path: [0, 0],
+          nested: child.version,
+          props: { tone: 't', label: 'l' },
+          provenance: 'badge',
+        },
+      ],
+    }),
+  )
+  const resolve = (v: string) => (v === child.version ? child : undefined)
+  const html = decode(render(parent, { t: 'warn', l: 'new' }, resolve))
+  assert.equal(html, '<p><span class="warn">new</span></p>')
+  assert.equal(byteLength(parent, { t: 'warn', l: 'new' }, resolve), html.length)
+})
+
+test('a delta reaches inside an instance, addressed by name rather than by index', async () => {
+  const child = await badge()
+  const parent = await seal(
+    draftTemplate({
+      id: 'parent',
+      segments: ['<p>', '</p>'],
+      holes: [
+        {
+          index: 0,
+          kind: 'component',
+          escape: 'trusted-raw',
+          binding: 'c0',
+          path: [0, 0],
+          nested: child.version,
+          props: { tone: 't', label: 'l' },
+          provenance: 'badge',
+        },
+      ],
+    }),
+  )
+  const resolve = (v: string) => (v === child.version ? child : undefined)
+  const delta = deltaPayload(parent, 'base', { t: 'warn', l: 'a' }, { t: 'warn', l: 'b' }, resolve)
+  assert.deepEqual(delta.changed, { 'c0.label': 'b' }, 'only the prop that moved, under the instance')
+})
+
+test('a delta over a template with instances refuses to guess when it cannot resolve one', async () => {
+  const child = await badge()
+  const parent = await seal(
+    draftTemplate({
+      id: 'parent',
+      segments: ['<p>', '</p>'],
+      holes: [
+        {
+          index: 0,
+          kind: 'component',
+          escape: 'trusted-raw',
+          binding: 'c0',
+          path: [0, 0],
+          nested: child.version,
+          props: { tone: 't', label: 'l' },
+          provenance: 'badge',
+        },
+      ],
+    }),
+  )
+  assert.throws(() => deltaPayload(parent, 'base', { l: 'a' }, { l: 'b' }), /E_NESTED_UNRESOLVED/)
+})
+
+test('a component hole must name both the template it renders and what it passes', () => {
+  const missing = validateTemplate(
+    draftTemplate({
+      id: 'x',
+      segments: ['<p>', '</p>'],
+      holes: [
+        { index: 0, kind: 'component', escape: 'trusted-raw', binding: 'c0', path: [0], provenance: 'y' },
+      ],
+    }),
+  )
+  assert.equal(missing.ok, false)
+  assert.deepEqual(missing.errors.map((e) => e.code).sort(), ['E_COMPONENT_NESTED', 'E_COMPONENT_PROPS'])
+
+  const wrongKind = validateTemplate(
+    draftTemplate({
+      id: 'x',
+      segments: ['<p>', '</p>'],
+      holes: [hole(0, 'a', { props: { p: 'a' } })],
+    }),
+  )
+  assert.equal(wrongKind.errors[0]?.code, 'E_PROPS_KIND')
 })

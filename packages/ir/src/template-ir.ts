@@ -14,7 +14,8 @@ export const ALL_FORMS: readonly WireForm[] = ['html', 'bundle', 'split', 'patch
  */
 export type EscapeClass = 'escape' | 'proven-safe' | 'trusted-raw'
 
-export type HoleKind = 'text' | 'attr' | 'attr-bool' | 'attr-presence' | 'node' | 'list' | 'slot'
+export type HoleKind =
+  'text' | 'attr' | 'attr-bool' | 'attr-presence' | 'node' | 'list' | 'slot' | 'component'
 
 export type BindingId = string
 
@@ -26,8 +27,18 @@ export interface Hole {
   path: number[]
   attr?: string
   provenance?: string
-  /** For a `list` hole: the template version each item's values are projected through. */
+  /**
+   * For a `list` hole: the template version each item's values are projected through.
+   * For a `component` hole: the template version the instance is rendered through.
+   */
   nested?: string
+  /**
+   * For a `component` hole: child prop name to the parent binding that supplies it. An
+   * instance is a projection of the parent's values, never a value of its own, which is
+   * what keeps a component transparent to a delta — a change to the parent binding is a
+   * change to the child's hole, with no path syntax to invent.
+   */
+  props?: Record<string, BindingId>
   /**
    * For a `text` hole: the ordinal of the marker comment its value follows, counted in
    * document order within the fragment and skipping list-hole subtrees. Absent means the
@@ -151,24 +162,90 @@ export function derivableForms(holes: Hole[]): WireForm[] {
   return forms
 }
 
-export function deltaPayload(ir: TemplateIR, base: string, prev: Values, next: Values): DeltaPayload {
-  const changed = diffValues(resolveDerived(ir.derived, prev), resolveDerived(ir.derived, next))
-  const addressable = new Set(ir.holes.map((h) => h.binding))
-  const owned = clientOwned(ir.derived, ir.signals)
-  for (const key of Object.keys(changed)) {
-    const root = (key.split('.')[0] as string).replace(/\[\d+\]$/, '')
-    // Two things never travel: a value with no hole, which the client could not write
-    // anywhere, and a derived value the client recomputes for itself.
-    if (!addressable.has(root) || owned.has(root)) delete changed[key]
-  }
+/**
+ * The values a component instance is rendered with: its props, read out of the parent's
+ * value set. A prop the parent does not supply is null rather than absent, so the child
+ * renders a hole rather than the string "undefined".
+ */
+export function componentValues(hole: Hole, values: Values): Values {
+  const out: Values = {}
+  for (const [prop, binding] of Object.entries(hole.props ?? {})) out[prop] = values[binding] ?? null
+  return out
+}
+
+export function deltaPayload(
+  ir: TemplateIR,
+  base: string,
+  prev: Values,
+  next: Values,
+  resolve?: (version: string) => TemplateIR | undefined,
+): DeltaPayload {
   return {
     spec: PAYLOAD_SPEC,
     irVersion: PAYLOAD_VERSION,
     form: 'delta',
     tpl: ir.version,
     base,
-    changed,
+    changed: changesFor(ir, prev, next, resolve, '', new Set()),
   }
+}
+
+function changesFor(
+  ir: TemplateIR,
+  prev: Values,
+  next: Values,
+  resolve: ((version: string) => TemplateIR | undefined) | undefined,
+  prefix: string,
+  /**
+   * Props a caller fed from a signal. The child declared them as ordinary props and has
+   * no way to know, so ownership has to be carried across the boundary rather than
+   * rediscovered on the other side.
+   */
+  fromSignal: Set<BindingId>,
+): Values {
+  const before = resolveDerived(ir.derived, prev)
+  const after = resolveDerived(ir.derived, next)
+  const changed = diffValues(before, after)
+  const addressable = new Set(ir.holes.map((h) => h.binding))
+  const sources = [...ir.signals, ...[...fromSignal].map((id) => ({ id }))]
+  const owned = clientOwned(ir.derived, sources)
+  for (const key of Object.keys(changed)) {
+    const root = (key.split('.')[0] as string).replace(/\[\d+\]$/, '')
+    // Two things never travel: a value with no hole, which the client could not write
+    // anywhere, and a derived value the client recomputes for itself.
+    if (!addressable.has(root) || owned.has(root)) delete changed[key]
+  }
+
+  const out: Values = {}
+  for (const [key, value] of Object.entries(changed)) out[prefix ? `${prefix}.${key}` : key] = value
+
+  // An instance is addressed by name, the way a row is addressed by index, so a value
+  // computed inside a component is reachable without the parent knowing what it is.
+  for (const hole of ir.holes) {
+    if (hole.kind !== 'component') continue
+    const child = hole.nested ? resolve?.(hole.nested) : undefined
+    if (!child) {
+      throw new Error(`E_NESTED_UNRESOLVED: hole ${hole.index} needs template ${hole.nested ?? '?'}`)
+    }
+    const inherited = new Set<BindingId>()
+    for (const [prop, binding] of Object.entries(hole.props ?? {})) {
+      if (owned.has(binding) || fromSignal.has(binding) || ir.signals.some((sig) => sig.id === binding)) {
+        inherited.add(prop)
+      }
+    }
+    Object.assign(
+      out,
+      changesFor(
+        child,
+        componentValues(hole, before),
+        componentValues(hole, after),
+        resolve,
+        prefix ? `${prefix}.${hole.binding}` : hole.binding,
+        inherited,
+      ),
+    )
+  }
+  return out
 }
 
 /**

@@ -39,12 +39,31 @@ export interface Scope {
   ctxParam?: string
   /** Set inside a list row: the map callback's parameter name. */
   itemParam?: string
+  /** Fragments this one may render, by the name it refers to them as. */
+  components?: Map<string, ComponentRef>
+  /**
+   * Set when some fragment in this module renders this one. A component's props are the
+   * only bindings a caller can hand a signal to, so they are wired; a template nobody
+   * composes carries no wiring it will never use. The client skips a wiring entry with no
+   * source, so a caller that passes a plain value costs nothing.
+   */
+  wireProps?: boolean
 }
 
 export interface NestedRequest {
   holeIndex: number
   id: string
   lowered: Lowered
+}
+
+/**
+ * A fragment another fragment can render. `props` is the set the child declares, so a use
+ * site can be checked against it rather than discovering a missing prop at render.
+ */
+export interface ComponentRef {
+  id: string
+  props: Set<string>
+  lower(): Lowered
 }
 
 export interface Lowered {
@@ -56,6 +75,8 @@ export interface Lowered {
   derived: DerivedDecl[]
   nested: NestedRequest[]
   markers: number
+  /** Ids of the fragments this one renders, so a caller can union their effects. */
+  components: string[]
 }
 
 interface Emitter {
@@ -66,6 +87,7 @@ interface Emitter {
   nested: NestedRequest[]
   markers: number
   derived: DerivedDecl[]
+  components: string[]
 }
 
 function escapeStatic(text: string, attr: boolean): string {
@@ -84,6 +106,8 @@ interface Classified {
   constant?: string
   /** Set when a derived expression reads a signal, so its hole has to be wired. */
   reactive?: boolean
+  /** The bindings a derived expression reads, for deciding whether a prop drives it. */
+  reads?: string[]
 }
 
 export interface LowerInput {
@@ -97,7 +121,16 @@ export interface LowerInput {
 }
 
 export function lower(input: LowerInput): Lowered {
-  const em: Emitter = { parts: [], buffer: '', holes: [], wiring: [], nested: [], markers: 0, derived: [] }
+  const em: Emitter = {
+    parts: [],
+    buffer: '',
+    holes: [],
+    wiring: [],
+    nested: [],
+    markers: 0,
+    derived: [],
+    components: [],
+  }
   const root = input.root
   if (root.type === 'JSXFragment') {
     lowerChildren(nodes(root.children), [], em, input, '')
@@ -120,6 +153,7 @@ export function lower(input: LowerInput): Lowered {
     derived: em.derived,
     nested: em.nested,
     markers: em.markers,
+    components: em.components,
   }
 }
 
@@ -256,12 +290,14 @@ function classifyBySyntax(expr: Node, input: LowerInput, em: Emitter): Classifie
   if (expr.type === 'UnaryExpression' || expr.type === 'BinaryExpression') {
     const safe = provablyNotMarkup(expr)
     const reads: SignalDecl[] = []
-    const tree = derivedExpr(expr, input, em, reads)
+    const refs: string[] = []
+    const tree = derivedExpr(expr, input, em, reads, refs)
     const id = `d${em.derived.length}`
     em.derived.push({ id, expr: tree })
     return {
       binding: id,
       escape: safe ? 'proven-safe' : 'escape',
+      reads: refs,
       ...(reads.length ? { reactive: true } : {}),
     }
   }
@@ -278,8 +314,15 @@ function outOfRowScope(input: LowerInput, at: Node, ident: string): CompileError
   )
 }
 
-function isReactive(classified: Classified): boolean {
-  return classified.signal !== undefined || classified.reactive === true
+/**
+ * Whether the client has to be able to write this hole. A signal read always; a prop of a
+ * fragment somebody composes, because a caller may hand it one.
+ */
+function isReactive(classified: Classified, input: LowerInput): boolean {
+  if (classified.signal !== undefined || classified.reactive === true) return true
+  if (!input.scope.wireProps) return false
+  const ids = classified.reads ?? [classified.binding]
+  return ids.some((id) => input.scope.props.has(id))
 }
 
 /** Arithmetic and comparison cannot produce markup; `+` and logical operators can. */
@@ -295,13 +338,19 @@ function provablyNotMarkup(expr: Node): boolean {
  * Leaves go back through the same classifier every other interpolation uses, which is
  * what keeps scope rules — row scope, context reads, unknown bindings — in one place.
  */
-function derivedExpr(expr: Node, input: LowerInput, em: Emitter, reads: SignalDecl[]): DerivedExpr {
+function derivedExpr(
+  expr: Node,
+  input: LowerInput,
+  em: Emitter,
+  reads: SignalDecl[],
+  refs: string[],
+): DerivedExpr {
   if (expr.type === 'UnaryExpression') {
     const op = String(expr.operator)
     if (!UNARY_OPS.includes(op as UnaryOp)) {
       throw fail(input, expr, 'E_OPERATOR_UNSUPPORTED', `unary ${op} cannot be evaluated on the client`)
     }
-    return { k: 'un', op: op as UnaryOp, a: derivedExpr(node(expr.argument), input, em, reads) }
+    return { k: 'un', op: op as UnaryOp, a: derivedExpr(node(expr.argument), input, em, reads, refs) }
   }
 
   if (expr.type === 'BinaryExpression') {
@@ -312,14 +361,15 @@ function derivedExpr(expr: Node, input: LowerInput, em: Emitter, reads: SignalDe
     return {
       k: 'bin',
       op: op as BinaryOp,
-      a: derivedExpr(node(expr.left), input, em, reads),
-      b: derivedExpr(node(expr.right), input, em, reads),
+      a: derivedExpr(node(expr.left), input, em, reads, refs),
+      b: derivedExpr(node(expr.right), input, em, reads, refs),
     }
   }
 
   const leaf = classifyBySyntax(expr, input, em)
   if (leaf.constant !== undefined) return { k: 'lit', v: literal(expr, leaf.constant) }
   if (leaf.signal) reads.push(leaf.signal)
+  refs.push(leaf.binding)
   return { k: 'ref', id: leaf.binding }
 }
 
@@ -345,12 +395,8 @@ function lowerElement(element: Node, path: number[], em: Emitter, input: LowerIn
   const opening = node(element.openingElement)
   const tag = name(node(opening.name))
   if (!/^[a-z][a-z0-9-]*$/.test(tag)) {
-    throw fail(
-      input,
-      element,
-      'E_COMPONENT_UNSUPPORTED',
-      `<${tag}> is a component; the prototype lowers HTML elements only`,
-    )
+    lowerComponent(element, tag, path, em, input)
+    return
   }
 
   emit(em, `<${tag}`)
@@ -366,6 +412,119 @@ function lowerElement(element: Node, path: number[], em: Emitter, input: LowerIn
 
   lowerChildren(nodes(element.children), path, em, input, tag)
   emit(em, `</${tag}>`)
+}
+
+/**
+ * A component instance is a nested template plus a projection: child prop name to the
+ * parent binding that supplies it. Nothing about the child is inlined, so one `<Widget/>`
+ * used five times is one sealed template used five times, and the instance occupies
+ * exactly one element position in the parent — which is why the child must have a single
+ * root, the same rule a list row already lives under.
+ */
+function lowerComponent(element: Node, tag: string, path: number[], em: Emitter, input: LowerInput): void {
+  const ref = input.scope.components?.get(tag)
+  if (!ref) {
+    throw fail(
+      input,
+      element,
+      'E_COMPONENT_UNRESOLVED',
+      `<${tag}> is not a fragment declared in this module; composition across modules needs a build graph that does not exist yet`,
+    )
+  }
+  if (input.scope.itemParam) {
+    throw fail(
+      input,
+      element,
+      'E_COMPONENT_IN_LIST',
+      `<${tag}> is rendered inside a list row; a row is its own template and cannot carry an instance`,
+    )
+  }
+  if (nodes(element.children).filter(isSurviving).length) {
+    throw fail(
+      input,
+      element,
+      'E_COMPONENT_CHILDREN_UNSUPPORTED',
+      `<${tag}> is given children; a component takes props only until slots are built`,
+    )
+  }
+
+  const props: Record<string, string> = {}
+  for (const raw of nodes(node(element.openingElement).attributes)) {
+    const attribute = node(raw)
+    if (attribute.type === 'JSXSpreadAttribute') {
+      throw fail(input, attribute, 'E_SPREAD_UNSUPPORTED', 'spread attributes hide what a component receives')
+    }
+    const prop = name(node(attribute.name))
+    if (prop === 'key') continue
+    if (/^on[A-Z]/.test(prop)) {
+      throw fail(
+        input,
+        attribute,
+        'E_COMPONENT_EVENT_UNSUPPORTED',
+        `${prop} is an event on <${tag}>; an intent binds to an element, and the component owns its own`,
+      )
+    }
+    if (!ref.props.has(prop)) {
+      throw fail(input, attribute, 'E_COMPONENT_PROP_UNKNOWN', `${tag} does not declare a prop named ${prop}`)
+    }
+    props[prop] = componentProp(attribute, prop, tag, em, input)
+  }
+
+  for (const declared of ref.props) {
+    if (!(declared in props)) {
+      throw fail(
+        input,
+        element,
+        'E_COMPONENT_PROP_MISSING',
+        `${tag} declares a prop named ${declared} and this use site does not supply it`,
+      )
+    }
+  }
+
+  const lowered = ref.lower()
+  if (lowered.holes.some((h) => h.path.length === 0)) {
+    throw fail(input, element, 'E_COMPONENT_NOT_SINGLE_ROOT', `<${tag}> must render a single root element`)
+  }
+
+  const holeIndex = hole(em, {
+    kind: 'component',
+    escape: 'trusted-raw',
+    binding: `c${em.components.length}`,
+    path,
+    props,
+    provenance: ref.id,
+  })
+  em.components.push(ref.id)
+  em.nested.push({ holeIndex, id: ref.id, lowered })
+}
+
+/**
+ * One prop. A literal folds into the derived table as a constant rather than becoming a
+ * value the caller has to supply, so `<Badge tone="warn"/>` needs nothing at render.
+ */
+function componentProp(attribute: Node, prop: string, tag: string, em: Emitter, input: LowerInput): string {
+  const value = attribute.value === null || attribute.value === undefined ? null : node(attribute.value)
+  if (value === null) {
+    const id = `d${em.derived.length}`
+    em.derived.push({ id, expr: { k: 'lit', v: true } })
+    return id
+  }
+  if (value.type === 'Literal') {
+    const id = `d${em.derived.length}`
+    em.derived.push({ id, expr: { k: 'lit', v: (value.value ?? null) as never } })
+    return id
+  }
+  if (value.type !== 'JSXExpressionContainer') {
+    throw fail(input, value, 'E_ATTRIBUTE_UNSUPPORTED', `prop ${prop} of <${tag}> has an unsupported value`)
+  }
+
+  const classified = classify(node(value.expression), input, em)
+  if (classified.constant !== undefined) {
+    const id = `d${em.derived.length}`
+    em.derived.push({ id, expr: { k: 'lit', v: classified.constant } })
+    return id
+  }
+  return classified.binding
 }
 
 function lowerAttribute(attribute: Node, path: number[], em: Emitter, input: LowerInput): void {
@@ -415,7 +574,7 @@ function lowerAttribute(attribute: Node, path: number[], em: Emitter, input: Low
   if (BOOLEAN_ATTRIBUTES.has(attr)) {
     emit(em, ' ')
     hole(em, { kind: 'attr-bool', escape: 'proven-safe', binding: classified.binding, path, attr })
-    if (isReactive(classified)) em.wiring.push({ path, op: 'bool', binding: classified.binding, attr })
+    if (isReactive(classified, input)) em.wiring.push({ path, op: 'bool', binding: classified.binding, attr })
     return
   }
 
@@ -429,7 +588,7 @@ function lowerAttribute(attribute: Node, path: number[], em: Emitter, input: Low
     ...(classified.provenance ? { provenance: classified.provenance } : {}),
   })
   emit(em, '"')
-  if (isReactive(classified)) em.wiring.push({ path, op: 'attr', binding: classified.binding, attr })
+  if (isReactive(classified, input)) em.wiring.push({ path, op: 'attr', binding: classified.binding, attr })
 }
 
 function lowerEvent(attr: string, expression: Node, path: number[], em: Emitter, input: LowerInput): void {
@@ -540,7 +699,7 @@ function lowerChildren(
       em.markers++
     }
 
-    if (isReactive(classified)) {
+    if (isReactive(classified, input)) {
       em.wiring.push({
         path,
         op: 'text',
