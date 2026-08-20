@@ -89,11 +89,38 @@ destructures them. Anything the body computes can then be interpolated, whatever
 computed from — which is what makes `const currency = ctx.cookie('currency') ?? 'IQD'`
 usable as `{currency}` in the markup.
 
+## Contagion, and where it stops
+
+A fragment's effects are its own reads plus the reads of the fragments it renders. A child
+that reads `cookie:currency` makes its caller `shared` and adds `Cookie` to its `Vary`,
+because the child's bytes are inside the caller's response and there is no honest way to
+call that entry anything else.
+
+The design's rule is that this must not go all the way: **a private fragment should not
+make its route private.** That containment is not a special case in the effect union, it is
+a change of shape. A private child inside a non-private parent is _isolated_ — the parent's
+hole is marked `isolated`, the parent does not render it, and the kernel composes the two
+at stream time from two cache entries. The shell stays shareable because the private bytes
+were never in it.
+
+The decision uses the parent's **own** class, not its composed one, so it does not depend
+on which child is examined first:
+
+| Parent's own reads | Child   | Result                                            |
+| ------------------ | ------- | ------------------------------------------------- |
+| static or shared   | private | isolated — its own cache unit, cut like a slot    |
+| private            | private | inlined — there is nothing left to contain        |
+| anything           | shared  | inlined — the reads compose into the parent's key |
+
+An isolated instance costs the `delta` form on its parent, exactly as a slot does: a hole
+this render does not fill is not projectable from values the parent holds.
+
+Only `private` isolates. A shared child inside a static parent still composes, because the
+cost there is a wider cache key rather than a correctness problem, and cutting on it would
+turn every cookie read into a separate request.
+
 ## What this does not do yet
 
-- **No route contagion.** A fragment's class is its own. The design says a private fragment
-  should not make its route private, and nothing here composes classes across fragments
-  because nothing here composes fragments.
 - **No cache-policy checking.** `requiresTtl` reports that a TTL is needed; there is no
   `.cache()` declaration for it to contradict, so the build error the design promises
   ("a `.cache('public')` declaration anywhere on this slot becomes a build error naming the

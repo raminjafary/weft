@@ -14,20 +14,21 @@ record of what measurement did to the design.
 versioned formats everything else depends on, because the speed claim is unfalsifiable
 without a harness and a wire format cannot be versioned retroactively.
 
-| What                              | Where                                                                                         | Status                                                    |
-| --------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Template IR, `weft.template-ir/2` | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir`                         | 2.3.0 — derived values and components                     |
-| Warp frames, `weft.warp/1`        | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                 | 1.0.0, and now exercised end to end                       |
-| Versioning contract               | [`spec/VERSIONING.md`](spec/VERSIONING.md)                                                    | Majors refuse, minors round-trip                          |
-| What measurement changed          | [`spec/FINDINGS.md`](spec/FINDINGS.md)                                                        | Four claims reversed, two untestable so far               |
-| Device and engine reality         | [`spec/baseline/devices.md`](spec/baseline/devices.md)                                        | Written before the numbers                                |
-| Template compiler                 | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler` | TSX to IR, on Oxc, with type-driven escape elision        |
-| Client runtime                    | [`spec/client/adoption.md`](spec/client/adoption.md), `packages/client`                       | Adoption, surgical deltas, resident templates over Warp   |
-| Signal graph                      | [`spec/client/signals.md`](spec/client/signals.md), `packages/client`                         | Linked edges, bitflag status, push-pull with a lazy check |
-| Effect inference                  | [`spec/compiler/effects.md`](spec/compiler/effects.md), `packages/compiler`                   | Reads inferred, cache class derived, ambient reads banned |
-| Route streaming                   | [`spec/kernel/streaming.md`](spec/kernel/streaming.md), `packages/kernel`                     | Slots streamed in order or fastest-first                  |
-| Benchmark harness                 | `packages/bench`                                                                              | All six axes measured                                     |
-| React Router 7 candidate          | [`benchmarks/rr7`](benchmarks/rr7)                                                            | The phase-zero gate, tuned and default shapes             |
+| What                              | Where                                                                                         | Status                                                              |
+| --------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Template IR, `weft.template-ir/2` | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir`                         | 2.4.0 — derived values, components, contagion                       |
+| Warp frames, `weft.warp/1`        | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                 | 1.0.0, and now exercised end to end                                 |
+| Versioning contract               | [`spec/VERSIONING.md`](spec/VERSIONING.md)                                                    | Majors refuse, minors round-trip                                    |
+| What measurement changed          | [`spec/FINDINGS.md`](spec/FINDINGS.md)                                                        | Four claims reversed, two untestable so far                         |
+| Device and engine reality         | [`spec/baseline/devices.md`](spec/baseline/devices.md)                                        | Written before the numbers                                          |
+| Template compiler                 | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler` | TSX to IR, on Oxc, with type-driven escape elision                  |
+| Client runtime                    | [`spec/client/adoption.md`](spec/client/adoption.md), `packages/client`                       | Adoption, surgical deltas, resident templates over Warp             |
+| Signal graph                      | [`spec/client/signals.md`](spec/client/signals.md), `packages/client`                         | Linked edges, bitflag status, push-pull with a lazy check           |
+| Effect inference                  | [`spec/compiler/effects.md`](spec/compiler/effects.md), `packages/compiler`                   | Reads inferred, cache class derived, ambient reads banned           |
+| Route streaming                   | [`spec/kernel/streaming.md`](spec/kernel/streaming.md), `packages/kernel`                     | Slots streamed in order or fastest-first                            |
+| Benchmark harness                 | `packages/bench`                                                                              | All six axes measured                                               |
+| What is not built yet             | [`ROADMAP.md`](ROADMAP.md)                                                                    | The runtime, a docs site with a playground, a demo of every feature |
+| React Router 7 candidate          | [`benchmarks/rr7`](benchmarks/rr7)                                                            | The phase-zero gate, tuned and default shapes                       |
 
 ## Running it
 
@@ -202,15 +203,16 @@ minified, compressed the way it would ship:
 
 | Entry                                   | Raw   | gzip  | brotli    | Budget |
 | --------------------------------------- | ----- | ----- | --------- | ------ |
-| Client runtime, everything              | 7,636 | 2,943 | **2,682** | 6,144  |
-| Content route — adopt and bind          | 5,881 | 2,213 | **2,032** | 5,120  |
-| App route — adopt, bind, patch, persist | 7,605 | 2,928 | **2,664** | 12,288 |
+| Client runtime, everything              | 7,875 | 3,003 | **2,742** | 6,144  |
+| Content route — adopt and bind          | 6,120 | 2,282 | **2,082** | 5,120  |
+| App route — adopt, bind, patch, persist | 7,844 | 2,988 | **2,727** | 12,288 |
 
 Comfortably inside, and a content route still drops by never importing the update path,
 which is the module-level version of paying only for what you use.
 
-Those figures grew by about 990 bytes across the signal graph rewrite, derived values, and
-component adoption — a 58% increase in the runtime for three features. It is recorded here
+Those figures grew by about 1,050 bytes across the signal graph rewrite, derived values,
+component adoption, and property bindings — a 62% increase in the runtime for four
+features. It is recorded here
 rather than smoothed over, because a byte budget that only ever moves in reports is not a
 gate.
 

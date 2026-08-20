@@ -6,8 +6,8 @@ later means every client already in the field is unversioned.
 
 | Spec             | Id                   | Version | Reference implementation |
 | ---------------- | -------------------- | ------- | ------------------------ |
-| Template IR      | `weft.template-ir/2` | 2.3.0   | `packages/ir`            |
-| Payloads (delta) | `weft.payload/2`     | 2.3.0   | `packages/ir`            |
+| Template IR      | `weft.template-ir/2` | 2.4.0   | `packages/ir`            |
+| Payloads (delta) | `weft.payload/2`     | 2.4.0   | `packages/ir`            |
 | Warp frames      | `weft.warp/1`        | 1.0.0   | `packages/warp`          |
 
 ## What each version component means
@@ -45,6 +45,18 @@ requires nothing resident on the client, which is why it is the fallback wheneve
 versions disagree: a version mismatch costs a form, never the page.
 
 ## Changelog
+
+### Template IR 2.4.0 — isolated instances
+
+`isolated` on a component hole means the parent does not render that instance: it is its
+own cache unit, and the kernel composes the two at stream time the way it fills a slot. The
+compiler sets it when a child is private and its caller is not, so that one fragment
+reading identity does not make a whole shared route private.
+
+Like the component hole itself, this is additive but not silently forward-compatible: a
+reader that ignores the flag would inline private bytes into a shared entry. A version
+disagreement costs the resident forms and falls back to `html`, which is the protection
+that matters here.
 
 ### Template IR 2.3.0 — the component hole
 

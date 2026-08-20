@@ -17,7 +17,7 @@ why `data` was cut; the short version is that measurement did not support it.
 ```jsonc
 {
   "spec": "weft.template-ir/2",
-  "irVersion": "2.3.0",
+  "irVersion": "2.4.0",
   "id": "app/routes/cart#lines", // authoring identity, stable across edits
   "version": "9f2c…", // content address, 32 lowercase hex (SHA-256/128)
   "encoding": "base64",
@@ -132,6 +132,7 @@ only inside an expression — `price` above — has no hole of its own, so only 
   "path": [0, 0],
   "nested": "075b…", // the sealed child
   "props": { "tone": "t", "label": "d0" }, // child prop -> parent binding
+  "isolated": false, // when true, the parent does not render it: its own cache unit
   "escape": "trusted-raw",
   "provenance": "app/cart#Badge",
 }
@@ -154,9 +155,14 @@ the projection:
   which the child cannot know on its own. A value the child derives from such a prop is
   recomputed on the client and must not be sent, exactly as if it had been derived from a
   signal directly.
-- **Reads.** A component's effect set is unioned into its caller's. A child that reads
-  identity makes its caller private, which is the whole reason effects compose rather than
-  being recorded per template and reconciled later.
+- **Reads.** A component's effect set is unioned into its caller's — unless the child is
+  private and the caller is not. Then the instance is `isolated`: the parent leaves a
+  boundary and does not render it, the kernel fills it from a separate render, and the
+  parent's entry stays shareable. One private fragment must not make a whole route private,
+  and containment is a change of shape rather than an exception in the union. See
+  [contagion](../compiler/effects.md).
+
+An isolated instance costs the `delta` form on its parent, the same way a `slot` does.
 
 ## Content addressing
 
