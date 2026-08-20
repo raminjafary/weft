@@ -1,7 +1,19 @@
 export type Json = string | number | boolean | null | Json[] | { [k: string]: Json }
 
 export type HoleKind =
-  'text' | 'attr' | 'attr-bool' | 'attr-presence' | 'node' | 'list' | 'slot' | 'component'
+  | 'text'
+  | 'attr'
+  | 'attr-bool'
+  | 'attr-presence'
+  | 'node'
+  | 'list'
+  | 'slot'
+  | 'component'
+  /**
+   * Not an IR hole kind: the shape `locate` uses when a wiring entry's op is `prop`. The
+   * server rendered an attribute; the client writes the property behind it.
+   */
+  | 'prop'
 
 /** The client's view of a hole: everything but the bytes, which it already holds. */
 export interface ClientHole {

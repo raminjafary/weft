@@ -36,6 +36,24 @@ export const VOID_ELEMENTS = new Set([
 ])
 
 /** Attributes whose presence is the value. */
+/**
+ * Attributes that are the *default* rather than the current state. Once a user edits the
+ * control, the property and the attribute disagree, and writing the attribute changes
+ * nothing the user can see. These bind to the property instead — the IR has carried a
+ * `prop` op for exactly this since 2.0.0.
+ */
+export const PROPERTY_BOUND: Record<string, ReadonlySet<string>> = {
+  input: new Set(['value', 'checked', 'indeterminate']),
+  textarea: new Set(['value']),
+  select: new Set(['value']),
+  option: new Set(['selected']),
+  progress: new Set(['value']),
+}
+
+export function bindsToProperty(tag: string, attr: string): boolean {
+  return PROPERTY_BOUND[tag]?.has(attr) ?? false
+}
+
 export const BOOLEAN_ATTRIBUTES = new Set([
   'allowfullscreen',
   'async',

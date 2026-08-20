@@ -6,6 +6,8 @@ export type Target =
   | { kind: 'text'; node: Text }
   | { kind: 'attr'; element: Element; attr: string }
   | { kind: 'bool'; element: Element; attr: string }
+  /** A control's live state, which stops agreeing with its attribute once a user edits it. */
+  | { kind: 'prop'; element: Element; attr: string }
 
 export interface Adopted {
   /** Writes a value into every node the server rendered it into. */
@@ -172,6 +174,10 @@ function locate(
   markers: Comment[],
   origin: 'container' | 'element',
 ): Target | undefined {
+  if (hole.kind === 'prop') {
+    const element = elementAt(root, hole.path, origin)
+    return element && hole.attr ? { kind: 'prop', element, attr: hole.attr } : undefined
+  }
   if (hole.kind === 'attr' || hole.kind === 'attr-presence') {
     const element = elementAt(root, hole.path, origin)
     return element && hole.attr ? { kind: 'attr', element, attr: hole.attr } : undefined
@@ -209,6 +215,8 @@ function soleText(element: Element): Text {
   return node
 }
 
+const BOOLEAN_PROPERTIES = new Set(['checked', 'selected', 'indeterminate'])
+
 function writeTarget(target: Target, value: Json): void {
   if (target.kind === 'text') {
     target.node.data = text(value)
@@ -217,6 +225,11 @@ function writeTarget(target: Target, value: Json): void {
   if (target.kind === 'bool') {
     if (truthy(value)) target.element.setAttribute(target.attr, '')
     else target.element.removeAttribute(target.attr)
+    return
+  }
+  if (target.kind === 'prop') {
+    const element = target.element as unknown as Record<string, unknown>
+    element[target.attr] = BOOLEAN_PROPERTIES.has(target.attr) ? truthy(value) : text(value)
     return
   }
   target.element.setAttribute(target.attr, text(value))
@@ -260,7 +273,8 @@ function wire(adopted: Adopted, options: AdoptOptions, markers: Comment[]): void
 }
 
 function opKind(op: string): ClientHole['kind'] {
-  if (op === 'attr' || op === 'prop') return 'attr'
+  if (op === 'prop') return 'prop'
+  if (op === 'attr') return 'attr'
   if (op === 'bool') return 'attr-bool'
   return 'text'
 }
