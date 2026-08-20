@@ -8,6 +8,7 @@ import { externalCandidate, type ExternalConfig } from './candidates/external.ts
 import { segmentsCandidate } from './candidates/segments.ts'
 import { stringSsrCandidate } from './candidates/string-ssr.ts'
 import { blockingSsrCandidate } from './candidates/blocking-ssr.ts'
+import { measureBudgets } from './budget.ts'
 import { checkAll } from './equivalence.ts'
 import { measureClientRuntime } from './measure/client-runtime.ts'
 import { compileScenario } from './compiled.ts'
@@ -71,6 +72,7 @@ const HELP = `weft-bench — phase-zero benchmark harness
   run       measure the axes and write a report
   verify    check that every wire form of a fragment produces identical bytes
   client    run the client runtime's own conformance checks in every engine
+  budget    bundle each entry and measure it against its byte budget
   list      list axes, scenarios, and candidates
   ir        print the sealed, versioned IR for a scenario
 
@@ -118,6 +120,18 @@ async function main(): Promise<number> {
     if (compiled.row) process.stdout.write(`${stringify(compiled.row)}\n`)
     process.stdout.write(`${stringify(compiled.root)}\n`)
     return 0
+  }
+
+  if (command === 'budget') {
+    const sizes = await measureBudgets()
+    let over = false
+    for (const size of sizes) {
+      if (!size.within) over = true
+      process.stdout.write(
+        `${size.within ? 'within' : 'OVER  '}  ${size.id.padEnd(14)} ${String(size.brotli).padStart(6)} B brotli  (${String(size.gzip).padStart(6)} gzip, ${String(size.raw).padStart(6)} raw)  limit ${size.limit}  ${size.limitNote}\n`,
+      )
+    }
+    return over ? 1 : 0
   }
 
   if (command === 'client') {
