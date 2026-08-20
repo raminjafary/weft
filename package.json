@@ -5,6 +5,7 @@
   "packageManager": "pnpm@10.0.0",
   "engines": { "node": ">=22.18.0" },
   "scripts": {
+    "compile": "node packages/compiler/src/cli.ts",
     "bench": "node packages/bench/src/cli.ts run",
     "bench:list": "node packages/bench/src/cli.ts list",
     "bench:verify": "node packages/bench/src/cli.ts verify",
