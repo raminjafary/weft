@@ -110,10 +110,22 @@ const derived: Scenario = {
   transition: (rows) => rows,
 }
 
+const composed: Scenario = {
+  id: 'composed',
+  label: 'A fragment built from two other fragments, one of them holding the signal',
+  route: '/composed',
+  fixture: fixture('composed.tsx'),
+  values: () => ({ sku: 1042, price: 2599, qty: 1 }),
+  transitionValues: (values) => ({ ...values, price: Number(values.price) + 400 }),
+  rows: () => [],
+  transition: (rows) => rows,
+}
+
 export const SCENARIOS: Scenario[] = [
   shell,
   quantity,
   derived,
+  composed,
   lines('cart', 'Cart lines, 12 rows', '/cart', 12),
   lines('feed', 'Product feed, 50 rows', '/feed', 50),
   lines('slow-feed', 'Product feed, 50 rows behind a 40 ms query', '/feed', 50, 40),

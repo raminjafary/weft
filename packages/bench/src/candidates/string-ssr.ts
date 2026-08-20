@@ -1,4 +1,11 @@
-import { resolveDerived, type Hole, type Json, type TemplateIR, type Values } from '../../../ir/src/index.ts'
+import {
+  componentValues,
+  resolveDerived,
+  type Hole,
+  type Json,
+  type TemplateIR,
+  type Values,
+} from '../../../ir/src/index.ts'
 import type { Candidate, ServeHandle, ServeOptions, UpdatePayloads } from '../candidate.ts'
 import { compileScenario, compiledFor, type Compiled } from '../compiled.ts'
 import { sleep, type Scenario } from '../workloads/index.ts'
@@ -57,6 +64,12 @@ function renderTemplate(ir: TemplateIR, supplied: Values, compiled: Compiled): s
     switch (hole.kind) {
       case 'slot':
         break
+      case 'component': {
+        const nested = hole.nested ? compiled.resolve(hole.nested) : undefined
+        if (!nested) throw new Error(`E_NESTED_UNRESOLVED: ${hole.nested ?? 'unnamed'}`)
+        out += renderTemplate(nested, componentValues(hole, values), compiled)
+        break
+      }
       case 'attr-bool':
         if (truthy(value)) out += hole.attr ?? ''
         break

@@ -154,6 +154,31 @@ function checks(): Check[] {
     }
   }
 
+  const crossing = instanceBindings()
+  if (crossing.length) {
+    const composedHost = region(config.html)
+    const signals = Object.fromEntries(crossing.map((binding) => [binding, signal(0 as never)]))
+    const parent = adopt({
+      root: composedHost,
+      template: config.template,
+      resident: config.resident,
+      signals,
+    })
+    out.push({
+      name: 'a component instance is adopted as its own template',
+      ok: Object.keys(parent.instances).length > 0,
+      detail: `${Object.keys(parent.instances).length} instances`,
+    })
+
+    const before = composedHost.innerHTML
+    for (const binding of crossing) signals[binding]!.set(31 as never)
+    out.push({
+      name: 'a signal handed to a component reaches the nodes inside it',
+      ok: composedHost.innerHTML !== before && composedHost.innerHTML.includes('31'),
+      detail: composedHost.innerHTML !== before ? 'written' : composedHost.innerHTML.slice(0, 160),
+    })
+  }
+
   for (const node of Array.from(document.body.children)) node.remove()
   return out
 }
@@ -188,6 +213,19 @@ function derivedDrive(): { binding: string; expr: ClientExpr; reads: string[] } 
 function serverOwned(): { id: string; expr: ClientExpr } | undefined {
   const wired = new Set(wiredBindings())
   return (config.template.derived ?? []).find((d) => !wired.has(d.id))
+}
+
+/**
+ * The parent bindings that feed a component instance. A signal handed to one has to reach
+ * the child's nodes through the child's own wiring table, renamed on the way in.
+ */
+function instanceBindings(): string[] {
+  const out = new Set<string>()
+  for (const hole of config.template.holes) {
+    if (hole.kind !== 'component') continue
+    for (const binding of Object.values(hole.props ?? {})) out.add(binding)
+  }
+  return [...out]
 }
 
 /** Bindings a signal can actually drive: the value ops in the wiring table. */

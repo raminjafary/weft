@@ -1,6 +1,7 @@
 export type Json = string | number | boolean | null | Json[] | { [k: string]: Json }
 
-export type HoleKind = 'text' | 'attr' | 'attr-bool' | 'attr-presence' | 'node' | 'list' | 'slot'
+export type HoleKind =
+  'text' | 'attr' | 'attr-bool' | 'attr-presence' | 'node' | 'list' | 'slot' | 'component'
 
 /** The client's view of a hole: everything but the bytes, which it already holds. */
 export interface ClientHole {
@@ -11,6 +12,8 @@ export interface ClientHole {
   attr?: string
   anchor?: number
   nested?: string
+  /** For a `component` hole: child prop name to the parent binding that supplies it. */
+  props?: Record<string, string>
 }
 
 export interface ClientWiring {

@@ -196,7 +196,7 @@ async function main(): Promise<number> {
     const engines = (csv(flags.engines) ?? ['chromium', 'firefox', 'webkit']) as EngineName[]
     // `derived` is in the default set because the client-owned half of a derived value
     // is only observable in a real engine.
-    const scenarios = (csv(flags.scenarios) ?? ['cart', 'feed', 'derived']).map(scenarioById)
+    const scenarios = (csv(flags.scenarios) ?? ['cart', 'feed', 'derived', 'composed']).map(scenarioById)
     let failed = false
     for (const engine of engines) {
       for (const s of scenarios) {

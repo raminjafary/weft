@@ -36,16 +36,22 @@ function resolve(adopted: Adopted, path: string): { node: Adopted; binding: stri
     if (!match) return undefined
     const key = match[1] as string
     const index = match[2] === undefined ? undefined : Number(match[2])
+    const last = i === tokens.length - 1
 
     if (index === undefined) {
-      if (i === tokens.length - 1) return { node: current, binding: key }
-      return undefined
+      if (last) return { node: current, binding: key }
+      // A component instance is named rather than indexed, and descending into one is
+      // how a value the parent never held reaches the node that shows it.
+      const instance = current.instances[key]
+      if (!instance) return undefined
+      current = instance
+      continue
     }
 
     const row = current.rows[index]
     if (!row) return undefined
     current = row
-    if (i === tokens.length - 1) return undefined
+    if (last) return undefined
   }
   return undefined
 }
