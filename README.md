@@ -34,13 +34,14 @@ node packages/compiler/src/cli.ts fixtures/*.tsx --no-types   # syntax-only elis
 node packages/bench/src/cli.ts list                         # axes, scenarios, candidates
 node packages/bench/src/cli.ts verify                       # every wire form must agree
 node packages/bench/src/cli.ts client                      # adopt and patch, in three engines
+node packages/bench/src/cli.ts budget                      # bundle each entry against its byte budget
 node packages/bench/src/cli.ts run                          # measure and write a report
 node packages/bench/src/cli.ts run --transport buffered      # the intercepted-webview path
 node packages/bench/src/cli.ts run --axes shell-ttfb --scenarios slow-feed \
   --latency 40 --external benchmarks/rr7/candidates.json    # the gate, against RR7
 node packages/bench/src/cli.ts ir cart                       # the compiled, sealed IR
 npm run typecheck                                            # TypeScript 7, clean
-node --test packages/*/test/*.test.ts                        # 95 conformance tests
+node --test packages/*/test/*.test.ts                        # 101 conformance tests
 node packages/bench/src/cli.ts run --axes client-work         # what each form costs a client
 ```
 
@@ -155,6 +156,26 @@ several holes — a quantity is an input's value, an output's text, and a button
 flag — and the first implementation wrote only to the last of the three. It also caught a
 benchmark measuring an empty loop, because the template under test wired nothing at all
 and `set()` was updating a number and touching no DOM.
+
+## Byte budgets
+
+The design states four ceilings and none had ever been measured. Bundled with Rolldown,
+minified, compressed the way it would ship:
+
+| Entry | Raw | gzip | brotli | Budget |
+| --- | --- | --- | --- | --- |
+| Client runtime, everything | 4,352 | 1,864 | **1,686** | 6,144 |
+| Content route — adopt and bind | 2,859 | 1,202 | **1,085** | 5,120 |
+| App route — adopt, bind, patch, persist | 4,352 | 1,868 | **1,696** | 12,288 |
+
+Comfortably inside, and a content route drops 36% by never importing the update path,
+which is the module-level version of paying only for what you use.
+
+Read that headroom carefully, though. **This runtime does far less than the design's
+runtime will.** No derived values, no plan evaluation, no epochs, no navigation, no form
+negotiation, no intent transport. What the numbers establish is a baseline and a gate:
+about 4.4 KB of brotli headroom to spend on all of that, and a test that fails the moment
+an entry crosses its ceiling.
 
 ## Repeat visits, and Warp's first real run
 
