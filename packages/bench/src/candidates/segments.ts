@@ -44,7 +44,9 @@ export const segmentsCandidate: Candidate = {
 
     if (compiled.root.forms.includes('delta')) {
       const base = baseRenderId(compiled.root, prevValues)
-      out.delta = utf8.encode(JSON.stringify(deltaPayload(compiled.root, base, prevValues, nextValues)))
+      out.delta = utf8.encode(
+        JSON.stringify(deltaPayload(compiled.root, base, prevValues, nextValues, compiled.resolve)),
+      )
     }
     return out
   },

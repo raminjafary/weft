@@ -8,6 +8,8 @@ export interface Compiled {
   row?: TemplateIR
   /** The binding the row template fills, taken from the list hole rather than declared. */
   rowBinding?: string
+  /** Every template the fragment emitted, by version: rows and component instances alike. */
+  templates: Record<string, TemplateIR>
   resolve: Resolver
 }
 
@@ -31,11 +33,15 @@ export async function compileScenario(scenario: Scenario): Promise<Compiled> {
   if (listHole && !row)
     throw new Error(`E_ROW_MISSING: ${root.id} names a nested template that was not emitted`)
 
+  const templates: Record<string, TemplateIR> = {}
+  for (const template of fragment.templates) templates[template.version] = template
+
   const compiled: Compiled = {
     root,
     ...(row ? { row } : {}),
     ...(listHole ? { rowBinding: listHole.binding } : {}),
-    resolve: (version) => (row && version === row.version ? row : undefined),
+    templates,
+    resolve: (version) => templates[version],
   }
   cache.set(scenario.id, compiled)
   return compiled

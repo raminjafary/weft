@@ -15,6 +15,7 @@ function stub(rows = 0): Stub {
   const written: [string, Json][] = []
   const node: Stub = {
     template,
+    instances: {},
     rows: Array.from({ length: rows }, () => stub()),
     written,
     target: () => undefined,

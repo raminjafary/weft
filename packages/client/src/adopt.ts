@@ -15,6 +15,8 @@ export interface Adopted {
   targets(binding: string): Target[]
   /** Per-row bindings for the template's list hole, in document order. */
   rows: Adopted[]
+  /** Component instances, by the binding their hole carries. */
+  instances: Record<string, Adopted>
   template: ClientTemplate
 }
 
@@ -41,18 +43,22 @@ export interface AdoptOptions {
  */
 export function adopt(options: AdoptOptions): Adopted {
   const { root, template } = options
-  const listRoots = new Set<Element>()
+  const origin = options.origin ?? 'container'
+
+  // A nested template owns its own markers and its own addressing, so the parent's walk
+  // stops at the boundary. Without this a component's comments would shift every anchor
+  // that follows it.
+  const opaque = new Set<Element>()
   for (const hole of template.holes) {
-    if (hole.kind === 'list') {
-      const element = elementAt(root, hole.path, options.origin ?? 'container')
-      if (element) listRoots.add(element)
-    }
+    if (hole.kind !== 'list' && hole.kind !== 'component') continue
+    const element = elementAt(root, hole.path, origin)
+    if (element) opaque.add(element)
   }
 
-  const origin = options.origin ?? 'container'
-  const markers = collectMarkers(root, listRoots)
+  const markers = collectMarkers(root, opaque)
   const targets = new Map<string, Target[]>()
   const rows: Adopted[] = []
+  const instances: Record<string, Adopted> = {}
 
   const record = (binding: string, target: Target): void => {
     const existing = targets.get(binding)
@@ -73,6 +79,26 @@ export function adopt(options: AdoptOptions): Adopted {
       continue
     }
 
+    if (hole.kind === 'component') {
+      const host = elementAt(root, hole.path, origin)
+      const nested = hole.nested ? options.resident?.[hole.nested] : undefined
+      if (!host || !nested) continue
+      // The instance renders one root element, so it is adopted exactly as a row is. What
+      // crosses the boundary is renamed on the way: the parent's signal arrives under the
+      // name the child declared it as. Its targets are deliberately not folded into the
+      // parent's table — a delta addresses the instance by name, and merging them would
+      // make one changed value two writes.
+      const instance = adopt({
+        ...options,
+        root: host,
+        template: nested,
+        origin: 'element',
+        ...(options.signals ? { signals: forProps(hole.props, options.signals) } : {}),
+      })
+      instances[hole.binding] = instance
+      continue
+    }
+
     const target = locate(root, hole, markers, origin)
     if (target) record(hole.binding, target)
   }
@@ -80,6 +106,7 @@ export function adopt(options: AdoptOptions): Adopted {
   const adopted: Adopted = {
     template,
     rows,
+    instances,
     target: (binding) => targets.get(binding)?.[0],
     targets: (binding) => targets.get(binding) ?? [],
     write: (binding, value) => {
@@ -115,6 +142,19 @@ function collectMarkers(root: Element, listRoots: Set<Element>): Comment[] {
   const walker = root.ownerDocument.createTreeWalker(root, 128 /* SHOW_COMMENT */)
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     if (!withinList(node, root, listRoots)) out.push(node as Comment)
+  }
+  return out
+}
+
+/** The parent's signals, renamed to the props the child declared them as. */
+function forProps(
+  props: Record<string, string> | undefined,
+  signals: Record<string, Readable<unknown>>,
+): Record<string, Readable<unknown>> {
+  const out: Record<string, Readable<unknown>> = {}
+  for (const [prop, binding] of Object.entries(props ?? {})) {
+    const source = signals[binding]
+    if (source) out[prop] = source
   }
   return out
 }

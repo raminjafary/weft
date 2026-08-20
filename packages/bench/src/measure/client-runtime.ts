@@ -44,10 +44,16 @@ async function page(scenario: Scenario): Promise<string> {
 
   const config = {
     template: clientTemplate(compiled.root),
-    resident: compiled.row ? { [compiled.row.version]: clientTemplate(compiled.row) } : {},
+    // Every template but the root: a client holds the ones it is asked to project
+    // through, whether that is a row or a component instance.
+    resident: Object.fromEntries(
+      Object.values(compiled.templates)
+        .filter((t) => t.version !== compiled.root.version)
+        .map((t) => [t.version, clientTemplate(t)]),
+    ),
     html: decoder.decode(render(compiled.root, before, compiled.resolve)),
     expected: decoder.decode(render(compiled.root, after, compiled.resolve)),
-    delta: deltaPayload(compiled.root, baseRenderId(compiled.root, before), before, after),
+    delta: deltaPayload(compiled.root, baseRenderId(compiled.root, before), before, after, compiled.resolve),
     values: before,
     iterations: 12,
     batch: 20,
