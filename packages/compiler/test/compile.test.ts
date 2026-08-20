@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
-import { render, verifySealed, type TemplateIR, type Values } from '../../ir/src/index.ts'
-import { compileFile, compileSource } from '../src/compile.ts'
+import { cacheClassOf, render, verifySealed, type TemplateIR, type Values } from '../../ir/src/index.ts'
+import { compileFile, compileFiles, compileSource, type CompiledFragment } from '../src/compile.ts'
 import { CompileError } from '../src/errors.ts'
 import { intentId } from '../src/intents.ts'
 
@@ -288,15 +288,41 @@ test('one component used twice is one sealed template', async () => {
   )
 })
 
-test("a component's reads become its caller's reads", async () => {
+test("a shared component's reads become its caller's reads", async () => {
   const out = await compile(
     PRELUDE +
-      'const Who = fragment((ctx) => { const who = ctx.user(); return <b>{who}</b> })\n' +
-      'export default fragment(() => <p><Who /></p>)',
+      "const Money = fragment((ctx) => { const c = ctx.cookie('currency'); return <b>{c}</b> })\n" +
+      'export default fragment(() => <p><Money /></p>)',
   )
   const { entry } = out.fragments[0] as { entry: TemplateIR }
-  assert.deepEqual(entry.effects.reads, ['identity'])
-  assert.equal(entry.effects.residency, 'server')
+  assert.deepEqual(entry.effects.reads, ['cookie:currency'])
+  assert.equal(cacheClassOf(entry.effects), 'shared')
+  assert.equal(entry.holes.find((h) => h.kind === 'component')?.isolated, undefined, 'inlined')
+  assert.equal(entry.forms.includes('delta'), true)
+})
+
+test('a private component does not make its caller private; it becomes its own cache unit', async () => {
+  const out = await compile(
+    PRELUDE +
+      'const Who = fragment(async (ctx) => { const who = await ctx.user(); return <b>{who}</b> })\n' +
+      "export default fragment((ctx) => { const c = ctx.cookie('currency'); return <p>{c}<Who /></p> })",
+  )
+  const { entry } = out.fragments[0] as { entry: TemplateIR }
+  assert.deepEqual(entry.effects.reads, ['cookie:currency'], 'identity is contained, not inherited')
+  assert.equal(cacheClassOf(entry.effects), 'shared', 'the route stays shareable')
+  assert.equal(entry.holes.find((h) => h.kind === 'component')?.isolated, true)
+  assert.equal(entry.forms.includes('delta'), false, 'a hole this render does not fill is not projectable')
+})
+
+test('a caller that is already private inlines a private component rather than cutting it out', async () => {
+  const out = await compile(
+    PRELUDE +
+      'const Who = fragment(async (ctx) => { const who = await ctx.user(); return <b>{who}</b> })\n' +
+      'export default fragment(async (ctx) => { const me = await ctx.user(); return <p>{me}<Who /></p> })',
+  )
+  const { entry } = out.fragments[0] as { entry: TemplateIR }
+  assert.equal(cacheClassOf(entry.effects), 'private')
+  assert.equal(entry.holes.find((h) => h.kind === 'component')?.isolated, undefined, 'nothing to contain')
 })
 
 test('a component that renders itself is refused rather than expanded', async () => {
@@ -341,6 +367,60 @@ test('a slot hole renders nothing and costs the data and delta forms', async () 
   assert.equal(html.startsWith('<!doctype html><html lang="en">'), true)
 })
 
+test('a fragment composes one from another module, compiled child first', async () => {
+  // Listed parent first on purpose: the build has to find the order, not be handed it.
+  const { modules } = await compileFiles([fixture('imported.tsx'), fixture('badge.tsx')], {
+    types: false,
+  })
+  assert.deepEqual(
+    modules.map((m) => m.file.endsWith('imported.tsx')),
+    [true, false],
+    'modules come back in the order the caller asked for',
+  )
+
+  const parent = modules[0]?.fragments[0] as CompiledFragment
+  const badge = modules[1]?.fragments[0] as CompiledFragment
+  const instance = parent.entry.holes.find((h) => h.kind === 'component')
+  assert.equal(instance?.nested, badge.entry.version, 'the parent names the version it was sealed at')
+  assert.equal(instance?.provenance?.endsWith('badge.tsx#Badge'), true)
+  assert.ok(
+    parent.templates.some((t) => t.version === badge.entry.version),
+    'the child travels with the parent, so a resolver has it',
+  )
+
+  // Composed from another module, so its props are wired: the caller passed a signal.
+  assert.deepEqual(
+    badge.entry.wiring.map((w) => [w.op, w.binding]),
+    [
+      ['attr', 'tone'],
+      ['text', 'label'],
+    ],
+  )
+
+  const byVersion = new Map(parent.templates.map((t) => [t.version, t]))
+  assert.equal(
+    decode(render(parent.entry, { sku: 5, tone: 'warn' }, (v) => byVersion.get(v))),
+    '<form data-sku="5"><span class="warn">in stock</span></form>',
+  )
+})
+
+test('two modules that render each other are refused, not unrolled', async () => {
+  await assert.rejects(
+    () => compileFiles([fixture('cycle-a.tsx'), fixture('cycle-b.tsx')], { types: false }),
+    (error: unknown) => {
+      assert.ok(error instanceof CompileError)
+      assert.equal(error.code, 'E_COMPONENT_CYCLE')
+      assert.match(error.message, /cycle-a\.tsx.*cycle-b\.tsx/s)
+      return true
+    },
+  )
+})
+
+test('a fragment nobody composes carries no wiring for its props', async () => {
+  const { modules } = await compileFiles([fixture('badge.tsx')], { types: false })
+  assert.deepEqual(modules[0]?.fragments[0]?.entry.wiring, [], 'compiled alone, it is not composable')
+})
+
 test('the fixtures used by the benchmark all compile and seal', async () => {
   for (const file of ['shell.tsx', 'lines.tsx', 'quantity.tsx']) {
     const out = await compileFile(fixture(file))
@@ -368,4 +448,31 @@ test('a template id is repository-relative, so a version does not depend on the 
   assert.equal(id, 'packages/compiler/fixtures/lines.tsx#default')
   assert.equal(id.includes('/Users/'), false)
   assert.equal(absolute.fragments[0]?.entry.version, viaRelative.fragments[0]?.entry.version)
+})
+
+test("a control's live state binds to the property, not the attribute", async () => {
+  const ir = await only(
+    'export default fragment(() => { const n = signal(1); return <p><input type="text" value={n()} /></p> })',
+  )
+  assert.equal(ir.holes[0]?.kind, 'attr', 'the server still renders the attribute')
+  assert.equal(decode(render(ir, { n: 5 })), '<p><input type="text" value="5"></p>')
+  assert.equal(ir.wiring[0]?.op, 'prop', 'the client writes the property behind it')
+  assert.equal(ir.wiring[0]?.attr, 'value')
+})
+
+test('a checkbox binds checked as a property while still rendering the attribute', async () => {
+  const ir = await only(
+    'export default fragment(() => { const on = signal(true); return <p><input type="checkbox" checked={on()} /></p> })',
+  )
+  assert.equal(ir.holes[0]?.kind, 'attr-bool')
+  assert.equal(decode(render(ir, { on: true })), '<p><input type="checkbox" checked></p>')
+  assert.equal(decode(render(ir, { on: false })), '<p><input type="checkbox" ></p>')
+  assert.equal(ir.wiring[0]?.op, 'prop')
+})
+
+test('the same attribute on an element that is not a control stays an attribute', async () => {
+  const ir = await only(
+    'export default fragment(() => { const n = signal(1); return <p><li value={n()}>x</li></p> })',
+  )
+  assert.equal(ir.wiring[0]?.op, 'attr')
 })
