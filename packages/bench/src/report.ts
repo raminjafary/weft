@@ -3,9 +3,15 @@ import { ENGINE_PROXIES } from './measure/browser.ts'
 import type { Row, RunResult } from './runner.ts'
 import { separable, type Summary } from './stats.ts'
 
+/** Adaptive precision: a surgical write and a render throughput differ by seven orders. */
 function fmt(n: number | undefined, digits = 2): string {
   if (n === undefined || Number.isNaN(n)) return '—'
-  if (Math.abs(n) >= 10_000) return Math.round(n).toLocaleString('en-US')
+  const magnitude = Math.abs(n)
+  if (magnitude >= 10_000) return Math.round(n).toLocaleString('en-US')
+  if (magnitude === 0) return '0'
+  if (magnitude < 0.001) return n.toExponential(1)
+  if (magnitude < 0.1) return n.toFixed(4)
+  if (magnitude < 1) return n.toFixed(3)
   return n.toFixed(digits)
 }
 
@@ -166,6 +172,9 @@ export function comparison(
     .map((r) => {
       const bv = (best.summary as Summary).p50
       const rv = (r.summary as Summary).p50
+      if (bv === 0 || rv === 0 || !Number.isFinite(bv) || !Number.isFinite(rv)) {
+        return `${axisId}/${scenarioId}${engine ? ` on ${engine}` : ''}: ${best.candidate} measured at or below this engine's clock resolution — no ratio`
+      }
       if (!separable(best.summary as Summary, r.summary as Summary)) {
         return `${axisId}/${scenarioId}${engine ? ` on ${engine}` : ''}: ${best.candidate} and ${r.candidate} are not separable at this sample size — no claim`
       }

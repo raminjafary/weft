@@ -27,6 +27,15 @@ export interface Hole {
   provenance?: string
   /** For a `list` hole: the template version each item's values are projected through. */
   nested?: string
+  /**
+   * For a `text` hole: the ordinal of the marker comment its value follows, counted in
+   * document order within the fragment and skipping list-hole subtrees. Absent means the
+   * value is the only text child of the element at `path`.
+   *
+   * This is on the hole, not only on the wiring entry, because every value has to be
+   * locatable — a delta writes server-owned values, not only signal-owned ones.
+   */
+  anchor?: number
 }
 
 export type WiringOp = 'text' | 'attr' | 'prop' | 'bool' | 'event' | 'list'

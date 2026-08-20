@@ -47,6 +47,12 @@ export function validateTemplate(ir: TemplateIR): ValidationResult {
     if (h.escape === 'trusted-raw' && !h.provenance) {
       fail('E_RAW_UNVOUCHED', `holes[${i}]`, 'trusted-raw must name the source that vouches for it')
     }
+    if (h.anchor !== undefined) {
+      if (h.kind !== 'text') fail('E_ANCHOR_KIND', `holes[${i}]`, 'only a text hole follows a marker comment')
+      if (!Number.isInteger(h.anchor) || h.anchor < 0) {
+        fail('E_ANCHOR_SHAPE', `holes[${i}].anchor`, 'anchor is a non-negative marker ordinal')
+      }
+    }
     if (h.nested !== undefined) {
       if (h.kind !== 'list') fail('E_NESTED_KIND', `holes[${i}]`, 'only a list hole can name a nested template')
       if (!HEX128.test(h.nested)) {

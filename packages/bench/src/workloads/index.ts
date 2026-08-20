@@ -15,6 +15,8 @@ export interface Scenario {
    * genuinely slow is the only place the precomputed-shell claim can be tested.
    */
   slowMs?: number
+  /** A change to the root values, for a region whose update is not a row change. */
+  transitionValues?: (values: Values) => Values
   /** The state transition the update-bytes axis measures: a realistic partial change. */
   transition(rows: Values[]): Values[]
 }
@@ -82,8 +84,20 @@ function lines(id: string, label: string, route: string, count: number, slowMs?:
   }
 }
 
+const quantity: Scenario = {
+  id: 'quantity',
+  label: 'Quantity editor, one signal wired to three nodes',
+  route: '/quantity',
+  fixture: fixture('quantity.tsx'),
+  values: () => ({ sku: 1042, qty: 1 }),
+  transitionValues: (values) => ({ ...values, qty: Number(values.qty) + 1 }),
+  rows: () => [],
+  transition: (rows) => rows,
+}
+
 export const SCENARIOS: Scenario[] = [
   shell,
+  quantity,
   lines('cart', 'Cart lines, 12 rows', '/cart', 12),
   lines('feed', 'Product feed, 50 rows', '/feed', 50),
   lines('slow-feed', 'Product feed, 50 rows behind a 40 ms query', '/feed', 50, 40),

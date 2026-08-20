@@ -76,7 +76,11 @@ export function lower(input: LowerInput): Lowered {
   if (root.type === 'JSXFragment') {
     lowerChildren(nodes(root.children), [], em, input, '')
   } else if (root.type === 'JSXElement') {
-    lowerElement(root, [], em, input)
+    // A template always addresses from a container whose element children are its
+    // top-level nodes, so a single root element is at [0] exactly as it would be inside
+    // a fragment. Without this, [] would mean the root element in one case and the
+    // container in the other.
+    lowerElement(root, [0], em, input)
   } else {
     throw fail(input, root, 'E_ROOT_NOT_JSX', `a fragment must return JSX, found ${root.type}`)
   }
@@ -418,6 +422,7 @@ function lowerChildren(children: Node[], path: number[], em: Emitter, input: Low
       binding: classified.binding,
       path,
       ...(classified.provenance ? { provenance: classified.provenance } : {}),
+      ...(anchor !== undefined ? { anchor } : {}),
     })
 
     const next = surviving[i + 1]
@@ -446,6 +451,14 @@ function lowerList(list: { array: Node; callback: Node }, path: number[], em: Em
 
   const body = node(list.callback.body)
   const rowRoot = body.type === 'BlockStatement' ? returnedJsx(body, input) : body
+  if (rowRoot.type === 'JSXFragment') {
+    throw fail(
+      input,
+      rowRoot,
+      'E_ROW_NOT_SINGLE_ROOT',
+      'a row must be a single element, otherwise the parent\'s children cannot be divided into rows',
+    )
+  }
   const id = `${input.id}:${arrayBinding.binding}[]`
 
   const lowered = lower({

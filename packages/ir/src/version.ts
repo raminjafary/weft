@@ -1,8 +1,8 @@
 export const TEMPLATE_IR_SPEC = 'weft.template-ir/2'
-export const TEMPLATE_IR_VERSION = '2.0.0'
+export const TEMPLATE_IR_VERSION = '2.1.0'
 
 export const PAYLOAD_SPEC = 'weft.payload/2'
-export const PAYLOAD_VERSION = '2.0.0'
+export const PAYLOAD_VERSION = '2.1.0'
 
 export interface SemVer {
   major: number
@@ -112,10 +112,14 @@ export function migrate(
 }
 
 /**
- * There are no built-in migrations for major 2. The 1.x chain went with the major: a
- * migration may not cross one, so a 1.x document is refused rather than upgraded. That is
- * the whole point of a major — see spec/VERSIONING.md.
+ * 2.0.0 -> 2.1.0 put `anchor` on holes as well as wiring entries, so a consumer can
+ * locate any text hole rather than only the ones a signal writes to. A 2.0.0 document is
+ * already valid: its text holes simply carry no anchor, and a client falls back to the
+ * region-level path. The 1.x chain went with the major, because a migration may not
+ * cross one.
  */
-function installBuiltIns(): void {}
+function installBuiltIns(): void {
+  registerMigration('2.0.0', '2.1.0', (doc) => doc)
+}
 
 installBuiltIns()

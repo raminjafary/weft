@@ -6,8 +6,8 @@ later means every client already in the field is unversioned.
 
 | Spec | Id | Version | Reference implementation |
 | --- | --- | --- | --- |
-| Template IR | `weft.template-ir/2` | 2.0.0 | `packages/ir` |
-| Payloads (delta) | `weft.payload/2` | 2.0.0 | `packages/ir` |
+| Template IR | `weft.template-ir/2` | 2.1.0 | `packages/ir` |
+| Payloads (delta) | `weft.payload/2` | 2.1.0 | `packages/ir` |
 | Warp frames | `weft.warp/1` | 1.0.0 | `packages/warp` |
 
 ## What each version component means
@@ -45,6 +45,24 @@ requires nothing resident on the client, which is why it is the fallback wheneve
 versions disagree: a version mismatch costs a form, never the page.
 
 ## Changelog
+
+### Template IR 2.1.0 — anchors on holes
+
+`anchor` moved from wiring entries onto holes as well, so any consumer can locate any
+text value rather than only the ones a signal writes to. A delta writes server-owned
+values, and without this a client could not find them: it had to re-project the whole
+region, which made the `delta` form measure *worse* than sending markup. Applied through
+per-hole addressing it is 20-93x cheaper than the parse it replaces.
+
+Additive, so a minor: a 2.0.0 document is valid as it stands, its text holes simply carry
+no anchor and fall back to the element path. The registered migration restamps the
+version and changes nothing else.
+
+Also clarified rather than changed: `path` addresses from a container whose element
+children are the template's top-level nodes, so a single root element sits at `[0]` just
+as it would inside a fragment. The compiler previously put it at `[]`, which made `[]`
+mean the root element in one case and the container in another — an ambiguity no consumer
+had yet hit because no consumer existed.
 
 ### Template IR 2.0.0 — the `data` form was cut
 

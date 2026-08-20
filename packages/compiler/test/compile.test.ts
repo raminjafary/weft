@@ -103,10 +103,24 @@ test('a dynamic text that is an only child needs no marker', async () => {
   assert.equal(ir.wiring[0]?.anchor, undefined)
 })
 
-test('paths index element children, so a text value cannot shift them', async () => {
+test('paths index element children from the container, so a text value cannot shift them', async () => {
   const ir = await only('export default fragment(({ a, b }) => <div>{a}<span><i>{b}</i></span></div>)')
-  const nested = ir.holes.find((h) => h.binding === 'b')
-  assert.deepEqual(nested?.path, [0, 0])
+  // container -> div [0] -> span [0,0] -> i [0,0,0]
+  assert.deepEqual(ir.holes.find((h) => h.binding === 'b')?.path, [0, 0, 0])
+  assert.deepEqual(ir.holes.find((h) => h.binding === 'a')?.path, [0])
+})
+
+test('a single root element and a fragment root address alike', async () => {
+  const single = await only('export default fragment(({ a }) => <p>{a}</p>)')
+  const fragment = await only('export default fragment(({ a }) => <><p>{a}</p></>)')
+  assert.deepEqual(single.holes[0]?.path, [0])
+  assert.deepEqual(fragment.holes[0]?.path, [0])
+  assert.equal(single.version, fragment.version)
+})
+
+test('a text child of a fragment root is owned by the container itself', async () => {
+  const ir = await only('export default fragment(({ a }) => <>{a}<p>x</p></>)')
+  assert.deepEqual(ir.holes[0]?.path, [])
 })
 
 test('a handler compiles to an intent id, never to server code', async () => {
