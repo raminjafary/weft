@@ -1,11 +1,27 @@
 import assert from 'node:assert/strict'
 import { after, test } from 'node:test'
-import { TEMPLATE_IR_SPEC, accepts, clearMigrations, compareVersions, migrate, registerMigration } from '../src/version.ts'
+import {
+  TEMPLATE_IR_SPEC,
+  TEMPLATE_IR_VERSION,
+  accepts,
+  clearMigrations,
+  compareVersions,
+  migrate,
+  registerMigration,
+  resetMigrations,
+} from '../src/version.ts'
 
 test('accepts an exact match', () => {
-  const result = accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '1.0.0' })
+  const result = accepts({ spec: TEMPLATE_IR_SPEC, irVersion: TEMPLATE_IR_VERSION })
   assert.equal(result.ok, true)
   assert.equal(result.ok && result.mode, 'exact')
+})
+
+test('the built-in chain upgrades a 1.0.0 document to the reader version', () => {
+  resetMigrations()
+  const { doc, applied } = migrate({ spec: TEMPLATE_IR_SPEC, irVersion: '1.0.0' })
+  assert.equal(doc.irVersion, TEMPLATE_IR_VERSION)
+  assert.deepEqual(applied, ['1.0.0 -> 1.1.0'])
 })
 
 test('rejects a different major as a wire break', () => {
@@ -20,13 +36,15 @@ test('rejects a different spec id outright', () => {
 })
 
 test('accepts a newer minor as forward-compatible', () => {
-  const result = accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '1.4.0' })
+  const result = accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '1.9.0' })
   assert.equal(result.ok && result.mode, 'forward')
 })
 
-test('treats an older minor as upgradable', () => {
-  const result = accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '0.9.0' })
-  assert.equal(result.ok === false && result.code, 'E_MAJOR_UNSUPPORTED')
+test('treats an older minor as upgradable and a different major as a break', () => {
+  assert.equal(accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '1.0.0' }).ok, true)
+  assert.equal(accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '1.0.0' }).ok && accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '1.0.0' }).mode, 'upgrade')
+  const older = accepts({ spec: TEMPLATE_IR_SPEC, irVersion: '0.9.0' })
+  assert.equal(older.ok === false && older.code, 'E_MAJOR_UNSUPPORTED')
   assert.equal(compareVersions('1.0.0', '1.0.1') < 0, true)
 })
 
@@ -49,4 +67,4 @@ test('reports a missing migration instead of guessing', () => {
   assert.throws(() => migrate({ spec: TEMPLATE_IR_SPEC, irVersion: '1.0.0' }, '1.2.0'), /E_MIGRATION_MISSING/)
 })
 
-after(clearMigrations)
+after(resetMigrations)

@@ -6,8 +6,8 @@ later means every client already in the field is unversioned.
 
 | Spec | Id | Version | Reference implementation |
 | --- | --- | --- | --- |
-| Template IR | `weft.template-ir/1` | 1.0.0 | `packages/ir` |
-| Payloads (data, delta) | `weft.payload/1` | 1.0.0 | `packages/ir` |
+| Template IR | `weft.template-ir/1` | 1.1.0 | `packages/ir` |
+| Payloads (data, delta) | `weft.payload/1` | 1.1.0 | `packages/ir` |
 | Warp frames | `weft.warp/1` | 1.0.0 | `packages/warp` |
 
 ## What each version component means
@@ -43,6 +43,26 @@ a wiring table — is the interface that resident clients, cache keys, compressi
 dictionaries, and the negotiated wire forms all depend on. `html` is the one form that
 requires nothing resident on the client, which is why it is the fallback whenever
 versions disagree: a version mismatch costs a form, never the page.
+
+## Changelog
+
+### Template IR 1.1.0
+
+Both changes came from building the compiler, which is the point of building it early.
+
+- **Added** `anchor` on a wiring entry: the ordinal of the marker comment a text binding
+  writes after. Adjacent static and dynamic text merge into a single text node when the
+  browser parses HTML, so a dynamic text run is not addressable without a marker.
+- **Clarified** `path` as an index into *element* children rather than child nodes. Text
+  nodes come and go with the values, so a node-counting path is wrong for any value set
+  the compiler did not see.
+- **Relaxed** the wiring rule that every entry name a resolvable binding. An `event` op
+  names an intent and has no value binding; requiring one was an over-strict rule in
+  1.0.0, and a validator rejecting a valid document is a spec bug. Corrected here rather
+  than carried, because no reader outside this repository has ever consumed 1.0.0.
+
+A 1.0.0 document is valid 1.1.0 as it stands, so the registered migration only restamps
+the version — and it exists because a missing step is an error, never a silent pass.
 
 ## Compatibility tests are part of the spec
 

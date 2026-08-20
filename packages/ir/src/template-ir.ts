@@ -32,12 +32,23 @@ export interface Hole {
 export type WiringOp = 'text' | 'attr' | 'prop' | 'bool' | 'event' | 'list'
 
 export interface WiringEntry {
+  /**
+   * Indices into *element* children, not childNodes. Element positions do not move
+   * when a text value renders empty, so an element path is stable across value sets.
+   */
   path: number[]
   op: WiringOp
+  /** Unused for `event` ops, which name an intent instead. */
   binding: BindingId
   attr?: string
   event?: string
   intent?: string
+  /**
+   * For a `text` op: the ordinal of the marker comment this binding writes after,
+   * counted in document order within the fragment and skipping list-hole subtrees.
+   * Absent means the target is the parent element's only text child.
+   */
+  anchor?: number
 }
 
 export interface SignalDecl {

@@ -61,7 +61,7 @@ export function validateTemplate(ir: TemplateIR): ValidationResult {
   for (const s of ir.signals) bindings.add(s.id)
 
   ir.wiring.forEach((w, i) => {
-    if (!bindings.has(w.binding)) {
+    if (w.op !== 'event' && !bindings.has(w.binding)) {
       fail(
         'E_WIRING_UNKNOWN_BINDING',
         `wiring[${i}]`,
@@ -74,6 +74,12 @@ export function validateTemplate(ir: TemplateIR): ValidationResult {
     }
     if ((w.op === 'attr' || w.op === 'bool') && !w.attr) {
       fail('E_WIRING_ATTR', `wiring[${i}]`, `${w.op} op must name its attribute`)
+    }
+    if (w.anchor !== undefined) {
+      if (w.op !== 'text') fail('E_ANCHOR_OP', `wiring[${i}]`, 'only a text op writes after a marker comment')
+      if (!Number.isInteger(w.anchor) || w.anchor < 0) {
+        fail('E_ANCHOR_SHAPE', `wiring[${i}].anchor`, 'anchor is a non-negative marker ordinal')
+      }
     }
     if (!w.path.every((p) => Number.isInteger(p) && p >= 0)) {
       fail('E_PATH_SHAPE', `wiring[${i}].path`, 'paths are non-negative child indices')
