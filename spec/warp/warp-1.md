@@ -1,0 +1,121 @@
+# Warp, version 1
+
+`weft.warp/1` — one logical channel per tab, five jobs: initial render, navigation,
+mutation, refresh, and invalidation. Reference implementation in `packages/warp`.
+
+## Versioning on the wire
+
+Binary streams open with an 8-byte preamble: `WRP1`, then the sender's major and minor.
+A different major is refused at the preamble (`E_WARP_MAJOR`) rather than discovered
+three frames in. The server's first frame is `WARP`, which states the versions and the
+strategy it settled on:
+
+```
+WARP spec=weft.warp/1 v=1.0.0 ir=1.0.0 forms=html,data,delta strategy=stream fill=dsd
+     commit=view-transition residency=indexeddb resume=true downgrade=…
+```
+
+## Framing
+
+**Binary, in production.** Per frame: `u8 kind`, `u8 flags`, `u16 headerLen` (LE),
+`u32 bodyLen` (LE), header bytes, body bytes. Flags: bit 0 body present, bit 1 body is
+UTF-8 text.
+
+Two properties follow from the length prefix, and both are tested:
+
+- An **unknown frame kind is skippable**. A version-1 client meeting a frame added in
+  1.3 steps over it by length and keeps reading. This is what makes minor versions
+  additive on a live connection.
+- A body is **opaque bytes**, so an `HTML` frame carries pre-encoded template segments
+  with no re-encoding and no JSON escaping.
+
+**Text, for tooling.** One frame per line, `KIND key=value …`. Header values that
+contain a space, `=`, `%`, or a newline are percent-encoded, and bodies are encoded into
+the line, so the one-frame-per-line invariant holds. Text framing is therefore *not*
+byte-transparent for bodies, which is why production is binary.
+
+Headers are strings on the wire. Typed accessors (`num`, `bool`, `list`) are the
+reader's business; the codec does not guess.
+
+## Direction is structural
+
+Codes below `0x10` travel client to server, codes from `0x10` up travel server to
+client. A decoder rejects a frame arriving from the wrong side (`E_WRONG_DIRECTION`)
+without knowing what the frame means.
+
+| Client to server | | Server to client | |
+| --- | --- | --- | --- |
+| `RESIDENT` 0x01 | held templates, capabilities, network class | `WARP` 0x10 | versions and negotiated strategy |
+| `HELD` 0x02 | base renders the client can be deltaed against | `SHELL` 0x11 | route, plan, flags, device class |
+| `REFRESH` 0x03 | refresh a slot, form negotiable | `SLOT` 0x12 | open or close a hole |
+| `WARM` 0x04 | stage data for a route, do not paint | `HTML` 0x13 | rendered markup for a slot |
+| `INTENT` 0x05 | an intent id and its params | `TPL` 0x14 | wiring table plus byte segments |
+| `ACK` 0x06 | applied through epoch | `DATA` 0x15 | values for a resident template |
+| `RESUME` 0x07 | continue from a committed epoch | `DELTA` 0x16 | changed values against a named base |
+| | | `PATCH` 0x17 | DOM operations |
+| | | `SIGNAL` 0x18 | a signal value |
+| | | `COMMIT` 0x19 | atomic flip of an epoch |
+| | | `MOD` 0x1a / `CSS` 0x1b | chunk and stylesheet requirements |
+| | | `STALE` 0x1c | push invalidation, client decides |
+| | | `NAV` 0x1d / `PLAN` 0x1e | navigation and lazy plan extension |
+| | | `ERROR` 0x1f | a named failure |
+
+The frame sketch in the design notes uses positional shorthand (`SLOT s12 open prio=1`).
+The canonical encoding is all `key=value`; the shorthand is for prose.
+
+## Transport bindings
+
+Warp is a logical channel with three bindings and one frame vocabulary:
+
+1. **Streamed response down, discrete POSTs up.** Default. The initial document *is*
+   the first frames. Streaming a *request* body is Chromium-only, HTTP/2-only, and never
+   truly duplex, so it is not the foundation.
+2. **WebSocket.** The only Baseline true-duplex transport. Baseline in every webview.
+3. **WebTransport.** Later, where it exists.
+
+Read the downlink with `getReader()`. `for await…of` over a stream is the part Safari
+lacks, not stream reading itself.
+
+No HTTP version is load-bearing. Response streaming is universal. H2/H3 buy 103 Early
+Hints and make the `split` form worthwhile; H3 connection migration suits a long-lived
+per-tab channel. Nothing degrades to broken without them.
+
+## Negotiation, including webviews
+
+`RESIDENT` carries capabilities alongside network class, so a missing capability costs a
+form, a fill mechanism, or an animation — never correctness. `negotiate()` returns:
+
+| Field | Meaning | Degraded value |
+| --- | --- | --- |
+| `forms` | wire forms this client can be sent | `['html']` on an IR major mismatch |
+| `strategy` | `stream`, `collapse`, or `socket` | `collapse` when the document response is buffered |
+| `fill` | who fills an out-of-order hole | `script` — the ~1 KB filler — without incremental DSD parsing |
+| `commit` | how an epoch commits | `instant` without same-document View Transitions |
+| `residency` | where resident templates live | `indexeddb`, then `http-cache` |
+| `resumable` | may a severed channel continue | `false` when the transport buffers |
+
+Three webview cases are specified rather than discovered:
+
+**Intercepted requests.** An app serving the document through `WKURLSchemeHandler` or
+Android's `shouldInterceptRequest` supplies the bytes itself, and those paths buffer —
+Android's `WebResourceResponse` wraps a blocking `InputStream`. "The initial response is
+the first frames" stops being true and there is no HTTP layer underneath at all. The
+client declares `transport=buffered`, holes collapse into the document, the `split` form
+is withdrawn, and anything after the document needs the socket binding. The harness
+runs this as a first-class mode (`--transport buffered`), not as a footnote.
+
+**Suspension.** iOS freezes and evicts backgrounded webviews, so a long-lived channel is
+severed far more often than a desktop tab's. `RESUME` carries the last committed epoch
+and the resident digest, and the server continues instead of restarting. Degradation to
+plain request/response is a tested mode, not a fallback nobody runs.
+
+**No service worker.** WKWebView gates service workers behind app-bound domains, so they
+are effectively unavailable in a generic iOS webview, and in-app browsers often suppress
+caching entirely. `residency` therefore falls back to IndexedDB and then to the HTTP
+cache, and the repeat-visit claim must be stated per storage tier.
+
+## Privacy
+
+The resident digest in `RESIDENT` is a fingerprinting surface. It is coarse-bucketed,
+origin-scoped, and omittable; the only cost of omitting it is falling back to the `html`
+form.
