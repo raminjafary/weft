@@ -78,8 +78,23 @@ harness measured a delta by re-projecting the whole region, and reported it _wor
 sending markup. Applied as designed it is 20-93× cheaper than the parse it replaces,
 which is what the form was for.
 
+## Instances
+
+A component is adopted the way a list row is: the instance renders one root element, so
+the child template is adopted against that element with its own addressing. Two things are
+renamed on the way in. The parent's signals arrive under the names the child declared them
+as, which is how a signal reaches nodes inside a component without either side knowing the
+other's binding names. And the instance is recorded under its hole's binding, so a delta
+path like `c0.label` walks into it exactly as `rows[3].qty` walks into a row.
+
+The instance's targets are deliberately **not** folded into the parent's table. Merging
+them would make one changed value two writes, and the conformance check that counts writes
+per changed path is what caught it.
+
 ## Not built yet
 
+- A component takes props and no children. Slots inside a component are not built, and a
+  component may not be rendered inside a list row.
 - Nothing resumes. Adoption assumes the templates are already in hand, so the resident
   set, `TPL` frames, and version negotiation are not exercised here.
 - An `input` binding sets the attribute, not the property, so a user's edit is not
