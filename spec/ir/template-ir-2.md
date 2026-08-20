@@ -17,7 +17,7 @@ why `data` was cut; the short version is that measurement did not support it.
 ```jsonc
 {
   "spec": "weft.template-ir/2",
-  "irVersion": "2.2.0",
+  "irVersion": "2.3.0",
   "id": "app/routes/cart#lines", // authoring identity, stable across edits
   "version": "9f2c…", // content address, 32 lowercase hex (SHA-256/128)
   "encoding": "base64",
@@ -122,6 +122,41 @@ not, without either being declared.
 
 A delta also carries nothing the client has no hole to write into. A prop that appears
 only inside an expression — `price` above — has no hole of its own, so only `d0` travels.
+
+## Components
+
+```jsonc
+{
+  "kind": "component",
+  "binding": "c0",
+  "path": [0, 0],
+  "nested": "075b…", // the sealed child
+  "props": { "tone": "t", "label": "d0" }, // child prop -> parent binding
+  "escape": "trusted-raw",
+  "provenance": "app/cart#Badge",
+}
+```
+
+An instance is a projection, never a value. The child's value set is built by reading each
+prop out of the parent's, which is why a component costs no new value plumbing: a literal
+prop is a `lit` in the parent's derived table, and a computed one is an ordinary derived
+entry.
+
+The instance occupies **one element position**, so a component must render a single root
+element. Without that rule the positions of every sibling after it would depend on what
+the child rendered, and an element path would stop being a stable address.
+
+A delta addresses an instance by name — `c0.label` — the way it addresses a row by index.
+The path syntax is the same walk; only the step differs. Two rules cross the boundary with
+the projection:
+
+- **Ownership.** A prop the caller fed from a signal is client-owned inside the child,
+  which the child cannot know on its own. A value the child derives from such a prop is
+  recomputed on the client and must not be sent, exactly as if it had been derived from a
+  signal directly.
+- **Reads.** A component's effect set is unioned into its caller's. A child that reads
+  identity makes its caller private, which is the whole reason effects compose rather than
+  being recorded per template and reconciled later.
 
 ## Content addressing
 

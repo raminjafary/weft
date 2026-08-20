@@ -16,7 +16,7 @@ without a harness and a wire format cannot be versioned retroactively.
 
 | What                              | Where                                                                                         | Status                                                    |
 | --------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Template IR, `weft.template-ir/2` | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir`                         | 2.2.0 — one form fewer than major 1, plus derived values  |
+| Template IR, `weft.template-ir/2` | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir`                         | 2.3.0 — derived values and components                     |
 | Warp frames, `weft.warp/1`        | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                 | 1.0.0, and now exercised end to end                       |
 | Versioning contract               | [`spec/VERSIONING.md`](spec/VERSIONING.md)                                                    | Majors refuse, minors round-trip                          |
 | What measurement changed          | [`spec/FINDINGS.md`](spec/FINDINGS.md)                                                        | Four claims reversed, two untestable so far               |
@@ -202,16 +202,17 @@ minified, compressed the way it would ship:
 
 | Entry                                   | Raw   | gzip  | brotli    | Budget |
 | --------------------------------------- | ----- | ----- | --------- | ------ |
-| Client runtime, everything              | 7,252 | 2,831 | **2,583** | 6,144  |
-| Content route — adopt and bind          | 5,531 | 2,106 | **1,939** | 5,120  |
-| App route — adopt, bind, patch, persist | 7,221 | 2,815 | **2,568** | 12,288 |
+| Client runtime, everything              | 7,636 | 2,943 | **2,682** | 6,144  |
+| Content route — adopt and bind          | 5,881 | 2,213 | **2,032** | 5,120  |
+| App route — adopt, bind, patch, persist | 7,605 | 2,928 | **2,664** | 12,288 |
 
 Comfortably inside, and a content route still drops by never importing the update path,
 which is the module-level version of paying only for what you use.
 
-Those figures grew by about 890 bytes when the signal graph was rewritten and derived
-values landed — a 53% increase in the runtime for two features. It is recorded here rather
-than smoothed over, because a byte budget that only ever moves in reports is not a gate.
+Those figures grew by about 990 bytes across the signal graph rewrite, derived values, and
+component adoption — a 58% increase in the runtime for three features. It is recorded here
+rather than smoothed over, because a byte budget that only ever moves in reports is not a
+gate.
 
 Read that headroom carefully, though. **This runtime does far less than the design's
 runtime will.** No plan evaluation, no epochs, no navigation, no form negotiation, no

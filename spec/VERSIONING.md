@@ -6,8 +6,8 @@ later means every client already in the field is unversioned.
 
 | Spec             | Id                   | Version | Reference implementation |
 | ---------------- | -------------------- | ------- | ------------------------ |
-| Template IR      | `weft.template-ir/2` | 2.2.0   | `packages/ir`            |
-| Payloads (delta) | `weft.payload/2`     | 2.2.0   | `packages/ir`            |
+| Template IR      | `weft.template-ir/2` | 2.3.0   | `packages/ir`            |
+| Payloads (delta) | `weft.payload/2`     | 2.3.0   | `packages/ir`            |
 | Warp frames      | `weft.warp/1`        | 1.0.0   | `packages/warp`          |
 
 ## What each version component means
@@ -45,6 +45,29 @@ requires nothing resident on the client, which is why it is the fallback wheneve
 versions disagree: a version mismatch costs a form, never the page.
 
 ## Changelog
+
+### Template IR 2.3.0 — the component hole
+
+A `component` hole renders a sealed child template through a projection: `props` maps each
+child prop name to the parent binding that supplies it. Nothing is inlined, so one
+`<Badge/>` used five times is one template used five times, and a resident client stores
+one copy.
+
+An instance occupies exactly one element position in the parent, which is why a component
+must render a single root element — the same rule a list row already lives under, and for
+the same reason: sibling positions must not move with the content.
+
+A delta addresses an instance by name, the way it addresses a row by index — `c0.label`.
+That is what lets a value computed inside a component reach the DOM without the parent
+knowing anything about it. Two rules travel across the boundary with it: a prop the caller
+fed from a signal is client-owned on the other side, so a value the child derives from it
+is recomputed rather than sent; and a component's reads are its caller's reads, so a child
+that reads identity makes its caller private.
+
+This is the one additive change that is not silently forward-compatible. An older reader
+meeting an unknown hole kind has no way to render it, so a version disagreement here costs
+the resident forms and falls back to `html` — the same protection every other mismatch
+gets, rather than a best-effort projection of a hole it does not understand.
 
 ### Template IR 2.2.0 — the derived table
 

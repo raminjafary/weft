@@ -70,6 +70,29 @@ Scope rules do not change. A signal read inside an expression inside a list row 
 `E_SIGNAL_IN_LIST` — a row is its own template, and the expression is lowered through the
 same classifier every other interpolation uses.
 
+## Components
+
+`<Widget a={x} />` lowers to a `component` hole: the sealed child template, plus a map from
+each child prop to the parent binding that supplies it. Nothing is inlined, so one child
+used five times is one template used five times. A literal prop folds into the parent's
+derived table as a constant, so `<Badge tone="warn"/>` needs nothing supplied at render.
+
+The compiler checks the use site against what the child declares — a missing prop and an
+unknown prop are both build errors, because a component whose contract is discovered at
+render time is a component whose contract is not checked at all.
+
+**Props of a composed fragment are wired.** A caller may hand a prop a signal, and the
+child cannot know that from its own source, so every fragment that some other fragment in
+the module renders gets a wiring entry for each prop-driven hole. A fragment nobody
+composes carries none — the client skips a wiring entry with no source, so a caller that
+passes a plain value costs nothing at runtime and the byte cost lands only where
+composition actually happens.
+
+**Same module, for now.** `<Widget/>` resolves against the fragments declared in the file,
+exported or not. Composition across modules needs a build graph that orders compilation by
+dependency, because a parent cannot name a child's version before the child is sealed.
+That is `E_COMPONENT_UNRESOLVED` rather than a silent inline, and it is the next step.
+
 ## Effects
 
 What a fragment reads is inferred, and an untracked ambient read is a hard error. That has
@@ -145,23 +168,30 @@ moving any sibling.
 
 ## Every refusal
 
-| Code                            | Meaning                                                         |
-| ------------------------------- | --------------------------------------------------------------- |
-| `E_COMPONENT_UNSUPPORTED`       | `<Widget/>` — component composition is not in the prototype     |
-| `E_SPREAD_UNSUPPORTED`          | `{...props}` hides what the template can contain                |
-| `E_COMPUTED_MEMBER`             | `{o[k]}` has no static binding name                             |
-| `E_UNKNOWN_BINDING`             | the identifier is not a prop of this fragment                   |
-| `E_SIGNAL_NOT_READ`             | `{n}` where `n` is a signal — write `{n()}`                     |
-| `E_OPERATOR_UNSUPPORTED`        | the operator is outside the set the client can evaluate         |
-| `E_SIGNAL_IN_LIST`              | a row is its own template and cannot close over an outer signal |
-| `E_OUT_OF_ROW_SCOPE`            | a row referenced a value that is not its item                   |
-| `E_LIST_NOT_SOLE_CHILD`         | a list must be the only child of its element                    |
-| `E_HANDLER_NOT_AN_INTENT`       | an inline handler has no stable id                              |
-| `E_HANDLER_NOT_IMPORTED`        | a local function has no module to derive an intent id from      |
-| `E_VOID_CHILDREN`               | a void element cannot have children                             |
-| `E_NESTED_FRAGMENT`             | `<>…</>` is allowed only at the root                            |
-| `E_ROOT_NOT_JSX`, `E_NO_RETURN` | a fragment must return JSX                                      |
-| `E_EXPRESSION_UNSUPPORTED`      | the expression cannot be resolved to a binding                  |
+| Code                               | Meaning                                                         |
+| ---------------------------------- | --------------------------------------------------------------- |
+| `E_COMPONENT_UNRESOLVED`           | `<Widget/>` names no fragment in this module                    |
+| `E_COMPONENT_CYCLE`                | a fragment renders itself, directly or through a sibling        |
+| `E_COMPONENT_PROP_MISSING`         | a use site does not supply a prop the child declares            |
+| `E_COMPONENT_PROP_UNKNOWN`         | a use site supplies a prop the child does not declare           |
+| `E_COMPONENT_CHILDREN_UNSUPPORTED` | a component takes props only until slots are built              |
+| `E_COMPONENT_EVENT_UNSUPPORTED`    | an intent binds to an element; the component owns its own       |
+| `E_COMPONENT_IN_LIST`              | a row is its own template and cannot carry an instance          |
+| `E_COMPONENT_NOT_SINGLE_ROOT`      | an instance occupies one element position, so it needs one root |
+| `E_SPREAD_UNSUPPORTED`             | `{...props}` hides what the template can contain                |
+| `E_COMPUTED_MEMBER`                | `{o[k]}` has no static binding name                             |
+| `E_UNKNOWN_BINDING`                | the identifier is not a prop of this fragment                   |
+| `E_SIGNAL_NOT_READ`                | `{n}` where `n` is a signal — write `{n()}`                     |
+| `E_OPERATOR_UNSUPPORTED`           | the operator is outside the set the client can evaluate         |
+| `E_SIGNAL_IN_LIST`                 | a row is its own template and cannot close over an outer signal |
+| `E_OUT_OF_ROW_SCOPE`               | a row referenced a value that is not its item                   |
+| `E_LIST_NOT_SOLE_CHILD`            | a list must be the only child of its element                    |
+| `E_HANDLER_NOT_AN_INTENT`          | an inline handler has no stable id                              |
+| `E_HANDLER_NOT_IMPORTED`           | a local function has no module to derive an intent id from      |
+| `E_VOID_CHILDREN`                  | a void element cannot have children                             |
+| `E_NESTED_FRAGMENT`                | `<>…</>` is allowed only at the root                            |
+| `E_ROOT_NOT_JSX`, `E_NO_RETURN`    | a fragment must return JSX                                      |
+| `E_EXPRESSION_UNSUPPORTED`         | the expression cannot be resolved to a binding                  |
 
 ## Running it
 
