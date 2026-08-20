@@ -1,0 +1,22 @@
+[
+  {
+    "id": "rr7-stream",
+    "label": "React Router 7, streaming with a Suspense boundary",
+    "mechanism": "React Router 7 static handler with a loader that returns an unresolved promise, rendered through renderToPipeableStream and piped on onShellReady. The slow region sits behind a Suspense boundary, so the shell is not downstream of the query. This is the tuned configuration.",
+    "origin": "http://127.0.0.1:7411",
+    "command": "node",
+    "args": ["server.js"],
+    "cwd": "benchmarks/rr7",
+    "env": { "PORT": "7411", "MODE": "stream", "DELAY": "40", "ROWS": "50" }
+  },
+  {
+    "id": "rr7-blocking",
+    "label": "React Router 7, loader awaited before render",
+    "mechanism": "The same app with the loader awaited and the stream piped on onAllReady. No Suspense boundary. This is the default shape most applications ship.",
+    "origin": "http://127.0.0.1:7412",
+    "command": "node",
+    "args": ["server.js"],
+    "cwd": "benchmarks/rr7",
+    "env": { "PORT": "7412", "MODE": "blocking", "DELAY": "40", "ROWS": "50" }
+  }
+]

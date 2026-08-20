@@ -19,6 +19,7 @@ without a harness and a wire format cannot be versioned retroactively.
 | Device and engine reality | [`spec/baseline/devices.md`](spec/baseline/devices.md) | Written before the numbers |
 | Template compiler | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler` | TSX to IR, on Oxc. Refuses what it cannot lower |
 | Benchmark harness | `packages/bench` | Three axes measured, three await a client runtime |
+| React Router 7 candidate | [`benchmarks/rr7`](benchmarks/rr7) | The phase-zero gate, tuned and default shapes |
 
 ## Running it
 
@@ -32,8 +33,10 @@ node packages/bench/src/cli.ts list                         # axes, scenarios, c
 node packages/bench/src/cli.ts verify                       # every wire form must agree
 node packages/bench/src/cli.ts run                          # measure and write a report
 node packages/bench/src/cli.ts run --transport buffered      # the intercepted-webview path
+node packages/bench/src/cli.ts run --axes shell-ttfb --scenarios slow-feed \
+  --latency 40 --external benchmarks/rr7/candidates.json    # the gate, against RR7
 node packages/bench/src/cli.ts ir cart                       # the compiled, sealed IR
-node --test packages/*/test/*.test.ts                        # 69 conformance tests
+node --test packages/*/test/*.test.ts                        # 73 conformance tests
 ```
 
 The benchmark compiles [its fixtures](packages/compiler/fixtures) in-process, so every
@@ -49,8 +52,11 @@ The point of building this first is to make it hard to fool ourselves later.
 
 - **It aborts if the wire forms disagree.** Before any measurement, every form of every
   scenario must produce byte-identical output: `html` against the string-concatenation
-  control, `data` projected through a resident template, and `delta` applied to its base.
-  A mismatch reports the first differing byte and stops the run.
+  control, `data` projected through a resident template, `delta` applied to its base, and
+  every candidate's response *as served over HTTP* — because a streaming server assembles
+  its response separately from the in-process renderer, and byte equality in memory does
+  not imply byte equality on the wire. A mismatch reports the first differing byte and
+  stops the run.
 - **It refuses claims below the noise floor.** Two runs whose p50 ± MAD overlap are
   reported as "not separable at this sample size — no claim".
 - **It never aggregates engines.** A single-engine run says so, and `webkit` is labelled
@@ -99,25 +105,54 @@ without type information, so it escapes by default and gives back 5–12% of the
 throughput win. Escape elision is a type-checker feature, not a syntax feature — that is
 the strongest argument for feeding `tsc`'s types into the pass.
 
-**Shell TTFB** is not yet a meaningful comparison. Over loopback with a warm cache both
-candidates land under 0.1 ms and are usually not separable; the only scenario with a
-resolvable difference is the 50-row feed, at 1.62×. Testing the real claim needs a slow
-data source behind a hole and a network with latency in it.
+## The phase-zero gate, and its answer
+
+The design says: *if the pre-encoded-buffer shell does not beat a tuned React Router 7
+app on TTFB in a reproducible test, the central premise is wrong and better to know in
+week two.* That test now exists — a route whose data takes 40 ms, 40 ms of injected RTT,
+and [a real RR7 app](benchmarks/rr7) in two configurations.
+
+| Candidate | TTFB p50 | Last byte | Bytes |
+| --- | --- | --- | --- |
+| Weft segments | 43.46 ms | 84.67 ms | 6,289 |
+| String-concat SSR, streaming | 43.48 ms | 84.84 ms | 6,289 |
+| **RR7, tuned** — promise loader, Suspense, `onShellReady` | **44.65 ms** | 90.78 ms | 7,687 |
+| Await the loader, then render | 84.75 ms | 84.78 ms | 6,289 |
+| **RR7, default shape** — awaited loader, `onAllReady` | **95.35 ms** | 95.40 ms | 6,370 |
+
+**The premise survives, but the framing does not.** Against a *tuned* RR7 app the shell is
+1.03× faster to first byte — a 1.2 ms difference on a 43 ms number. Strip the network out
+and the same comparison is 3.46× (0.64 ms against 2.21 ms), which is a real difference in
+server work and an irrelevant one to a user: any actual RTT swamps it. TTFB against a
+competent competitor is not the differentiator, and a design marketed on it would be
+marketing 1.2 ms.
+
+What the test does establish is worth more than the claim it replaces:
+
+- **Streaming is the whole game, and it is architectural.** The two blocking candidates
+  pay their query before their first byte — 1.95× and 2.19× worse — and no renderer
+  improvement recovers that. Weft cannot be configured into that failure, because a
+  fragment that reads something slow is a hole by construction. RR7 can, and its default
+  shape is the slow one.
+- **Weft's edge over the tuned app is on the axes nobody markets**: 6.7% faster to last
+  byte and 18% fewer bytes for the same content, because React ships Suspense markers and
+  comment nodes that pre-encoded segments do not need.
+- **The renderer mechanism is invisible here.** Segments and string concatenation are not
+  separable on this axis at all. The 1.4–1.96× throughput difference is real and it lives
+  in server capacity, not in latency.
 
 ## What has to be true next
 
 In the order the design says to disprove things:
 
-1. A tuned React Router 7 app as an external candidate, plus a route with a slow hole and
-   simulated network latency. That is the phase-zero gate: beat it on shell TTFB
-   reproducibly, or the central premise is wrong. Until then the control is a
-   string-concatenation renderer — the right *shape* of comparison, but not a framework
-   anyone ships.
-2. Type information in the compiler, to recover the escape elision a syntax-only pass
-   has to give up.
-3. Whether the `data` form survives the client-work measurement, or comes out of the
+1. Whether the `data` form survives a client-work measurement, or comes out of the
    negotiated set. Cutting a form is a win: one less column in the differential matrix
    forever.
+2. Type information in the compiler, to recover the escape elision a syntax-only pass
+   has to give up.
+3. A bandwidth and loss model in the latency proxy. It delays packets and nothing else,
+   so it understates what a slow link does to an 18% byte difference — which is now one
+   of the few measured advantages, so it deserves a better instrument.
 4. Incremental declarative-shadow-DOM parsing tested on real iOS, Android WebView, and
    WebKitGTK. If the engines diverge the filler script becomes the primary path, which
    is survivable and changes what can be claimed.

@@ -1,7 +1,7 @@
 import { baseRenderId, dataPayload, deltaPayload, render } from '../../../ir/src/index.ts'
 import type { Candidate, ServeHandle, ServeOptions, UpdatePayloads } from '../candidate.ts'
 import { compileScenario, compiledFor, withRows, type Compiled } from '../compiled.ts'
-import type { Scenario } from '../workloads/index.ts'
+import { sleep, type Scenario } from '../workloads/index.ts'
 import { createServer } from 'node:http'
 import type { TemplateIR, Values } from '../../../ir/src/index.ts'
 import { renderHole } from '../../../ir/src/index.ts'
@@ -72,7 +72,17 @@ export const segmentsCandidate: Candidate = {
         return
       }
       res.write(head)
-      res.end(tail)
+      if (!scenario.slowMs) {
+        res.end(tail)
+        return
+      }
+      // The shell's bytes are already travelling while the query is still running,
+      // which is the whole point of the shell not depending on the query.
+      void sleep(scenario.slowMs).then(() => {
+        const rows = scenario.rows()
+        const fresh = render(compiled.root, withRows(compiled, scenario.values(), rows), compiled.resolve)
+        res.end(Buffer.from(fresh.subarray(boundary)))
+      })
     })
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
     const address = server.address()

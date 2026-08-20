@@ -128,7 +128,7 @@ export function renderMarkdown(result: RunResult): string {
   lines.push('')
   lines.push('```')
   lines.push(
-    `node packages/bench/src/cli.ts run --iterations ${m.iterations} --connection ${m.connection} --transport ${m.transport} --engines ${m.engines.join(',')}`,
+    `node packages/bench/src/cli.ts run --iterations ${m.iterations} --connection ${m.connection} --transport ${m.transport} --latency ${m.latencyMs} --engines ${m.engines.join(',')}`,
   )
   lines.push('```')
   lines.push('')
