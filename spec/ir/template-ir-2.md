@@ -17,7 +17,7 @@ why `data` was cut; the short version is that measurement did not support it.
 ```jsonc
 {
   "spec": "weft.template-ir/2",
-  "irVersion": "2.0.0",
+  "irVersion": "2.2.0",
   "id": "app/routes/cart#lines", // authoring identity, stable across edits
   "version": "9f2c…", // content address, 32 lowercase hex (SHA-256/128)
   "encoding": "base64",
@@ -25,6 +25,7 @@ why `data` was cut; the short version is that measurement did not support it.
   "holes": [/* see below */],
   "wiring": [/* see below */],
   "signals": [{ "id": "qty", "type": "number", "init": 1 }],
+  "derived": [/* see below */],
   "forms": ["html", "bundle", "split", "patch", "delta"],
   "effects": { "reads": [], "writes": [], "envelope": [], "residency": "server" },
 }
@@ -32,19 +33,22 @@ why `data` was cut; the short version is that measurement did not support it.
 
 ### Invariants
 
-| Rule                                                                           | Error                             |
-| ------------------------------------------------------------------------------ | --------------------------------- |
-| `segments.length === holes.length + 1` — rendering interleaves them            | `E_SEGMENT_COUNT`                 |
-| `holes[i].index === i`                                                         | `E_HOLE_INDEX`                    |
-| An attribute hole names its attribute                                          | `E_HOLE_ATTR`                     |
-| `escape: "trusted-raw"` names the source that vouched for it                   | `E_RAW_UNVOUCHED`                 |
-| A wiring entry's binding is a hole or a declared signal, except on `event` ops | `E_WIRING_UNKNOWN_BINDING`        |
-| `anchor` appears only on a `text` op, and is a non-negative ordinal            | `E_ANCHOR_OP`, `E_ANCHOR_SHAPE`   |
-| An event names an intent, never server code                                    | `E_WIRING_INTENT`                 |
-| `nested` appears only on a `list` hole, and is a sealed version                | `E_NESTED_KIND`, `E_NESTED_SHAPE` |
-| Declared forms are derivable from the holes                                    | `E_FORM_UNPROVABLE`               |
-| `html` is always offered                                                       | `E_FORM_FLOOR`                    |
-| `version` addresses the content it claims to                                   | `E_VERSION_MISMATCH`              |
+| Rule                                                                                | Error                             |
+| ----------------------------------------------------------------------------------- | --------------------------------- |
+| `segments.length === holes.length + 1` — rendering interleaves them                 | `E_SEGMENT_COUNT`                 |
+| `holes[i].index === i`                                                              | `E_HOLE_INDEX`                    |
+| An attribute hole names its attribute                                               | `E_HOLE_ATTR`                     |
+| `escape: "trusted-raw"` names the source that vouched for it                        | `E_RAW_UNVOUCHED`                 |
+| A wiring entry's binding is a hole or a declared signal, except on `event` ops      | `E_WIRING_UNKNOWN_BINDING`        |
+| `anchor` appears only on a `text` op, and is a non-negative ordinal                 | `E_ANCHOR_OP`, `E_ANCHOR_SHAPE`   |
+| An event names an intent, never server code                                         | `E_WIRING_INTENT`                 |
+| `nested` appears only on a `list` hole, and is a sealed version                     | `E_NESTED_KIND`, `E_NESTED_SHAPE` |
+| A derived value's expression is well formed and its operators are in the closed set | `E_DERIVED_EXPR`                  |
+| A derived value reads nothing declared at or after itself                           | `E_DERIVED_FORWARD_READ`          |
+| A derived id is declared once, and is not also a signal                             | `E_DERIVED_DUPLICATE`             |
+| Declared forms are derivable from the holes                                         | `E_FORM_UNPROVABLE`               |
+| `html` is always offered                                                            | `E_FORM_FLOOR`                    |
+| `version` addresses the content it claims to                                        | `E_VERSION_MISMATCH`              |
 
 ## Holes
 
@@ -83,11 +87,47 @@ in component count rather than O(n). `op: "event"` must carry `intent` — the c
 names an intent id, never a server function, so renaming an export does not change the
 wire and a stale client gets a clean rejection instead of a silent mismatch.
 
+## Derived values
+
+```jsonc
+{
+  "id": "d0",
+  "expr": {
+    "k": "bin",
+    "op": "*",
+    "a": { "k": "ref", "id": "qty" },
+    "b": { "k": "lit", "v": 100 },
+  },
+}
+```
+
+A value computed from other bindings, encoded rather than compiled. Four node shapes —
+`ref`, `lit`, `un`, `bin` — and a closed operator set: `! - + ~` and
+`+ - * / % ** < > <= >= === !== == !=`. Every one of them is total over JSON values and
+free of effects, so the server's evaluator and the client's are the same switch, and a
+`ref` to a binding that is not there reads as `null` rather than throwing. Half a render
+is worse than a wrong number.
+
+A `ref` may name a prop the render supplies, which the document never sees, so an unknown
+read is not an error. What is an error is naming a derived value declared at or after
+this one: declaration order is evaluation order, and that is what keeps the table acyclic
+without a graph walk.
+
+**Ownership follows the reads.** A derived value that reaches a signal is the client's.
+The server renders it once from the signal's initial value, and a delta must never carry
+it — the user may have moved it since. Everything else is the server's, resolved at
+render and shipped in the delta like any other value. The compiler emits a wiring entry
+for exactly the client-owned ones, so `{qty() * 100}` is reactive and `{price / 100}` is
+not, without either being declared.
+
+A delta also carries nothing the client has no hole to write into. A prop that appears
+only inside an expression — `price` above — has no hole of its own, so only `d0` travels.
+
 ## Content addressing
 
 `version` is SHA-256 over a canonical fingerprint, truncated to 128 bits. The
-fingerprint covers `spec`, `irVersion`, `id`, holes, wiring, signals, forms, and every
-segment with its length — and deliberately **excludes `meta`**, so editing a comment
+fingerprint covers `spec`, `irVersion`, `id`, holes, wiring, signals, derived, forms, and
+every segment with its length — and deliberately **excludes `meta`**, so editing a comment
 does not invalidate every resident client's copy.
 
 Template versions are cache-key inputs, compression-dictionary ids, and the thing a
@@ -120,15 +160,14 @@ about insertions would have to reason about identity, which is the case that is 
 go wrong. Applying a delta to its base and rendering must produce bytes identical to
 rendering the new values directly; that check runs in the harness for every scenario.
 
-### Known gap: a delta cannot yet be applied surgically
+### Closed in 2.1.0: surgical application
 
-A delta's whole justification is writing only what changed, and today only _wired_
-bindings — signal reads — carry addressing. A value that came from the server has a hole
-with an element `path` but no anchor, so a client cannot locate its text node and has to
-re-project the whole region. The measured client cost of `delta` reflects that
-re-projection, not the design's intent.
+A delta's whole justification is writing only what changed, and in 2.0.0 only _wired_
+bindings — signal reads — carried addressing. A value that came from the server had a
+hole with an element `path` but no anchor, so a client could not locate its text node and
+had to re-project the whole region; the `delta` form measured 1.28x _worse_ than sending
+markup because of it.
 
-Closing this means putting anchors on holes rather than only on wiring entries, which is
-an additive change and therefore a minor. It is deliberately not done here: the client
-runtime that would consume it does not exist yet, and inventing addressing that nothing
-reads is how a format acquires fields nobody honours.
+2.1.0 put `anchor` on holes as well as wiring entries. Applied through per-hole
+addressing, a delta is 20-93x cheaper than the parse it replaces, and the harness checks
+in every engine that one changed path is one DOM write.

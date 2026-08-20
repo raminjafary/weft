@@ -14,19 +14,20 @@ record of what measurement did to the design.
 versioned formats everything else depends on, because the speed claim is unfalsifiable
 without a harness and a wire format cannot be versioned retroactively.
 
-| What                              | Where                                                                                         | Status                                                           |
-| --------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Template IR, `weft.template-ir/2` | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir`                         | 2.0.0 — one form fewer than major 1                              |
-| Warp frames, `weft.warp/1`        | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                 | 1.0.0, and now exercised end to end                              |
-| Versioning contract               | [`spec/VERSIONING.md`](spec/VERSIONING.md)                                                    | Majors refuse, minors round-trip                                 |
-| What measurement changed          | [`spec/FINDINGS.md`](spec/FINDINGS.md)                                                        | Four claims reversed, two untestable so far                      |
-| Device and engine reality         | [`spec/baseline/devices.md`](spec/baseline/devices.md)                                        | Written before the numbers                                       |
-| Template compiler                 | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler` | TSX to IR, on Oxc, with type-driven escape elision               |
-| Client runtime                    | [`spec/client/adoption.md`](spec/client/adoption.md), `packages/client`                       | Adoption, signals, surgical deltas, resident templates over Warp |
-| Effect inference                  | [`spec/compiler/effects.md`](spec/compiler/effects.md), `packages/compiler`                   | Reads inferred, cache class derived, ambient reads banned        |
-| Route streaming                   | [`spec/kernel/streaming.md`](spec/kernel/streaming.md), `packages/kernel`                     | Slots streamed in order or fastest-first                         |
-| Benchmark harness                 | `packages/bench`                                                                              | All six axes measured                                            |
-| React Router 7 candidate          | [`benchmarks/rr7`](benchmarks/rr7)                                                            | The phase-zero gate, tuned and default shapes                    |
+| What                              | Where                                                                                         | Status                                                    |
+| --------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Template IR, `weft.template-ir/2` | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir`                         | 2.2.0 — one form fewer than major 1, plus derived values  |
+| Warp frames, `weft.warp/1`        | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                 | 1.0.0, and now exercised end to end                       |
+| Versioning contract               | [`spec/VERSIONING.md`](spec/VERSIONING.md)                                                    | Majors refuse, minors round-trip                          |
+| What measurement changed          | [`spec/FINDINGS.md`](spec/FINDINGS.md)                                                        | Four claims reversed, two untestable so far               |
+| Device and engine reality         | [`spec/baseline/devices.md`](spec/baseline/devices.md)                                        | Written before the numbers                                |
+| Template compiler                 | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler` | TSX to IR, on Oxc, with type-driven escape elision        |
+| Client runtime                    | [`spec/client/adoption.md`](spec/client/adoption.md), `packages/client`                       | Adoption, surgical deltas, resident templates over Warp   |
+| Signal graph                      | [`spec/client/signals.md`](spec/client/signals.md), `packages/client`                         | Linked edges, bitflag status, push-pull with a lazy check |
+| Effect inference                  | [`spec/compiler/effects.md`](spec/compiler/effects.md), `packages/compiler`                   | Reads inferred, cache class derived, ambient reads banned |
+| Route streaming                   | [`spec/kernel/streaming.md`](spec/kernel/streaming.md), `packages/kernel`                     | Slots streamed in order or fastest-first                  |
+| Benchmark harness                 | `packages/bench`                                                                              | All six axes measured                                     |
+| React Router 7 candidate          | [`benchmarks/rr7`](benchmarks/rr7)                                                            | The phase-zero gate, tuned and default shapes             |
 
 ## Running it
 
@@ -140,12 +141,13 @@ startup — needed a runtime before they could be measured at all. There is now 
 one to answer them: adoption walks the DOM the parser built and records where each value
 lives, with no component code executing. 50-row region, ~200 bindings, p50:
 
-|                                  | Chromium  | Firefox   | WebKit    |
-| -------------------------------- | --------- | --------- | --------- |
-| Adopt the region                 | 0.047 ms  | 0.095 ms  | 0.040 ms  |
-| Parse the same markup            | 0.076 ms  | 0.060 ms  | 0.140 ms  |
-| Apply a 12-path delta surgically | 0.0017 ms | 0.0029 ms | 0.0015 ms |
-| One signal write to one node     | 0.29 µs   | 1.7 µs    | 0.71 µs   |
+|                                   | Chromium                                       | Firefox   | WebKit    |
+| --------------------------------- | ---------------------------------------------- | --------- | --------- |
+| Adopt the region                  | 0.047 ms                                       | 0.095 ms  | 0.040 ms  |
+| Parse the same markup             | 0.076 ms                                       | 0.060 ms  | 0.140 ms  |
+| Apply a 12-path delta surgically  | 0.0017 ms                                      | 0.0029 ms | 0.0015 ms |
+| One signal write to one node      | 0.31 µs                                        | 1.7 µs    | 0.74 µs   |
+| The same write through a computed | not separable from the row above in any engine |           |           |
 
 **This reverses an earlier finding.** When the harness had no runtime it measured the
 `delta` form by re-projecting the whole region, and reported it 1.28× _worse_ than
@@ -200,18 +202,22 @@ minified, compressed the way it would ship:
 
 | Entry                                   | Raw   | gzip  | brotli    | Budget |
 | --------------------------------------- | ----- | ----- | --------- | ------ |
-| Client runtime, everything              | 4,352 | 1,864 | **1,686** | 6,144  |
-| Content route — adopt and bind          | 2,859 | 1,202 | **1,085** | 5,120  |
-| App route — adopt, bind, patch, persist | 4,352 | 1,868 | **1,696** | 12,288 |
+| Client runtime, everything              | 7,252 | 2,831 | **2,583** | 6,144  |
+| Content route — adopt and bind          | 5,531 | 2,106 | **1,939** | 5,120  |
+| App route — adopt, bind, patch, persist | 7,221 | 2,815 | **2,568** | 12,288 |
 
-Comfortably inside, and a content route drops 36% by never importing the update path,
+Comfortably inside, and a content route still drops by never importing the update path,
 which is the module-level version of paying only for what you use.
 
+Those figures grew by about 890 bytes when the signal graph was rewritten and derived
+values landed — a 53% increase in the runtime for two features. It is recorded here rather
+than smoothed over, because a byte budget that only ever moves in reports is not a gate.
+
 Read that headroom carefully, though. **This runtime does far less than the design's
-runtime will.** No derived values, no plan evaluation, no epochs, no navigation, no form
-negotiation, no intent transport. What the numbers establish is a baseline and a gate:
-about 4.4 KB of brotli headroom to spend on all of that, and a test that fails the moment
-an entry crosses its ceiling.
+runtime will.** No plan evaluation, no epochs, no navigation, no form negotiation, no
+intent transport. What the numbers establish is a baseline and a gate: about 3.5 KB of
+brotli headroom to spend on all of that, and a test that fails the moment an entry crosses
+its ceiling.
 
 ## Repeat visits, and Warp's first real run
 

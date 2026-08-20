@@ -80,8 +80,6 @@ which is what the form was for.
 
 ## Not built yet
 
-- Nothing computes. A signal writes to the nodes it is bound to; there are no derived
-  values, and the compiler refuses `{n() * 2}` for that reason.
 - Nothing resumes. Adoption assumes the templates are already in hand, so the resident
   set, `TPL` frames, and version negotiation are not exercised here.
 - An `input` binding sets the attribute, not the property, so a user's edit is not
