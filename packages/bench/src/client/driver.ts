@@ -154,6 +154,31 @@ function checks(): Check[] {
     }
   }
 
+  // A control's attribute and its property stop agreeing the moment a user types. Writing
+  // the attribute after that changes nothing anyone can see, which is the whole reason the
+  // IR carries a `prop` op.
+  const propEntry = config.template.wiring.find((w) => w.op === 'prop')
+  if (propEntry) {
+    const editedHost = region(config.html)
+    const value = signal(0 as never)
+    adopt({
+      root: editedHost,
+      template: config.template,
+      resident: config.resident,
+      signals: { [propEntry.binding]: value },
+    })
+    const control = editedHost.querySelector('input') as HTMLInputElement | null
+    if (control) {
+      control.value = '9'
+      value.set(4242 as never)
+      out.push({
+        name: "a user's edit is reconciled, because the binding writes the property",
+        ok: control.value === '4242',
+        detail: `property is ${control.value}, attribute is ${control.getAttribute('value')}`,
+      })
+    }
+  }
+
   const crossing = instanceBindings()
   if (crossing.length) {
     const composedHost = region(config.html)

@@ -8,9 +8,11 @@ import type {
   UnaryOp,
   WiringEntry,
 } from '../../ir/src/index.ts'
+import type { TemplateIR } from '../../ir/src/index.ts'
 import { BINARY_OPS, UNARY_OPS } from '../../ir/src/index.ts'
 import {
   BOOLEAN_ATTRIBUTES,
+  bindsToProperty,
   VOID_ELEMENTS,
   isSurviving,
   name,
@@ -50,10 +52,22 @@ export interface Scope {
   wireProps?: boolean
 }
 
+/**
+ * A template the parent renders. A child in the same module arrives as a lowering the
+ * parent seals on its way out; one from another module has already been sealed by its own
+ * compilation, and the parent only names the version.
+ */
 export interface NestedRequest {
   holeIndex: number
   id: string
-  lowered: Lowered
+  lowered?: Lowered
+  sealed?: SealedFragment
+}
+
+/** A fragment another module already compiled: its entry, and everything it needs. */
+export interface SealedFragment {
+  entry: TemplateIR
+  templates: TemplateIR[]
 }
 
 /**
@@ -63,7 +77,9 @@ export interface NestedRequest {
 export interface ComponentRef {
   id: string
   props: Set<string>
-  lower(): Lowered
+  lower?(): Lowered
+  /** Set when the fragment was compiled by another module and is already sealed. */
+  sealed?: SealedFragment
 }
 
 export interface Lowered {
@@ -400,7 +416,7 @@ function lowerElement(element: Node, path: number[], em: Emitter, input: LowerIn
   }
 
   emit(em, `<${tag}`)
-  for (const raw of nodes(opening.attributes)) lowerAttribute(raw, path, em, input)
+  for (const raw of nodes(opening.attributes)) lowerAttribute(raw, path, em, input, tag)
   emit(em, '>')
 
   if (VOID_ELEMENTS.has(tag)) {
@@ -481,8 +497,9 @@ function lowerComponent(element: Node, tag: string, path: number[], em: Emitter,
     }
   }
 
-  const lowered = ref.lower()
-  if (lowered.holes.some((h) => h.path.length === 0)) {
+  const child = ref.sealed?.entry ?? ref.lower?.()
+  if (!child) throw fail(input, element, 'E_COMPONENT_UNRESOLVED', `<${tag}> resolved to nothing`)
+  if (child.holes.some((h) => h.path.length === 0)) {
     throw fail(input, element, 'E_COMPONENT_NOT_SINGLE_ROOT', `<${tag}> must render a single root element`)
   }
 
@@ -495,7 +512,11 @@ function lowerComponent(element: Node, tag: string, path: number[], em: Emitter,
     provenance: ref.id,
   })
   em.components.push(ref.id)
-  em.nested.push({ holeIndex, id: ref.id, lowered })
+  em.nested.push({
+    holeIndex,
+    id: ref.id,
+    ...(ref.sealed ? { sealed: ref.sealed } : { lowered: child as Lowered }),
+  })
 }
 
 /**
@@ -527,7 +548,7 @@ function componentProp(attribute: Node, prop: string, tag: string, em: Emitter, 
   return classified.binding
 }
 
-function lowerAttribute(attribute: Node, path: number[], em: Emitter, input: LowerInput): void {
+function lowerAttribute(attribute: Node, path: number[], em: Emitter, input: LowerInput, tag: string): void {
   if (attribute.type === 'JSXSpreadAttribute') {
     throw fail(
       input,
@@ -571,10 +592,16 @@ function lowerAttribute(attribute: Node, path: number[], em: Emitter, input: Low
     return
   }
 
+  // The server still renders the attribute — it is what the parser builds the control
+  // from. Only the client's write goes to the property.
+  const op = bindsToProperty(tag, attr) ? 'prop' : undefined
+
   if (BOOLEAN_ATTRIBUTES.has(attr)) {
     emit(em, ' ')
     hole(em, { kind: 'attr-bool', escape: 'proven-safe', binding: classified.binding, path, attr })
-    if (isReactive(classified, input)) em.wiring.push({ path, op: 'bool', binding: classified.binding, attr })
+    if (isReactive(classified, input)) {
+      em.wiring.push({ path, op: op ?? 'bool', binding: classified.binding, attr })
+    }
     return
   }
 
@@ -588,7 +615,9 @@ function lowerAttribute(attribute: Node, path: number[], em: Emitter, input: Low
     ...(classified.provenance ? { provenance: classified.provenance } : {}),
   })
   emit(em, '"')
-  if (isReactive(classified, input)) em.wiring.push({ path, op: 'attr', binding: classified.binding, attr })
+  if (isReactive(classified, input)) {
+    em.wiring.push({ path, op: op ?? 'attr', binding: classified.binding, attr })
+  }
 }
 
 function lowerEvent(attr: string, expression: Node, path: number[], em: Emitter, input: LowerInput): void {
