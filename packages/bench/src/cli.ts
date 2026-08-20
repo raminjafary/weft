@@ -9,6 +9,7 @@ import { segmentsCandidate } from './candidates/segments.ts'
 import { stringSsrCandidate } from './candidates/string-ssr.ts'
 import { blockingSsrCandidate } from './candidates/blocking-ssr.ts'
 import { checkAll } from './equivalence.ts'
+import { measureClientRuntime } from './measure/client-runtime.ts'
 import { compileScenario } from './compiled.ts'
 import { renderMarkdown, comparison } from './report.ts'
 import { run } from './runner.ts'
@@ -69,6 +70,7 @@ const HELP = `weft-bench — phase-zero benchmark harness
 
   run       measure the axes and write a report
   verify    check that every wire form of a fragment produces identical bytes
+  client    run the client runtime's own conformance checks in every engine
   list      list axes, scenarios, and candidates
   ir        print the sealed, versioned IR for a scenario
 
@@ -116,6 +118,24 @@ async function main(): Promise<number> {
     if (compiled.row) process.stdout.write(`${stringify(compiled.row)}\n`)
     process.stdout.write(`${stringify(compiled.root)}\n`)
     return 0
+  }
+
+  if (command === 'client') {
+    const engines = (csv(flags.engines) ?? ['chromium', 'firefox', 'webkit']) as EngineName[]
+    const scenarios = (csv(flags.scenarios) ?? ['cart', 'feed']).map(scenarioById)
+    let failed = false
+    for (const engine of engines) {
+      for (const s of scenarios) {
+        const run = await measureClientRuntime(s, engine)
+        for (const check of run.checks) {
+          process.stdout.write(
+            `${check.ok ? 'pass' : 'FAIL'}  ${engine.padEnd(9)} ${s.id.padEnd(6)} ${check.name}${check.ok || !check.detail ? '' : `\n      ${check.detail}`}\n`,
+          )
+          if (!check.ok) failed = true
+        }
+      }
+    }
+    return failed ? 1 : 0
   }
 
   if (command === 'verify') {

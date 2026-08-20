@@ -18,7 +18,8 @@ without a harness and a wire format cannot be versioned retroactively.
 | Versioning contract | [`spec/VERSIONING.md`](spec/VERSIONING.md) | Majors refuse, minors round-trip |
 | Device and engine reality | [`spec/baseline/devices.md`](spec/baseline/devices.md) | Written before the numbers |
 | Template compiler | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler` | TSX to IR, on Oxc, with type-driven escape elision |
-| Benchmark harness | `packages/bench` | Three axes measured, three await a client runtime |
+| Client runtime | [`spec/client/adoption.md`](spec/client/adoption.md), `packages/client` | Adoption, signals, surgical deltas. Conformance in three engines |
+| Benchmark harness | `packages/bench` | All six axes measured |
 | React Router 7 candidate | [`benchmarks/rr7`](benchmarks/rr7) | The phase-zero gate, tuned and default shapes |
 
 ## Running it
@@ -32,13 +33,14 @@ node packages/compiler/src/cli.ts packages/compiler/fixtures/*.tsx --out build/i
 node packages/compiler/src/cli.ts fixtures/*.tsx --no-types   # syntax-only elision
 node packages/bench/src/cli.ts list                         # axes, scenarios, candidates
 node packages/bench/src/cli.ts verify                       # every wire form must agree
+node packages/bench/src/cli.ts client                      # adopt and patch, in three engines
 node packages/bench/src/cli.ts run                          # measure and write a report
 node packages/bench/src/cli.ts run --transport buffered      # the intercepted-webview path
 node packages/bench/src/cli.ts run --axes shell-ttfb --scenarios slow-feed \
   --latency 40 --external benchmarks/rr7/candidates.json    # the gate, against RR7
 node packages/bench/src/cli.ts ir cart                       # the compiled, sealed IR
 npm run typecheck                                            # TypeScript 7, clean
-node --test packages/*/test/*.test.ts                        # 81 conformance tests
+node --test packages/*/test/*.test.ts                        # 95 conformance tests
 node packages/bench/src/cli.ts run --axes client-work         # what each form costs a client
 ```
 
@@ -122,6 +124,37 @@ cost is a full re-projection, because only signal-wired bindings carry addressin
 Applying a delta *surgically* needs anchors on holes, which is
 [a known gap](spec/ir/template-ir-2.md) left deliberately open until a client runtime
 exists to consume it.
+
+## The client runtime, and a reversed finding
+
+The two axes the design calls *"the largest gap"* — interactivity and repeat-visit
+startup — needed a runtime before they could be measured at all. There is now enough of
+one to answer them: adoption walks the DOM the parser built and records where each value
+lives, with no component code executing. 50-row region, ~200 bindings, p50:
+
+| | Chromium | Firefox | WebKit |
+| --- | --- | --- | --- |
+| Adopt the region | 0.047 ms | 0.095 ms | 0.040 ms |
+| Parse the same markup | 0.076 ms | 0.060 ms | 0.140 ms |
+| Apply a 12-path delta surgically | 0.0017 ms | 0.0029 ms | 0.0015 ms |
+| One signal write to one node | 0.29 µs | 1.7 µs | 0.71 µs |
+
+**This reverses an earlier finding.** When the harness had no runtime it measured the
+`delta` form by re-projecting the whole region, and reported it 1.28× *worse* than
+sending markup. Applied as designed — one write per changed value, into DOM that already
+exists — it is **20–93× cheaper** than the parse it replaces. The form was never the
+problem; the measurement was, and it was measuring a client that could not address its
+own holes. Fixing that took `anchor` onto holes rather than only onto wiring entries
+(IR 2.1.0), which is exactly the gap the previous commit recorded and deferred.
+
+Adoption costing roughly what a parse costs is the honest version of "startup is cheap":
+cheap because it is proportional to bindings rather than components, not free.
+
+The conformance suite earned its place immediately. It caught that one value can occupy
+several holes — a quantity is an input's value, an output's text, and a button's disabled
+flag — and the first implementation wrote only to the last of the three. It also caught a
+benchmark measuring an empty loop, because the template under test wired nothing at all
+and `set()` was updating a number and touching no DOM.
 
 ## A correction
 

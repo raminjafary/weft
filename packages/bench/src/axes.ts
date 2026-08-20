@@ -66,11 +66,11 @@ export const AXES: Axis[] = [
     unit: 'ms',
     direction: 'lower-better',
     needs: 'browser',
-    sota: 'Every framework ships one form. htmx and Datastar always send markup; a client-rendered app always sends data and pays a JavaScript DOM-construction path for it.',
-    gap: 'If a form is negotiable, the cheaper one can be chosen per request — but only if it is actually cheaper, which is what this axis decides.',
-    expectation: 'unknown',
+    sota: 'Every framework ships one form. htmx and Datastar always send markup, so an update is always a parse.',
+    gap: 'A delta is written into the DOM the server already rendered, one write per changed value, which is only possible because every hole carries its own addressing.',
+    expectation: 'beat',
     caveat:
-      'Measured as the whole job: bytes turned into DOM in the document, parse included, because every form has to end with the region on screen. It does not model the cost of holding a template resident, which is where the repeat-visit axis belongs.',
+      'The delta figure assumes the region has already been adopted; adoption is measured separately on the interactivity axis. Comparing a first render against a delta would be comparing two different jobs.',
   },
   {
     id: 'tti-server-rendered',
@@ -82,7 +82,7 @@ export const AXES: Axis[] = [
     gap: 'A wiring table adopts existing DOM by position, which is O(1) in component count.',
     expectation: 'beat',
     caveat:
-      'A desktop engine is a proxy for a webview, not a substitute. Where the host app supplies the document itself the response is buffered, so run this axis with --transport buffered as well.',
+      'This measures adoption alone, not a comparison: React Router 7 hydration would need a client build the benchmark app does not have, so the honest reading is adoption against the HTML parse it sits next to. A desktop engine is also a proxy for a webview, not a substitute.',
   },
   {
     id: 'repeat-visit-startup',

@@ -6,6 +6,9 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "allowImportingTsExtensions": true,
+    "paths": {
+      "/runtime/*": ["./packages/client/src/*"]
+    },
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,

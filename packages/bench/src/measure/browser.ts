@@ -61,6 +61,7 @@ interface PageLike {
   goto(url: string, opts?: unknown): Promise<unknown>
   evaluate<T>(fn: string | ((...args: never[]) => T)): Promise<T>
   close(): Promise<void>
+  on?(event: string, handler: (payload: never) => void): void
 }
 
 export async function loadPlaywright(): Promise<PlaywrightModule | null> {
