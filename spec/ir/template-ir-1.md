@@ -14,7 +14,7 @@ negotiating the wire form of a fragment at runtime.
 ```jsonc
 {
   "spec": "weft.template-ir/1",
-  "irVersion": "1.0.0",
+  "irVersion": "1.1.0",
   "id": "app/routes/cart#lines",     // authoring identity, stable across edits
   "version": "9f2c…",                 // content address, 32 lowercase hex (SHA-256/128)
   "encoding": "base64",
@@ -35,7 +35,8 @@ negotiating the wire form of a fragment at runtime.
 | `holes[i].index === i` | `E_HOLE_INDEX` |
 | An attribute hole names its attribute | `E_HOLE_ATTR` |
 | `escape: "trusted-raw"` names the source that vouched for it | `E_RAW_UNVOUCHED` |
-| A wiring entry's binding is a hole or a declared signal | `E_WIRING_UNKNOWN_BINDING` |
+| A wiring entry's binding is a hole or a declared signal, except on `event` ops | `E_WIRING_UNKNOWN_BINDING` |
+| `anchor` appears only on a `text` op, and is a non-negative ordinal | `E_ANCHOR_OP`, `E_ANCHOR_SHAPE` |
 | An event names an intent, never server code | `E_WIRING_INTENT` |
 | `nested` appears only on a `list` hole, and is a sealed version | `E_NESTED_KIND`, `E_NESTED_SHAPE` |
 | Declared forms are derivable from the holes | `E_FORM_UNPROVABLE` |
@@ -57,6 +58,9 @@ negotiating the wire form of a fragment at runtime.
 | `list` | Between nodes | each item, projected through `nested` if named |
 | `node` | Between nodes | a pre-rendered subtree |
 | `slot` | A streaming hole | **nothing** — the content arrives in a later frame |
+
+Where these come from in source, and every construct the compiler refuses, is in
+[the compiler's supported subset](../compiler/supported-subset.md).
 
 `escape` is the compiler's escape-elision decision: `escape` escapes, `proven-safe`
 skips because the value's type makes escaping a no-op, `trusted-raw` skips and must say

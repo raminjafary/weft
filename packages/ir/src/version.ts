@@ -1,8 +1,8 @@
 export const TEMPLATE_IR_SPEC = 'weft.template-ir/1'
-export const TEMPLATE_IR_VERSION = '1.0.0'
+export const TEMPLATE_IR_VERSION = '1.1.0'
 
 export const PAYLOAD_SPEC = 'weft.payload/1'
-export const PAYLOAD_VERSION = '1.0.0'
+export const PAYLOAD_VERSION = '1.1.0'
 
 export interface SemVer {
   major: number
@@ -83,6 +83,12 @@ export function clearMigrations(): void {
   migrations.clear()
 }
 
+/** Clears test-local migrations and puts the built-in chain back. */
+export function resetMigrations(): void {
+  migrations.clear()
+  installBuiltIns()
+}
+
 /** Chains registered migrations until the document reaches the reader's version. */
 export function migrate(
   doc: Record<string, unknown>,
@@ -104,3 +110,14 @@ export function migrate(
   }
   return { doc: current, applied }
 }
+
+/**
+ * 1.0.0 -> 1.1.0 added `anchor` on wiring entries and stopped requiring a resolvable
+ * binding on event ops. A 1.0.0 document is already valid under 1.1.0, so the step only
+ * restamps the version — but it has to exist, because a missing step is an error.
+ */
+function installBuiltIns(): void {
+  registerMigration('1.0.0', '1.1.0', (doc) => doc)
+}
+
+installBuiltIns()
