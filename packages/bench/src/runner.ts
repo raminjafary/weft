@@ -385,13 +385,14 @@ async function inBrowser(
     const wanted: Record<string, string[]> = {
       'client-work': ['parse', 'delta'],
       'tti-server-rendered': ['adopt'],
-      'isolated-dom-update': ['write'],
+      'isolated-dom-update': ['write', 'derive'],
     }
     const labels: Record<string, string> = {
       parse: 'html form, parsed',
       delta: 'delta form, applied surgically',
       adopt: 'adopt a server-rendered region',
       write: 'one signal write to one node',
+      derive: 'one signal write to one node, through a derived value',
     }
 
     const out: Row[] = []

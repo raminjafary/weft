@@ -25,7 +25,7 @@ export interface ClientRuntimeRun {
 
 /** The client's view of a template: everything except the bytes it already holds. */
 function clientTemplate(ir: TemplateIR): Record<string, unknown> {
-  return { version: ir.version, holes: ir.holes, wiring: ir.wiring }
+  return { version: ir.version, holes: ir.holes, wiring: ir.wiring, derived: ir.derived }
 }
 
 async function serveModule(path: string): Promise<string> {
@@ -48,6 +48,7 @@ async function page(scenario: Scenario): Promise<string> {
     html: decoder.decode(render(compiled.root, before, compiled.resolve)),
     expected: decoder.decode(render(compiled.root, after, compiled.resolve)),
     delta: deltaPayload(compiled.root, baseRenderId(compiled.root, before), before, after),
+    values: before,
     iterations: 12,
     batch: 20,
   }

@@ -1,7 +1,8 @@
 import { adopt, type Adopted } from '/runtime/adopt.ts'
 import { applyDelta, type DeltaPayload } from '/runtime/delta.ts'
+import { evaluate } from '/runtime/derived.ts'
 import { signal } from '/runtime/signal.ts'
-import type { ClientTemplate, Json } from '/runtime/template.ts'
+import type { ClientExpr, ClientTemplate, Json } from '/runtime/template.ts'
 
 interface Config {
   template: ClientTemplate
@@ -11,6 +12,8 @@ interface Config {
   /** The server's render of the values the delta moves to — the DOM adoption must reach. */
   expected: string
   delta: DeltaPayload
+  /** The values the server rendered with, so a server-owned derived value can be checked. */
+  values: Record<string, Json>
   iterations: number
   batch: number
 }
@@ -122,8 +125,69 @@ function checks(): Check[] {
     })
   }
 
+  // A derived value is the client computing something the server rendered. The write
+  // goes to the signal; what has to reach the DOM is the expression's answer.
+  const drive = derivedDrive()
+  if (drive) {
+    const derivedHost = region(config.html)
+    const signals = Object.fromEntries(drive.reads.map((id) => [id, signal(1 as never)]))
+    adopt({ root: derivedHost, template: config.template, resident: config.resident, signals })
+    const before = derivedHost.innerHTML
+    signals[drive.reads[0] as string]!.set(77 as never)
+    const expected = String(evaluate(drive.expr, (id) => signals[id]?.() as Json | undefined))
+    const reached = derivedHost.innerHTML !== before && derivedHost.innerHTML.includes(expected)
+    out.push({
+      name: 'a derived value recomputes on the client and reaches the DOM',
+      ok: reached,
+      detail: reached ? `${drive.binding} = ${expected}` : derivedHost.innerHTML.slice(0, 160),
+    })
+
+    // The other half of the contract: what the client cannot compute, it must not touch.
+    const server = serverOwned()
+    if (server) {
+      const rendered = String(evaluate(server.expr, (id) => config.values[id]))
+      out.push({
+        name: 'a derived value the client cannot compute is left as the server rendered it',
+        ok: derivedHost.innerHTML.includes(rendered),
+        detail: `${server.id} = ${rendered}`,
+      })
+    }
+  }
+
   for (const node of Array.from(document.body.children)) node.remove()
   return out
+}
+
+/** The refs an expression reads, in first-seen order. */
+function refsOf(expr: ClientExpr, out: string[] = []): string[] {
+  if (expr.k === 'ref') {
+    if (!out.includes(expr.id)) out.push(expr.id)
+  } else if (expr.k === 'un') refsOf(expr.a, out)
+  else if (expr.k === 'bin') {
+    refsOf(expr.a, out)
+    refsOf(expr.b, out)
+  }
+  return out
+}
+
+/**
+ * A wired derived binding and the signals behind it. The compiler only wires a derived
+ * value that reaches a signal, so every ref that is not itself derived is one.
+ */
+function derivedDrive(): { binding: string; expr: ClientExpr; reads: string[] } | undefined {
+  const decls = config.template.derived ?? []
+  const ids = new Set(decls.map((d) => d.id))
+  const binding = wiredBindings().find((b) => ids.has(b))
+  const decl = decls.find((d) => d.id === binding)
+  if (!binding || !decl) return undefined
+  const reads = refsOf(decl.expr).filter((id) => !ids.has(id))
+  return reads.length ? { binding, expr: decl.expr, reads } : undefined
+}
+
+/** A derived value with no wiring entry: the server computed it and owns it. */
+function serverOwned(): { id: string; expr: ClientExpr } | undefined {
+  const wired = new Set(wiredBindings())
+  return (config.template.derived ?? []).find((d) => !wired.has(d.id))
 }
 
 /** Bindings a signal can actually drive: the value ops in the wiring table. */
@@ -178,6 +242,22 @@ function timings(): Record<string, number[]> {
             })
             let n = 0
             return () => value.set(++n)
+          }),
+        }
+      : {}),
+    // The same write, but through an expression the client evaluates on the way. This is
+    // what the graph rewrite is for, and it is measured next to the direct write rather
+    // than in place of it.
+    ...(derivedDrive()
+      ? {
+          derive: measure(config.batch * 5000, () => {
+            const host = region(config.html)
+            const drive = derivedDrive()!
+            const signals = Object.fromEntries(drive.reads.map((id) => [id, signal(0 as never)]))
+            adopt({ root: host, template: config.template, resident: config.resident, signals })
+            const first = signals[drive.reads[0] as string]!
+            let n = 0
+            return () => first.set(++n as never)
           }),
         }
       : {}),

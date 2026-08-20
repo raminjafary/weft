@@ -1,8 +1,8 @@
 export const TEMPLATE_IR_SPEC = 'weft.template-ir/2'
-export const TEMPLATE_IR_VERSION = '2.1.0'
+export const TEMPLATE_IR_VERSION = '2.2.0'
 
 export const PAYLOAD_SPEC = 'weft.payload/2'
-export const PAYLOAD_VERSION = '2.1.0'
+export const PAYLOAD_VERSION = '2.2.0'
 
 export interface SemVer {
   major: number
@@ -115,6 +115,9 @@ export function migrate(
 }
 
 /**
+ * 2.1.0 -> 2.2.0 added `derived`, the table of values computed from other bindings. A
+ * 2.1.0 document simply has none, so the migration is a default rather than a rewrite.
+ *
  * 2.0.0 -> 2.1.0 put `anchor` on holes as well as wiring entries, so a consumer can
  * locate any text hole rather than only the ones a signal writes to. A 2.0.0 document is
  * already valid: its text holes simply carry no anchor, and a client falls back to the
@@ -123,6 +126,7 @@ export function migrate(
  */
 function installBuiltIns(): void {
   registerMigration('2.0.0', '2.1.0', (doc) => doc)
+  registerMigration('2.1.0', '2.2.0', (doc) => ({ ...doc, derived: doc.derived ?? [] }))
 }
 
 installBuiltIns()

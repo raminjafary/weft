@@ -1,4 +1,5 @@
 import { accepts } from './version.ts'
+import { BINARY_OPS, UNARY_OPS, readsOf, type DerivedExpr } from './derived.ts'
 import { derivableForms, type TemplateIR } from './template-ir.ts'
 import { templateVersion } from './hash.ts'
 
@@ -71,6 +72,34 @@ export function validateTemplate(ir: TemplateIR): ValidationResult {
 
   for (const s of ir.signals) bindings.add(s.id)
 
+  // Declaration order is evaluation order, so a derived value may read one declared
+  // before it and never one declared after — that is what keeps the table acyclic.
+  const declared = new Set<string>()
+  ir.derived.forEach((d, i) => {
+    if (!d.id) fail('E_DERIVED_ID', `derived[${i}]`, 'derived value has no binding id')
+    if (declared.has(d.id) || ir.signals.some((s) => s.id === d.id)) {
+      fail('E_DERIVED_DUPLICATE', `derived[${i}]`, `${d.id} is already declared`)
+    }
+    const shape = malformed(d.expr)
+    if (shape) fail('E_DERIVED_EXPR', `derived[${i}].expr`, shape)
+    else {
+      // A ref may name a prop the render supplies, which the IR never sees. What it may
+      // not name is a derived value declared later, or itself.
+      const later = new Set(ir.derived.slice(i).map((x) => x.id))
+      for (const read of readsOf(d.expr)) {
+        if (later.has(read)) {
+          fail(
+            'E_DERIVED_FORWARD_READ',
+            `derived[${i}].expr`,
+            `${read} is declared at or after this one, so the table would not settle`,
+          )
+        }
+      }
+    }
+    declared.add(d.id)
+    bindings.add(d.id)
+  })
+
   ir.wiring.forEach((w, i) => {
     if (w.op !== 'event' && !bindings.has(w.binding)) {
       fail(
@@ -121,6 +150,22 @@ export function validateTemplate(ir: TemplateIR): ValidationResult {
   }
 
   return { ok: errors.length === 0, errors }
+}
+
+/** Returns why the expression is not evaluable, or undefined when it is. */
+function malformed(expr: DerivedExpr | undefined): string | undefined {
+  if (!expr || typeof expr !== 'object') return 'expression is missing'
+  if (expr.k === 'lit') return undefined
+  if (expr.k === 'ref') return expr.id ? undefined : 'ref names no binding'
+  if (expr.k === 'un') {
+    if (!UNARY_OPS.includes(expr.op)) return `unary operator ${String(expr.op)} is not in the closed set`
+    return malformed(expr.a)
+  }
+  if (expr.k === 'bin') {
+    if (!BINARY_OPS.includes(expr.op)) return `binary operator ${String(expr.op)} is not in the closed set`
+    return malformed(expr.a) ?? malformed(expr.b)
+  }
+  return `unknown expression node ${String((expr as { k: string }).k)}`
 }
 
 export function assertValidTemplate(ir: TemplateIR): TemplateIR {

@@ -24,6 +24,7 @@ export function templateFingerprint(ir: TemplateIR): Uint8Array {
       holes: ir.holes as unknown as Json,
       wiring: ir.wiring as unknown as Json,
       signals: ir.signals as unknown as Json,
+      derived: ir.derived as unknown as Json,
       forms: ir.forms as unknown as Json,
       effects: ir.effects as unknown as Json,
     }),

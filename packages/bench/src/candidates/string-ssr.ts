@@ -1,4 +1,4 @@
-import type { Hole, Json, TemplateIR, Values } from '../../../ir/src/index.ts'
+import { resolveDerived, type Hole, type Json, type TemplateIR, type Values } from '../../../ir/src/index.ts'
 import type { Candidate, ServeHandle, ServeOptions, UpdatePayloads } from '../candidate.ts'
 import { compileScenario, compiledFor, type Compiled } from '../compiled.ts'
 import { sleep, type Scenario } from '../workloads/index.ts'
@@ -43,7 +43,10 @@ function truthy(v: Json | undefined): boolean {
   return v !== undefined && v !== null && v !== false && v !== '' && v !== 0
 }
 
-function renderTemplate(ir: TemplateIR, values: Values, compiled: Compiled): string {
+function renderTemplate(ir: TemplateIR, supplied: Values, compiled: Compiled): string {
+  // The control has to compute derived values too, or it is not rendering the same
+  // template. What is being compared is segment copying against string concatenation.
+  const values = resolveDerived(ir.derived, supplied)
   const template = asStrings(ir)
   let out = ''
   for (let i = 0; i < template.parts.length; i++) {
@@ -90,13 +93,14 @@ function renderDocument(scenario: Scenario, values: Values, rows: Values[]): str
  */
 function renderSplit(
   scenario: Scenario,
-  values: Values,
+  supplied: Values,
   rows: Values[],
 ): { prefix: string; rest: string } | null {
   const compiled = compiledFor(scenario)
   const listIndex = compiled.root.holes.findIndex((h) => h.kind === 'list')
   if (listIndex < 0 || !compiled.row) return null
 
+  const values = resolveDerived(compiled.root.derived, supplied)
   const template = asStrings(compiled.root)
   let prefix = ''
   for (let i = 0; i <= listIndex; i++) {

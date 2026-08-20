@@ -1,3 +1,4 @@
+import { resolveDerived } from './derived.ts'
 import type { DeltaPayload, Hole, Json, TemplateIR, Values } from './template-ir.ts'
 
 const utf8 = new TextEncoder()
@@ -216,11 +217,12 @@ function writeEscaped(s: string, escape: boolean, attr: boolean, out: Uint8Array
 
 function writeTemplate(
   ir: TemplateIR,
-  values: Values,
+  supplied: Values,
   resolve: Resolver | undefined,
   out: Uint8Array,
   offset: number,
 ): number {
+  const values = resolveDerived(ir.derived, supplied)
   let off = offset
   for (let i = 0; i < ir.segments.length; i++) {
     off = writeBytes(ir.segments[i] as Uint8Array, out, off)
@@ -280,7 +282,8 @@ export function applyDelta(base: Values, delta: DeltaPayload): Values {
   return next
 }
 
-export function byteLength(ir: TemplateIR, values: Values, resolve?: Resolver): number {
+export function byteLength(ir: TemplateIR, supplied: Values, resolve?: Resolver): number {
+  const values = resolveDerived(ir.derived, supplied)
   let total = 0
   for (let i = 0; i < ir.segments.length; i++) {
     total += (ir.segments[i] as Uint8Array).length

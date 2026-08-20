@@ -4,7 +4,7 @@ import { compileScenario, compiledFor, withRows, type Compiled } from '../compil
 import { sleep } from '../workloads/index.ts'
 import { createServer } from 'node:http'
 import type { TemplateIR, Values } from '../../../ir/src/index.ts'
-import { renderHole } from '../../../ir/src/index.ts'
+import { renderHole, resolveDerived } from '../../../ir/src/index.ts'
 
 const utf8 = new TextEncoder()
 
@@ -12,9 +12,10 @@ const utf8 = new TextEncoder()
  * The first byte a client can be sent: everything up to the first hole whose content
  * has to be produced. For a precomputed shell that is a lookup, not a render.
  */
-function flushBoundary(root: TemplateIR, values: Values): number {
+function flushBoundary(root: TemplateIR, supplied: Values): number {
   const listIndex = root.holes.findIndex((h) => h.kind === 'list')
   if (listIndex < 0) return Number.MAX_SAFE_INTEGER
+  const values = resolveDerived(root.derived, supplied)
   let length = 0
   for (let i = 0; i <= listIndex; i++) length += (root.segments[i] as Uint8Array).length
   for (let i = 0; i < listIndex; i++) {
