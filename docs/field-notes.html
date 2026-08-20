@@ -235,6 +235,15 @@
       <span>Confidence marked per claim</span>
     </div>
   </header>
+  <section class="errata" style="margin:28px 0 0;padding:18px 22px;border:2px solid var(--ink);background:rgba(0,0,0,.03)">
+    <p style="margin:0 0 8px;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700">Superseded in places</p>
+    <p style="margin:0;max-width:76ch">This document is the design as written, before any of it was built. It has since been
+    implemented and measured, and four of its claims are wrong: TTFB is not the gate it is described as here, the
+    <code>data</code> wire form has been cut, escape elision is not a throughput lever, and incremental declarative shadow DOM
+    is not the risk it is called. The corrections, with numbers, are in
+    <a href="https://github.com/raminjafary/weft/blob/main/spec/FINDINGS.md">spec/FINDINGS.md</a>.</p>
+  </section>
+
 
   <section>
     <p class="sec-label">Method</p>
