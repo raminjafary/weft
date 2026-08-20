@@ -3,8 +3,9 @@ import type { Candidate } from './candidate.ts'
 import { checkAll, type EquivalenceReport } from './equivalence.ts'
 import { environment, type Environment } from './env.ts'
 import { measureBytes } from './measure/bytes.ts'
-import { ENGINE_PROXIES, loadPlaywright, measureBrowser, type EngineName } from './measure/browser.ts'
+import { ENGINE_PROXIES, loadPlaywright, type EngineName } from './measure/browser.ts'
 import { measureClientRuntime } from './measure/client-runtime.ts'
+import { measureRepeatVisit } from './measure/repeat-visit.ts'
 import { measureHttp } from './measure/http.ts'
 import { withLatency } from './measure/latency.ts'
 import { measureThroughput, opsPerSecond } from './measure/throughput.ts'
@@ -270,6 +271,58 @@ async function overHttp(axis: Axis, scenario: Scenario, candidate: Candidate, m:
 }
 
 async function inBrowser(axis: Axis, scenario: Scenario, candidate: Candidate, m: Methodology): Promise<Row[]> {
+  if (axis.id === 'repeat-visit-startup') {
+    if (candidate.id !== 'segments') {
+      return [unavailable(axis, scenario, candidate, 'measured once under the segments candidate; residency is a property of the runtime')]
+    }
+    if (!(await loadPlaywright())) {
+      return [unavailable(axis, scenario, candidate, 'playwright is not installed: browser axes were not run')]
+    }
+
+    const out: Row[] = []
+    for (const engine of m.engines) {
+      const run = await measureRepeatVisit(scenario, engine, Math.max(5, m.browserIterations))
+      const stillSending = run.repeat.some((v) => v.templatesSent > 0)
+      if (stillSending) {
+        out.push(
+          unavailable(
+            axis,
+            scenario,
+            candidate,
+            'the repeat visit was still sent templates, so nothing was resident: the claim cannot be measured',
+            engine,
+          ),
+        )
+        continue
+      }
+      for (const [label, visits] of [
+        ['first visit', run.cold],
+        ['repeat visit', run.repeat],
+      ] as const) {
+        out.push({
+          axis: axis.id,
+          scenario: scenario.id,
+          candidate: label,
+          engine,
+          unit: axis.unit,
+          status: 'measured',
+          summary: summarize(visits.map((v) => v.bootMs)),
+          extra: {
+            engineVersion: run.engineVersion,
+            templatesSent: visits[0]?.templatesSent ?? 0,
+            frameBytes: visits[0]?.frameBytes ?? 0,
+            storeMs: round(summarize(visits.map((v) => v.putMs)).p50),
+            openMs: round(summarize(visits.map((v) => v.openMs)).p50),
+            adoptMs: round(summarize(visits.map((v) => v.adoptMs)).p50),
+            interactiveMs: round(summarize(visits.map((v) => v.interactive)).p50),
+            storage: visits[0]?.durableStorage ? 'indexeddb' : 'memory',
+          },
+        })
+      }
+    }
+    return out
+  }
+
   if (axis.id === 'client-work' || axis.id === 'tti-server-rendered' || axis.id === 'isolated-dom-update') {
     // These are properties of the IR and its runtime, not of a server candidate, so they
     // are measured once rather than per candidate.
@@ -326,57 +379,7 @@ async function inBrowser(axis: Axis, scenario: Scenario, candidate: Candidate, m
     return out
   }
 
-  if (!candidate.serve) {
-    return [unavailable(axis, scenario, candidate, candidate.unsupported?.[axis.id] ?? 'candidate does not serve HTTP')]
-  }
-  if (!(await loadPlaywright())) {
-    return [unavailable(axis, scenario, candidate, 'playwright is not installed: browser axes were not run')]
-  }
-
-  const handle = await candidate.serve(scenario, { transport: m.transport })
-  const out: Row[] = []
-  try {
-    for (const engine of m.engines) {
-      const run = await measureBrowser(handle.url, {
-        engine,
-        iterations: m.browserIterations,
-        mode: axis.id === 'repeat-visit-startup' ? 'repeat' : 'cold',
-      })
-      const interactive = run.samples.map((s) => s.interactive).filter((v): v is number => v !== null)
-      const fcp = run.samples.map((s) => s.fcp).filter((v): v is number => v !== null)
-      const extra: Record<string, number | string> = {
-        engineVersion: run.engineVersion,
-        proxyFor: run.proxyFor,
-        ...(fcp.length ? { fcpP50: round(summarize(fcp).p50) } : {}),
-      }
-      if (interactive.length === run.samples.length && interactive.length > 0) {
-        out.push({
-          axis: axis.id,
-          scenario: scenario.id,
-          candidate: candidate.id,
-          engine,
-          unit: axis.unit,
-          status: 'measured',
-          summary: summarize(interactive),
-          extra,
-        })
-      } else {
-        out.push({
-          ...unavailable(
-            axis,
-            scenario,
-            candidate,
-            'candidate never fired the candidate:interactive mark, so interactivity was not measured; first-contentful-paint is reported as context only',
-            engine,
-          ),
-          extra,
-        })
-      }
-    }
-  } finally {
-    await handle.close()
-  }
-  return out
+  return [unavailable(axis, scenario, candidate, `axis ${axis.id} has no browser measurement wired`)]
 }
 
 function round(n: number): number {
