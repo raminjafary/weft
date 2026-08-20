@@ -14,11 +14,11 @@ without a harness and a wire format cannot be versioned retroactively.
 | What | Where | Status |
 | --- | --- | --- |
 | Template IR, `weft.template-ir/2` | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir` | 2.0.0 — one form fewer than major 1 |
-| Warp frames, `weft.warp/1` | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp` | 1.0.0, both framings, negotiation |
+| Warp frames, `weft.warp/1` | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp` | 1.0.0, and now exercised end to end |
 | Versioning contract | [`spec/VERSIONING.md`](spec/VERSIONING.md) | Majors refuse, minors round-trip |
 | Device and engine reality | [`spec/baseline/devices.md`](spec/baseline/devices.md) | Written before the numbers |
 | Template compiler | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler` | TSX to IR, on Oxc, with type-driven escape elision |
-| Client runtime | [`spec/client/adoption.md`](spec/client/adoption.md), `packages/client` | Adoption, signals, surgical deltas. Conformance in three engines |
+| Client runtime | [`spec/client/adoption.md`](spec/client/adoption.md), `packages/client` | Adoption, signals, surgical deltas, resident templates over Warp |
 | Benchmark harness | `packages/bench` | All six axes measured |
 | React Router 7 candidate | [`benchmarks/rr7`](benchmarks/rr7) | The phase-zero gate, tuned and default shapes |
 
@@ -155,6 +155,33 @@ several holes — a quantity is an input's value, an output's text, and a button
 flag — and the first implementation wrote only to the last of the three. It also caught a
 benchmark measuring an empty loop, because the template under test wired nothing at all
 and `set()` was updating a number and touching no DOM.
+
+## Repeat visits, and Warp's first real run
+
+The second of the two "largest gap" claims: a returning visitor should do no wiring
+construction, because a wiring table is content-addressed and can simply be kept. Testing
+it meant making the resident set real — templates persisted in IndexedDB, advertised to the
+server as a coarse digest, and delivered as `TPL` frames only when the client does not
+already hold them. That is also the first time Warp has run end to end rather than in its
+own tests.
+
+| Boot path, p50 | Chromium | Firefox | WebKit |
+| --- | --- | --- | --- |
+| First visit | 2.50 ms | 6.00 ms | 3.00 ms |
+| Repeat visit | 0.70 ms | 3.00 ms | 1.00 ms |
+| Protocol bytes | 1,124 → 132 | same | same |
+| `TPL` frames sent | 2 → 0 | same | same |
+
+**One correction to the claim.** "Zero wiring construction" is true, and it is not the same
+as zero startup work. A repeat visit skips receiving, parsing and storing templates. It
+still pays **adoption**, because the DOM in front of it is new every time and the bindings
+have to be found again. Only the table adoption builds *from* is cached, never the walk
+itself.
+
+Storage is IndexedDB rather than a service worker, because WKWebView gates service workers
+behind app-bound domains — the traffic where a repeat-visit gain matters most is the
+traffic that does not have them. Where IndexedDB is missing too, the store degrades to
+memory and every visit is a first visit; the reported figure carries its storage tier.
 
 ## A correction
 

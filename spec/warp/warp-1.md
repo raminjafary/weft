@@ -114,6 +114,21 @@ are effectively unavailable in a generic iOS webview, and in-app browsers often 
 caching entirely. `residency` therefore falls back to IndexedDB and then to the HTTP
 cache, and the repeat-visit claim must be stated per storage tier.
 
+## Exercised, as of the client runtime
+
+Until the runtime existed this specification had tests and no users, which is a protocol
+with unknown bugs. It now has one end-to-end path: a document that carries `WARP`, `SHELL`
+and `TPL` as binary frames in the response, decoded in the browser by the same codec that
+encoded them on the server, with the resident set deciding which `TPL` frames are sent at
+all. Measured in
+[the adoption spec](../client/adoption.md); 1,124 protocol bytes on a first visit against
+132 on a repeat.
+
+What that path does not yet touch: the socket binding, `RESUME`, epochs and `COMMIT`,
+`STALE`, `NAV`, and the uplink frames. Version negotiation runs, but only against a client
+that agrees with the server, so the downgrade paths remain tested in isolation rather than
+in traffic.
+
 ## Privacy
 
 The resident digest in `RESIDENT` is a fingerprinting surface. It is coarse-bucketed,

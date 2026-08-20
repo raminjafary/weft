@@ -88,3 +88,57 @@ which is what the form was for.
   reconciled. The IR has a `prop` op for this and the runtime does not honour it yet.
 - No comparison against React Router 7 hydration, which would need a client build the
   benchmark app does not have. The parse column is the honest neighbour instead.
+
+## Residency, and what a repeat visit actually saves
+
+A returning visitor is supposed to do no wiring construction, because a wiring table is
+content-addressed by template version and can simply be kept. That is now measured rather
+than asserted, and the measurement is also Warp's first end-to-end run: the document
+carries the first frames as binary, and a `TPL` frame is sent only for a template the
+client does not already hold.
+
+How a client says what it holds: a `weft-resident` cookie carrying an 8-character prefix
+of each held version. The uplink cannot be a frame here, because the initial document
+request happens before any channel exists. The prefix is a compromise — the design calls
+for something probabilistic and bucketed, and this is not that yet; a precise list of held
+templates is an identifying surface. Sending nothing at all is always allowed, and costs
+exactly one thing: every visit is a first visit.
+
+Storage is IndexedDB, not a service worker. WKWebView gates service workers behind
+app-bound domains, so a generic iOS webview does not have them, and that is the traffic
+where a repeat-visit gain would matter most. Where IndexedDB is unavailable too the store
+degrades to memory and the claim degrades with it, honestly: the reported figure carries
+the storage tier next to it.
+
+50-row region, p50 of the boot path, per engine:
+
+| | Chromium | Firefox | WebKit |
+| --- | --- | --- | --- |
+| First visit | 2.50 ms | 6.00 ms | 3.00 ms |
+| Repeat visit | 0.70 ms | 3.00 ms | 1.00 ms |
+| Protocol bytes | 1,124 → 132 | same | same |
+| `TPL` frames | 2 → 0 | same | same |
+
+Decomposed on Chromium, first visit against repeat: decode 0.40 → 0.10, open and read the
+resident set 1.20 → 0.30, store what arrived 0.40 → 0, adopt 0.50 → 0.20.
+
+### The claim needs one correction
+
+"Zero wiring construction" is true and it is not the same as zero startup work. What a
+repeat visit skips is receiving, parsing, and storing templates — 2 frames, ~1 KB, and the
+IndexedDB writes. What it still pays is **adoption**, because the DOM in front of it is
+new every time and the bindings have to be found again. Adoption is per-visit by nature;
+only the table it builds from is cached.
+
+Firefox and WebKit report `performance.now()` in far coarser steps than Chromium, so their
+figures here are quantised to about a millisecond. The ratios are directional; the
+protocol-byte counts are exact.
+
+### Not measured
+
+Time to the interactive mark is reported alongside but is not the headline, because it is
+dominated by fetching an unbundled runtime with caching switched off — seven module
+requests that no real deployment would make. Caching was disabled deliberately, so that a
+repeat visit could not be flattered by the HTTP cache holding the runtime; the cost is
+that the absolute number means little. A bundled runtime with a byte budget is the thing
+that would make it meaningful.

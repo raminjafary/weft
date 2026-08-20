@@ -7,7 +7,8 @@
     "moduleResolution": "nodenext",
     "allowImportingTsExtensions": true,
     "paths": {
-      "/runtime/*": ["./packages/client/src/*"]
+      "/runtime/*": ["./packages/client/src/*"],
+      "/warp/*": ["./packages/warp/src/*"]
     },
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,

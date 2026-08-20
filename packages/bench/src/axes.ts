@@ -94,7 +94,7 @@ export const AXES: Axis[] = [
     gap: 'Wiring tables are content-addressed per template version, so a returning visitor does zero wiring construction.',
     expectation: 'beat',
     caveat:
-      'This axis assumes the resident set survives between visits. Generic WKWebView gates service workers behind app-bound domains and in-app browsers often suppress caching entirely, so the resident-template story needs an IndexedDB or HTTP-cache path and the number must be read per storage tier.',
+      'The reported figure is the boot path — decode, read the resident set, store what arrived, adopt — because time to the interactive mark is dominated by fetching an unbundled runtime with caching disabled, which is not a delivery configuration anyone would ship. The storage tier is reported with the result: generic WKWebView gates service workers behind app-bound domains, so residency here is IndexedDB, and an in-app browser that blocks it degrades to every visit being a first visit.',
   },
   {
     id: 'isolated-dom-update',
