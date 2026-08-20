@@ -1,11 +1,10 @@
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'node:http'
 import { compileFiles } from '../../../compiler/src/index.ts'
-import { render, type TemplateIR } from '../../../ir/src/index.ts'
+import type { TemplateIR } from '../../../ir/src/index.ts'
 import { serveRoute, type Order, type Route } from '../../../kernel/src/index.ts'
 import { loadPlaywright, type EngineName } from './browser.ts'
 
-const decoder = new TextDecoder()
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
 const FIXTURE = 'packages/compiler/fixtures/slots.tsx'
 
@@ -62,7 +61,12 @@ function delay(ms: number, value: string): Promise<string> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms))
 }
 
-async function visit(pw: NonNullable<Awaited<ReturnType<typeof loadPlaywright>>>, engine: EngineName, url: string, iterations: number) {
+async function visit(
+  pw: NonNullable<Awaited<ReturnType<typeof loadPlaywright>>>,
+  engine: EngineName,
+  url: string,
+  iterations: number,
+) {
   const browser = await pw[engine].launch()
   try {
     const times: RegionTimes[] = []
@@ -164,9 +168,12 @@ var s=h.querySelector('[slot="x"]');if(s&&window.__p.slotted===null){window.__p.
     const context = await browser.newContext()
     const tab = await context.newPage()
     await tab.goto(`http://127.0.0.1:${address.port}/`, { waitUntil: 'load' })
-    const probe = await tab.evaluate<{ shadow: number | null; slotted: number | null; rendered: boolean; closed: number }>(
-      `(() => ({ ...window.__p, closed: performance.now() }))()`,
-    )
+    const probe = await tab.evaluate<{
+      shadow: number | null
+      slotted: number | null
+      rendered: boolean
+      closed: number
+    }>(`(() => ({ ...window.__p, closed: performance.now() }))()`)
     await tab.close()
     await context.close()
     return {

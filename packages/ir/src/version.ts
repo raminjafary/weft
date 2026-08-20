@@ -33,10 +33,13 @@ export type AcceptResult =
  * framework code does. Major is a hard wire break. Minor is additive: an older
  * reader accepts a newer minor and must round-trip fields it does not understand.
  */
-export function accepts(doc: { spec?: unknown; irVersion?: unknown }, reader = {
-  spec: TEMPLATE_IR_SPEC,
-  version: TEMPLATE_IR_VERSION,
-}): AcceptResult {
+export function accepts(
+  doc: { spec?: unknown; irVersion?: unknown },
+  reader = {
+    spec: TEMPLATE_IR_SPEC,
+    version: TEMPLATE_IR_VERSION,
+  },
+): AcceptResult {
   if (typeof doc.spec !== 'string' || doc.spec !== reader.spec) {
     return {
       ok: false,

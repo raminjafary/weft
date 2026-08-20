@@ -76,8 +76,8 @@ export function directionOfCode(code: number): Direction {
   return code < 0x10 ? 'up' : 'down'
 }
 
-export function isUnknown(frame: AnyFrame): frame is UnknownFrame {
-  return frame.kind === 'UNKNOWN'
+export function isUnknown(value: AnyFrame): value is UnknownFrame {
+  return value.kind === 'UNKNOWN'
 }
 
 export function frame(kind: FrameKind, header: Header = {}, body?: Uint8Array, bodyIsText = false): Frame {

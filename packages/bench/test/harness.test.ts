@@ -42,7 +42,11 @@ test('the delta form is the only one smaller than html after compression', async
   const html = sizes.find((x) => x.form === 'html')
   assert.ok(delta && html)
   assert.equal(delta.raw < html.raw, true, `delta ${delta.raw} should be under html ${html.raw}`)
-  assert.equal(delta.brotli < html.brotli, true, `the win has to survive brotli: ${delta.brotli} vs ${html.brotli}`)
+  assert.equal(
+    delta.brotli < html.brotli,
+    true,
+    `the win has to survive brotli: ${delta.brotli} vs ${html.brotli}`,
+  )
 })
 
 test('a served document is identical whether the transport streams or buffers', async () => {
@@ -92,9 +96,15 @@ test('a slow hole does not delay the shell, but does delay a blocking response',
     const first = await firstByteAndTotal(streamed.url)
     const second = await firstByteAndTotal(blocking.url)
 
-    assert.ok(first.ttfb < 20, `streamed shell should arrive before the query resolves, took ${first.ttfb.toFixed(1)}ms`)
+    assert.ok(
+      first.ttfb < 20,
+      `streamed shell should arrive before the query resolves, took ${first.ttfb.toFixed(1)}ms`,
+    )
     assert.ok(first.total >= 38, `the body still waits for the query, took ${first.total.toFixed(1)}ms`)
-    assert.ok(second.ttfb >= 38, `a blocking response cannot beat its own query, took ${second.ttfb.toFixed(1)}ms`)
+    assert.ok(
+      second.ttfb >= 38,
+      `a blocking response cannot beat its own query, took ${second.ttfb.toFixed(1)}ms`,
+    )
   } finally {
     await streamed.close()
     await blocking.close()

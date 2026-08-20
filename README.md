@@ -6,7 +6,7 @@ compiler has proven equivalent, instead of being frozen at build time.
 
 The design is in `docs/` — [the architecture proposal](docs/weft-and-warp.html), [the API
 sketch](docs/weft-by-example.html), and [the research dossier](docs/field-notes.html). Those
-are the design *as written*, before any of it was built; four of their claims have since been
+are the design _as written_, before any of it was built; four of their claims have since been
 falsified by building it, and [`spec/FINDINGS.md`](spec/FINDINGS.md) is the claim-by-claim
 record of what measurement did to the design.
 
@@ -14,19 +14,19 @@ record of what measurement did to the design.
 versioned formats everything else depends on, because the speed claim is unfalsifiable
 without a harness and a wire format cannot be versioned retroactively.
 
-| What | Where | Status |
-| --- | --- | --- |
-| Template IR, `weft.template-ir/2` | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir` | 2.0.0 — one form fewer than major 1 |
-| Warp frames, `weft.warp/1` | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp` | 1.0.0, and now exercised end to end |
-| Versioning contract | [`spec/VERSIONING.md`](spec/VERSIONING.md) | Majors refuse, minors round-trip |
-| What measurement changed | [`spec/FINDINGS.md`](spec/FINDINGS.md) | Four claims reversed, two untestable so far |
-| Device and engine reality | [`spec/baseline/devices.md`](spec/baseline/devices.md) | Written before the numbers |
-| Template compiler | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler` | TSX to IR, on Oxc, with type-driven escape elision |
-| Client runtime | [`spec/client/adoption.md`](spec/client/adoption.md), `packages/client` | Adoption, signals, surgical deltas, resident templates over Warp |
-| Effect inference | [`spec/compiler/effects.md`](spec/compiler/effects.md), `packages/compiler` | Reads inferred, cache class derived, ambient reads banned |
-| Route streaming | [`spec/kernel/streaming.md`](spec/kernel/streaming.md), `packages/kernel` | Slots streamed in order or fastest-first |
-| Benchmark harness | `packages/bench` | All six axes measured |
-| React Router 7 candidate | [`benchmarks/rr7`](benchmarks/rr7) | The phase-zero gate, tuned and default shapes |
+| What                              | Where                                                                                         | Status                                                           |
+| --------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Template IR, `weft.template-ir/2` | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir`                         | 2.0.0 — one form fewer than major 1                              |
+| Warp frames, `weft.warp/1`        | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                 | 1.0.0, and now exercised end to end                              |
+| Versioning contract               | [`spec/VERSIONING.md`](spec/VERSIONING.md)                                                    | Majors refuse, minors round-trip                                 |
+| What measurement changed          | [`spec/FINDINGS.md`](spec/FINDINGS.md)                                                        | Four claims reversed, two untestable so far                      |
+| Device and engine reality         | [`spec/baseline/devices.md`](spec/baseline/devices.md)                                        | Written before the numbers                                       |
+| Template compiler                 | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler` | TSX to IR, on Oxc, with type-driven escape elision               |
+| Client runtime                    | [`spec/client/adoption.md`](spec/client/adoption.md), `packages/client`                       | Adoption, signals, surgical deltas, resident templates over Warp |
+| Effect inference                  | [`spec/compiler/effects.md`](spec/compiler/effects.md), `packages/compiler`                   | Reads inferred, cache class derived, ambient reads banned        |
+| Route streaming                   | [`spec/kernel/streaming.md`](spec/kernel/streaming.md), `packages/kernel`                     | Slots streamed in order or fastest-first                         |
+| Benchmark harness                 | `packages/bench`                                                                              | All six axes measured                                            |
+| React Router 7 candidate          | [`benchmarks/rr7`](benchmarks/rr7)                                                            | The phase-zero gate, tuned and default shapes                    |
 
 ## Running it
 
@@ -66,7 +66,7 @@ The point of building this first is to make it hard to fool ourselves later.
 - **It aborts if the wire forms disagree.** Before any measurement, every form of every
   scenario must produce byte-identical output: `html` against the string-concatenation
   control, `data` projected through a resident template, `delta` applied to its base, and
-  every candidate's response *as served over HTTP* — because a streaming server assembles
+  every candidate's response _as served over HTTP_ — because a streaming server assembles
   its response separately from the in-process renderer, and byte equality in memory does
   not imply byte equality on the wire. A mismatch reports the first differing byte and
   stops the run.
@@ -87,34 +87,34 @@ prints; these are one machine's numbers and not a published claim.
 
 **Server render throughput** — pre-encoded segments against string concatenation:
 
-| Scenario | Segments | Control | |
-| --- | --- | --- | --- |
-| shell, 707 B | 1,165,022 renders/s | 594,914 | 1.96× |
-| cart, 12 rows | 236,539 | 167,419 | 1.41× |
-| feed, 50 rows | 62,492 | 43,807 | 1.43× |
+| Scenario      | Segments            | Control |       |
+| ------------- | ------------------- | ------- | ----- |
+| shell, 707 B  | 1,165,022 renders/s | 594,914 | 1.96× |
+| cart, 12 rows | 236,539             | 167,419 | 1.41× |
+| feed, 50 rows | 62,492              | 43,807  | 1.43× |
 
 Both candidates render the same compiled templates — one as byte segments, one as
 JavaScript strings — so this compares the mechanism and nothing else.
 
 **Bytes per server-driven update** — one row's quantity and price change:
 
-| Scenario | Form | Raw | Brotli |
-| --- | --- | --- | --- |
-| feed | `html` | 6,289 | 605 |
-| feed | `delta` | 371 | 187 |
+| Scenario | Form    | Raw   | Brotli |
+| -------- | ------- | ----- | ------ |
+| feed     | `html`  | 6,289 | 605    |
+| feed     | `delta` | 371   | 187    |
 
 ## A form was cut
 
 The `data` form — values only, projected through a template the client already holds —
 was the most distinctive thing in the negotiated set. It is gone, and the harness is why.
 
-| Evidence | Result |
-| --- | --- |
-| Bytes, raw | 3,100 against `html`'s 6,289 — a 2× win |
-| Bytes, brotli | 599 against 605. **1%.** Compression already removes the template redundancy that `data` removed semantically |
-| Client work, Chromium | 1.16× *more* than `html` |
-| Client work, Firefox | 1.33× more |
-| Client work, WebKit | 1.07× more |
+| Evidence              | Result                                                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Bytes, raw            | 3,100 against `html`'s 6,289 — a 2× win                                                                       |
+| Bytes, brotli         | 599 against 605. **1%.** Compression already removes the template redundancy that `data` removed semantically |
+| Client work, Chromium | 1.16× _more_ than `html`                                                                                      |
+| Client work, Firefox  | 1.33× more                                                                                                    |
+| Client work, WebKit   | 1.07× more                                                                                                    |
 
 Values have to be parsed and projected before anything can reach the HTML parser, and the
 parser is native code — which is the same observation the design already makes about why
@@ -129,26 +129,26 @@ is a wire break, and the versioning contract says a major refuses rather than mi
 `delta` stays: 16.9× smaller raw, 3.2× after brotli, and nothing else in the field offers
 it without a stateful process per connection. With one honest caveat — its measured client
 cost is a full re-projection, because only signal-wired bindings carry addressing today.
-Applying a delta *surgically* needs anchors on holes, which is
+Applying a delta _surgically_ needs anchors on holes, which is
 [a known gap](spec/ir/template-ir-2.md) left deliberately open until a client runtime
 exists to consume it.
 
 ## The client runtime, and a reversed finding
 
-The two axes the design calls *"the largest gap"* — interactivity and repeat-visit
+The two axes the design calls _"the largest gap"_ — interactivity and repeat-visit
 startup — needed a runtime before they could be measured at all. There is now enough of
 one to answer them: adoption walks the DOM the parser built and records where each value
 lives, with no component code executing. 50-row region, ~200 bindings, p50:
 
-| | Chromium | Firefox | WebKit |
-| --- | --- | --- | --- |
-| Adopt the region | 0.047 ms | 0.095 ms | 0.040 ms |
-| Parse the same markup | 0.076 ms | 0.060 ms | 0.140 ms |
+|                                  | Chromium  | Firefox   | WebKit    |
+| -------------------------------- | --------- | --------- | --------- |
+| Adopt the region                 | 0.047 ms  | 0.095 ms  | 0.040 ms  |
+| Parse the same markup            | 0.076 ms  | 0.060 ms  | 0.140 ms  |
 | Apply a 12-path delta surgically | 0.0017 ms | 0.0029 ms | 0.0015 ms |
-| One signal write to one node | 0.29 µs | 1.7 µs | 0.71 µs |
+| One signal write to one node     | 0.29 µs   | 1.7 µs    | 0.71 µs   |
 
 **This reverses an earlier finding.** When the harness had no runtime it measured the
-`delta` form by re-projecting the whole region, and reported it 1.28× *worse* than
+`delta` form by re-projecting the whole region, and reported it 1.28× _worse_ than
 sending markup. Applied as designed — one write per changed value, into DOM that already
 exists — it is **20–93× cheaper** than the parse it replaces. The form was never the
 problem; the measurement was, and it was measuring a client that could not address its
@@ -171,9 +171,9 @@ against RR7's default shape — and it now belongs to a route rather than to a b
 candidate. A slot is a hole the shell refuses to wait for, and a route can stream its slots
 two ways. With the slow region first, at 80 ms against 20 ms:
 
-| | Chromium | Firefox | WebKit |
-| --- | --- | --- | --- |
-| in-order, fast region | 103 ms | 104 ms | 103 ms |
+|                           | Chromium  | Firefox   | WebKit    |
+| ------------------------- | --------- | --------- | --------- |
+| in-order, fast region     | 103 ms    | 104 ms    | 103 ms    |
 | out-of-order, fast region | **22 ms** | **23 ms** | **22 ms** |
 
 4.7× earlier, for 329 bytes of inline script, with identical final DOM in all three
@@ -187,7 +187,7 @@ is real, not a hope.
 
 **But it sharpens into something less convenient than hoped.** Zero-JavaScript filling and
 out-of-order filling are mutually exclusive. Slot assignment works on the children of a
-host that is *still open*, and keeping a host open until its content arrives is exactly
+host that is _still open_, and keeping a host open until its content arrives is exactly
 in-order streaming — which needs no fill mechanism at all. Out-of-order needs every host
 closed, so content must arrive elsewhere and be moved, and moving a node is JavaScript. The
 329 bytes are not a fallback for weaker engines; they are the price of fastest-first on
@@ -198,10 +198,10 @@ every engine.
 The design states four ceilings and none had ever been measured. Bundled with Rolldown,
 minified, compressed the way it would ship:
 
-| Entry | Raw | gzip | brotli | Budget |
-| --- | --- | --- | --- | --- |
-| Client runtime, everything | 4,352 | 1,864 | **1,686** | 6,144 |
-| Content route — adopt and bind | 2,859 | 1,202 | **1,085** | 5,120 |
+| Entry                                   | Raw   | gzip  | brotli    | Budget |
+| --------------------------------------- | ----- | ----- | --------- | ------ |
+| Client runtime, everything              | 4,352 | 1,864 | **1,686** | 6,144  |
+| Content route — adopt and bind          | 2,859 | 1,202 | **1,085** | 5,120  |
 | App route — adopt, bind, patch, persist | 4,352 | 1,868 | **1,696** | 12,288 |
 
 Comfortably inside, and a content route drops 36% by never importing the update path,
@@ -222,17 +222,17 @@ server as a coarse digest, and delivered as `TPL` frames only when the client do
 already hold them. That is also the first time Warp has run end to end rather than in its
 own tests.
 
-| Boot path, p50 | Chromium | Firefox | WebKit |
-| --- | --- | --- | --- |
-| First visit | 2.50 ms | 6.00 ms | 3.00 ms |
-| Repeat visit | 0.70 ms | 3.00 ms | 1.00 ms |
-| Protocol bytes | 1,124 → 132 | same | same |
-| `TPL` frames sent | 2 → 0 | same | same |
+| Boot path, p50    | Chromium    | Firefox | WebKit  |
+| ----------------- | ----------- | ------- | ------- |
+| First visit       | 2.50 ms     | 6.00 ms | 3.00 ms |
+| Repeat visit      | 0.70 ms     | 3.00 ms | 1.00 ms |
+| Protocol bytes    | 1,124 → 132 | same    | same    |
+| `TPL` frames sent | 2 → 0       | same    | same    |
 
 **One correction to the claim.** "Zero wiring construction" is true, and it is not the same
 as zero startup work. A repeat visit skips receiving, parsing and storing templates. It
 still pays **adoption**, because the DOM in front of it is new every time and the bindings
-have to be found again. Only the table adoption builds *from* is cached, never the walk
+have to be found again. Only the table adoption builds _from_ is cached, never the walk
 itself.
 
 Storage is IndexedDB rather than a service worker, because WKWebView gates service workers
@@ -248,10 +248,10 @@ now has type information — it asks the TypeScript checker, so `{total}` is `pr
 when `total` is a number and escaped when it is a string — and the recovery **did not
 happen**. Measured directly, on the same templates with elision on and off:
 
-| | ns per render |
-| --- | --- |
-| Typed, 4 holes elided | 16,780 |
-| Syntax-only, 0 elided | 16,503 |
+|                       | ns per render |
+| --------------------- | ------------- |
+| Typed, 4 holes elided | 16,780        |
+| Syntax-only, 0 elided | 16,503        |
 
 Elision is worth nothing here, and the reason is that the renderer already elides at
 runtime: it scans a value before escaping it and writes it untouched when the scan finds
@@ -264,27 +264,27 @@ a genuine cost for a genuine capability, and mis-attributing it to escaping was 
 dressed as a finding.
 
 The type oracle stays, on a smaller and honest justification: it makes the IR's escape
-class *true* rather than conservative. A JavaScript renderer can afford to scan; a native
+class _true_ rather than conservative. A JavaScript renderer can afford to scan; a native
 codec crossing a WASM boundary per hole, or a client projecting values into a resident
 template, cannot. An escape class that says "escape" about a number is a lie the format
 should not carry, whatever this particular renderer does with it.
 
 ## The phase-zero gate, and its answer
 
-The design says: *if the pre-encoded-buffer shell does not beat a tuned React Router 7
+The design says: _if the pre-encoded-buffer shell does not beat a tuned React Router 7
 app on TTFB in a reproducible test, the central premise is wrong and better to know in
-week two.* That test now exists — a route whose data takes 40 ms, 40 ms of injected RTT,
+week two._ That test now exists — a route whose data takes 40 ms, 40 ms of injected RTT,
 and [a real RR7 app](benchmarks/rr7) in two configurations.
 
-| Candidate | TTFB p50 | Last byte | Bytes |
-| --- | --- | --- | --- |
-| Weft segments | 43.46 ms | 84.67 ms | 6,289 |
-| String-concat SSR, streaming | 43.48 ms | 84.84 ms | 6,289 |
-| **RR7, tuned** — promise loader, Suspense, `onShellReady` | **44.65 ms** | 90.78 ms | 7,687 |
-| Await the loader, then render | 84.75 ms | 84.78 ms | 6,289 |
-| **RR7, default shape** — awaited loader, `onAllReady` | **95.35 ms** | 95.40 ms | 6,370 |
+| Candidate                                                 | TTFB p50     | Last byte | Bytes |
+| --------------------------------------------------------- | ------------ | --------- | ----- |
+| Weft segments                                             | 43.46 ms     | 84.67 ms  | 6,289 |
+| String-concat SSR, streaming                              | 43.48 ms     | 84.84 ms  | 6,289 |
+| **RR7, tuned** — promise loader, Suspense, `onShellReady` | **44.65 ms** | 90.78 ms  | 7,687 |
+| Await the loader, then render                             | 84.75 ms     | 84.78 ms  | 6,289 |
+| **RR7, default shape** — awaited loader, `onAllReady`     | **95.35 ms** | 95.40 ms  | 6,370 |
 
-**The premise survives, but the framing does not.** Against a *tuned* RR7 app the shell is
+**The premise survives, but the framing does not.** Against a _tuned_ RR7 app the shell is
 1.03× faster to first byte — a 1.2 ms difference on a 43 ms number. Strip the network out
 and the same comparison is 3.46× (0.64 ms against 2.21 ms), which is a real difference in
 server work and an irrelevant one to a user: any actual RTT swamps it. TTFB against a

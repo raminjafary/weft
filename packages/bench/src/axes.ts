@@ -46,7 +46,8 @@ export const AXES: Axis[] = [
     sota: 'String concatenation in the SSR paths of Solid and Svelte; Marko is closest to segment-based.',
     gap: 'Pre-encoded Uint8Array segments with escape elision are a different cost class, not a percentage.',
     expectation: 'beat',
-    caveat: 'Single-threaded, one process, no I/O. It measures the render path only, which is the part the compiler owns.',
+    caveat:
+      'Single-threaded, one process, no I/O. It measures the render path only, which is the part the compiler owns.',
   },
   {
     id: 'update-bytes',

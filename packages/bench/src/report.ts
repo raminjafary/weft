@@ -78,7 +78,9 @@ export function renderMarkdown(result: RunResult): string {
   lines.push('| --- | --- | --- |')
   for (const report of result.equivalence) {
     for (const check of report.checks) {
-      lines.push(`| ${report.scenario} | ${check.name} | ${check.ok ? 'pass' : 'FAIL'}${check.detail ? ` — ${check.detail.split('\n')[0]}` : ''} |`)
+      lines.push(
+        `| ${report.scenario} | ${check.name} | ${check.ok ? 'pass' : 'FAIL'}${check.detail ? ` — ${check.detail.split('\n')[0]}` : ''} |`,
+      )
     }
   }
   lines.push('')
@@ -94,7 +96,8 @@ export function renderMarkdown(result: RunResult): string {
     lines.push(
       `- Expectation: ${axis.expectation === 'tie' ? 'tie — this axis is at the floor and is not a differentiator' : axis.expectation}`,
     )
-    if (axis.budget) lines.push(`- Budget: ${axis.budget.value} ${axis.unit} ${axis.budget.statistic} (${axis.budget.note})`)
+    if (axis.budget)
+      lines.push(`- Budget: ${axis.budget.value} ${axis.unit} ${axis.budget.statistic} (${axis.budget.note})`)
     if (axis.caveat) lines.push(`- Caveat: ${axis.caveat}`)
     lines.push('')
 
@@ -113,7 +116,9 @@ export function renderMarkdown(result: RunResult): string {
             `| ${row.scenario} | ${row.candidate} | ${fmt(row.summary.p50)} | ${fmt(row.summary.p95)} | ${row.summary.n} | ${budgetVerdict(row, axis.id)} | ${extras(row)} |`,
           )
         } else {
-          lines.push(`| ${row.scenario} | ${row.candidate} | not measured | | | | ${row.reason ?? ''}${row.extra ? ` (${extras(row)})` : ''} |`)
+          lines.push(
+            `| ${row.scenario} | ${row.candidate} | not measured | | | | ${row.reason ?? ''}${row.extra ? ` (${extras(row)})` : ''} |`,
+          )
         }
       }
       lines.push('')
@@ -158,7 +163,11 @@ export function comparison(
   engine = '',
 ): string | null {
   const rows = result.rows.filter(
-    (r) => r.axis === axisId && r.scenario === scenarioId && r.status === 'measured' && (r.engine ?? '') === engine,
+    (r) =>
+      r.axis === axisId &&
+      r.scenario === scenarioId &&
+      r.status === 'measured' &&
+      (r.engine ?? '') === engine,
   )
   if (rows.length < 2) return null
   const axis = axisById(axisId)

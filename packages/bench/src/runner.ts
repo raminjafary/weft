@@ -91,7 +91,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
     throw new Error(
       `E_FORMS_DISAGREE: ${broken.map((b) => b.scenario).join(', ')}. Wire forms must produce identical bytes before any number is published.\n` +
         broken
-          .flatMap((b) => b.checks.filter((c) => !c.ok).map((c) => `  ${b.scenario}: ${c.name}\n    ${c.detail ?? ''}`))
+          .flatMap((b) =>
+            b.checks.filter((c) => !c.ok).map((c) => `  ${b.scenario}: ${c.name}\n    ${c.detail ?? ''}`),
+          )
           .join('\n'),
     )
   }
@@ -142,9 +144,11 @@ export async function run(options: RunOptions): Promise<RunResult> {
       if (axis.needs === 'in-process') {
         for (const candidate of candidates) rows.push(...inProcess(axis, scenario, candidate, methodology))
       } else if (axis.needs === 'http') {
-        for (const candidate of candidates) rows.push(...(await overHttp(axis, scenario, candidate, methodology)))
+        for (const candidate of candidates)
+          rows.push(...(await overHttp(axis, scenario, candidate, methodology)))
       } else {
-        for (const candidate of candidates) rows.push(...(await inBrowser(axis, scenario, candidate, methodology)))
+        for (const candidate of candidates)
+          rows.push(...(await inBrowser(axis, scenario, candidate, methodology)))
       }
     }
   }
@@ -152,7 +156,13 @@ export async function run(options: RunOptions): Promise<RunResult> {
   return { environment: environment(), methodology, equivalence, rows, warnings }
 }
 
-function unavailable(axis: Axis, scenario: Scenario, candidate: Candidate, reason: string, engine?: string): Row {
+function unavailable(
+  axis: Axis,
+  scenario: Scenario,
+  candidate: Candidate,
+  reason: string,
+  engine?: string,
+): Row {
   return {
     axis: axis.id,
     scenario: scenario.id,
@@ -167,7 +177,9 @@ function unavailable(axis: Axis, scenario: Scenario, candidate: Candidate, reaso
 function inProcess(axis: Axis, scenario: Scenario, candidate: Candidate, m: Methodology): Row[] {
   if (axis.id === 'server-throughput') {
     if (!candidate.render) {
-      return [unavailable(axis, scenario, candidate, candidate.unsupported?.[axis.id] ?? 'no in-process render')]
+      return [
+        unavailable(axis, scenario, candidate, candidate.unsupported?.[axis.id] ?? 'no in-process render'),
+      ]
     }
     const values = scenario.values()
     const rows = scenario.rows()
@@ -196,7 +208,9 @@ function inProcess(axis: Axis, scenario: Scenario, candidate: Candidate, m: Meth
 
   if (axis.id === 'update-bytes') {
     if (!candidate.updateForms) {
-      return [unavailable(axis, scenario, candidate, candidate.unsupported?.[axis.id] ?? 'no update payloads')]
+      return [
+        unavailable(axis, scenario, candidate, candidate.unsupported?.[axis.id] ?? 'no update payloads'),
+      ]
     }
     if (!compiledFor(scenario).rowBinding) {
       return [unavailable(axis, scenario, candidate, 'scenario has no updatable region')]
@@ -233,9 +247,21 @@ function inProcess(axis: Axis, scenario: Scenario, candidate: Candidate, m: Meth
   return [unavailable(axis, scenario, candidate, `axis ${axis.id} is not an in-process measurement`)]
 }
 
-async function overHttp(axis: Axis, scenario: Scenario, candidate: Candidate, m: Methodology): Promise<Row[]> {
+async function overHttp(
+  axis: Axis,
+  scenario: Scenario,
+  candidate: Candidate,
+  m: Methodology,
+): Promise<Row[]> {
   if (!candidate.serve) {
-    return [unavailable(axis, scenario, candidate, candidate.unsupported?.[axis.id] ?? 'candidate does not serve HTTP')]
+    return [
+      unavailable(
+        axis,
+        scenario,
+        candidate,
+        candidate.unsupported?.[axis.id] ?? 'candidate does not serve HTTP',
+      ),
+    ]
   }
   const handle = await candidate.serve(scenario, { transport: m.transport })
   const proxy = m.latencyMs > 0 ? await withLatency(handle.url, { rttMs: m.latencyMs }) : null
@@ -270,19 +296,33 @@ async function overHttp(axis: Axis, scenario: Scenario, candidate: Candidate, m:
   }
 }
 
-async function inBrowser(axis: Axis, scenario: Scenario, candidate: Candidate, m: Methodology): Promise<Row[]> {
+async function inBrowser(
+  axis: Axis,
+  scenario: Scenario,
+  candidate: Candidate,
+  m: Methodology,
+): Promise<Row[]> {
   if (axis.id === 'repeat-visit-startup') {
     if (candidate.id !== 'segments') {
-      return [unavailable(axis, scenario, candidate, 'measured once under the segments candidate; residency is a property of the runtime')]
+      return [
+        unavailable(
+          axis,
+          scenario,
+          candidate,
+          'measured once under the segments candidate; residency is a property of the runtime',
+        ),
+      ]
     }
     if (!(await loadPlaywright())) {
-      return [unavailable(axis, scenario, candidate, 'playwright is not installed: browser axes were not run')]
+      return [
+        unavailable(axis, scenario, candidate, 'playwright is not installed: browser axes were not run'),
+      ]
     }
 
     const out: Row[] = []
     for (const engine of m.engines) {
-      const run = await measureRepeatVisit(scenario, engine, Math.max(5, m.browserIterations))
-      const stillSending = run.repeat.some((v) => v.templatesSent > 0)
+      const measured = await measureRepeatVisit(scenario, engine, Math.max(5, m.browserIterations))
+      const stillSending = measured.repeat.some((v) => v.templatesSent > 0)
       if (stillSending) {
         out.push(
           unavailable(
@@ -296,8 +336,8 @@ async function inBrowser(axis: Axis, scenario: Scenario, candidate: Candidate, m
         continue
       }
       for (const [label, visits] of [
-        ['first visit', run.cold],
-        ['repeat visit', run.repeat],
+        ['first visit', measured.cold],
+        ['repeat visit', measured.repeat],
       ] as const) {
         out.push({
           axis: axis.id,
@@ -308,7 +348,7 @@ async function inBrowser(axis: Axis, scenario: Scenario, candidate: Candidate, m
           status: 'measured',
           summary: summarize(visits.map((v) => v.bootMs)),
           extra: {
-            engineVersion: run.engineVersion,
+            engineVersion: measured.engineVersion,
             templatesSent: visits[0]?.templatesSent ?? 0,
             frameBytes: visits[0]?.frameBytes ?? 0,
             storeMs: round(summarize(visits.map((v) => v.putMs)).p50),
@@ -327,10 +367,19 @@ async function inBrowser(axis: Axis, scenario: Scenario, candidate: Candidate, m
     // These are properties of the IR and its runtime, not of a server candidate, so they
     // are measured once rather than per candidate.
     if (candidate.id !== 'segments') {
-      return [unavailable(axis, scenario, candidate, 'measured once under the segments candidate; this axis is a property of the runtime')]
+      return [
+        unavailable(
+          axis,
+          scenario,
+          candidate,
+          'measured once under the segments candidate; this axis is a property of the runtime',
+        ),
+      ]
     }
     if (!(await loadPlaywright())) {
-      return [unavailable(axis, scenario, candidate, 'playwright is not installed: browser axes were not run')]
+      return [
+        unavailable(axis, scenario, candidate, 'playwright is not installed: browser axes were not run'),
+      ]
     }
 
     const wanted: Record<string, string[]> = {
@@ -347,8 +396,8 @@ async function inBrowser(axis: Axis, scenario: Scenario, candidate: Candidate, m
 
     const out: Row[] = []
     for (const engine of m.engines) {
-      const run = await measureClientRuntime(scenario, engine)
-      const failed = run.checks.filter((c) => !c.ok)
+      const measured = await measureClientRuntime(scenario, engine)
+      const failed = measured.checks.filter((c) => !c.ok)
       if (failed.length) {
         out.push({
           ...unavailable(
@@ -362,7 +411,7 @@ async function inBrowser(axis: Axis, scenario: Scenario, candidate: Candidate, m
         continue
       }
       for (const key of wanted[axis.id] ?? []) {
-        const samples = run.timings[key]
+        const samples = measured.timings[key]
         if (!samples?.length) continue
         out.push({
           axis: axis.id,
@@ -372,7 +421,7 @@ async function inBrowser(axis: Axis, scenario: Scenario, candidate: Candidate, m
           unit: axis.unit,
           status: 'measured',
           summary: summarize(samples),
-          extra: { engineVersion: run.engineVersion },
+          extra: { engineVersion: measured.engineVersion },
         })
       }
     }

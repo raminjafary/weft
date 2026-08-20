@@ -53,7 +53,11 @@ function readImports(program: Node): Map<string, ImportRef> {
     for (const specifier of nodes(statement.specifiers)) {
       const local = name(node(specifier.local))
       const exported =
-        specifier.type === 'ImportSpecifier' ? name(node(specifier.imported)) : specifier.type === 'ImportDefaultSpecifier' ? 'default' : '*'
+        specifier.type === 'ImportSpecifier'
+          ? name(node(specifier.imported))
+          : specifier.type === 'ImportDefaultSpecifier'
+            ? 'default'
+            : '*'
       imports.set(local, { module, exported })
     }
   }
@@ -174,7 +178,10 @@ function discover(program: Node, imports: Map<string, ImportRef>): Discovered[] 
 }
 
 /** Nested rows are sealed first, so a parent can name the exact version it projects through. */
-async function sealTree(lowered: Lowered, effects?: EffectSet): Promise<{ entry: TemplateIR; all: TemplateIR[] }> {
+async function sealTree(
+  lowered: Lowered,
+  effects?: EffectSet,
+): Promise<{ entry: TemplateIR; all: TemplateIR[] }> {
   const all: TemplateIR[] = []
   const holes = [...lowered.holes]
 
@@ -200,7 +207,11 @@ async function sealTree(lowered: Lowered, effects?: EffectSet): Promise<{ entry:
   return { entry, all }
 }
 
-export async function compileSource(source: string, file: string, options?: CompileOptions): Promise<CompiledModule> {
+export async function compileSource(
+  source: string,
+  file: string,
+  options?: CompileOptions,
+): Promise<CompiledModule> {
   const parsed = parseSync(file, source, { sourceType: 'module', preserveParens: false })
   if (parsed.errors.length) {
     const first = parsed.errors[0]
@@ -214,7 +225,11 @@ export async function compileSource(source: string, file: string, options?: Comp
   for (const { exportName, call } of discover(program, imports)) {
     const fn = nodes(call.arguments)[0]
     if (!fn || (fn.type !== 'ArrowFunctionExpression' && fn.type !== 'FunctionExpression')) {
-      throw new CompileError('E_FRAGMENT_ARGUMENT', 'fragment() takes a function', locate(file, source, call.start ?? 0))
+      throw new CompileError(
+        'E_FRAGMENT_ARGUMENT',
+        'fragment() takes a function',
+        locate(file, source, call.start ?? 0),
+      )
     }
     const body = node(fn.body)
     const signals = readSignals(body, imports)

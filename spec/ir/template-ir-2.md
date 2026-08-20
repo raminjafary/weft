@@ -18,33 +18,33 @@ why `data` was cut; the short version is that measurement did not support it.
 {
   "spec": "weft.template-ir/2",
   "irVersion": "2.0.0",
-  "id": "app/routes/cart#lines",     // authoring identity, stable across edits
-  "version": "9f2c…",                 // content address, 32 lowercase hex (SHA-256/128)
+  "id": "app/routes/cart#lines", // authoring identity, stable across edits
+  "version": "9f2c…", // content address, 32 lowercase hex (SHA-256/128)
   "encoding": "base64",
-  "segments": ["PHVsPg==", "…"],      // constant bytes, already UTF-8
-  "holes": [ /* see below */ ],
-  "wiring": [ /* see below */ ],
+  "segments": ["PHVsPg==", "…"], // constant bytes, already UTF-8
+  "holes": [/* see below */],
+  "wiring": [/* see below */],
   "signals": [{ "id": "qty", "type": "number", "init": 1 }],
   "forms": ["html", "bundle", "split", "patch", "delta"],
-  "effects": { "reads": [], "writes": [], "envelope": [], "residency": "server" }
+  "effects": { "reads": [], "writes": [], "envelope": [], "residency": "server" },
 }
 ```
 
 ### Invariants
 
-| Rule | Error |
-| --- | --- |
-| `segments.length === holes.length + 1` — rendering interleaves them | `E_SEGMENT_COUNT` |
-| `holes[i].index === i` | `E_HOLE_INDEX` |
-| An attribute hole names its attribute | `E_HOLE_ATTR` |
-| `escape: "trusted-raw"` names the source that vouched for it | `E_RAW_UNVOUCHED` |
-| A wiring entry's binding is a hole or a declared signal, except on `event` ops | `E_WIRING_UNKNOWN_BINDING` |
-| `anchor` appears only on a `text` op, and is a non-negative ordinal | `E_ANCHOR_OP`, `E_ANCHOR_SHAPE` |
-| An event names an intent, never server code | `E_WIRING_INTENT` |
-| `nested` appears only on a `list` hole, and is a sealed version | `E_NESTED_KIND`, `E_NESTED_SHAPE` |
-| Declared forms are derivable from the holes | `E_FORM_UNPROVABLE` |
-| `html` is always offered | `E_FORM_FLOOR` |
-| `version` addresses the content it claims to | `E_VERSION_MISMATCH` |
+| Rule                                                                           | Error                             |
+| ------------------------------------------------------------------------------ | --------------------------------- |
+| `segments.length === holes.length + 1` — rendering interleaves them            | `E_SEGMENT_COUNT`                 |
+| `holes[i].index === i`                                                         | `E_HOLE_INDEX`                    |
+| An attribute hole names its attribute                                          | `E_HOLE_ATTR`                     |
+| `escape: "trusted-raw"` names the source that vouched for it                   | `E_RAW_UNVOUCHED`                 |
+| A wiring entry's binding is a hole or a declared signal, except on `event` ops | `E_WIRING_UNKNOWN_BINDING`        |
+| `anchor` appears only on a `text` op, and is a non-negative ordinal            | `E_ANCHOR_OP`, `E_ANCHOR_SHAPE`   |
+| An event names an intent, never server code                                    | `E_WIRING_INTENT`                 |
+| `nested` appears only on a `list` hole, and is a sealed version                | `E_NESTED_KIND`, `E_NESTED_SHAPE` |
+| Declared forms are derivable from the holes                                    | `E_FORM_UNPROVABLE`               |
+| `html` is always offered                                                       | `E_FORM_FLOOR`                    |
+| `version` addresses the content it claims to                                   | `E_VERSION_MISMATCH`              |
 
 ## Holes
 
@@ -52,15 +52,15 @@ why `data` was cut; the short version is that measurement did not support it.
 { index, kind, escape, binding, path, attr?, provenance?, nested? }
 ```
 
-| kind | Position | Renders |
-| --- | --- | --- |
-| `text` | Between nodes or inside an element | the escaped value |
-| `attr` | Inside an attribute value | the escaped value, quote-escaped |
-| `attr-bool` | Where an attribute name would go | the name if truthy, nothing otherwise |
-| `attr-presence` | Where a whole `name="value"` pair would go | the pair, or nothing |
-| `list` | Between nodes | each item, projected through `nested` if named |
-| `node` | Between nodes | a pre-rendered subtree |
-| `slot` | A streaming hole | **nothing** — the content arrives in a later frame |
+| kind            | Position                                   | Renders                                            |
+| --------------- | ------------------------------------------ | -------------------------------------------------- |
+| `text`          | Between nodes or inside an element         | the escaped value                                  |
+| `attr`          | Inside an attribute value                  | the escaped value, quote-escaped                   |
+| `attr-bool`     | Where an attribute name would go           | the name if truthy, nothing otherwise              |
+| `attr-presence` | Where a whole `name="value"` pair would go | the pair, or nothing                               |
+| `list`          | Between nodes                              | each item, projected through `nested` if named     |
+| `node`          | Between nodes                              | a pre-rendered subtree                             |
+| `slot`          | A streaming hole                           | **nothing** — the content arrives in a later frame |
 
 Where these come from in source, and every construct the compiler refuses, is in
 [the compiler's supported subset](../compiler/supported-subset.md).
@@ -105,19 +105,24 @@ structural `slot` hole is not — declaring it anyway is `E_FORM_UNPROVABLE`.
 ## Payloads
 
 ```jsonc
-{ "spec": "weft.payload/2", "form": "delta", "tpl": "9f2c…", "base": "a1b2…",
-  "changed": { "rows[3].qty": 4 } }
+{
+  "spec": "weft.payload/2",
+  "form": "delta",
+  "tpl": "9f2c…",
+  "base": "a1b2…",
+  "changed": { "rows[3].qty": 4 },
+}
 ```
 
 A delta is keyed by value path, so changing one row of a list costs one entry. A change
-in list *length* is structural and sends the list whole — a diff that tried to be clever
+in list _length_ is structural and sends the list whole — a diff that tried to be clever
 about insertions would have to reason about identity, which is the case that is known to
 go wrong. Applying a delta to its base and rendering must produce bytes identical to
 rendering the new values directly; that check runs in the harness for every scenario.
 
 ### Known gap: a delta cannot yet be applied surgically
 
-A delta's whole justification is writing only what changed, and today only *wired*
+A delta's whole justification is writing only what changed, and today only _wired_
 bindings — signal reads — carry addressing. A value that came from the server has a hole
 with an element `path` but no anchor, so a client cannot locate its text node and has to
 re-project the whole region. The measured client cost of `delta` reflects that

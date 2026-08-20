@@ -66,7 +66,7 @@ export function adopt(options: AdoptOptions): Adopted {
       const host = elementAt(root, hole.path, origin)
       const nested = hole.nested ? options.resident?.[hole.nested] : undefined
       if (!host || !nested) continue
-      for (const child of [...host.children]) {
+      for (const child of Array.from(host.children)) {
         rows.push(adopt({ ...options, root: child, template: nested, origin: 'element' }))
       }
       continue

@@ -77,13 +77,13 @@ test('an untyped prop escapes, because any is not a proof', async () => {
 })
 
 test('without type information the same template escapes everything', async () => {
-  const file = await fixture(
-    'notypes',
-    'export default fragment(({ n }: { n: number }) => <p>{n}</p>)',
-  )
+  const file = await fixture('notypes', 'export default fragment(({ n }: { n: number }) => <p>{n}</p>)')
   assert.deepEqual(await escapesOf(file, { types: true }), ['proven-safe'])
   assert.deepEqual(await escapesOf(file, { types: false }), ['escape'])
-  assert.deepEqual((await compileFile(file, { root: dir })).fragments[0]?.entry.holes.map((h) => h.escape), ['escape'])
+  assert.deepEqual(
+    (await compileFile(file, { root: dir })).fragments[0]?.entry.holes.map((h) => h.escape),
+    ['escape'],
+  )
 })
 
 test('a signal carries its type through the read', async () => {

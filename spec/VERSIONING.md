@@ -4,16 +4,16 @@ Phase zero ships two versioned artifacts before it ships a framework, because a 
 format and a compiler output cannot be versioned retroactively. Adding a version field
 later means every client already in the field is unversioned.
 
-| Spec | Id | Version | Reference implementation |
-| --- | --- | --- | --- |
-| Template IR | `weft.template-ir/2` | 2.1.0 | `packages/ir` |
-| Payloads (delta) | `weft.payload/2` | 2.1.0 | `packages/ir` |
-| Warp frames | `weft.warp/1` | 1.0.0 | `packages/warp` |
+| Spec             | Id                   | Version | Reference implementation |
+| ---------------- | -------------------- | ------- | ------------------------ |
+| Template IR      | `weft.template-ir/2` | 2.1.0   | `packages/ir`            |
+| Payloads (delta) | `weft.payload/2`     | 2.1.0   | `packages/ir`            |
+| Warp frames      | `weft.warp/1`        | 1.0.0   | `packages/warp`          |
 
 ## What each version component means
 
-**Major** is a wire break. A reader that speaks major *N* must refuse a document or a
-stream announcing major *M ≠ N*, with a named error rather than a best-effort parse.
+**Major** is a wire break. A reader that speaks major _N_ must refuse a document or a
+stream announcing major _M ≠ N_, with a named error rather than a best-effort parse.
 `E_MAJOR_UNSUPPORTED` for the IR, `E_WARP_MAJOR` for the stream.
 
 **Minor** is additive and forward-compatible in both directions. An older reader
@@ -51,7 +51,7 @@ versions disagree: a version mismatch costs a form, never the page.
 `anchor` moved from wiring entries onto holes as well, so any consumer can locate any
 text value rather than only the ones a signal writes to. A delta writes server-owned
 values, and without this a client could not find them: it had to re-project the whole
-region, which made the `delta` form measure *worse* than sending markup. Applied through
+region, which made the `delta` form measure _worse_ than sending markup. Applied through
 per-hole addressing it is 20-93x cheaper than the parse it replaces.
 
 Additive, so a minor: a 2.0.0 document is valid as it stands, its text holes simply carry
@@ -75,7 +75,7 @@ The evidence, all of it from the harness:
 - **Bytes.** Raw, `data` was half the size of `html`. After brotli it was 599 bytes
   against 605 — a 1% difference, because compression already removes the template
   redundancy that `data` removed semantically.
-- **Client work.** Turning a payload into DOM cost 1.16-1.33x *more* for `data` than for
+- **Client work.** Turning a payload into DOM cost 1.16-1.33x _more_ for `data` than for
   `html` in Chromium, Firefox, and WebKit alike. Values have to be parsed and projected
   before anything can be handed to the HTML parser, and the parser is native code.
 - **Redundancy.** The decisive argument is architectural rather than numeric. A `data`
@@ -97,7 +97,7 @@ Both changes came from building the compiler, which is the point of building it 
 - **Added** `anchor` on a wiring entry: the ordinal of the marker comment a text binding
   writes after. Adjacent static and dynamic text merge into a single text node when the
   browser parses HTML, so a dynamic text run is not addressable without a marker.
-- **Clarified** `path` as an index into *element* children rather than child nodes. Text
+- **Clarified** `path` as an index into _element_ children rather than child nodes. Text
   nodes come and go with the values, so a node-counting path is wrong for any value set
   the compiler did not see.
 - **Relaxed** the wiring rule that every entry name a resolvable binding. An `event` op

@@ -48,8 +48,18 @@ function parseArgs(argv: string[]): { command: string; flags: Record<string, str
   return { command, flags, positional }
 }
 
+function p50(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b)
+  return sorted[Math.floor(sorted.length / 2)] ?? NaN
+}
+
 function csv(value: string | undefined): string[] | undefined {
-  return value ? value.split(',').map((s) => s.trim()).filter(Boolean) : undefined
+  return value
+    ? value
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : undefined
 }
 
 function candidatesFrom(flags: Record<string, string>): Candidate[] {
@@ -58,7 +68,8 @@ function candidatesFrom(flags: Record<string, string>): Candidate[] {
   if (chosen) {
     list = chosen.map((id) => {
       const found = BUILT_IN.find((c) => c.id === id)
-      if (!found) throw new Error(`E_UNKNOWN_CANDIDATE: ${id}. known: ${BUILT_IN.map((c) => c.id).join(', ')}`)
+      if (!found)
+        throw new Error(`E_UNKNOWN_CANDIDATE: ${id}. known: ${BUILT_IN.map((c) => c.id).join(', ')}`)
       return found
     })
   }
@@ -108,7 +119,9 @@ async function main(): Promise<number> {
   if (command === 'list') {
     process.stdout.write('axes\n')
     for (const a of AXES) {
-      process.stdout.write(`  ${a.id.padEnd(22)} ${a.unit.padEnd(13)} needs ${a.needs.padEnd(11)} expect ${a.expectation}\n`)
+      process.stdout.write(
+        `  ${a.id.padEnd(22)} ${a.unit.padEnd(13)} needs ${a.needs.padEnd(11)} expect ${a.expectation}\n`,
+      )
     }
     process.stdout.write('\nscenarios\n')
     for (const s of SCENARIOS) process.stdout.write(`  ${s.id.padEnd(22)} ${s.label} (${s.route})\n`)
@@ -127,24 +140,32 @@ async function main(): Promise<number> {
 
   if (command === 'slots') {
     const engines = (csv(flags.engines) ?? ['chromium', 'firefox', 'webkit']) as EngineName[]
-    const p50 = (xs: number[]) => {
-      const sorted = [...xs].sort((a, b) => a - b)
-      return sorted[Math.floor(sorted.length / 2)] ?? NaN
-    }
     let failed = false
 
-    process.stdout.write(`the slow region is first in document order, ${DELAYS.feed}ms against ${DELAYS.recs}ms\n\n`)
+    process.stdout.write(
+      `the slow region is first in document order, ${DELAYS.feed}ms against ${DELAYS.recs}ms\n\n`,
+    )
     for (const engine of engines) {
-      const run = await measureSlots(engine, Number(flags.iterations ?? 5))
-      if (!run.sameDom) {
+      const measured = await measureSlots(engine, Number(flags.iterations ?? 5))
+      if (!measured.sameDom) {
         failed = true
-        process.stdout.write(`FAIL  ${engine}: the two orders end at different DOM\n      ${run.domDetail}\n`)
+        process.stdout.write(
+          `FAIL  ${engine}: the two orders end at different DOM\n      ${measured.domDetail}\n`,
+        )
       }
       process.stdout.write(
-        `${engine.padEnd(9)} in-order      slow ${p50(run.inOrder.map((t) => t.feed)).toFixed(0).padStart(4)}ms  fast ${p50(run.inOrder.map((t) => t.recs)).toFixed(0).padStart(4)}ms\n`,
+        `${engine.padEnd(9)} in-order      slow ${p50(measured.inOrder.map((t) => t.feed))
+          .toFixed(0)
+          .padStart(4)}ms  fast ${p50(measured.inOrder.map((t) => t.recs))
+          .toFixed(0)
+          .padStart(4)}ms\n`,
       )
       process.stdout.write(
-        `${''.padEnd(9)} out-of-order  slow ${p50(run.outOfOrder.map((t) => t.feed)).toFixed(0).padStart(4)}ms  fast ${p50(run.outOfOrder.map((t) => t.recs)).toFixed(0).padStart(4)}ms  (+${fillerSize()} B inline)\n`,
+        `${''.padEnd(9)} out-of-order  slow ${p50(measured.outOfOrder.map((t) => t.feed))
+          .toFixed(0)
+          .padStart(4)}ms  fast ${p50(measured.outOfOrder.map((t) => t.recs))
+          .toFixed(0)
+          .padStart(4)}ms  (+${fillerSize()} B inline)\n`,
       )
     }
 
@@ -177,8 +198,8 @@ async function main(): Promise<number> {
     let failed = false
     for (const engine of engines) {
       for (const s of scenarios) {
-        const run = await measureClientRuntime(s, engine)
-        for (const check of run.checks) {
+        const measured = await measureClientRuntime(s, engine)
+        for (const check of measured.checks) {
           process.stdout.write(
             `${check.ok ? 'pass' : 'FAIL'}  ${engine.padEnd(9)} ${s.id.padEnd(6)} ${check.name}${check.ok || !check.detail ? '' : `\n      ${check.detail}`}\n`,
           )

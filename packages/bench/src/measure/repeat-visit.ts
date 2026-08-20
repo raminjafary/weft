@@ -122,7 +122,9 @@ export async function measureRepeatVisit(
     let sent = 0
     for (const template of templates) {
       if (isHeld(held, template.version)) continue
-      frames.push(frame('TPL', { tpl: template.version }, utf8.encode(JSON.stringify(clientTemplate(template))), true))
+      frames.push(
+        frame('TPL', { tpl: template.version }, utf8.encode(JSON.stringify(clientTemplate(template))), true),
+      )
       sent++
     }
 

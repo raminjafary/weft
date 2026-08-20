@@ -90,10 +90,18 @@ export function negotiate(hello: ClientHello, server: ServerCapabilities = SERVE
   const transport: Transport = hello.transport ?? 'stream'
   const base = {
     spec: WARP_SPEC,
-    strategy: (transport === 'socket' ? 'socket' : transport === 'buffered' ? 'collapse' : 'stream') as Negotiation['strategy'],
+    strategy: (transport === 'socket'
+      ? 'socket'
+      : transport === 'buffered'
+        ? 'collapse'
+        : 'stream') as Negotiation['strategy'],
     fill: (hello.dsd === false ? 'script' : 'dsd') as Negotiation['fill'],
     commit: (hello.vt === false ? 'instant' : 'view-transition') as Negotiation['commit'],
-    residency: (hello.sw ? 'service-worker' : hello.idb ? 'indexeddb' : 'http-cache') as Negotiation['residency'],
+    residency: (hello.sw
+      ? 'service-worker'
+      : hello.idb
+        ? 'indexeddb'
+        : 'http-cache') as Negotiation['residency'],
     resumable: transport !== 'buffered',
   }
 
@@ -123,7 +131,9 @@ export function negotiate(hello: ClientHello, server: ServerCapabilities = SERVE
     downgrades.push('incremental DSD parsing unavailable: holes fill via the ~1 KB filler script')
   }
   if (base.commit === 'instant') {
-    downgrades.push('no same-document View Transitions: an epoch commit is an instant swap, not an animated one')
+    downgrades.push(
+      'no same-document View Transitions: an epoch commit is an instant swap, not an animated one',
+    )
   }
   if (base.residency === 'http-cache') {
     downgrades.push(

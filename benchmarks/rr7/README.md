@@ -1,17 +1,17 @@
 # React Router 7 candidate
 
-The phase-zero gate: *if the pre-encoded-buffer shell does not beat a tuned React
-Router 7 app on TTFB in a reproducible test, the central premise is wrong.* This is that
+The phase-zero gate: _if the pre-encoded-buffer shell does not beat a tuned React
+Router 7 app on TTFB in a reproducible test, the central premise is wrong._ This is that
 app, and the harness measures it exactly like any other candidate — same scenario, same
 injected latency, same statistics, same refusal to claim a difference it cannot resolve.
 
 Two configurations, because the difference between them turns out to matter far more than
 the difference between either of them and Weft:
 
-| Mode | Shape |
-| --- | --- |
-| `rr7-stream` | The loader returns an unresolved promise. The slow region sits behind a `Suspense` boundary and the response is piped on `onShellReady`, so the shell is not downstream of the query. **This is the tuned configuration.** |
-| `rr7-blocking` | The loader is awaited, there is no boundary, and the response is piped on `onAllReady`. This is the shape most applications ship. |
+| Mode           | Shape                                                                                                                                                                                                                      |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rr7-stream`   | The loader returns an unresolved promise. The slow region sits behind a `Suspense` boundary and the response is piped on `onShellReady`, so the shell is not downstream of the query. **This is the tuned configuration.** |
+| `rr7-blocking` | The loader is awaited, there is no boundary, and the response is piped on `onAllReady`. This is the shape most applications ship.                                                                                          |
 
 Both use React Router 7's `createStaticHandler` / `createStaticRouter` /
 `StaticRouterProvider` with React 19 `renderToPipeableStream`, and both render the same

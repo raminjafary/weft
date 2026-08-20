@@ -1,7 +1,7 @@
 import { baseRenderId, deltaPayload, render } from '../../../ir/src/index.ts'
 import type { Candidate, ServeHandle, ServeOptions, UpdatePayloads } from '../candidate.ts'
 import { compileScenario, compiledFor, withRows, type Compiled } from '../compiled.ts'
-import { sleep, type Scenario } from '../workloads/index.ts'
+import { sleep } from '../workloads/index.ts'
 import { createServer } from 'node:http'
 import type { TemplateIR, Values } from '../../../ir/src/index.ts'
 import { renderHole } from '../../../ir/src/index.ts'

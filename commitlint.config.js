@@ -1,29 +1,52 @@
-/**
- * Conventional Commits, with the scopes this repository actually has. The scope list is
- * closed on purpose: a commit that does not fit one of these is usually a commit that is
- * doing two things.
- */
+// -----------------------------------------------------------------------------------------
+// build:       changes to the build system or dependencies
+// chore:       miscellaneous changes that do not touch the codebase itself
+// ci:          changes to CI configuration and scripts
+// docs:        documentation only
+// feat:        a new capability
+// fix:         a defect corrected — including a measurement that reverses a stated finding
+// perf:        a change that improves performance
+// refactor:    neither fixes a defect nor adds a capability
+// style:       formatting only, no change in meaning
+// test:        adding or correcting tests
+// security:    addresses a vulnerability or hardens the codebase
+// revert:      reverts a previous commit
+// -----------------------------------------------------------------------------------------
 export default {
   extends: ['@commitlint/config-conventional'],
   rules: {
-    'scope-enum': [
+    'header-max-length': [2, 'always', 108],
+    'body-max-line-length': [2, 'always', 100],
+    'footer-leading-blank': [1, 'always'],
+    'body-leading-blank': [2, 'always'],
+    'subject-empty': [2, 'never'],
+    'type-empty': [2, 'never'],
+    'subject-case': [0],
+    'type-enum': [
       2,
       'always',
       [
-        'ir',
-        'warp',
-        'compiler',
-        'client',
-        'kernel',
-        'bench',
-        'spec',
-        'deps',
-        'repo',
+        'build',
+        'chore',
+        'ci',
+        'docs',
+        'feat',
+        'fix',
+        'perf',
+        'refactor',
+        'revert',
+        'style',
+        'test',
+        'security',
       ],
     ],
+    // This repository's own addition: the scope list is closed, because a commit that fits
+    // none of these is usually a commit doing two things.
+    'scope-enum': [
+      2,
+      'always',
+      ['ir', 'warp', 'compiler', 'client', 'kernel', 'bench', 'spec', 'deps', 'repo'],
+    ],
     'scope-empty': [1, 'never'],
-    'body-max-line-length': [2, 'always', 100],
-    'subject-case': [2, 'always', ['sentence-case', 'lower-case']],
-    'header-max-length': [2, 'always', 72],
   },
 }

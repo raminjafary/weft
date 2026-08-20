@@ -65,7 +65,8 @@ async function sampleOnce(url: string, agent: Agent): Promise<HttpSample> {
 
 export async function measureHttp(url: string, options: HttpOptions): Promise<HttpSample[]> {
   const warmAgent = new Agent({ keepAlive: true, maxSockets: 1 })
-  const agentFor = () => (options.connection === 'warm' ? warmAgent : new Agent({ keepAlive: false, maxSockets: 1 }))
+  const agentFor = () =>
+    options.connection === 'warm' ? warmAgent : new Agent({ keepAlive: false, maxSockets: 1 })
 
   for (let i = 0; i < options.warmup; i++) await sampleOnce(url, agentFor())
 

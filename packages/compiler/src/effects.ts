@@ -183,7 +183,8 @@ function walk(root: Node, visit: (current: Node) => void): void {
     visit(current)
     for (const value of Object.values(current)) {
       if (Array.isArray(value)) {
-        for (const item of value) if (item && typeof item === 'object' && 'type' in item) stack.push(node(item))
+        for (const item of value)
+          if (item && typeof item === 'object' && 'type' in item) stack.push(node(item))
       } else if (value && typeof value === 'object' && 'type' in (value as Node)) {
         stack.push(node(value))
       }

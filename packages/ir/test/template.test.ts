@@ -52,7 +52,10 @@ test('a slot hole makes the delta form unprovable', () => {
 
 test('html is always offered because it needs nothing resident', () => {
   const ir = draftTemplate({ id: 't', segments: ['<p>', '</p>'], holes: [hole(0, 'a')] })
-  assert.equal(validateTemplate({ ...ir, forms: ['delta'] }).errors.some((e) => e.code === 'E_FORM_FLOOR'), true)
+  assert.equal(
+    validateTemplate({ ...ir, forms: ['delta'] }).errors.some((e) => e.code === 'E_FORM_FLOOR'),
+    true,
+  )
 })
 
 test('raw interpolation must name who vouched for it', () => {
@@ -81,7 +84,10 @@ test('an event may only name an intent, never server code', () => {
     holes: [hole(0, 'label')],
     wiring: [{ path: [0], op: 'event', binding: 'label', event: 'click' }],
   })
-  assert.equal(validateTemplate(ir).errors.some((e) => e.code === 'E_WIRING_INTENT'), true)
+  assert.equal(
+    validateTemplate(ir).errors.some((e) => e.code === 'E_WIRING_INTENT'),
+    true,
+  )
 })
 
 test('the content address addresses the content', async () => {
@@ -89,10 +95,16 @@ test('the content address addresses the content', async () => {
   assert.match(ir.version, /^[0-9a-f]{32}$/)
   assert.equal((await verifySealed(ir)).ok, true)
 
-  const tampered: TemplateIR = { ...ir, segments: [new TextEncoder().encode('<div>'), ir.segments[1] as Uint8Array] }
+  const tampered: TemplateIR = {
+    ...ir,
+    segments: [new TextEncoder().encode('<div>'), ir.segments[1] as Uint8Array],
+  }
   const result = await verifySealed(tampered)
   assert.equal(result.ok, false)
-  assert.equal(result.errors.some((e) => e.code === 'E_VERSION_MISMATCH'), true)
+  assert.equal(
+    result.errors.some((e) => e.code === 'E_VERSION_MISMATCH'),
+    true,
+  )
 })
 
 test('a documentation edit does not invalidate a resident template', async () => {
@@ -132,11 +144,18 @@ test('values projected through a resident template give the same bytes as html',
     draftTemplate({
       id: 'root',
       segments: ['<ul>', '</ul>'],
-      holes: [hole(0, 'rows', { kind: 'list', escape: 'trusted-raw', provenance: 'row', nested: rowIr.version })],
+      holes: [
+        hole(0, 'rows', { kind: 'list', escape: 'trusted-raw', provenance: 'row', nested: rowIr.version }),
+      ],
     }),
   )
   const resolve = (v: string) => (v === rowIr.version ? rowIr : undefined)
-  const values: Values = { rows: [{ name: 'Dates & nuts', qty: 2 }, { name: 'Sumac', qty: 1 }] }
+  const values: Values = {
+    rows: [
+      { name: 'Dates & nuts', qty: 2 },
+      { name: 'Sumac', qty: 1 },
+    ],
+  }
 
   const html = render(rootIr, values, resolve)
   const projected = render(rootIr, values, resolve)
@@ -150,16 +169,31 @@ test('a delta names one path per changed value and reconstructs the render', asy
     draftTemplate({
       id: 'root',
       segments: ['<ul>', '</ul>'],
-      holes: [hole(0, 'rows', { kind: 'list', escape: 'trusted-raw', provenance: 'row', nested: rowIr.version })],
+      holes: [
+        hole(0, 'rows', { kind: 'list', escape: 'trusted-raw', provenance: 'row', nested: rowIr.version }),
+      ],
     }),
   )
   const resolve = (v: string) => (v === rowIr.version ? rowIr : undefined)
-  const before: Values = { rows: [{ name: 'Dates', qty: 2 }, { name: 'Sumac', qty: 1 }] }
-  const after: Values = { rows: [{ name: 'Dates', qty: 3 }, { name: 'Sumac', qty: 1 }] }
+  const before: Values = {
+    rows: [
+      { name: 'Dates', qty: 2 },
+      { name: 'Sumac', qty: 1 },
+    ],
+  }
+  const after: Values = {
+    rows: [
+      { name: 'Dates', qty: 3 },
+      { name: 'Sumac', qty: 1 },
+    ],
+  }
 
   const delta = deltaPayload(rootIr, baseRenderId(rootIr, before), before, after)
   assert.deepEqual(Object.keys(delta.changed), ['rows[0].qty'])
-  assert.deepEqual([...render(rootIr, applyDelta(before, delta), resolve)], [...render(rootIr, after, resolve)])
+  assert.deepEqual(
+    [...render(rootIr, applyDelta(before, delta), resolve)],
+    [...render(rootIr, after, resolve)],
+  )
 })
 
 test('a list whose length changes is structural and travels whole', async () => {
@@ -168,11 +202,18 @@ test('a list whose length changes is structural and travels whole', async () => 
     draftTemplate({
       id: 'root',
       segments: ['<ul>', '</ul>'],
-      holes: [hole(0, 'rows', { kind: 'list', escape: 'trusted-raw', provenance: 'row', nested: rowIr.version })],
+      holes: [
+        hole(0, 'rows', { kind: 'list', escape: 'trusted-raw', provenance: 'row', nested: rowIr.version }),
+      ],
     }),
   )
   const before: Values = { rows: [{ name: 'a', qty: 1 }] }
-  const after: Values = { rows: [{ name: 'a', qty: 1 }, { name: 'b', qty: 1 }] }
+  const after: Values = {
+    rows: [
+      { name: 'a', qty: 1 },
+      { name: 'b', qty: 1 },
+    ],
+  }
   const delta = deltaPayload(rootIr, 'base', before, after)
   assert.deepEqual(Object.keys(delta.changed), ['rows'])
 })
@@ -196,7 +237,9 @@ test('a nested template version must be a sealed hash', () => {
   const ir = draftTemplate({
     id: 't',
     segments: ['<ul>', '</ul>'],
-    holes: [hole(0, 'rows', { kind: 'list', escape: 'trusted-raw', provenance: 'row', nested: 'row-template' })],
+    holes: [
+      hole(0, 'rows', { kind: 'list', escape: 'trusted-raw', provenance: 'row', nested: 'row-template' }),
+    ],
   })
   assert.equal(validateTemplate(ir).errors[0]?.code, 'E_NESTED_SHAPE')
 })

@@ -92,7 +92,8 @@ export function renderHole(hole: Hole, value: Json | undefined, resolve?: Resolv
       return truthy(value) ? utf8.encode(hole.attr ?? '') : EMPTY
     case 'attr-presence': {
       if (!truthy(value)) return EMPTY
-      const body = hole.escape === 'escape' ? escapeBytes(stringify(value), true) : utf8.encode(stringify(value))
+      const body =
+        hole.escape === 'escape' ? escapeBytes(stringify(value), true) : utf8.encode(stringify(value))
       return concat([utf8.encode(`${hole.attr ?? ''}="`), body, utf8.encode('"')])
     }
     case 'list': {
@@ -105,7 +106,9 @@ export function renderHole(hole: Hole, value: Json | undefined, resolve?: Resolv
         return concat(value.map((item) => render(nested, item as Values, resolve)))
       }
       return concat(
-        value.map((v) => (hole.escape === 'escape' ? escapeBytes(stringify(v), false) : utf8.encode(stringify(v)))),
+        value.map((v) =>
+          hole.escape === 'escape' ? escapeBytes(stringify(v), false) : utf8.encode(stringify(v)),
+        ),
       )
     }
     default: {
@@ -138,7 +141,13 @@ export function render(ir: TemplateIR, values: Values, resolve?: Resolver): Uint
 }
 
 /** Writes into a caller-owned buffer and returns the byte count. Throws OVERFLOW if it does not fit. */
-export function renderInto(ir: TemplateIR, values: Values, out: Uint8Array, offset = 0, resolve?: Resolver): number {
+export function renderInto(
+  ir: TemplateIR,
+  values: Values,
+  out: Uint8Array,
+  offset = 0,
+  resolve?: Resolver,
+): number {
   return writeTemplate(ir, values, resolve, out, offset) - offset
 }
 
@@ -162,7 +171,13 @@ function writeString(s: string, out: Uint8Array, off: number): number {
   return off + written
 }
 
-function writeValue(hole: Hole, value: Json | undefined, out: Uint8Array, off: number, resolve?: Resolver): number {
+function writeValue(
+  hole: Hole,
+  value: Json | undefined,
+  out: Uint8Array,
+  off: number,
+  resolve?: Resolver,
+): number {
   switch (hole.kind) {
     case 'slot':
       return off

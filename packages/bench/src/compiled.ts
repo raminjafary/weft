@@ -28,7 +28,8 @@ export async function compileScenario(scenario: Scenario): Promise<Compiled> {
   const root = fragment.entry
   const listHole = root.holes.find((h) => h.kind === 'list')
   const row = listHole?.nested ? fragment.templates.find((t) => t.version === listHole.nested) : undefined
-  if (listHole && !row) throw new Error(`E_ROW_MISSING: ${root.id} names a nested template that was not emitted`)
+  if (listHole && !row)
+    throw new Error(`E_ROW_MISSING: ${root.id} names a nested template that was not emitted`)
 
   const compiled: Compiled = {
     root,

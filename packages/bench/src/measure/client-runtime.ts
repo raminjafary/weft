@@ -58,7 +58,10 @@ async function page(scenario: Scenario): Promise<string> {
 </body></html>`
 }
 
-export async function measureClientRuntime(scenario: Scenario, engine: EngineName): Promise<ClientRuntimeRun> {
+export async function measureClientRuntime(
+  scenario: Scenario,
+  engine: EngineName,
+): Promise<ClientRuntimeRun> {
   const pw = await loadPlaywright()
   if (!pw) throw new Error('E_NO_PLAYWRIGHT: install playwright to exercise the client runtime')
 
