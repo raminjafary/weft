@@ -1,0 +1,2119 @@
+<title>Weft by Example</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap">
+
+<style>
+  :root {
+    --ground: #F4F3EE;
+    --surface: #FCFBF8;
+    --sunk: #EAE8E0;
+    --ink: #1A1D33;
+    --muted: #5E6076;
+    --faint: #8A8B9C;
+    --rule: #D6D3C8;
+    --rule-soft: #E4E1D8;
+    --accent: #A3302E;
+    --accent-soft: #F0DEDA;
+    --indigo: #2F3D8F;
+    --indigo-soft: #DFE2F2;
+    --green: #3F6B4A;
+    --green-soft: #DDE9DF;
+
+    --display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    --measure: 68ch;
+    --shell: 1180px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #131629;
+      --surface: #1A1D33;
+      --sunk: #101223;
+      --ink: #ECEAE1;
+      --muted: #A0A2B6;
+      --faint: #787A90;
+      --rule: #2E3358;
+      --rule-soft: #232746;
+      --accent: #E88079;
+      --accent-soft: #3A2028;
+      --indigo: #93A2EC;
+      --indigo-soft: #1E2648;
+      --green: #8FC49C;
+      --green-soft: #1C2E22;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #131629;
+    --surface: #1A1D33;
+    --sunk: #101223;
+    --ink: #ECEAE1;
+    --muted: #A0A2B6;
+    --faint: #787A90;
+    --rule: #2E3358;
+    --rule-soft: #232746;
+    --accent: #E88079;
+    --accent-soft: #3A2028;
+    --indigo: #93A2EC;
+    --indigo-soft: #1E2648;
+    --green: #8FC49C;
+    --green-soft: #1C2E22;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .warp {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image: repeating-linear-gradient(to right, var(--rule-soft) 0 1px, transparent 1px 96px);
+    opacity: .55;
+  }
+  @media (max-width: 900px) { .warp { display: none; } }
+
+  .page { position: relative; z-index: 1; max-width: var(--shell); margin: 0 auto; padding: 0 28px 140px; }
+
+  header.mast { padding: 88px 0 44px; border-bottom: 2px solid var(--ink); }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--accent); margin: 0 0 22px;
+  }
+
+  h1 {
+    font-family: var(--display); font-optical-sizing: auto; font-weight: 800;
+    font-size: clamp(2.6rem, 7.5vw, 5rem); line-height: .95; letter-spacing: -.03em;
+    text-wrap: balance; margin: 0 0 26px;
+  }
+  h1 em { font-style: normal; color: var(--accent); }
+
+  .standfirst { font-size: 1.2rem; line-height: 1.5; color: var(--muted); max-width: 62ch; margin: 0 0 30px; }
+
+  .mast-meta {
+    display: flex; flex-wrap: wrap; gap: 10px 28px;
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: .04em;
+    color: var(--faint); text-transform: uppercase;
+  }
+
+  section { padding: 62px 0 0; border-top: 1px solid var(--rule); }
+  section:first-of-type { border-top: none; }
+
+  .sec-label {
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin: 0 0 14px;
+  }
+
+  h2 {
+    font-family: var(--display); font-weight: 600;
+    font-size: clamp(1.7rem, 3.4vw, 2.35rem); line-height: 1.06; letter-spacing: -.02em;
+    text-wrap: balance; margin: 0 0 20px; max-width: 34ch;
+  }
+
+  h3 {
+    font-family: var(--display); font-weight: 600; font-size: 1.14rem;
+    letter-spacing: -.01em; line-height: 1.25; margin: 38px 0 10px;
+  }
+
+  h4 {
+    font-family: var(--mono); font-size: 11.5px; font-weight: 600;
+    letter-spacing: .13em; text-transform: uppercase; color: var(--indigo); margin: 28px 0 8px;
+  }
+
+  p { margin: 0 0 18px; max-width: var(--measure); }
+  p.lede { font-size: 1.08rem; color: var(--muted); }
+
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  strong { font-weight: 600; }
+  em.term { font-style: italic; }
+
+  code {
+    font-family: var(--mono); font-size: .855em; background: var(--sunk);
+    padding: .12em .38em; border-radius: 2px;
+  }
+
+  ul, ol { max-width: var(--measure); padding-left: 1.2em; margin: 0 0 18px; }
+  li { margin-bottom: 9px; }
+  li::marker { color: var(--faint); }
+
+  /* levels — a genuine progression, so numbering carries meaning */
+  .level { display: flex; align-items: baseline; gap: 16px; margin: 0 0 20px; }
+  .level-n {
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    letter-spacing: .1em; color: var(--accent); white-space: nowrap;
+    padding-top: 4px;
+  }
+  .level h2 { margin: 0; }
+
+  .code {
+    margin: 24px 0 26px; background: var(--sunk);
+    border: 1px solid var(--rule); overflow-x: auto;
+  }
+  .code-head {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+    padding: 11px 18px; border-bottom: 1px solid var(--rule);
+  }
+  .code pre {
+    margin: 0; padding: 18px; font-family: var(--mono);
+    font-size: 12.5px; line-height: 1.65; white-space: pre;
+  }
+  .code pre code { background: none; padding: 0; font-size: inherit; }
+  .c { color: var(--faint); }
+  .k { color: var(--indigo); font-weight: 600; }
+  .s { color: var(--accent); }
+  .g { color: var(--green); }
+
+  .bleed { margin: 30px 0; overflow-x: auto; border: 1px solid var(--rule); background: var(--surface); }
+  table { width: 100%; min-width: 660px; border-collapse: collapse; font-size: .89rem; }
+  caption {
+    text-align: left; font-family: var(--mono); font-size: 11px; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--faint); padding: 16px 20px 12px;
+  }
+  th {
+    text-align: left; font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+    padding: 10px 20px; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  td { padding: 12px 20px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; line-height: 1.45; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.api { font-family: var(--mono); font-size: .92em; white-space: nowrap; }
+
+  .note {
+    margin: 26px 0; padding: 18px 22px; background: var(--indigo-soft);
+    border-left: 3px solid var(--indigo); max-width: var(--measure);
+  }
+  .note p { margin: 0; font-size: .95rem; line-height: 1.55; max-width: none; }
+  .note p + p { margin-top: 10px; }
+  .note b {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .12em;
+    text-transform: uppercase; display: block; margin-bottom: 8px; color: var(--indigo);
+  }
+
+  .warn { background: var(--accent-soft); border-left-color: var(--accent); }
+  .warn b { color: var(--accent); }
+
+  .rules { max-width: var(--measure); margin: 30px 0; }
+  .rule-item {
+    display: grid; grid-template-columns: 28px 1fr; gap: 16px;
+    padding: 18px 0; border-top: 1px solid var(--rule);
+  }
+  .rule-item span.n {
+    font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--accent); padding-top: 3px;
+  }
+  .rule-item b { font-family: var(--display); font-weight: 600; display: block; margin-bottom: 5px; }
+  .rule-item em { font-style: normal; color: var(--muted); font-size: .96rem; }
+
+  .tree {
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.75;
+    background: var(--surface); border: 1px solid var(--rule);
+    padding: 20px 22px; margin: 26px 0; overflow-x: auto; white-space: pre;
+    max-width: var(--measure);
+  }
+  .tree i { font-style: normal; color: var(--faint); }
+
+  footer { margin-top: 72px; padding-top: 34px; border-top: 2px solid var(--ink); }
+  footer p { font-size: .93rem; color: var(--muted); }
+  footer a { color: var(--indigo); }
+</style>
+
+<div class="warp" aria-hidden="true"></div>
+
+<div class="page">
+
+  <header class="mast">
+    <p class="eyebrow">Authoring surface · companion to Weft &amp; Warp</p>
+    <h1>Weft <em>by</em> Example</h1>
+    <p class="standfirst">The syntax, built up one level at a time — from a route that ships zero bytes of JavaScript to per-slot executors, staged epochs, and a delivery plan generated from a production profile. Nothing below level one is required to ship.</p>
+    <div class="mast-meta">
+      <span>Seven levels</span>
+      <span>Two files minimum</span>
+      <span>No sigils · no 'use client'</span>
+    </div>
+  </header>
+
+  <section>
+    <p class="sec-label">Ground rules</p>
+    <h2>Four decisions that shape everything else</h2>
+
+    <div class="rules">
+      <div class="rule-item">
+        <span class="n">01</span>
+        <div><b>Components are TSX. Delivery is a separate DSL.</b><em>The component layer stays deliberately unremarkable — familiar to read, no new dialect to learn, and it works with the editors, linters, formatters, and codemods that already exist. The new syntax is reserved for the delivery plan, where there is nothing to be compatible with and everything to gain from being machine-checkable and machine-<em class="term">writable</em>.</em></div>
+      </div>
+      <div class="rule-item">
+        <span class="n">02</span>
+        <div><b>A fragment is the unit of everything.</b><em>Composition, streaming, caching, code splitting, and delivery all use the same boundary. A fragment is a slot; a slot has a derived cache key, a negotiated wire form, an executor, and a budget. There is no second concept for "island" or "server island" or "region".</em></div>
+      </div>
+      <div class="rule-item">
+        <span class="n">03</span>
+        <div><b>All request state flows through one typed context.</b><em>This is what makes effect inference possible, and effect inference is what makes cache keys derived, cookies harmless, and boundaries automatic. Reaching around <code>ctx</code> is possible, loud, and local.</em></div>
+      </div>
+      <div class="rule-item">
+        <span class="n">04</span>
+        <div><b>The plan lives in its own file because a machine writes it.</b><em>If delivery decisions were decorators scattered through component code, a profile could not safely regenerate them. Keeping the plan separate is what makes profile-guided delivery possible at all.</em></div>
+      </div>
+    </div>
+
+    <div class="tree">app/
+  routes/
+    index.tsx            <i>← a fragment. that is a whole route.</i>
+    cart/
+      route.tsx          <i>← the route fragment</i>
+      cart-lines.tsx     <i>← a child fragment = its own slot</i>
+      actions.ts         <i>← intents</i>
+      route.plan.ts      <i>← optional delivery plan</i>
+  shell.plan.ts          <i>← optional app shell / regions</i>
+  flags.ts
+  signals.ts
+  weft.config.ts         <i>← ports, adapters, plugins</i>
+.weft/
+  profile.json           <i>← generated by `weft profile`</i>
+  intents.d.ts           <i>← generated. do not edit.</i></div>
+  </section>
+
+  <section>
+    <div class="level"><span class="level-n">Level 0</span><h2>A route</h2></div>
+    <p class="lede">No plan, no config, no context. This ships zero bytes of JavaScript, renders at build time because it reads nothing, and is served from the CDN.</p>
+
+    <div class="code">
+      <div class="code-head">app/routes/index.tsx</div>
+<pre><code><span class="k">export default</span> <span class="k">function</span> Home() {
+  <span class="k">return</span> (
+    &lt;main&gt;
+      &lt;h1&gt;Sindibad&lt;/h1&gt;
+      &lt;p&gt;Groceries, delivered.&lt;/p&gt;
+    &lt;/main&gt;
+  )
+}</code></pre>
+    </div>
+    <p>A plain function is a fragment with no effects. The compiler observes that it reads nothing, classifies it <code>static</code>, resolves it at build time, and writes a file. There is no <code>getStaticProps</code>, no <code>export const prerender</code>, no annotation — the classification is derived, and it changes the moment you read something.</p>
+  </section>
+
+  <section>
+    <div class="level"><span class="level-n">Level 1</span><h2>Reading things</h2></div>
+    <p class="lede">The moment you need request state, take the context. Every read through it taints the fragment, and the taint set becomes the cache key.</p>
+
+    <div class="code">
+      <div class="code-head">app/routes/cart/route.tsx</div>
+<pre><code><span class="k">import</span> { fragment } <span class="k">from</span> <span class="s">'weft'</span>
+<span class="k">import</span> { newCart } <span class="k">from</span> <span class="s">'~/flags'</span>
+<span class="k">import</span> { CartLines } <span class="k">from</span> <span class="s">'./cart-lines'</span>
+
+<span class="k">export default</span> fragment(<span class="k">async</span> (ctx) => {
+  <span class="k">const</span> currency = ctx.cookie(<span class="s">'currency'</span>) ?? <span class="s">'IQD'</span>   <span class="c">// taints cookie:currency</span>
+  <span class="k">const</span> layout   = <span class="k">await</span> ctx.flag(newCart)             <span class="c">// taints flag:new-cart</span>
+
+  <span class="k">return</span> (
+    &lt;section&gt;
+      &lt;h2&gt;Your cart&lt;/h2&gt;
+      &lt;CartLines currency={currency} variant={layout} /&gt;
+    &lt;/section&gt;
+  )
+})</code></pre>
+    </div>
+
+    <div class="note">
+      <b>What the compiler wrote down, without being asked</b>
+      <p><code>reads = [cookie:currency, flag:new-cart]</code> · <code>class = SHARED</code> — no identity was read, so this is CDN-cacheable · <code>key = h(cart@a91f, currency, new-cart)</code> · <code>Vary: Cookie</code> · flag axis <code>new-cart</code> registered, so the losing branch's chunks become unreachable rather than shipped.</p>
+      <p>Add <code>ctx.user()</code> and the class flips to <code>PRIVATE</code>, the key gains an identity component, and a <code>.cache('public')</code> declaration anywhere on this slot becomes a build error naming the read that caused it.</p>
+    </div>
+
+    <h3>The full read surface</h3>
+    <div class="bleed">
+      <table>
+        <caption>Every one of these taints; nothing else does</caption>
+        <thead><tr><th>Call</th><th>Taint</th><th>Effect on cache class</th></tr></thead>
+        <tbody>
+          <tr><td class="api">ctx.flag(f)</td><td><code>flag:name</code></td><td>Shared. Becomes a plan axis; only the resolved branch is reachable.</td></tr>
+          <tr><td class="api">ctx.cookie(k)</td><td><code>cookie:k</code></td><td>Shared, keyed by value. Adds to <code>Vary</code>.</td></tr>
+          <tr><td class="api">ctx.header(k)</td><td><code>header:k</code></td><td>Shared, keyed by value. Adds to <code>Vary</code>.</td></tr>
+          <tr><td class="api">ctx.param(k) / ctx.query(k)</td><td><code>route:k</code></td><td>Shared. Part of the route key already.</td></tr>
+          <tr><td class="api">ctx.locale() / ctx.device()</td><td><code>locale</code> / <code>device</code></td><td>Shared, low cardinality — ideal for ahead-of-time permutations.</td></tr>
+          <tr><td class="api">ctx.user()</td><td><code>identity</code></td><td><strong>Private.</strong> Never shared, never a CDN entry.</td></tr>
+          <tr><td class="api">ctx.now()</td><td><code>time</code></td><td>Forces a TTL. A cache policy without one is a build error.</td></tr>
+          <tr><td class="api">ctx.raw()</td><td><code>opaque</code></td><td>The escape hatch. Uncacheable, private, and reported by <code>weft why</code>. Local to this fragment — no route contagion.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="level"><span class="level-n">Level 2</span><h2>Streaming, by composing</h2></div>
+    <p class="lede">There is no <code>&lt;Suspense&gt;</code> and no <code>&lt;Await&gt;</code>. A fragment is the only streaming boundary, so if you want a hole, you compose a fragment. One rule, no second concept.</p>
+
+    <div class="code">
+      <div class="code-head">app/routes/cart/cart-lines.tsx</div>
+<pre><code><span class="k">import</span> { fragment } <span class="k">from</span> <span class="s">'weft'</span>
+
+<span class="k">export const</span> CartLines = fragment&lt;{ currency: <span class="k">string</span> }&gt;(<span class="k">async</span> (ctx, props) => {
+  <span class="k">const</span> lines = <span class="k">await</span> cart.lines(ctx.user(), props.currency)   <span class="c">// slow. that's fine.</span>
+
+  <span class="k">return</span> &lt;ul&gt;{lines.map(l =&gt; &lt;li key={l.sku}&gt;{l.name} — {l.price}&lt;/li&gt;)}&lt;/ul&gt;
+}, {
+  placeholder: () =&gt; &lt;ul aria-busy="true"&gt;&lt;li&gt;&lt;/li&gt;&lt;li&gt;&lt;/li&gt;&lt;/ul&gt;
+})</code></pre>
+    </div>
+
+    <p>The parent does not wait. It emits its own markup with a declarative-shadow-DOM hole where <code>CartLines</code> goes, flushes immediately, and fills the hole out of order when the query resolves — with no JavaScript involved in the filling. The placeholder is part of the fragment because that is where it belongs; the parent should not have to know what its children are waiting for.</p>
+
+    <div class="note">
+      <b>Consequence worth internalising</b>
+      <p><code>await</code> inside a fragment blocks <em class="term">that fragment</em>. It never blocks its parent and never blocks the response. So the way to fix a slow page is to move the slow thing into its own fragment, which is also the way to give it a cache key, a wire form, an executor, and a budget. The refactor that improves performance is the same refactor that improves structure.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="level"><span class="level-n">Level 3</span><h2>Interactivity</h2></div>
+    <p class="lede">Signals make a subtree reactive. The compiler derives the island boundary from reactive reachability — which subtrees can actually change — and ships only those. No <code>'use client'</code>, no <code>$</code> sigil, no directive of any kind.</p>
+
+    <div class="code">
+      <div class="code-head">app/routes/cart/quantity.tsx</div>
+<pre><code><span class="k">import</span> { fragment, signal } <span class="k">from</span> <span class="s">'weft'</span>
+<span class="k">import</span> { addToCart } <span class="k">from</span> <span class="s">'./actions'</span>
+
+<span class="k">export const</span> Quantity = fragment&lt;{ sku: <span class="k">string</span>; unit: <span class="k">number</span> }&gt;((ctx, p) => {
+  <span class="k">const</span> qty   = signal(<span class="s">1</span>)                      <span class="c">// reactive → island</span>
+  <span class="k">const</span> total = () =&gt; qty() * p.unit             <span class="c">// derived, tracked</span>
+
+  <span class="k">return</span> (
+    &lt;form intent={addToCart} params={{ sku: p.sku, qty }}&gt;
+      &lt;input type="number" value={qty()} onInput={e =&gt; qty(+e.target.value)} /&gt;
+      &lt;output&gt;{total()}&lt;/output&gt;
+      &lt;button&gt;Add&lt;/button&gt;
+    &lt;/form&gt;
+  )
+})</code></pre>
+    </div>
+
+    <p>What ships to the browser: the wiring table entries for two bindings — <code>output</code>'s text node and <code>input</code>'s value — one event handler, and the intent id. Not the fragment. Not the framework's renderer for this subtree. Not <code>p.unit</code>, which was folded into the server-rendered bytes.</p>
+
+    <h3>Intents — the client never names server code</h3>
+    <div class="code">
+      <div class="code-head">app/routes/cart/actions.ts</div>
+<pre><code><span class="k">import</span> { intent } <span class="k">from</span> <span class="s">'weft'</span>
+<span class="k">import</span> * <span class="k">as</span> v <span class="k">from</span> <span class="s">'valibot'</span>          <span class="c">// any Standard Schema library</span>
+
+<span class="k">export const</span> addToCart = intent({
+  params: v.object({ sku: v.string(), qty: v.pipe(v.number(), v.minValue(<span class="s">1</span>)) }),
+  capabilities: [<span class="s">'cart:write'</span>],           <span class="c">// checked against the session</span>
+
+  <span class="k">async</span> run(ctx, { sku, qty }) {
+    <span class="k">await</span> cart.add(ctx.user(), sku, qty)
+    <span class="k">return</span> ctx.refresh(<span class="s">'cart-lines'</span>)      <span class="c">// single-flight: mutate + refresh, one trip</span>
+  }
+})</code></pre>
+    </div>
+    <p>The build emits an opaque id for this intent. The browser sends <code>INTENT 7f3 {sku,qty}</code> — an id and typed params, never a function reference, never a module path. The kernel validates the params against the generated schema, checks <code>cart:write</code> against the session, and only then runs. Renaming the export does not change the wire; changing the params schema does, and a stale client gets a clean rejection rather than a coerced value.</p>
+  </section>
+
+  <section>
+    <div class="level"><span class="level-n">Level 4</span><h2>The envelope, when you need it</h2></div>
+    <p class="lede">Cookies, redirects, and status codes must be decided before the first byte leaves. So they live in a separate function with a separate context type — which makes the classic streaming bug impossible to write rather than caught at runtime.</p>
+
+    <div class="code">
+      <div class="code-head">app/routes/account/route.tsx</div>
+<pre><code><span class="k">export default</span> fragment({
+
+  <span class="c">// phase A — nothing has been sent. envelope is open.</span>
+  <span class="c">// this is the ONLY thing between the request and the first flush,</span>
+  <span class="c">// so keep it cheap. `weft build` enforces a budget here.</span>
+  envelope(ctx) {
+    <span class="k">const</span> session = ctx.session.get()
+    <span class="k">if</span> (!session) <span class="k">return</span> ctx.redirect(<span class="s">'/login'</span>)     <span class="c">// a real 302</span>
+    ctx.session.rotateIfStale()                       <span class="c">// a real HttpOnly cookie</span>
+  },
+
+  <span class="c">// phase B — streaming. `ctx` is RenderContext, which has no</span>
+  <span class="c">// redirect/cookie/status methods. the mistake cannot be typed.</span>
+  <span class="k">async</span> render(ctx) {
+    <span class="k">return</span> &lt;Profile user={ctx.user()} /&gt;
+  }
+})</code></pre>
+    </div>
+
+    <div class="code">
+      <div class="code-head">what happens if you try it in phase B</div>
+<pre><code>render(ctx) {
+  ctx.redirect(<span class="s">'/login'</span>)
+      <span class="g">^^^^^^^^</span>
+  <span class="s">TS2339</span>  Property 'redirect' does not exist on type 'RenderContext'.
+          The response envelope is sealed once streaming begins.
+          → move this to `envelope()`, or use `guard()` in route.plan.ts
+          → for an idempotent effect, see ctx.envelope.deferrable()</code></pre>
+    </div>
+
+    <p>Most of the time you should not write <code>envelope()</code> at all — the need is almost always an auth guard, and guards belong in the plan where they run in phase A by construction:</p>
+
+    <div class="code">
+      <div class="code-head">app/routes/account/route.plan.ts — the 90% case</div>
+<pre><code>guard(session.required, { redirect: <span class="s">'/login'</span> })</code></pre>
+    </div>
+
+    <div class="note">
+      <b>Two escape hatches, both typed</b>
+      <p><code>ctx.envelope.deferrable(fn)</code> is callable in phase B. The effect is queued onto the headers of the <em class="term">next</em> request on the Warp connection — a real HTTP response, so <code>HttpOnly</code> and <code>Secure</code> work. Only for idempotent effects: token rotation yes, recording consent no. If there is no next request the effect is dropped, and the drop rate is reported.</p>
+      <p><code>ctx.envelope.inband(fn)</code> emits a <code>REDIRECT</code> or <code>COOKIE</code> frame the client acts on. Cannot produce a real status code or an <code>HttpOnly</code> cookie. The type signature says so, and <code>weft why</code> flags every use.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="level"><span class="level-n">Level 5</span><h2>The plan</h2></div>
+    <p class="lede">Everything so far works with no plan file at all — defaults come from the effect graph and, once you have one, the profile. The plan exists for the decisions you want to make deliberately, and for the ones a profile has made for you and checked in.</p>
+
+    <div class="code">
+      <div class="code-head">app/routes/cart/route.plan.ts</div>
+<pre><code><span class="k">import</span> { plan, when, every } <span class="k">from</span> <span class="s">'weft/plan'</span>
+<span class="k">import</span> { newComposer } <span class="k">from</span> <span class="s">'~/flags'</span>
+<span class="k">import</span> { session } <span class="k">from</span> <span class="s">'~/guards'</span>
+
+<span class="k">export default</span> plan(({ slot, flag, device, gate, after, predict, guard }) => {
+
+  guard(session.required, { redirect: <span class="s">'/login'</span> })
+
+  <span class="c">/* ── what arrives first ─────────────────────────────── */</span>
+  slot(<span class="s">'header'</span>).static().critical()
+
+  slot(<span class="s">'cart-lines'</span>)
+    .stream({ order: <span class="s">'out-of-order'</span>, prio: <span class="s">1</span> })
+    .cache(<span class="s">'60s'</span>, { swr: <span class="s">'10m'</span>, tags: [<span class="s">'cart'</span>] })
+    .form({ prefer: <span class="s">'delta'</span>, fallback: <span class="s">'data'</span> })
+    .refresh(every(<span class="s">'30s'</span>), { when: when.visible.and(when.focused) })
+
+  <span class="c">/* ── what must not block anything ───────────────────── */</span>
+  slot(<span class="s">'recommendations'</span>)
+    .stream({ prio: <span class="s">3</span> })
+    .executor(<span class="s">'pool:heavy'</span>)                    <span class="c">// off the request thread</span>
+    .budget({ cpu: <span class="s">'120ms'</span>, onExceed: <span class="s">'placeholder'</span> })
+    .optional()                                <span class="c">// failure is invisible</span>
+
+  <span class="c">/* ── what loads later, or never ─────────────────────── */</span>
+  slot(<span class="s">'editor'</span>)
+    .island({ budget: <span class="s">'8kb'</span> })                 <span class="c">// build fails if exceeded</span>
+    .load(when.visible.and(when.idle))
+    .css(<span class="s">'inline'</span>)
+
+  <span class="c">/* ── the interactivity milestone the boot is ordered around ─ */</span>
+  gate(<span class="s">'typeable'</span>, () => slot(<span class="s">'composer'</span>).interactive(), { budget: <span class="s">'60ms'</span> })
+  after(<span class="s">'typeable'</span>).load(<span class="s">'analytics'</span>, <span class="s">'history'</span>, <span class="s">'models'</span>)
+
+  <span class="c">/* ── conditional shape ─────────────────────────────── */</span>
+  flag(newComposer).then(() =&gt;
+    slot(<span class="s">'composer'</span>).island().load(when.interaction(<span class="s">'focus'</span>)))
+
+  device.lowEnd.then(() =&gt; slot(<span class="s">'recommendations'</span>).executor(<span class="s">'client'</span>))
+
+  <span class="c">/* ── one prediction signal, three readiness layers ──── */</span>
+  predict(when.hover(<span class="s">'a[href^="/checkout"]'</span>), { delay: <span class="s">80</span> })
+    .speculate(<span class="s">'prerender'</span>)      <span class="c">// browser Speculation Rules</span>
+    .discover()                  <span class="c">// PLAN extend — routes, chunks, css</span>
+    .warm({ epoch: <span class="s">'next'</span> })     <span class="c">// slot data, staged, unpainted</span>
+})</code></pre>
+    </div>
+
+    <h3>The vocabulary, in full</h3>
+    <div class="bleed">
+      <table>
+        <caption>Slot methods — all optional, all defaulted from effects and profile</caption>
+        <thead><tr><th>Method</th><th>Decides</th></tr></thead>
+        <tbody>
+          <tr><td class="api">.static()</td><td>Resolve at build time. Only legal if the effect set is empty; otherwise a build error naming the read.</td></tr>
+          <tr><td class="api">.stream({order, prio, placeholder})</td><td>Out-of-order or in-order, and where it sits in the flush queue.</td></tr>
+          <tr><td class="api">.cache(ttl, {swr, tags, isr})</td><td>Which <code>RenderPort</code> serves it. The <em class="term">key</em> is never written here — it is derived.</td></tr>
+          <tr><td class="api">.form({prefer, fallback})</td><td>Preferred wire form: <code>html</code>, <code>bundle</code>, <code>split</code>, <code>patch</code>, <code>data</code>, <code>delta</code>. Degradation is automatic.</td></tr>
+          <tr><td class="api">.executor(target)</td><td><code>inline</code>, <code>pool:name</code>, <code>isolate</code>, <code>binding:name</code>, <code>svc:name</code>, or <code>client</code> — which is how you say CSR.</td></tr>
+          <tr><td class="api">.budget({js, cpu, onExceed})</td><td>Byte and CPU ceilings. Exceeding <code>js</code> fails the build; exceeding <code>cpu</code> triggers <code>onExceed</code> at runtime.</td></tr>
+          <tr><td class="api">.island({budget}) / .load(cond)</td><td>Client code, and the condition under which its chunk is fetched.</td></tr>
+          <tr><td class="api">.refresh(interval, {when})</td><td>Declarative revalidation of a server-rendered region.</td></tr>
+          <tr><td class="api">.private() / .optional()</td><td>Assert what effects already proved; declare that failure is survivable.</td></tr>
+          <tr><td class="api">.css('inline' | 'link' | 'defer')</td><td>How this slot's styles travel, and in which flush.</td></tr>
+          <tr><td class="api">.incremental()</td><td>Opt into memoised subgraph recompute. Off by default — it only pays for expensive, structurally stable regions.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Conditions</h3>
+    <div class="code">
+      <div class="code-head">when — composable, serialisable, statically analysable</div>
+<pre><code>when.visible            when.idle              when.focused
+when.interaction(<span class="s">'focus'</span> | <span class="s">'click'</span> | <span class="s">'hover'</span> | <span class="s">'input'</span>)
+when.hover(selector)    when.media(<span class="s">'(min-width: 900px)'</span>)
+when.after(gate)        when.never             when.immediately
+
+<span class="c">// combinators. these compile to a tiny condition table, not closures,</span>
+<span class="c">// which is why the plan can be serialised into the stream.</span>
+when.visible.and(when.idle)
+when.interaction(<span class="s">'focus'</span>).or(when.after(<span class="s">'typeable'</span>))
+when.media(<span class="s">'(prefers-reduced-data: reduce)'</span>).not()</code></pre>
+    </div>
+
+    <div class="note warn">
+      <b>Two conditions that lie to you</b>
+      <p><code>when.idle</code> cannot assume idle callbacks fire. <code>requestIdleCallback</code> is not Baseline — Safari ships it only behind a feature flag real users never enable — and <code>scheduler.postTask</code> is Chromium-only. It compiles to a ladder: <code>postTask</code>, then <code>requestIdleCallback</code>, then a timeout heuristic. A large share of iOS traffic gets the timeout, so anything gated on idle has to be genuinely optional.</p>
+      <p><code>prefers-reduced-data</code> is Chromium-only and behind a flag. It is in the list above for completeness; treat it as decoration, not a signal you can act on.</p>
+    </div>
+
+    <div class="note">
+      <b>You are not expected to write this by hand</b>
+      <p><code>weft profile</code> reads production RUM and emits the plan — prebuild set, flush order, chunk packing, wire-form defaults, island load conditions, speculation eagerness. The generated file is checked in, so a delivery regression shows up as <strong>a plan diff in code review</strong>: someone adds a cookie read and the reviewer sees a slot move from shared to private.</p>
+      <p>Hand-written entries are marked and never overwritten. The generator only touches what it owns.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Reference</p>
+    <h2>Every rendering and caching strategy, and what it actually is</h2>
+    <p class="lede">There is no page-level rendering mode here, because the plan works per slot. So SSG, ISR, SWR, SSR, PPR, and CSR stop being framework features and become <em class="term">descriptions of configurations</em> — combinations of what a fragment reads, which <code>RenderPort</code> serves it, and which executor runs it.</p>
+
+    <div class="bleed">
+      <table>
+        <caption>The industry names, translated</caption>
+        <thead><tr><th>Name you know</th><th>What it is here</th><th>How you get it</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="who">SSG / static</td>
+            <td>A fragment whose effect set is empty</td>
+            <td><code>.static()</code> — or nothing at all, since it is the derived default. Resolved at build, written as a file, served by the CDN. The kernel is never invoked.</td>
+          </tr>
+          <tr>
+            <td class="who">SSR (dynamic)</td>
+            <td>A fragment that reads something request-scoped</td>
+            <td>Automatic the moment you call <code>ctx.cookie()</code>, <code>ctx.user()</code>, or similar. Not a mode you select.</td>
+          </tr>
+          <tr>
+            <td class="who">Streaming SSR</td>
+            <td>Any fragment with async work</td>
+            <td>The default. <code>await</code> blocks that fragment and nothing above it.</td>
+          </tr>
+          <tr>
+            <td class="who">ISR</td>
+            <td>Render once on miss, cache, serve from cache</td>
+            <td><code>.cache('5m')</code></td>
+          </tr>
+          <tr>
+            <td class="who">SWR</td>
+            <td>Serve stale instantly, revalidate behind the response</td>
+            <td><code>.cache('5m', { swr: '1h' })</code> — the revalidation runs through <code>revalidateAfterResponse</code>, which is <code>waitUntil</code> on Workers and a task queue on Node.</td>
+          </tr>
+          <tr>
+            <td class="who">On-demand ISR</td>
+            <td>Tag-based purge from anywhere</td>
+            <td><code>.cache('1h', { tags: ['sku:{sku}'] })</code> then <code>ctx.invalidate(['sku:1234'])</code> from an intent, API route, webhook, or cron.</td>
+          </tr>
+          <tr>
+            <td class="who">DPR / persistent</td>
+            <td>Cache forever, purge deliberately</td>
+            <td><code>.cache('∞', { tags: [...] })</code>. Nothing expires; invalidation is the only path.</td>
+          </tr>
+          <tr>
+            <td class="who">PPR</td>
+            <td>Static shell plus dynamic holes</td>
+            <td><strong>Automatic.</strong> It is simply what the effect graph produces — nothing to enable, no Suspense boundary to place, no tree to audit.</td>
+          </tr>
+          <tr>
+            <td class="who">CSR</td>
+            <td>Render in the browser</td>
+            <td><code>.executor('client')</code></td>
+          </tr>
+          <tr>
+            <td class="who">Edge SSR</td>
+            <td>A deployment choice, not a rendering mode</td>
+            <td><code>topology</code> plus which tier holds the executor. The fragment source is unchanged.</td>
+          </tr>
+          <tr>
+            <td class="who">stale-if-error</td>
+            <td>Serve the last good value when a render fails or blows its budget</td>
+            <td><code>.budget({ cpu: '120ms', onExceed: 'stale' })</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4>Cache class is derived, never declared</h4>
+    <div class="code">
+      <div class="code-head">what the fragment reads decides who may share the entry</div>
+<pre><code>reads nothing                    → STATIC   build-time file, CDN
+reads flags / locale / device    → SHARED   one entry per reachable combination
+reads a cookie value            → SHARED   keyed by the value, adds to Vary
+reads ctx.user()                → PRIVATE  never shared, never a CDN entry
+reads ctx.now()                 → requires a TTL; a cache policy without one
+                                   is a build error
+reads ctx.raw()                 → UNCACHEABLE, and reported by `weft why`</code></pre>
+    </div>
+
+    <h4>A page using six strategies at once</h4>
+    <div class="code">
+      <div class="code-head">app/routes/product/[sku]/route.plan.ts</div>
+<pre><code><span class="k">export default</span> plan(({ slot }) =&gt; {
+
+  slot(<span class="s">'chrome'</span>)                                   <span class="c">// SSG</span>
+    .static()
+    .critical()
+
+  slot(<span class="s">'product-core'</span>)                             <span class="c">// ISR + on-demand purge</span>
+    .cache(<span class="s">'1h'</span>, { tags: [<span class="s">'sku:{sku}'</span>] })
+    .stream({ prio: <span class="s">1</span> })
+
+  slot(<span class="s">'price'</span>)                                    <span class="c">// SWR — never make anyone wait</span>
+    .cache(<span class="s">'30s'</span>, { swr: <span class="s">'10m'</span> })
+    .refresh(every(<span class="s">'60s'</span>), { when: when.visible })
+    .form({ prefer: <span class="s">'delta'</span> })                      <span class="c">// refreshes cost ~100 bytes</span>
+
+  slot(<span class="s">'reviews'</span>)                                  <span class="c">// heavy, off-thread, degrade to stale</span>
+    .cache(<span class="s">'15m'</span>, { swr: <span class="s">'1h'</span> })
+    .executor(<span class="s">'pool:heavy'</span>)
+    .budget({ cpu: <span class="s">'150ms'</span>, onExceed: <span class="s">'stale'</span> })
+
+  slot(<span class="s">'cart'</span>)                                     <span class="c">// PRIVATE — reads ctx.user()</span>
+    .stream({ prio: <span class="s">2</span>, placeholder: <span class="s">'skeleton'</span> })   <span class="c">// no .cache(). it would be</span>
+                                                    <span class="c">// a build error anyway.</span>
+
+  slot(<span class="s">'price-history'</span>)                            <span class="c">// CSR — below fold, chart lib</span>
+    .executor(<span class="s">'client'</span>)
+    .island({ budget: <span class="s">'14kb'</span> })
+    .load(when.visible)
+})</code></pre>
+    </div>
+
+    <div class="code">
+      <div class="code-head">weft why /product/1234 — six strategies, one page, no cliffs</div>
+<pre><code>flush 0   0.0ms  chrome          STATIC   build file, CDN
+flush 1   0.4ms  product-core    HIT      isr   key=p9f1,sku=1234    age 22m
+flush 2   0.5ms  price           STALE    swr   key=c012             age 47s
+                                          └ revalidating after response (waitUntil)
+flush 3  38.1ms  cart            MISS     private  key=…,user=*
+flush 4  41.6ms  reviews         HIT      swr   key=r7a2             age 6m
+deferred         price-history   CLIENT   island 13.1kb, on visible
+
+note      `cart` is private and uncacheable. `chrome` is still a CDN file,
+          `product-core` is still cached, `price` is still stale-served.
+          one private slot does not make the route dynamic.</code></pre>
+    </div>
+    <p>That last note is the point of the whole design. In a framework where one dynamic read opts the entire route out of static rendering, this page would be fully dynamic because of the cart. Here the boundary is derived per slot, so the cart is the only thing that renders per request.</p>
+  </section>
+
+  <section>
+    <div class="level"><span class="level-n">Level 6</span><h2>Ports, plugins, and the shell</h2></div>
+    <p class="lede">One config file wires the swappable parts. Nothing here is a framework feature — caching, flags, sessions, storage, and execution are all port implementations, typically under a hundred lines each.</p>
+
+    <div class="code">
+      <div class="code-head">weft.config.ts</div>
+<pre><code><span class="k">import</span> { defineConfig, env } <span class="k">from</span> <span class="s">'weft'</span>
+<span class="k">import</span> workers    <span class="k">from</span> <span class="s">'weft/adapter-workers'</span>
+<span class="k">import</span> { memory, kv } <span class="k">from</span> <span class="s">'weft/store'</span>
+<span class="k">import</span> { workerPool } <span class="k">from</span> <span class="s">'weft/executor'</span>
+<span class="k">import</span> openfeature <span class="k">from</span> <span class="s">'weft/flags-openfeature'</span>
+<span class="k">import</span> i18n <span class="k">from</span> <span class="s">'@weft/i18n'</span>
+
+<span class="k">export default</span> defineConfig({
+  adapter:  workers(),
+  topology: <span class="s">'monolith'</span>,     <span class="c">// 'split-render' | 'edge-regional' | 'mesh'</span>
+
+  ports: {
+    <span class="c">// an array IS the cache topology: L1 then L2.</span>
+    store:   [ memory({ max: <span class="s">'32mb'</span> }), kv({ binding: <span class="s">'CACHE'</span> }) ],
+    flags:   openfeature({ provider: statsig() }),
+    session: cookieSession({ secret: env(<span class="s">'SESSION_SECRET'</span>) }),
+    executor: { <span class="s">'pool:heavy'</span>: workerPool({ size: <span class="s">4</span> }) },
+    registry: fileRegistry(<span class="s">'./regions.json'</span>),
+  },
+
+  plugins: [ i18n({ locales: [<span class="s">'en'</span>, <span class="s">'ar'</span>, <span class="s">'ku'</span>], dir: <span class="s">'auto'</span> }) ],
+  profile: <span class="s">'./.weft/profile.json'</span>,
+})</code></pre>
+    </div>
+
+    <p>Swap <code>workers()</code> for <code>node()</code> and the same build output runs on a container. Swap <code>kv()</code> for <code>redis()</code> and caching behaviour does not change, because the key came from the effect graph rather than from the store. Change <code>topology</code> and the framework splits across machines — the internal protocol is already the wire protocol, so there is no translation layer.</p>
+
+    <h3>The in-memory tier, specified properly</h3>
+    <p>L1 is where the wins are — sub-microsecond, no serialisation, no network. It is also the one tier you cannot reach from outside, which is the whole problem. So it needs a size limit, a TTL, and an answer for remote invalidation.</p>
+
+    <div class="code">
+      <div class="code-head">memory() — bytes, not entries</div>
+<pre><code>memory({
+  max: <span class="s">'32mb'</span>,            <span class="c">// real byte accounting, including the tag index.</span>
+                            <span class="c">// entry counts are useless when values vary 100×.</span>
+  maxEntries: <span class="s">20_000</span>,      <span class="c">// optional second bound, for pathological cases</span>
+
+  ttl: <span class="s">'60s'</span>,              <span class="c">// default; per-slot .cache() overrides it</span>
+  staleTtl: <span class="s">'10m'</span>,          <span class="c">// keep serving stale while revalidating</span>
+
+  eviction: <span class="s">'w-tinylfu'</span>,    <span class="c">// | 'lru' | 'lfu'</span>
+                            <span class="c">// w-tinylfu wins clearly on skewed web traffic;</span>
+                            <span class="c">// it is ~200 lines and we are building anyway.</span>
+
+  singleFlight: <span class="k">true</span>,      <span class="c">// hold in-flight promises, not just values.</span>
+                            <span class="c">// dedupes concurrent identical renders in-process</span>
+                            <span class="c">// BEFORE reaching for a distributed lease. free win.</span>
+
+  coherence: <span class="s">'tracking'</span>,    <span class="c">// ← the interesting one. see below.</span>
+})</code></pre>
+    </div>
+
+    <h4>Five ways to flush L1 from outside</h4>
+    <div class="bleed">
+      <table>
+        <caption>Precision versus what your runtime can actually do</caption>
+        <thead><tr><th>coherence</th><th>Mechanism</th><th>Precision</th><th>Runs on</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="who"><code>'ttl'</code></td>
+            <td>Bounded staleness only. No coordination at all.</td>
+            <td>None — you wait it out</td>
+            <td>Everywhere. The default.</td>
+          </tr>
+          <tr>
+            <td class="who"><code>'generation'</code></td>
+            <td>L1 keys are prefixed with a generation counter read from L2 with a 1s TTL. Bump the counter and all of L1 is logically void, lazily.</td>
+            <td>Coarse — all or nothing</td>
+            <td>Everywhere, <strong>including Workers</strong>. One cheap L2 read per second.</td>
+          </tr>
+          <tr>
+            <td class="who"><code>'pubsub'</code></td>
+            <td>Subscribe to a channel; drop entries matching invalidated tags.</td>
+            <td>Per tag</td>
+            <td>Node, Bun, Deno, containers. Needs a persistent connection.</td>
+          </tr>
+          <tr>
+            <td class="who"><code>'tracking'</code></td>
+            <td>Redis server-assisted client-side caching: <code>CLIENT TRACKING ON BCAST PREFIX weft:</code> over RESP3. Redis remembers what you hold and pushes invalidation messages when it changes.</td>
+            <td>Per key — the most precise</td>
+            <td>Node and friends, Redis 6+.</td>
+          </tr>
+          <tr>
+            <td class="who"><code>'warp'</code></td>
+            <td>Reuse the connection-index tier that already fans <code>STALE</code> out to browsers, and fan drop messages to gateway instances on the same path.</td>
+            <td>Per tag</td>
+            <td>Anywhere that tier runs. No new infrastructure.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="code">
+      <div class="code-head">redis() with tracking — two connections, per Redis's own guidance</div>
+<pre><code>ports: {
+  store: [
+    memory({ max: <span class="s">'32mb'</span>, ttl: <span class="s">'5m'</span>, coherence: <span class="s">'tracking'</span> }),
+    redis({
+      url: env(<span class="s">'REDIS_URL'</span>),
+      resp: <span class="s">3</span>,
+      tracking: {
+        bcast: <span class="k">true</span>,
+        prefix: [<span class="s">'weft:'</span>],       <span class="c">// scope it, or you get every key change</span>
+        redirect: <span class="s">'separate'</span>,    <span class="c">// invalidations on their own connection</span>
+      },
+    }),
+  ]
+}</code></pre>
+    </div>
+
+    <div class="note warn">
+      <b>Workers cannot do four of the five, and pretending otherwise would be dishonest</b>
+      <p>You cannot address an isolate. There is no handle for it, no way to enumerate them, thousands may exist, and they are created and evicted unpredictably. So no pub/sub subscription survives, and no tracking connection persists.</p>
+      <p>On Workers the honest configuration is <code>ttl</code> plus <code>generation</code>, with a <strong>short</strong> L1 TTL — single-digit seconds — because an isolate may live for minutes and you have no way to reach it. Your real shared cache there is KV or the Cache API at L2, and L1 is a request-coalescing layer more than a cache. Which is still worth having: <code>singleFlight</code> alone eliminates duplicate renders within an isolate.</p>
+    </div>
+
+    <h4>Precise dropping needs a reverse index</h4>
+    <div class="code">
+      <div class="code-head">otherwise a tag invalidation nukes the whole cache</div>
+<pre><code><span class="c">// L1 keeps tag → local keys, so `invalidate(['sku:1234'])` drops</span>
+<span class="c">// exactly two entries instead of everything.</span>
+<span class="c">// that index costs memory, so it is counted against `max`.</span>
+
+$ weft cache stats
+
+  tier      entries    bytes    hit rate   evict/min   p50 age
+  L1         14,203   28.4mb      91.2%         340       12s
+  L2 (kv)   —          —          6.1%           —         —
+  live      —          —          2.7%           —         —
+
+  tag index    1,880 tags → 14,203 keys    1.9mb  (counted in max)
+  coherence    tracking · 41 invalidations/min · 0 missed pushes
+
+$ weft cache flush --tag sku:1234        <span class="c"># precise</span>
+$ weft cache flush --generation          <span class="c"># bump: voids all L1 everywhere</span>
+$ weft cache flush --all --confirm       <span class="c"># L1 + L2</span></code></pre>
+    </div>
+    <p>Those commands hit a capability-gated admin endpoint, so operations can flush across every instance without a deploy — which is the practical meaning of "flush them from remote servers". Every flush is emitted through <code>TelemetryPort</code>, because an unexplained hit-rate cliff is otherwise a very annoying afternoon.</p>
+
+    <h3>Flags are built in, because the compiler needs them to be</h3>
+    <p>This one is not a preference. Flag-axis partitioning and ahead-of-time permutation building both require <strong>statically enumerating the variant space</strong> — you cannot make a flag a partition of the module graph if you do not know its possible values at build time. A third-party provider SDK is an opaque function call, so it can tell you nothing. The first-party engine exists to make the architecture work.</p>
+
+    <div class="code">
+      <div class="code-head">app/flags.ts — declarative, so the compiler can read it</div>
+<pre><code><span class="k">import</span> { flag, rollout, rule } <span class="k">from</span> <span class="s">'weft/flags'</span>
+
+<span class="k">export const</span> newCart = flag(<span class="s">'new-cart'</span>, {
+  variants: [<span class="s">'v1'</span>, <span class="s">'v2'</span>] <span class="k">as const</span>,     <span class="c">// typed. this is the plan axis.</span>
+  <span class="k">default</span>: <span class="s">'v1'</span>,
+
+  rules: [
+    rule({ <span class="k">when</span>: { tenant: <span class="s">'acme'</span> },      then: <span class="s">'v2'</span> }),
+    rule({ <span class="k">when</span>: { country: [<span class="s">'IQ'</span>, <span class="s">'JO'</span>] }, then: rollout({ v2: <span class="s">10</span> }) }),
+  ],
+
+  <span class="c">// deterministic bucketing: hash(key + stableId). no round trip,</span>
+  <span class="c">// works at the edge, reproducible in tests and in CI.</span>
+  bucketBy: <span class="s">'stableId'</span>,
+  sticky: <span class="s">'cookie'</span>,
+})</code></pre>
+    </div>
+
+    <p>What the built-in engine gives you that an adapter cannot:</p>
+    <ul>
+      <li><strong>Static variant enumeration</strong> → flag axes, graph partitioning, and profile-selected prebuild permutations. The losing branch's chunks are unreachable rather than shipped.</li>
+      <li><strong>Edge evaluation with no network hop</strong> — rules are pure functions of resolved context, so the gateway decides before rendering and phase A stays near-zero.</li>
+      <li><strong>The payload inlined into the first flush</strong> — the pattern the production teardown shows being hand-built with a Statsig snapshot. Flag names are hashed by default, for the same roadmap-leakage reason.</li>
+      <li><strong>A kill switch that is one store read</strong> — force a variant globally without a deploy, backed by whatever <code>StorePort</code> you configured.</li>
+      <li><strong>Exposure logging through <code>TelemetryPort</code></strong>, which feeds the profile, which decides which permutations to prebuild. The loop closes.</li>
+      <li><strong>Local overrides:</strong> <code>weft flags set new-cart=v2</code>.</li>
+    </ul>
+
+    <div class="code">
+      <div class="code-head">external providers remain supported, with a stated cost</div>
+<pre><code>ports: {
+  flags: [
+    builtin(),                                <span class="c">// statically enumerable → full optimisation</span>
+    openfeature({ provider: statsig() }),      <span class="c">// opaque → runtime branching only</span>
+  ]
+}
+<span class="c">// ⚠ WEFT-W320  flag 'legacy-promo' resolves via an opaque provider.</span>
+<span class="c">//    variant space unknown → no graph partition, no prebuild, both</span>
+<span class="c">//    branches ship. declare variants in flags.ts to recover this.</span></code></pre>
+    </div>
+
+    <h3>A plugin declares its surface up front</h3>
+    <div class="code">
+      <div class="code-head">plugins/i18n.ts</div>
+<pre><code><span class="k">export default</span> definePlugin({
+  name: <span class="s">'@weft/i18n'</span>,
+  after: [<span class="s">'@weft/session'</span>], before: [<span class="s">'@weft/analytics'</span>],   <span class="c">// a DAG, not integers</span>
+
+  reads:    [<span class="s">'cookie:locale'</span>, <span class="s">'header:accept-language'</span>],  <span class="c">// declared AND enforced</span>
+  provides: [<span class="s">'ctx.t'</span>, <span class="s">'ctx.locale'</span>],
+
+  build: {
+    transform(mod) { <span class="c">/* extract message catalogs */</span> },
+    planAxis()     { <span class="k">return</span> { locale: [<span class="s">'en'</span>, <span class="s">'ar'</span>, <span class="s">'ku'</span>] } }  <span class="c">// new cache dimension</span>
+  },
+  runtime: {
+    onRequest(ctx)      { <span class="c">/* resolve locale; taints the fragment */</span> },
+    onPlanResolve(plan) { <span class="c">/* swap the RTL stylesheet slot */</span> }
+  }
+})</code></pre>
+    </div>
+    <p>A plugin that touches request state it did not declare throws in development. That single rule is what protects effect tracking — without it, one careless plugin silently makes every fragment uncacheable, which is exactly how caching dies in real codebases. A plugin with only <code>build</code> hooks provably ships zero runtime bytes.</p>
+
+    <h3>The shell is a plan that composes plans</h3>
+    <div class="code">
+      <div class="code-head">app/shell.plan.ts</div>
+<pre><code><span class="k">export default</span> shell(({ region, contract, expose }) => {
+
+  region(<span class="s">'chrome'</span>).local(<span class="s">'./chrome'</span>).critical()
+
+  region(<span class="s">'search'</span>)
+    .remote(<span class="s">'svc:search'</span>, contract.search)        <span class="c">// generated type, verified at deploy</span>
+    .budget({ js: <span class="s">'40kb'</span>, cpu: <span class="s">'80ms'</span> })
+    .fallback(<span class="s">'static:search-placeholder'</span>)
+    .csp({ <span class="s">'connect-src'</span>: [<span class="s">"'self'"</span>, <span class="s">'https://search.internal'</span>] })
+
+  region(<span class="s">'recs'</span>).remote(<span class="s">'svc:recs'</span>).optional().executor(<span class="s">'client'</span>)
+
+  expose({ locale: signals.locale, cartCount: signals.cartCount })
+})</code></pre>
+    </div>
+    <p>A region is a fragment that happens to live elsewhere, so it inherits keys, forms, executors, budgets, and streaming without a separate orchestration runtime. Shells nest: a product shell can be a region of an organisation shell, with no second mechanism.</p>
+  </section>
+
+  <section>
+    <div class="level"><span class="level-n">Level 7</span><h2>Everything else, by example</h2></div>
+    <p class="lede">A cookbook of the remaining surface. Each of these is a mechanism described in the architecture proposal; this is what it looks like to actually type.</p>
+
+    <h4>Keeping server code and server data out of the client</h4>
+    <div class="code">
+      <div class="code-head">secrets are a type, not a naming convention</div>
+<pre><code><span class="k">import</span> { env } <span class="k">from</span> <span class="s">'weft'</span>
+
+<span class="k">const</span> secret = env(<span class="s">'SESSION_SECRET'</span>)        <span class="c">// Secret&lt;string&gt; — server only, default deny</span>
+<span class="k">const</span> apiUrl = env.public(<span class="s">'API_URL'</span>)       <span class="c">// string — explicitly allowed clientward</span>
+
+<span class="c">// Secret has no toString and no toJSON. this is a type error, not a leak:</span>
+&lt;Widget token={secret} /&gt;
+<span class="g">        ^^^^^</span>  <span class="s">WEFT-E410</span>  Secret&lt;string&gt; is not Serializable.
+                 Secrets may not cross a client boundary.</code></pre>
+    </div>
+
+    <div class="code">
+      <div class="code-head">the wire schema is the serialisation allowlist</div>
+<pre><code><span class="k">export const</span> Profile = fragment({
+  <span class="c">// the ONLY fields that may reach the client. over-fetching is now harmless.</span>
+  wire: v.object({ name: v.string(), tier: v.picklist([<span class="s">'free'</span>, <span class="s">'pro'</span>]) }),
+
+  <span class="k">async</span> render(ctx) {
+    <span class="k">const</span> u = <span class="k">await</span> db.user(ctx.user())   <span class="c">// full row: email, hash, internal flags</span>
+    <span class="k">return</span> &lt;Card name={u.name} tier={u.tier} /&gt;  <span class="c">// only name + tier serialise</span>
+  }
+})</code></pre>
+    </div>
+
+    <div class="code">
+      <div class="code-head">no directives — inference does the work</div>
+<pre><code><span class="c">// nothing to declare. importing 'pg' makes this module server-resident,</span>
+<span class="c">// transitively, and a client chunk reaching it is a build error with</span>
+<span class="c">// the full import chain.</span>
+<span class="k">import</span> { Pool } <span class="k">from</span> <span class="s">'pg'</span>
+<span class="k">import type</span> { User } <span class="k">from</span> <span class="s">'./types'</span>   <span class="c">// types never reach any bundle</span>
+
+<span class="c">// want to state it anyway? an ordinary import, not a magic string.</span>
+<span class="c">// type-checked, navigable, renameable — unlike 'use server'.</span>
+<span class="k">import</span> <span class="s">'weft/server-only'</span></code></pre>
+    </div>
+
+    <h4>Budgets, and what happens when they are missed</h4>
+    <div class="code">
+      <div class="code-head">marginal bytes, growth caps, and preemptible CPU</div>
+<pre><code>slot(<span class="s">'editor'</span>)
+  .island({ budget: { js: <span class="s">'8kb'</span>, grow: <span class="s">'500b'</span> } })
+  <span class="c">// js  → marginal bytes this slot adds. build fails in CI, warns in dev.</span>
+  <span class="c">// grow → also fails if it grew &gt;500b vs the base branch.</span>
+
+slot(<span class="s">'report'</span>)
+  .executor(<span class="s">'pool:heavy'</span>)                <span class="c">// preemptible → cpu budget is REAL</span>
+  .budget({ cpu: <span class="s">'120ms'</span>, onExceed: <span class="s">'stale'</span> })
+  <span class="c">// 'stale' | 'client' | 'fallback' | 'placeholder' | 'fail'</span>
+
+slot(<span class="s">'header'</span>)
+  .executor(<span class="s">'inline'</span>)
+  .budget({ cpu: <span class="s">'10ms'</span> })
+  <span class="c">// ⚠ WEFT-W301  cpu budgets are advisory on 'inline' — JS cannot be</span>
+  <span class="c">//    preempted mid-render. move to pool:/isolate/binding: for a hard limit.</span></code></pre>
+    </div>
+
+    <h4>Refreshing server data without re-rendering the view</h4>
+    <div class="code">
+      <div class="code-head">epochs — stage, then commit atomically</div>
+<pre><code><span class="c">// in a plan: revalidate a server-rendered region on a timer</span>
+slot(<span class="s">'prices'</span>).refresh(every(<span class="s">'30s'</span>), { when: when.visible.and(when.focused) })
+
+<span class="c">// from client code: stage several slots, then flip them together</span>
+<span class="k">import</span> { router } <span class="k">from</span> <span class="s">'weft/client'</span>
+
+<span class="k">const</span> e = router.epoch()                     <span class="c">// a staging generation</span>
+<span class="k">await</span> Promise.all([
+  router.refresh(<span class="s">'prices'</span>,  { epoch: e }),   <span class="c">// fetched, held, NOT painted</span>
+  router.refresh(<span class="s">'stock'</span>,   { epoch: e }),
+  router.refresh(<span class="s">'shipping'</span>,{ epoch: e }),
+])
+e.commit({ transition: <span class="k">true</span> })              <span class="c">// one atomic flip, one view transition</span>
+<span class="c">// e.discard() instead, and the user never saw a thing.</span></code></pre>
+    </div>
+
+    <h4>Optimistic mutation as a staged epoch</h4>
+    <div class="code">
+      <div class="code-head">rollback is discarding, not reconstructing</div>
+<pre><code><span class="k">export const</span> like = intent({
+  params: v.object({ id: v.string() }),
+  optimistic: (s, { id }) =&gt; { s.likes(s.likes() + <span class="s">1</span>) },  <span class="c">// applied instantly</span>
+  <span class="k">async</span> run(ctx, { id }) {
+    <span class="k">await</span> posts.like(ctx.user(), id)
+    <span class="k">return</span> ctx.refresh(<span class="s">'post-meta'</span>)      <span class="c">// single flight: mutate + refresh</span>
+  }
+})
+<span class="c">// on failure the optimistic epoch is discarded. no manual undo path.</span></code></pre>
+    </div>
+
+    <h4>Choosing where a render executes</h4>
+    <div class="code">
+      <div class="code-head">one abstraction, six targets</div>
+<pre><code>slot(<span class="s">'header'</span>)  .executor(<span class="s">'inline'</span>)          <span class="c">// request thread. cheapest.</span>
+slot(<span class="s">'report'</span>)  .executor(<span class="s">'pool:heavy'</span>)      <span class="c">// worker_threads / Worker pool</span>
+slot(<span class="s">'render'</span>)  .executor(<span class="s">'isolate'</span>)         <span class="c">// own heap, own crash domain</span>
+slot(<span class="s">'search'</span>)  .executor(<span class="s">'binding:search'</span>)  <span class="c">// CF service binding, ~0 added latency</span>
+slot(<span class="s">'recs'</span>)    .executor(<span class="s">'svc:recs'</span>)        <span class="c">// another pod / lambda, speaks Warp</span>
+slot(<span class="s">'chart'</span>)   .executor(<span class="s">'client'</span>)          <span class="c">// CSR. this is how you say CSR.</span></code></pre>
+    </div>
+
+    <h4>Filters and enrichers</h4>
+    <div class="code">
+      <div class="code-head">middleware, split by whether it can short-circuit</div>
+<pre><code><span class="c">// FILTER — can end the request. sequential, phase A, may write the envelope.</span>
+<span class="k">export const</span> rateLimit = filter({
+  name: <span class="s">'rate-limit'</span>,
+  <span class="k">async</span> handle(ctx, next) {
+    <span class="k">if</span> (<span class="k">await</span> tooMany(ctx.ip())) <span class="k">return</span> ctx.status(<span class="s">429</span>)
+    <span class="k">return</span> next()
+  }
+})
+
+<span class="c">// ENRICHER — cannot short-circuit. runs in PARALLEL with every other</span>
+<span class="c">// enricher whose reads/provides do not overlap. no opt-in needed.</span>
+<span class="k">export const</span> geo = enricher({
+  name: <span class="s">'geo'</span>,
+  reads:    [<span class="s">'header:cf-ipcountry'</span>],
+  provides: [<span class="s">'ctx.country'</span>],
+  handle(ctx) { ctx.provide(<span class="s">'country'</span>, ctx.header(<span class="s">'cf-ipcountry'</span>)) }
+})
+
+<span class="c">// dependency edges are INFERRED: an enricher reading 'ctx.country'</span>
+<span class="c">// automatically runs after `geo`. no `after: ['geo']` needed.</span>
+<span class="c">// before/after are only for ordering data flow cannot express:</span>
+<span class="k">export const</span> analytics = enricher({
+  name: <span class="s">'analytics'</span>,
+  after: [<span class="s">'csp-nonce'</span>],     <span class="c">// injects a script tag; needs the nonce first</span>
+  ...
+})</code></pre>
+    </div>
+
+    <h4>Remote fragments and shared signals</h4>
+    <div class="code">
+      <div class="code-head">a micro-frontend is a fragment that lives elsewhere</div>
+<pre><code><span class="c">// consumer side — app/shell.plan.ts</span>
+region(<span class="s">'search'</span>)
+  .remote(<span class="s">'svc:search'</span>, contract.search)
+  .budget({ js: <span class="s">'40kb'</span>, cpu: <span class="s">'80ms'</span> })
+  .fallback(<span class="s">'static:search-placeholder'</span>)
+  .optional()
+
+<span class="c">// provider side — the search team's own repo. it exports a contract.</span>
+<span class="k">export default</span> fragment({
+  contract: {
+    consumes: { locale: v.string() },
+    exposes:  { query: v.string() },
+    intents:  [search, clearSearch],
+  },
+  <span class="k">async</span> render(ctx) { ... }
+})</code></pre>
+    </div>
+    <div class="code">
+      <div class="code-head">weft verify — deploy-time contract check</div>
+<pre><code>$ weft verify --against production
+
+  region search   contract v3   ✓ production serves v3
+  region recs     contract v2   ✗ production serves v1
+                                  missing: exposes.trendingCount
+                                  → deploy blocked. override: --allow-skew recs</code></pre>
+    </div>
+
+    <h4>Cache tiers, tags, and invalidation</h4>
+    <div class="code">
+      <div class="code-head">the key is never written by hand</div>
+<pre><code>slot(<span class="s">'product'</span>).cache(<span class="s">'5m'</span>, { swr: <span class="s">'1h'</span>, tags: [<span class="s">'product'</span>, ctx =&gt; <span class="s">`sku:`</span> + ctx.param(<span class="s">'sku'</span>)] })
+
+<span class="c">// invalidate from anywhere — an intent, a webhook, a cron</span>
+<span class="k">await</span> ctx.invalidate([<span class="s">'sku:1234'</span>])
+<span class="c">// → store drops matching keys</span>
+<span class="c">// → open Warp connections holding those keys get  STALE s12</span>
+<span class="c">// → each client decides: refresh now, on next focus, or never</span></code></pre>
+    </div>
+
+    <h4>Fog of war</h4>
+    <div class="code">
+      <div class="code-head">the client learns the app as it explores it</div>
+<pre><code><span class="c">// automatic: predict() emits PLAN extend frames on hover/viewport</span>
+predict(when.hover(<span class="s">'a[href^="/admin"]'</span>)).discover()
+
+<span class="c">// manual, when you know better than the heuristic</span>
+<span class="k">await</span> router.discover(<span class="s">'/checkout/*'</span>)
+
+<span class="c">// and the inverse — never reveal this subtree until authorised</span>
+slot(<span class="s">'admin-nav'</span>).discover(when.never)</code></pre>
+    </div>
+
+    <h4>The router as orchestrator — keeping regions and islands in sync</h4>
+    <p>The router is not a component swapper. It owns the Warp connection, the resident set, the signal registry, the epochs, and the plan — which is what lets it keep independently deployed regions consistent.</p>
+    <div class="code">
+      <div class="code-head">regions never reference each other — the router brokers</div>
+<pre><code><span class="c">// provider: the cart team's region</span>
+<span class="k">export default</span> fragment({
+  contract: { exposes: { cartCount: v.number(), currency: v.string() } },
+  ...
+})
+
+<span class="c">// consumer: the header team's region, a separate deployment</span>
+<span class="k">export default</span> fragment({
+  contract: { consumes: { cartCount: v.number() } },
+  render(ctx) {
+    <span class="k">const</span> n = ctx.consume(<span class="s">'cartCount'</span>)     <span class="c">// a signal, not a snapshot</span>
+    <span class="k">return</span> &lt;span&gt;{n()}&lt;/span&gt;                 <span class="c">// fine-grained, across a deploy boundary</span>
+  }
+})</code></pre>
+    </div>
+
+    <div class="code">
+      <div class="code-head">the tearing problem, solved by epochs</div>
+<pre><code><span class="c">// cartCount changes. three regions display it: mini-cart (region A),</span>
+<span class="c">// header badge (region B), checkout button (region C).</span>
+<span class="c">// today each micro-frontend updates independently → visible tearing.</span>
+
+<span class="c">// here the router stages every consumer, then commits once:</span>
+router.on(<span class="s">'cartCount'</span>, (next) => {
+  <span class="k">const</span> e = router.epoch()
+  router.stage(<span class="s">'cartCount'</span>, next, { epoch: e })   <span class="c">// A, B, C all staged</span>
+  e.commit()                                      <span class="c">// one paint. no torn state.</span>
+})
+<span class="c">// this is automatic for contract signals. you do not write the above.</span></code></pre>
+    </div>
+
+    <div class="code">
+      <div class="code-head">request or load anything, from anywhere — all the same frames</div>
+<pre><code><span class="k">import</span> { router } <span class="k">from</span> <span class="s">'weft/client'</span>
+
+<span class="c">// ── data ──────────────────────────────────────────────</span>
+<span class="k">await</span> router.refresh(<span class="s">'cart-lines'</span>)                      <span class="c">// REFRESH — smallest form</span>
+<span class="k">await</span> router.refresh(<span class="s">'cart-lines'</span>, { form: <span class="s">'html'</span> })     <span class="c">// force a form</span>
+<span class="k">await</span> router.warm(<span class="s">'/checkout'</span>, { epoch: <span class="s">'next'</span> })        <span class="c">// WARM — staged, unpainted</span>
+
+<span class="c">// ── code and styles ───────────────────────────────────</span>
+<span class="k">await</span> router.load(<span class="s">'island:editor'</span>)                     <span class="c">// MOD</span>
+<span class="k">await</span> router.load(<span class="s">'css:print'</span>)                         <span class="c">// CSS</span>
+router.arm(<span class="s">'filters'</span>)                                  <span class="c">// cold → armed, prefetch handlers</span>
+
+<span class="c">// ── the map itself ────────────────────────────────────</span>
+<span class="k">await</span> router.discover(<span class="s">'/admin/*'</span>)                       <span class="c">// PLAN extend</span>
+
+<span class="c">// ── server-rendered content, into a target you choose ─</span>
+<span class="k">await</span> router.render(showReviews, { sku }, { into: <span class="s">'#panel'</span> })
+<span class="c">// INTENT + capability check. the client names an intent id, never a component.</span>
+
+<span class="c">// ── transactions ──────────────────────────────────────</span>
+<span class="k">const</span> e = router.epoch()
+<span class="k">await</span> Promise.all([router.refresh(<span class="s">'a'</span>, {epoch:e}), router.refresh(<span class="s">'b'</span>, {epoch:e})])
+e.commit({ transition: <span class="k">true</span> })                        <span class="c">// or e.discard()</span></code></pre>
+    </div>
+    <div class="note">
+      <b>One vocabulary, two moods</b>
+      <p>Every call above emits the same Warp frame the plan would have emitted declaratively. The imperative API is an escape hatch into the same mechanism, not a parallel system — so anything you can do from an island, you can do from a plugin, a region, a devtools console, or a plan.</p>
+      <p>Region failures do not propagate: a dead region marked <code>optional()</code> renders nothing, one with a <code>fallback()</code> renders that, and a contract mismatch detected on connect gets the fallback instead of a runtime crash.</p>
+    </div>
+
+    <h4>Kill switches, force-on, and runtime config</h4>
+    <div class="code">
+      <div class="code-head">unconditional overrides — no bucketing, no targeting, no stickiness</div>
+<pre><code><span class="c">// force a variant on for everyone, ignoring every rule</span>
+$ weft flags force new-cart=v2 --reason "GA rollout" --ttl 30d
+
+<span class="c">// kill: pin to the declared safe variant, bypass everything</span>
+$ weft flags kill new-cart --reason "INC-4412 checkout errors" --ttl 24h
+
+<span class="c">// or via the config source, no CLI and no deploy</span>
+<span class="c">// configmap key: flags.overrides</span>
+{ <span class="s">"new-cart"</span>: { <span class="s">"force"</span>: <span class="s">"v2"</span>, <span class="s">"reason"</span>: <span class="s">"GA"</span>, <span class="s">"expires"</span>: <span class="s">"2026-09-19T00:00:00Z"</span> } }</code></pre>
+    </div>
+
+    <div class="code">
+      <div class="code-head">the precedence ladder is fixed and printed</div>
+<pre><code>$ weft flags explain new-cart --tenant acme --country IQ
+
+  1  kill switch        —            <span class="c">(none active)</span>
+  2  runtime force      v2           ← WINS   source: configmap, gen 41
+  3  local override     —
+  4  targeting rules    v2           <span class="c">(would have matched: tenant=acme)</span>
+  5  default            v1
+
+  effective   v2
+  exposure    logged, tagged `forced` so analysis can exclude it
+  note        a killed flag logs NO exposure — killed traffic is not an experiment</code></pre>
+    </div>
+
+    <div class="note warn">
+      <b>The tension this creates, and how it resolves</b>
+      <p>If flags partition the module graph and the profile prunes cold permutations, does forcing a 0%-traffic variant on find nothing to run? No — because <strong>declaration and prebuilding are different things</strong>.</p>
+      <p>A variant declared in <code>flags.ts</code> always has its chunks in the artifact; that is what makes it <em class="term">reachable</em>. The profile only decides which permutations get a pre-encoded shell buffer, which is <em class="term">prewarming</em>. So force-on works instantly and simply renders without the pre-encoded shell for the first requests, then warms. Pruning only ever removes variants that were never declared — which is to say, none.</p>
+    </div>
+
+    <div class="code">
+      <div class="code-head">weft.config.ts — config sources are a port, layered like stores</div>
+<pre><code>ports: {
+  config: [
+    file(<span class="s">'/etc/weft/config.json'</span>, { watch: <span class="k">true</span> }),   <span class="c">// k8s ConfigMap mount</span>
+    kv({ binding: <span class="s">'CONFIG'</span>, ttl: <span class="s">'10s'</span> }),              <span class="c">// hot path, fast propagation</span>
+    env(),                                            <span class="c">// lowest priority</span>
+  ],
+  <span class="c">// optional: refuse unsigned snapshots, same discipline as render intents</span>
+  configTrust: ed25519({ publicKey: env(<span class="s">'CONFIG_PUBKEY'</span>) }),
+}</code></pre>
+    </div>
+
+    <h4>Private and public runtime config</h4>
+    <p>Both come from the same source and are set the same way. The difference is enforced, not documented — and the default is private, so forgetting to classify something fails closed.</p>
+
+    <div class="code">
+      <div class="code-head">app/config.ts — the schema decides, not a key prefix</div>
+<pre><code><span class="k">import</span> { config } <span class="k">from</span> <span class="s">'weft'</span>
+
+<span class="c">// PRIVATE — server only. never serialised, never in a bundle, never in HTML.</span>
+<span class="k">export const</span> dbUrl   = config.private(<span class="s">'db.url'</span>,   v.string())
+<span class="k">export const</span> jwtKey  = config.secret(<span class="s">'jwt.key'</span>,  v.string())   <span class="c">// Secret&lt;string&gt;</span>
+<span class="k">export const</span> rateMax = config.private(<span class="s">'rate.max'</span>, v.number())
+
+<span class="c">// PUBLIC — explicitly safe for the browser. delivered at runtime,</span>
+<span class="c">// so changing it needs no rebuild.</span>
+<span class="k">export const</span> apiUrl  = config.public(<span class="s">'api.url'</span>,   v.string())
+<span class="k">export const</span> mapsKey = config.public(<span class="s">'maps.key'</span>,  v.string())
+<span class="k">export const</span> locales = config.public(<span class="s">'locales'</span>,   v.array(v.string()))
+
+<span class="c">// a key that is in the ConfigMap but not declared here is REJECTED,</span>
+<span class="c">// not silently ignored. and anything not declared public is private.</span></code></pre>
+    </div>
+
+    <div class="code">
+      <div class="code-head">reading it — one call, both sides, typed</div>
+<pre><code><span class="c">// server: from the port</span>
+<span class="c">// client: from the delivered payload</span>
+<span class="c">// same import, same call. the compiler knows which is legal where.</span>
+<span class="k">const</span> url = apiUrl()                <span class="c">// fine anywhere</span>
+
+<span class="k">const</span> key = jwtKey()                <span class="c">// fine in a fragment, handler, or intent</span>
+&lt;Widget token={key} /&gt;
+<span class="g">              ^^^</span>  <span class="s">WEFT-E410</span>  Secret&lt;string&gt; is not Serializable.
+
+<span class="c">// and reading a private value makes this module server-resident,</span>
+<span class="c">// transitively — a client chunk reaching it is a build error with</span>
+<span class="c">// the full import chain.</span></code></pre>
+    </div>
+
+    <h4>How public config reaches the browser</h4>
+    <div class="code">
+      <div class="code-head">inlined once, then nothing — the resident-set mechanism again</div>
+<pre><code>first response    CONFIG gen=41 {api.url:"…", maps.key:"…", locales:[…]}
+                  └ inlined into the first flush. no extra request.
+
+later responses   client's RESIDENT frame says  cfg=41
+                  → server sends nothing at all.
+
+after a change    CONFIG gen=42 {api.url:"…"}
+                  └ only changed keys. pushed on the open connection —
+                    live clients update without a reload.</code></pre>
+    </div>
+    <p>Worth contrasting with the build-time route: <code>env.public('API_URL')</code> is inlined into the bundle at build, which is marginally faster and requires a rebuild to change. <code>config.public()</code> is delivered at runtime, costs a few bytes on first flush, and is changeable from a ConfigMap. Both exist because the tradeoff is real; the runtime one is the better default.</p>
+
+    <h4>Three enforcement layers, because a type alone is not enough</h4>
+    <ul>
+      <li><strong>Type.</strong> Private values are branded and not <code>Serializable</code>, so they cannot be a fragment prop, a <code>wire</code> field, or an intent return.</li>
+      <li><strong>Graph.</strong> Reading private config makes the module server-resident, transitively. A client chunk reaching it fails the build with the import chain.</li>
+      <li><strong>Runtime.</strong> The serialiser refuses to emit anything carrying the private brand — because <code>as any</code> defeats a type, and someone eventually writes it. This is the layer that actually holds.</li>
+    </ul>
+
+    <div class="code">
+      <div class="code-head">and a guardrail for the obvious mistake</div>
+<pre><code><span class="k">export const</span> apiToken = config.public(<span class="s">'api.token'</span>, v.string())
+
+<span class="c">// ⚠ WEFT-W330  'api.token' is declared public but its name suggests a</span>
+<span class="c">//    credential, and its value has high entropy (est. 190 bits).</span>
+<span class="c">//    public config is visible to every visitor.</span>
+<span class="c">//    → use config.secret(), or confirm with:</span>
+<span class="c">//      config.public('api.token', v.string(), { knownSafe: 'publishable key' })</span></code></pre>
+    </div>
+
+    <div class="code">
+      <div class="code-head">kubernetes — two mounts, one watcher</div>
+<pre><code>volumes:
+  - name: weft-public
+    configMap: { name: weft-config }        <span class="c"># public + non-sensitive private</span>
+  - name: weft-secret
+    secret:    { secretName: weft-secrets } <span class="c"># sensitive private</span>
+
+<span class="c"># weft.config.ts</span>
+ports: {
+  config: [
+    file(<span class="s">'/etc/weft/config.json'</span>,  { watch: <span class="k">true</span> }),
+    file(<span class="s">'/etc/weft/secrets.json'</span>, { watch: <span class="k">true</span>, classify: <span class="s">'secret'</span> }),
+    kv({ binding: <span class="s">'CONFIG'</span>, ttl: <span class="s">'10s'</span> }),
+  ]
+}
+<span class="c"># a bad value rejects the whole generation and keeps the previous one.</span>
+<span class="c"># never a partially-applied config.</span></code></pre>
+    </div>
+
+    <h4>What runtime config may and may not change</h4>
+    <p>This is the rule that keeps every derived guarantee intact: <strong>runtime config may change values, never shapes.</strong></p>
+    <div class="bleed">
+      <table>
+        <caption>The generated config schema enforces this — an unknown key is rejected, not ignored</caption>
+        <thead><tr><th></th><th>Tunable at runtime</th><th>Build-time only, and why</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="who">Flags</td>
+            <td>Overrides, kills, rollout percentages, targeting rule values</td>
+            <td>The <em class="term">variant list</em> — it defines the plan axis and the graph partition</td>
+          </tr>
+          <tr>
+            <td class="who">Caching</td>
+            <td>TTLs, SWR windows, tag invalidation, tier enable/disable</td>
+            <td>Cache key <em class="term">shape</em> — it is derived from the effect signature</td>
+          </tr>
+          <tr>
+            <td class="who">Delivery</td>
+            <td>Slot priorities, form preferences, concurrency caps, speculation eagerness</td>
+            <td>Island boundaries, residency, chunk graph</td>
+          </tr>
+          <tr>
+            <td class="who">Budgets</td>
+            <td>CPU thresholds and <code>onExceed</code> policy</td>
+            <td>Byte budgets — they are a build gate by definition</td>
+          </tr>
+          <tr>
+            <td class="who">Regions</td>
+            <td>Registry entries, region version pins, optional/fallback policy</td>
+            <td>Contracts — a shape change needs a verified deploy</td>
+          </tr>
+          <tr>
+            <td class="who">Config values</td>
+            <td>Any declared key — private or public. Public keys push to live clients on the open connection.</td>
+            <td>The <em class="term">classification</em>. Whether a key is public is declared in <code>config.ts</code> and compiled in, because flipping a private value to public at runtime would be a disclosure with no review.</td>
+          </tr>
+          <tr>
+            <td class="who">Wire</td>
+            <td>Nothing</td>
+            <td>Wire schemas are the serialisation allowlist. Runtime-mutable would make it a security hole.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="code">
+      <div class="code-head">config changes are atomic, observable, and expire</div>
+<pre><code>$ weft config
+
+  generation  41    applied 2026-08-20T09:14:02Z    source: configmap
+              └ atomic swap: all keys move together, so no request ever
+                observes a half-applied change (same primitive as epochs)
+
+  overrides   flags.new-cart.force = v2        expires in 29d
+              cache.product.ttl    = 30s       expires in 4h
+              regions.recs.optional = true     ⚠ expires in 2h — set 22h ago
+
+  rejected    delivery.islandBoundary          ✗ not runtime-tunable
+                                                 (build-time shape)
+
+  telemetry   every generation change is emitted, so an incident can be
+              correlated to a config flip rather than guessed at</code></pre>
+    </div>
+    <p>Two deliberate operational choices. A <code>reason</code> and a <code>ttl</code> are <em class="term">required</em> on any force or kill, because the real failure mode is a kill switch left on for six months by someone who has since changed teams — expiry with a warning is the fix. And config generations swap atomically, so feeding a flag force and a TTL change together is never observable half-applied.</p>
+
+    <h4>Collecting feature flag data</h4>
+    <div class="code">
+      <div class="code-head">exposure is derived — there is no logExposure() to forget</div>
+<pre><code><span class="c">// you write this:</span>
+<span class="k">const</span> layout = <span class="k">await</span> ctx.flag(newCart)
+
+<span class="c">// the kernel already knows:</span>
+<span class="c">//   · new-cart is in this slot's derived cache key</span>
+<span class="c">//   · therefore the resolved variant affected the output</span>
+<span class="c">//   · therefore exposure is logged — ON FLUSH, not on evaluation</span></code></pre>
+    </div>
+    <p>That last distinction fixes two bugs every flag SDK has. Calling <code>getVariant()</code> logs an exposure even when the component then does not render, which dilutes the experiment. And a page served from cache logs <em class="term">nothing</em>, even though the user saw the variant, which undercounts it. Emitting on flush rather than on evaluation is correct in both cases — a cache hit still logs, and an unrendered read does not.</p>
+
+    <div class="code">
+      <div class="code-head">weft.config.ts — collection is a port, so the sink is yours</div>
+<pre><code>ports: {
+  telemetry: telemetry({
+    exposures: {
+      dedupe: <span class="s">'session'</span>,          <span class="c">// one per user per flag per session</span>
+      transport: <span class="s">'warp'</span>,          <span class="c">// batched on the open connection.</span>
+                                    <span class="c">// no beacon, no third-party host,</span>
+                                    <span class="c">// nothing for a blocker to catch.</span>
+      flush: [<span class="s">'visibilitychange'</span>, <span class="s">'10s'</span>],
+      hashNames: <span class="k">true</span>,            <span class="c">// default. keeps the roadmap out of devtools.</span>
+      identify: <span class="s">'stableId'</span>,        <span class="c">// rotating, not the user id</span>
+    },
+    sink: [clickhouse({ table: <span class="s">'exposures'</span> }), s3({ prefix: <span class="s">'rum/'</span> })],
+  })
+}</code></pre>
+    </div>
+
+    <div class="code">
+      <div class="code-head">weft flags report — and the loop closing</div>
+<pre><code>flag  new-cart          7d · 1.42M exposures · dedup 3.1:1
+
+  variant   share   exposures    LCP p75   INP p75   conv.
+  v1        90.1%   1,279,400      1.42s      112ms   3.11%
+  v2         9.9%     140,600      1.31s       94ms   3.38%   ▲
+
+  guardrails    error rate  v1 0.21%  v2 0.19%     ok
+                CLS p75     v1 0.04   v2 0.11      ⚠ regression
+
+  prebuild      profile will prebuild 4 of 8 reachable permutations
+                covering 96.2% of traffic
+                → new-cart=v1 × device=mobile   61.4%
+                → new-cart=v1 × device=desktop  28.7%
+                → new-cart=v2 × device=mobile    4.3%
+                → new-cart=v2 × device=desktop   1.8%
+                tail renders on demand</code></pre>
+    </div>
+    <p>Exposures and the plan's own milestones travel through the same <code>TelemetryPort</code>, so variant-to-LCP and variant-to-INP correlation needs no join key you had to build. And the same data decides which permutations get prebuilt — the experiment platform and the delivery optimiser are reading one table.</p>
+
+    <h4>Server-driven UI — the server decides the composition</h4>
+    <div class="code">
+      <div class="code-head">a catalog is the capability allowlist</div>
+<pre><code><span class="c">// app/feed/catalog.ts — the server can name nothing outside this.</span>
+<span class="k">export const</span> catalog = modules({
+  hero:       { fragment: Hero,       params: v.object({ campaign: v.string() }) },
+  productRow: { fragment: ProductRow, params: v.object({ collection: v.string(), limit: v.number() }) },
+  promo:      { fragment: Promo,      params: v.object({ id: v.string() }), capabilities: [<span class="s">'promo:view'</span>] },
+})</code></pre>
+    </div>
+    <div class="code">
+      <div class="code-head">app/routes/index.tsx — composition is data</div>
+<pre><code><span class="k">export default</span> fragment(<span class="k">async</span> (ctx) => {
+  <span class="c">// the server decides WHICH modules, in WHAT order, with WHAT params.</span>
+  <span class="c">// personalised, so uncacheable — but it is a tiny call.</span>
+  <span class="k">const</span> layout = <span class="k">await</span> feed.layout(ctx.user())
+
+  <span class="k">return</span> &lt;Compose from={catalog} modules={layout} /&gt;
+})
+
+<span class="c">// layout is just:</span>
+<span class="c">// [ { m: 'hero',       p: { campaign: 'eid' } },</span>
+<span class="c">//   { m: 'productRow', p: { collection: 'rice', limit: 8 } },</span>
+<span class="c">//   { m: 'promo',      p: { id: 'p-91' } } ]</span></code></pre>
+    </div>
+
+    <div class="note">
+      <b>What the surrounding machinery does for this, for free</b>
+      <p><strong>The economics.</strong> The layout call is personalised and uncacheable; every module render is keyed by its own effects, so <code>productRow(rice, 8)</code> is one shared cache entry serving every user who gets it. A fully personalised feed becomes one cheap uncacheable call plus N shared cached renders — which is the opposite of how SDUI usually performs.</p>
+      <p><strong>Safety.</strong> Params are schema-validated per module, capabilities are checked against the session, and an unknown module id is skipped and logged rather than crashing — so an old client meeting a new server layout degrades instead of breaking.</p>
+      <p><strong>And the limitation mobile SDUI cannot escape, escaped.</strong> Native SDUI is confined to pre-registered components because you cannot ship native code. On the web we can ship a <code>TPL</code> frame — so a genuinely new module can be introduced without a client deploy, while still being capability-gated and schema-validated. The client advertises its catalog version in <code>RESIDENT</code>; the server sends the template first if the client does not know it, then the data.</p>
+    </div>
+
+    <h4>Variants — multi-brand and multi-tenant</h4>
+    <div class="code">
+      <div class="code-head">app/variants.ts — declaration order is precedence order</div>
+<pre><code><span class="k">export const</span> brand  = dimension(<span class="s">'brand'</span>,  [<span class="s">'sindibad'</span>, <span class="s">'acme'</span>],   { resolve: <span class="s">'build'</span> })
+<span class="k">export const</span> device = dimension(<span class="s">'device'</span>, [<span class="s">'mobile'</span>, <span class="s">'desktop'</span>], { resolve: <span class="s">'request'</span> })
+<span class="k">export const</span> tenant = dimension(<span class="s">'tenant'</span>, dynamic(), {
+  resolve: <span class="s">'request'</span>, from: ctx =&gt; ctx.header(<span class="s">'x-tenant'</span>)
+})</code></pre>
+    </div>
+    <div class="code">
+      <div class="code-head">override by filename, or by layer directory</div>
+<pre><code>cart-lines.tsx                 <span class="c">base</span>
+cart-lines.mobile.tsx          <span class="c">device=mobile</span>
+cart-lines.acme.mobile.tsx     <span class="c">brand=acme AND device=mobile</span>
+
+variants/acme/routes/cart/route.tsx      <span class="c">whole-brand fork</span>
+variants/acme/shell.plan.ts</code></pre>
+    </div>
+    <div class="code">
+      <div class="code-head">replace the view, inherit the logic — and it is type-checked</div>
+<pre><code><span class="k">export default</span> override(CartLines, {
+  render(ctx, props, base) {
+    <span class="k">return</span> &lt;AcmeList items={base.lines} theme="acme" /&gt;
+  }
+})
+<span class="c">// add a prop to the base and every override fails to compile, by name:</span>
+<span class="c">// WEFT-E421  override does not satisfy base contract of CartLines</span>
+<span class="c">//            missing prop: showTax (added in app/routes/cart/cart-lines.tsx)</span>
+
+<span class="c">// plans extend too</span>
+<span class="k">export default</span> plan.extend(base =&gt; {
+  base.slot(<span class="s">'recommendations'</span>).executor(<span class="s">'client'</span>)
+  base.slot(<span class="s">'promo-banner'</span>).island()
+})</code></pre>
+    </div>
+    <div class="code">
+      <div class="code-head">weft variants — sharing is the economics</div>
+<pre><code>dimensions   brand(2, build) × device(2, request) × tenant(dynamic, request)
+
+fragments    142 total
+             118 shared          83%  ← one cache entry serves every variant
+              19 device-specific
+               5 brand-specific
+               0 tenant-specific  (tenants differ by config only — ideal)
+
+bundles      sindibad/mobile  41.2kb    acme/mobile  43.8kb
+             sindibad/desktop 47.9kb    acme/desktop 50.1kb
+
+prebuilt     tenant × device permutations covering 96% of traffic (profile)
+             tail renders on demand</code></pre>
+    </div>
+
+    <h4>Interactivity without shipping a component</h4>
+    <div class="code">
+      <div class="code-head">most handlers are a table entry, not code</div>
+<pre><code><span class="c">// no signal, no island, no component chunk. the wiring table gets</span>
+<span class="c">// `click → intent 7f3` and the shared dispatcher (~200 bytes) handles it.</span>
+&lt;button intent={addToCart} params={{ sku }}&gt;Add&lt;/button&gt;
+
+<span class="c">// readiness tiers, per binding — not per component</span>
+slot(<span class="s">'filters'</span>).bindings({
+  tier: <span class="s">'cold'</span>       <span class="c">// wired; handler chunk NOT fetched until touched</span>
+})
+slot(<span class="s">'composer'</span>).bindings({
+  tier: <span class="s">'armed'</span>,     <span class="c">// handler prefetched, not executed</span>
+  on: when.hover
+})
+slot(<span class="s">'chart'</span>).bindings({ tier: <span class="s">'live'</span> })   <span class="c">// genuinely client-only</span></code></pre>
+    </div>
+    <div class="code">
+      <div class="code-head">no double data — initial values are read out of the DOM</div>
+<pre><code><span class="c">// server rendered:  &lt;output data-w="4"&gt;12,000&lt;/output&gt;</span>
+<span class="c">// wiring table:     binding 4 → text node at output[0]</span>
+<span class="c">// serialised state: {}   ← nothing. the value is already on screen.</span>
+
+<span class="c">// only values NOT recoverable from markup are serialised:</span>
+&lt;Row id={row.id} label={row.label} /&gt;
+<span class="c">//    ^^^^^^^^^ hidden → serialised    ^^^^^^^^^^^^ visible → not</span></code></pre>
+    </div>
+
+    <h4>Parallel evaluation and the critical path</h4>
+    <div class="code">
+      <div class="code-head">independence is proven, not declared — but you can override</div>
+<pre><code><span class="c">// by default: statically-composed fragments dispatch concurrently.</span>
+<span class="c">// you write nothing. the compiler builds the DAG from props flow.</span>
+
+slot(<span class="s">'recommendations'</span>).speculate(<span class="s">'profile'</span>)  <span class="c">// conditional branch: speculate</span>
+                                             <span class="c">// only when the profile says it</span>
+                                             <span class="c">// is usually taken</span>
+
+<span class="c">// guard rails, because 40 concurrent queries will melt a database</span>
+defineConfig({
+  concurrency: { perRequest: <span class="s">8</span>, perExecutor: { <span class="s">'pool:heavy'</span>: <span class="s">4</span> } }
+})
+<span class="c">// ⚠ WEFT-W310  route /product/:sku has wave width 11, exceeds perRequest 8</span></code></pre>
+    </div>
+
+    <h4>Testing the thing that could silently break</h4>
+    <div class="code">
+      <div class="code-head">differential form equivalence — ships with the feature, not after</div>
+<pre><code><span class="k">import</span> { assertFormsEquivalent } <span class="k">from</span> <span class="s">'weft/test'</span>
+
+test(<span class="s">'CartLines renders identically in every wire form'</span>, <span class="k">async</span> () =&gt; {
+  <span class="k">await</span> assertFormsEquivalent(CartLines, {
+    props: fc.record({ currency: fc.constantFrom(<span class="s">'IQD'</span>, <span class="s">'USD'</span>) }),  <span class="c">// generative</span>
+    forms: [<span class="s">'html'</span>, <span class="s">'bundle'</span>, <span class="s">'split'</span>, <span class="s">'data'</span>, <span class="s">'delta'</span>, <span class="s">'patch'</span>],
+    resident: [<span class="s">'cold'</span>, <span class="s">'warm'</span>],
+  })
+  <span class="c">// asserts byte-identical DOM across all 12 combinations.</span>
+  <span class="c">// without this harness, form negotiation is a liability.</span>
+})</code></pre>
+    </div>
+  </section>
+
+  <section>
+    <div class="level"><span class="level-n">Level 8</span><h2>APIs and backend</h2></div>
+    <p class="lede">Intents already are a typed RPC layer — schema-validated, capability-gated, callable by opaque id. What they are not is a <em class="term">public</em> surface: stable URLs, REST semantics, versioning, token auth, third-party consumers. So there are two primitives, and they can share one handler body.</p>
+
+    <div class="bleed">
+      <table>
+        <caption>Which to reach for</caption>
+        <thead><tr><th></th><th>Intent</th><th>API route</th></tr></thead>
+        <tbody>
+          <tr><td class="who">Consumer</td><td>Your own UI</td><td>Mobile apps, partners, webhooks, scripts</td></tr>
+          <tr><td class="who">Addressing</td><td>Opaque id — renaming the export changes nothing on the wire</td><td>A stable, documented URL</td></tr>
+          <tr><td class="who">Auth</td><td>Session plus capabilities</td><td>Tokens, keys, or session</td></tr>
+          <tr><td class="who">Returns</td><td>A slot refresh, single-flight with the mutation</td><td>JSON, NDJSON, or a stream</td></tr>
+          <tr><td class="who">Contract</td><td>Internal — can change with a deploy</td><td>Versioned and verified like a region contract</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="code">
+      <div class="code-head">app/api/products.ts — the simplest thing that works</div>
+<pre><code><span class="k">import</span> { route } <span class="k">from</span> <span class="s">'weft/api'</span>
+
+<span class="k">export const</span> GET = route().handle(ctx =&gt; db.products())</code></pre>
+    </div>
+
+    <p>Modifiers are chained, exactly like slots in a plan, and <code>.handle()</code> is the terminal call — so the logic is the conclusion rather than a key buried in a config blob:</p>
+
+    <div class="code">
+      <div class="code-head">app/api/products/[sku].ts</div>
+<pre><code><span class="k">import</span> { route } <span class="k">from</span> <span class="s">'weft/api'</span>
+<span class="k">import</span> { ProductView, OrderInput } <span class="k">from</span> <span class="s">'./schema'</span>
+
+<span class="c">// shared config, composed once. impossible with a method-keyed object,</span>
+<span class="c">// where you copy-paste capabilities and cache into every verb.</span>
+<span class="k">const</span> catalog = route()
+  .capabilities(<span class="s">'catalog:read'</span>)
+  .cache(<span class="s">'5m'</span>, { swr: <span class="s">'1h'</span>, tags: [<span class="s">'sku:{sku}'</span>] })   <span class="c">// {sku} from the filename.</span>
+                                                     <span class="c">// a static template, not a lambda —</span>
+                                                     <span class="c">// so the build can read it.</span>
+
+<span class="k">export const</span> GET = catalog
+  .query(v.object({ include: v.optional(v.picklist([<span class="s">'stock'</span>, <span class="s">'reviews'</span>])) }))
+  .output(ProductView)          <span class="c">// validation + wire allowlist + OpenAPI schema</span>
+  .handle(<span class="k">async</span> (ctx) =&gt; {
+    <span class="k">return</span> db.product(ctx.params.sku)   <span class="c">// params typed from [sku].ts.</span>
+                                       <span class="c">// nothing to declare — the filename said it.</span>
+                                       <span class="c">// full row returned; only ProductView's</span>
+                                       <span class="c">// fields ever leave the server.</span>
+  })
+
+<span class="k">export const</span> POST = catalog
+  .body(OrderInput)
+  .executor(<span class="s">'pool:heavy'</span>)
+  .budget({ cpu: <span class="s">'200ms'</span>, onExceed: <span class="s">'fail'</span> })
+  .handle(<span class="k">async</span> (ctx) =&gt; {
+    <span class="k">await</span> orders.create(ctx.user(), ctx.body)   <span class="c">// ctx.body typed by .body()</span>
+    <span class="k">return</span> ctx.invalidate([<span class="s">'sku:{sku}'</span>])
+  })</code></pre>
+    </div>
+
+    <div class="bleed">
+      <table>
+        <caption>What changed, and why the first version was wrong</caption>
+        <thead><tr><th>Problem</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr><td class="who"><code>api({ GET: handler({…}) })</code> — two levels of nesting carrying no information</td><td>One named export per verb. <code>handler()</code> was pure ceremony.</td></tr>
+          <tr><td class="who">Six lines of metadata before you reach the code</td><td><code>.handle()</code> is terminal, so the logic reads as the conclusion.</td></tr>
+          <tr><td class="who"><code>run(ctx, { sku })</code> — is the second argument params, query, body, or all three merged?</td><td>One <code>ctx</code>, same as fragments. <code>ctx.params</code>, <code>ctx.query</code>, <code>ctx.body</code> — each typed by the modifier that declared it.</td></tr>
+          <tr><td class="who"><code>tags: [ctx =&gt; …]</code> — a callback inside a config array, receiving a <em class="term">different</em> ctx than <code>run</code></td><td><code>tags: ['sku:{sku}']</code>. Statically analysable, so the build can report the tag graph.</td></tr>
+          <tr><td class="who"><code>params:</code> declared by hand when <code>[sku].ts</code> already said it</td><td>Inferred from the filename. Only <code>query</code>, <code>body</code>, and <code>headers</code> need declaring.</td></tr>
+          <tr><td class="who">Method-keyed object cannot share config between verbs</td><td>A base builder composes: <code>const catalog = route()…</code>, then extend per verb.</td></tr>
+          <tr><td class="who">A third shape, when fragments are functions and plans are builders</td><td>Builders, matching the plan. One idiom for "server unit with modifiers".</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Returning a plain object is enough — it serialises through <code>.output()</code>, so there is no <code>ctx.json()</code> wrapper to remember. <code>ctx.text()</code>, <code>ctx.stream()</code>, <code>ctx.status()</code>, and <code>ctx.redirect()</code> exist for when you need them.</p>
+
+    <div class="note">
+      <b>Why this is not just another router</b>
+      <p><strong>Derived cacheability applies to JSON too.</strong> A handler that reads only path params is CDN-cacheable and the framework says so; one that touches a cookie is automatically private, and declaring it <code>public</code> is a build error naming the read. No API layer anywhere derives its own cacheability — that is why one-cookie-poisons-everything happens on the API side as well.</p>
+      <p><strong>Everything else is shared.</strong> Same ports for store, flags, session, and telemetry. Same executors and budgets. Same tag invalidation, so an API mutation invalidates the fragments that render the same data. Same effect tracking, so the same guarantees hold on both sides of the app.</p>
+    </div>
+
+    <div class="code">
+      <div class="code-head">streaming responses, and non-HTTP triggers</div>
+<pre><code><span class="c">// NDJSON or SSE — the frame machinery already exists</span>
+<span class="k">export const</span> GET = route()
+  .output(Row)
+  .stream(<span class="s">'ndjson'</span>)
+  .handle(<span class="k">async</span> *(ctx) =&gt; {
+    <span class="k">for</span> <span class="k">await</span> (<span class="k">const</span> row <span class="k">of</span> db.stream(<span class="s">'orders'</span>)) <span class="k">yield</span> row
+  })
+
+<span class="c">// backend work is the same builder with a different trigger. same ports,</span>
+<span class="c">// same executors, same budgets, same ctx.</span>
+<span class="k">export const</span> nightly = cron(<span class="s">'0 3 * * *'</span>)
+  .handle(ctx =&gt; ctx.invalidate([<span class="s">'catalog'</span>]))
+
+<span class="k">export const</span> onOrder = queue(<span class="s">'orders'</span>)
+  .batch({ size: <span class="s">50</span>, timeout: <span class="s">'5s'</span> })
+  .executor(<span class="s">'pool:heavy'</span>)
+  .handle(<span class="k">async</span> (ctx) =&gt; { <span class="k">for</span> (<span class="k">const</span> m <span class="k">of</span> ctx.messages) ... })
+
+<span class="k">export const</span> stripe = webhook()
+  .verify(signature({ secret: env(<span class="s">'STRIPE_SECRET'</span>) }))    <span class="c">// Secret&lt;string&gt;</span>
+  .body(StripeEvent)
+  .handle(<span class="k">async</span> (ctx) =&gt; { ctx.body.type ... })</code></pre>
+    </div>
+    <p>On Workers these map to scheduled handlers and Queues; on Node to a scheduler and a consumer process. Both arrive through ports, so the handler body does not change.</p>
+
+    <div class="code">
+      <div class="code-head">the spec and the client are generated, because the schemas already exist</div>
+<pre><code>$ weft api
+
+  routes         14
+  openapi        written to ./openapi.json
+  client         written to ./.weft/api-client.ts   (typed, tree-shakeable)
+
+  cacheability   9 public · 3 private · 2 uncacheable
+                 ⚠ GET /api/orders declares cache but reads ctx.user()
+                   → classified private. remove `cache` or drop the read.
+
+  contract       v1 verified against production — no breaking changes</code></pre>
+    </div>
+
+    <h4>Databases: we own the lifecycle, not the query builder</h4>
+    <div class="code">
+      <div class="code-head">bring Drizzle, Kysely, Prisma — the port handles the runtime differences</div>
+<pre><code>ports: {
+  db: hyperdrive({ binding: <span class="s">'DB'</span> }),      <span class="c">// Workers: pooling at the edge</span>
+  <span class="c">// db: pool({ url: env('DATABASE_URL'), max: 10 }),   // Node</span>
+}
+
+<span class="c">// in a handler or a fragment — one connection per request, released</span>
+<span class="c">// automatically, and the module is server-resident so it can never</span>
+<span class="c">// be reached from a client chunk.</span>
+<span class="k">const</span> rows = <span class="k">await</span> ctx.db(schema).select().from(products).limit(<span class="s">10</span>)</code></pre>
+    </div>
+    <p>Connection lifecycle genuinely differs by runtime — an isolate that may be evicted mid-request needs different handling from a long-lived Node process — and that is exactly the sort of thing a port is for. The query builder is not; use whichever you like.</p>
+  </section>
+
+  <section>
+    <div class="level"><span class="level-n">Level 9</span><h2>Sharding across workers and servers</h2></div>
+    <p class="lede">Decomposition is cheap here for one reason: the internal protocol <em class="term">is</em> the wire protocol. A remote executor returns Warp frames, and the gateway forwards them into the client's stream — there is no translation layer to write, and no serialisation format to invent.</p>
+
+    <h4>One codebase, four topologies</h4>
+    <div class="code">
+      <div class="code-head">weft.config.ts — the same build output in every case</div>
+<pre><code>topology: <span class="s">'monolith'</span>        <span class="c">// DEFAULT. one process. zero infra. best tested.</span>
+topology: <span class="s">'split-render'</span>    <span class="c">// gateway + render pool. the Wix/Yelp shape.</span>
+topology: <span class="s">'edge-regional'</span>   <span class="c">// edge gateways worldwide, render near the database.</span>
+topology: <span class="s">'mesh'</span>            <span class="c">// every tier independent; render fans out to teams.</span></code></pre>
+    </div>
+
+    <h4>Cloudflare: gateway Worker plus render Workers</h4>
+    <div class="code">
+      <div class="code-head">wrangler.toml — service bindings add no network latency</div>
+<pre><code><span class="c"># ── gateway: terminates Warp, resolves flags, serves shell buffers ──</span>
+name = <span class="s">"app-gateway"</span>
+main = <span class="s">".weft/gateway.js"</span>
+
+[[services]]
+binding = <span class="s">"RENDER"</span>;  service = <span class="s">"app-render"</span>
+[[services]]
+binding = <span class="s">"RECS"</span>;    service = <span class="s">"team-recs"</span>      <span class="c"># another team's deploy</span>
+
+[[kv_namespaces]]
+binding = <span class="s">"CACHE"</span>;   id = <span class="s">"…"</span>                <span class="c"># L2 store</span>
+[[durable_objects.bindings]]
+name = <span class="s">"LEASES"</span>;   class_name = <span class="s">"LeaseHolder"</span>  <span class="c"># stampede protection</span>
+[[durable_objects.bindings]]
+name = <span class="s">"STREAMS"</span>;  class_name = <span class="s">"WarpStream"</span>   <span class="c"># live connections</span>
+
+<span class="c"># ── render: CPU-bound. scales on its own. own CPU limit. ──</span>
+name = <span class="s">"app-render"</span>
+main = <span class="s">".weft/render.js"</span>
+[limits]
+cpu_ms = <span class="s">200</span></code></pre>
+    </div>
+    <div class="code">
+      <div class="code-head">the plan decides which slots leave the gateway</div>
+<pre><code>slot(<span class="s">'header'</span>) .executor(<span class="s">'inline'</span>)            <span class="c">// stays on the gateway. no hop.</span>
+slot(<span class="s">'product'</span>).executor(<span class="s">'binding:RENDER'</span>)    <span class="c">// separate isolate, own CPU budget</span>
+slot(<span class="s">'recs'</span>)   .executor(<span class="s">'binding:RECS'</span>).optional()</code></pre>
+    </div>
+
+    <h4>Kubernetes: four deployments, four scaling signals</h4>
+    <div class="code">
+      <div class="code-head">each tier autoscales on what actually saturates it</div>
+<pre><code>tier        replicas  scales on                        why
+─────────── ────────  ───────────────────────────────  ─────────────────────────
+gateway       6–200   concurrent Warp connections      connection-bound, tiny,
+                      (not CPU — it barely uses any)   stateless, ~8kb kernel
+render        4–80     CPU + queue depth                the only CPU-hungry tier
+store          3       read QPS + p99 latency           mostly Redis/KV in front
+authority      2       intent RPS                       small, security-sensitive,
+                                                       rate-limited on its own
+
+<span class="c"># gateway HPA — the important one, because CPU tells you nothing here</span>
+metrics:
+  - type: Pods
+    pods:
+      metric: { name: weft_active_streams }
+      target: { type: AverageValue, averageValue: <span class="s">"2500"</span> }</code></pre>
+    </div>
+
+    <h4>A request through a sharded topology</h4>
+    <div class="code">
+      <div class="code-head">frames cross tier boundaries unchanged</div>
+<pre><code>client ──▶ gateway   0.0ms  103 Early Hints (3 preloads) — envelope still open
+                     0.4ms  phase A: flags (KV), session (cookie) → guards pass
+                     0.6ms  200 + Set-Cookie, then SHELL from pre-encoded buffer
+                            └ zero hops. this is why shells live on the gateway.
+
+           gateway ──▶ RENDER   binding call, same thread, ~0 added latency
+                       └ returns a ReadableStream of Warp frames
+           gateway ──▶ RECS     fetch to another deploy, speaks Warp
+                       └ 34ms, optional, budget 80ms
+
+           gateway forwards frames into the client stream as they arrive,
+           interleaved, fastest-first. it never buffers a whole slot.
+
+client ◀── SLOT s4 open / HTML s4 / SLOT s4 close      (RENDER, 12ms)
+client ◀── SLOT s9 open / HTML s9 / SLOT s9 close      (RECS,   34ms)</code></pre>
+    </div>
+
+    <div class="note warn">
+      <b>The one genuinely stateful piece — be honest about it</b>
+      <p>Everything above is stateless and replicates freely. Push invalidation is not. To send <code>STALE</code> to the right clients you need an index from cache tag to live connection, and live connections are state that has to live somewhere.</p>
+      <p><strong>On Workers:</strong> a connection is held by a Durable Object (<code>STREAMS.idFromName(sessionId)</code>), and a second DO class shards the tag index by tag hash. Invalidation goes tag-DO → connection-DO ids → frames. <strong>On Kubernetes:</strong> connections live in gateway memory with a local tag map, and invalidation fans out over Redis pub/sub to every gateway — no sharding needed, because each gateway only indexes its own connections.</p>
+      <p><strong>And if you do not want it:</strong> turn it off. Clients fall back to revalidating on focus or on their declared <code>refresh</code> interval. The entire push-invalidation tier is optional, and saying so is more useful than pretending it is free.</p>
+    </div>
+
+    <h4>What breaks when a tier does</h4>
+    <div class="bleed">
+      <table>
+        <caption>Tiering buys graceful degradation, which is most of the point</caption>
+        <thead><tr><th>Tier down</th><th>What the user sees</th></tr></thead>
+        <tbody>
+          <tr><td class="who">gateway</td><td>Nothing. The site is down — it is the only tier with no fallback, which is why it is the smallest and simplest.</td></tr>
+          <tr><td class="who">render</td><td>Shell, static slots, and placeholders. Slots with <code>onExceed: 'client'</code> render in the browser instead. Degraded, navigable, alive.</td></tr>
+          <tr><td class="who">store</td><td>Everything renders live. Slower and more expensive, still correct — cache misses are the normal path, not an error path.</td></tr>
+          <tr><td class="who">flags</td><td>Declared defaults. This is why <code>default</code> is required on every flag.</td></tr>
+          <tr><td class="who">authority</td><td>Reads work, mutations fail cleanly with a real status. Exactly the right way round.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="code">
+      <div class="code-head">weft topology — capacity math from the plan, before you deploy</div>
+<pre><code>$ weft topology --route /product/:sku --topology edge-regional
+
+  hops per request     2  (gateway → RENDER, gateway → RECS)
+  worst-case subreq    7  (limit 10,000 — fine)
+  wave width           6  (concurrency cap 8 — fine)
+  critical path       42.7ms  product-core → price-box → buy-panel
+
+  ⚠ /admin/reports wave width 11 exceeds perRequest 8 → will serialise
+  ⚠ slot 'recs' crosses a tier boundary and is not marked .optional()
+    a RECS outage would fail this route. add .optional() or .fallback().
+
+  est. capacity   gateway 2,500 streams/pod · render 340 rps/pod at p95 28ms</code></pre>
+    </div>
+    <p>Two things worth repeating: the monolith topology stays the default and the best-tested path, and every hop costs latency even when sub-millisecond. Decomposition is opt-in <em class="term">per slot</em>, never a global mode — and the tooling above exists so the cost is visible before production rather than after.</p>
+  </section>
+
+  <section>
+    <p class="sec-label">Dependencies</p>
+    <h2>What to build, and what would be foolish to build</h2>
+    <p class="lede">One rule, applied consistently: <strong>build what shapes the output, reuse what shapes the toolchain.</strong> The output shape is the entire point of this framework and nobody else's tool produces it. The toolchain is a solved problem where the incumbents are written in Rust and years ahead.</p>
+
+    <h3>Reuse — building these would be malpractice</h3>
+    <div class="bleed">
+      <table>
+        <caption>Toolchain, all of it already fast</caption>
+        <thead><tr><th>Tool</th><th>For</th><th>Why not in-house</th></tr></thead>
+        <tbody>
+          <tr><td class="who">Vite</td><td>Dev server, HMR, Environment API</td><td>The single biggest gift available. Client, SSR, edge, and fragment environments map onto it directly, and it can run modules in a closer-to-production runtime during dev — which is what makes per-slot executors testable locally.</td></tr>
+          <tr><td class="who">Rolldown</td><td>Production bundling</td><td>Rust, Rollup-plugin compatible, 10–30× faster. A bundler is years of work and a permanent maintenance tax.</td></tr>
+          <tr><td class="who">Oxc</td><td>Parse, transform, resolve, lint</td><td>Same family as Rolldown, has JS bindings, and our compiler passes are AST walks on top of it. Writing a JS/TS parser in 2026 is not a defensible use of time.</td></tr>
+          <tr><td class="who">Lightning CSS</td><td>CSS parse, minify, prefix, modules</td><td>Per-route and per-island CSS extraction is a plugin on top, not a new CSS engine.</td></tr>
+          <tr><td class="who">Standard Schema</td><td>Validation interface for intents and wire schemas</td><td>The ideal dependency: we depend on the <em class="term">interface</em>, users bring Zod, Valibot, or ArkType. Zero code, entire ecosystem.</td></tr>
+          <tr><td class="who">Piscina</td><td>Node worker pool for <code>executor('pool:')</code></td><td>Mature and exactly this problem. The Bun, Deno, and Workers equivalents are thin enough to write.</td></tr>
+          <tr><td class="who">Drizzle · Kysely · Prisma</td><td>Database access</td><td>Not our problem. We own the connection <em class="term">lifecycle</em> through <code>DbPort</code>, because an evictable isolate and a long-lived Node process need different handling. Writing an ORM would be a second framework.</td></tr>
+          <tr><td class="who">Vitest · Playwright</td><td>Tests, and the differential DOM-equivalence harness</td><td>Playwright is the only credible way to assert byte-identical DOM across real engines, which the Baseline audit says we must.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>In-house — because it <em class="term">is</em> the framework, and it is cheap</h3>
+    <div class="bleed">
+      <table>
+        <caption>Roughly ordered by how central it is</caption>
+        <thead><tr><th>Component</th><th>Rough size</th><th>Why it cannot be borrowed</th></tr></thead>
+        <tbody>
+          <tr><td class="who">Template → byte segments + wiring table</td><td class="api">~2k lines</td><td>This is the core IP. No existing compiler emits pre-encoded segments plus a wiring table, and the output shape is what makes <code>data</code> and <code>delta</code> forms possible at all.</td></tr>
+          <tr><td class="who">Effect and residency inference</td><td class="api">~1k lines</td><td>Same AST pass. Derives cache keys, cache classes, flag axes, island boundaries, and server/client residency. Everything distinctive depends on it.</td></tr>
+          <tr><td class="who">Signal graph (client runtime)</td><td class="api">~600 lines</td><td>The 4–6 KB budget rules out an off-the-shelf graph, and it has to integrate with the wiring table and value serialisation. Built on the TC39 Signals shape so it can be deleted later.</td></tr>
+          <tr><td class="who">Plan DSL and evaluator</td><td class="api">~1.5k lines</td><td>The product. Also has to be generated and rewritten by <code>weft profile</code>, which needs a typed AST rather than a config format.</td></tr>
+          <tr><td class="who">Warp framing and codec</td><td class="api">~400 lines</td><td>Length-prefixed frames over three transports. Genuinely small, and a dependency here would constrain the wire format forever.</td></tr>
+          <tr><td class="who">Router and matcher</td><td class="api">~300 lines</td><td>A radix trie is a known quantity, and it has to integrate with plan extension and lazy discovery. Bending someone else's router costs more than writing one.</td></tr>
+          <tr><td class="who">Store tiering, key derivation, leases</td><td class="api">~500 lines</td><td>Small, and the whole point is that it is ours to keep portable. Each platform adapter is then well under 100 lines.</td></tr>
+          <tr><td class="who">Deployment presets</td><td class="api">~50 lines each</td><td>Nitro's presets are the model and studying them is free. Depending on Nitro would re-scope our build and put a large dependency in the deploy path, for something that is mostly a per-platform entry shim.</td></tr>
+          <tr><td class="who">API layer, cron, queues, webhooks</td><td class="api">~900 lines</td><td>Mostly glue, because it reuses effect tracking, ports, executors, budgets, and tag invalidation. Writing it against another HTTP framework would mean losing derived cacheability on the API side — which is the whole reason to have it here.</td></tr>
+          <tr><td class="who">OpenAPI and client generation</td><td class="api">~300 lines</td><td>The schemas already exist for validation and as the serialisation allowlist. Emitting a spec and a typed client from them is nearly free; a separate spec tool would drift.</td></tr>
+          <tr><td class="who">Tier transport and topology wiring</td><td class="api">~450 lines</td><td>Thin by design, because a remote executor returns Warp frames and the gateway forwards them — no translation layer. Most of the work is the named topologies and the capacity reporting.</td></tr>
+          <tr><td class="who">Connection index for push invalidation</td><td class="api">~400 lines</td><td>The only genuinely stateful component: a tag-to-live-connection index, with a Durable Object implementation and a pub/sub one. Optional tier, so it must be cleanly removable.</td></tr>
+          <tr><td class="who">Config port and precedence</td><td class="api">~350 lines</td><td>Layered sources, atomic generation swap, generated schema so unknown keys are rejected, required reason and TTL on overrides. Small, and central to operability.</td></tr>
+          <tr><td class="who">Flag engine</td><td class="api">~700 lines</td><td>Architecturally required, not a preference. Flag-axis partitioning and prebuild permutations need the variant space enumerable at build time, and a provider SDK is an opaque call. Rules are declarative so the compiler can read them; external providers stay supported as adapters with the optimisation loss made explicit.</td></tr>
+          <tr><td class="who">Module catalog / SDUI compose</td><td class="api">~250 lines</td><td>A registry plus param validation plus capability checks. Sits on the intent catalogue that already exists, so it is mostly glue.</td></tr>
+          <tr><td class="who">Variant resolution</td><td class="api">~400 lines</td><td>Dimension declaration, filename and layer resolution, precedence, and contract checking against the base. Reuses residency inference for isolation and the flag-axis machinery for keys.</td></tr>
+          <tr><td class="who">Fragment DAG scheduler</td><td class="api">~500 lines</td><td>Wave planning, concurrency caps, speculation policy, critical-path reporting. Only safe because render is read-only, which is our invariant to keep.</td></tr>
+          <tr><td class="who">Resident-set digest</td><td class="api">~40 lines</td><td>A Bloom filter is smaller than any library that would provide one, and it ships to the client.</td></tr>
+          <tr><td class="who"><code>weft why</code> · <code>audit</code> · <code>verify</code> · <code>profile</code></td><td class="api">~2k lines</td><td>The DX differentiator, and only we hold the data to produce it. Nothing to reuse because nothing else has a plan.</td></tr>
+          <tr><td class="who">Benchmark harness</td><td class="api">~800 lines</td><td>Must be ours, published, and runnable by third parties — otherwise the performance claim is unfalsifiable. This is phase zero.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Deliberately refused</h3>
+    <p>No HTTP server: the kernel takes a Web <code>Request</code> and returns a <code>Response</code>, per WinterTC, so it mounts inside Hono, Elysia, Express, or nothing at all. No compressor: <code>CompressionStream</code> and the CDN already exist. No validator, no parser, no bundler, no CSS engine, no test runner, no state manager, no CSS-in-JS.</p>
+
+    <div class="note">
+      <b>One checkable commitment</b>
+      <p><strong>The kernel ships zero runtime dependencies.</strong> Not "few" — zero. It imports only the WinterTC Minimum Common API, and every platform capability arrives as a port the application wires up.</p>
+      <p>Nitro demonstrated the value of this direction by cutting from 321 dependencies to fewer than 20 and reaching a sub-10 KB server bundle. Starting from zero is easier than getting there later, and it is a claim anyone can verify with one command rather than a promise about intentions.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Tooling</p>
+    <h2>The framework explains its own byte timeline</h2>
+    <p>Because the plan is data rather than control flow, the compiler can answer causal questions about a URL — which is the payoff for keeping delivery declarative.</p>
+    <div class="code">
+      <div class="code-head">weft why /cart</div>
+<pre><code>envelope   0.0–1.2ms  guard:session          ✓  budget 5ms
+           0.0ms      103 Early Hints sent      3 preloads, envelope still open
+
+flush 0    1.2ms      shell                  static buffer, flags=3f2a
+flush 1    1.5ms      header                 static, CDN
+flush 2    5.3ms      cart-lines             swr HIT   key=c012,currency=IQD
+                                             form=delta base=abc123  (114 bytes)
+flush 3   41.0ms      recommendations        MISS      executor=pool:heavy
+                                             └ 34.2ms in cart.summary()
+gate      43.1ms      typeable            ✓  budget 60ms
+
+deferred             analytics, history        after:typeable
+staged               /checkout (epoch e7)      predict:hover, 3 slots warm
+skipped              composer                  flag newComposer=off — unreachable
+warning              editor                    island 9.4kb exceeds budget 8kb
+warning              profile                   14 days old; /cart traffic mix shifted 22%</code></pre>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Implementation</p>
+    <h2>What the framework itself is written in</h2>
+    <p class="lede">This is largely decided for us by one constraint: it has to run on Cloudflare Workers, which executes JavaScript and WebAssembly and nothing else. That rules out the tempting answer of "write the fast parts in Rust" for anything on the request path — but it does not rule it out for the toolchain, which runs on your machine.</p>
+
+    <div class="bleed">
+      <table>
+        <caption>Layer by layer, with the reason rather than the preference</caption>
+        <thead><tr><th>Layer</th><th>Language</th><th>Why, and why not the alternative</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="who">Client runtime</td>
+            <td class="api">TypeScript</td>
+            <td>The budget is 4–6 KB and it needs direct DOM access. WebAssembly is the wrong tool twice over: a module plus its glue would blow the budget on its own, and every DOM touch has to cross back into JavaScript anyway. Compiles to tight, tree-shakeable JS.</td>
+          </tr>
+          <tr>
+            <td class="who">Server kernel</td>
+            <td class="api">TypeScript</td>
+            <td>Rust compiled to WASM would run on Workers, and would then make every port implementation an FFI exercise — which destroys the promise that a store adapter is under a hundred lines. It also counts against the 1-second startup budget. Users write fragments in TS; keeping the kernel in TS means no boundary crossing per render.</td>
+          </tr>
+          <tr>
+            <td class="who">Ports and adapters</td>
+            <td class="api">TypeScript</td>
+            <td>These are the contribution surface. They must be trivial to read, fork, and write against the WinterTC standard library. Anything else defeats the architecture.</td>
+          </tr>
+          <tr>
+            <td class="who">Hot inner loops</td>
+            <td class="api">Rust → WASM, <em class="term">later and optional</em></td>
+            <td>Only two pieces qualify: byte-segment assembly with escaping, and the Warp frame codec. Both take bytes and return bytes, so the FFI boundary is one copy each way rather than per-fragment. Ships behind a port with a JS fallback, and only if measurement justifies it — small payloads may lose more to boundary crossing than they gain.</td>
+          </tr>
+          <tr>
+            <td class="who">Build toolchain</td>
+            <td class="api">Rust, by reuse</td>
+            <td>Do not write a bundler. Rolldown for bundling, Oxc for parsing and transforming, Lightning CSS for styles — all Rust, all already fast, all in the same family.</td>
+          </tr>
+          <tr>
+            <td class="who">Our compiler passes</td>
+            <td class="api">TypeScript on Oxc's AST</td>
+            <td>Effect inference, island-boundary derivation, wiring-table generation, and template segmentation are AST work. Writing them as Rust plugins would be faster per file and would gut the contributor pool. Start in TS, port individual passes to Rust when the <em class="term">build's own</em> profile says to — the same discipline applied everywhere else here. AST work parallelises across files, so the wall-clock cost is smaller than it sounds.</td>
+          </tr>
+          <tr>
+            <td class="who">CLI and dev server</td>
+            <td class="api">TypeScript</td>
+            <td>It has to load your <code>weft.config.ts</code>, which is TypeScript, and drive Vite's Environment API for the client, SSR, edge, and fragment environments.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4>Why not Go, or Zig, or a new language</h4>
+    <p>Go compiles to WebAssembly with a runtime and a garbage collector attached, which is the wrong shape for something living inside a 128 MB isolate with a startup budget. Zig is a genuine alternative to Rust for the frame codec specifically — tiny binaries, clean WASM output — and loses on ecosystem alignment, since the toolchain we are reusing is Rust. A purpose-built language would spend the entire innovation budget on the part of this design that is not the point; the novelty is the delivery layer, not the syntax, and generated code is now a first-order concern.</p>
+
+    <div class="note">
+      <b>One constraint on the plan DSL worth stating explicitly</b>
+      <p>The plan is TypeScript because it needs types — flags, slots, guards, and contracts are typed references, and a YAML or TOML plan would lose checking across those namespaces entirely. It also needs to be generated and rewritten by <code>weft profile</code>, which is far easier against a typed AST than a config format.</p>
+      <p>But it must be <strong>evaluable at build time with no runtime dependencies</strong>. A plan file cannot import your application code, cannot perform I/O, and cannot branch on anything unknowable at build time. This is why <code>when</code> combinators lower to a serialisable condition table instead of closures — the plan has to be shippable inside the stream as data. Think of it the way a Vite config is TypeScript but constrained: real types, no side effects.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Honest note</p>
+    <h2>The one place I would reconsider</h2>
+    <p>Keeping components in TSX is a pragmatic call, not an obviously correct one. A purpose-built template dialect — Marko's or Svelte's shape — would give the compiler more to work with: cleaner static-versus-dynamic segmentation for pre-encoded bytes, control flow that lowers to optimal code without inference, and simpler proofs that the <code>html</code>, <code>data</code>, and <code>delta</code> forms of a fragment are equivalent.</p>
+    <p>I chose TSX because the ecosystem cost of a new component dialect is enormous — editor support, linters, formatters, codemods, type-checking, and everyone having to learn it — and because Solid already demonstrates that a compiler plus signals over TSX reaches the right performance tier. Remix 3 trimmed its own domain-specific language for a related reason.</p>
+    <p>But if the equivalence proofs turn out to be fragile in practice, that is the signal to revisit. It would be the single largest change to this design, and it should be made on evidence from the differential-testing harness rather than on taste.</p>
+  </section>
+
+  <footer>
+    <p>Companion to <strong>Weft &amp; Warp</strong> (the architecture proposal) and <strong>Weft Field Notes</strong> (the research dossier). Everything here is a design sketch — no implementation exists yet, and phase zero is a benchmark harness, not a framework.</p>
+  </footer>
+
+</div>
+
+<style>
+  .toc { padding: 40px 0 10px; border-bottom: 1px solid var(--rule); }
+  .toc-head {
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin: 0 0 16px;
+  }
+  .toc ol {
+    list-style: none; padding: 0; margin: 0; max-width: none;
+    columns: 2; column-gap: 48px;
+  }
+  @media (max-width: 780px) { .toc ol { columns: 1; } }
+  .toc li { margin: 0; break-inside: avoid; }
+  .toc a {
+    display: flex; gap: 14px; align-items: baseline; text-decoration: none;
+    color: var(--ink); padding: 8px 0; border-bottom: 1px solid var(--rule-soft);
+  }
+  .toc a:hover .toc-t, .toc a:focus-visible .toc-t { color: var(--accent); }
+  .toc-l {
+    font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--faint);
+    flex: 0 0 88px; padding-top: 3px; overflow-wrap: break-word; line-height: 1.4;
+  }
+  .toc-t {
+    font-family: var(--display); font-weight: 600; font-size: .95rem;
+    line-height: 1.3; letter-spacing: -.01em;
+  }
+  section { scroll-margin-top: 20px; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+
+<script>
+(function () {
+  var page = document.querySelector('.page');
+  var mast = document.querySelector('header.mast');
+  if (!page || !mast) return;
+
+  var items = [];
+  Array.prototype.forEach.call(page.querySelectorAll('section'), function (s) {
+    var h = s.querySelector('h2');
+    if (!h) return;
+    var title = (h.textContent || '').trim();
+    var slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 56);
+    if (!slug) return;
+    if (document.getElementById(slug)) slug += '-' + items.length;
+    s.id = slug;
+    var label = s.querySelector('.sec-label') || s.querySelector('.level-n');
+    items.push({ id: slug, title: title, label: label ? label.textContent.trim() : '' });
+  });
+
+  if (items.length < 3) return;
+
+  var nav = document.createElement('nav');
+  nav.className = 'toc';
+  nav.setAttribute('aria-label', 'Contents');
+
+  var head = document.createElement('p');
+  head.className = 'toc-head';
+  head.textContent = 'Contents · ' + items.length + ' sections';
+  nav.appendChild(head);
+
+  var ol = document.createElement('ol');
+  items.forEach(function (it) {
+    var li = document.createElement('li');
+    var a = document.createElement('a');
+    a.href = '#' + it.id;
+    if (it.label) {
+      var l = document.createElement('span');
+      l.className = 'toc-l';
+      l.textContent = it.label;
+      a.appendChild(l);
+    }
+    var t = document.createElement('span');
+    t.className = 'toc-t';
+    t.textContent = it.title;
+    a.appendChild(t);
+    li.appendChild(a);
+    ol.appendChild(li);
+  });
+  nav.appendChild(ol);
+
+  mast.parentNode.insertBefore(nav, mast.nextSibling);
+})();
+</script>

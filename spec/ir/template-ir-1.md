@@ -1,0 +1,110 @@
+# Template IR, version 1
+
+`weft.template-ir/1` — the compiler's output for one template. Reference implementation
+in `packages/ir`, conformance tests in `packages/ir/test`.
+
+A template compiles to constant UTF-8 byte segments with typed holes between them.
+Rendering is therefore a copy of already-encoded bytes plus whatever escaping the
+compiler could not prove unnecessary, and it is the same operation on the server (the
+`html` form) and on the client (the `data` form). That identity is the entire basis for
+negotiating the wire form of a fragment at runtime.
+
+## Document
+
+```jsonc
+{
+  "spec": "weft.template-ir/1",
+  "irVersion": "1.0.0",
+  "id": "app/routes/cart#lines",     // authoring identity, stable across edits
+  "version": "9f2c…",                 // content address, 32 lowercase hex (SHA-256/128)
+  "encoding": "base64",
+  "segments": ["PHVsPg==", "…"],      // constant bytes, already UTF-8
+  "holes": [ /* see below */ ],
+  "wiring": [ /* see below */ ],
+  "signals": [{ "id": "qty", "type": "number", "init": 1 }],
+  "forms": ["html", "bundle", "split", "patch", "data", "delta"],
+  "effects": { "reads": [], "writes": [], "envelope": [], "residency": "server" }
+}
+```
+
+### Invariants
+
+| Rule | Error |
+| --- | --- |
+| `segments.length === holes.length + 1` — rendering interleaves them | `E_SEGMENT_COUNT` |
+| `holes[i].index === i` | `E_HOLE_INDEX` |
+| An attribute hole names its attribute | `E_HOLE_ATTR` |
+| `escape: "trusted-raw"` names the source that vouched for it | `E_RAW_UNVOUCHED` |
+| A wiring entry's binding is a hole or a declared signal | `E_WIRING_UNKNOWN_BINDING` |
+| An event names an intent, never server code | `E_WIRING_INTENT` |
+| `nested` appears only on a `list` hole, and is a sealed version | `E_NESTED_KIND`, `E_NESTED_SHAPE` |
+| Declared forms are derivable from the holes | `E_FORM_UNPROVABLE` |
+| `html` is always offered | `E_FORM_FLOOR` |
+| `version` addresses the content it claims to | `E_VERSION_MISMATCH` |
+
+## Holes
+
+```ts
+{ index, kind, escape, binding, path, attr?, provenance?, nested? }
+```
+
+| kind | Position | Renders |
+| --- | --- | --- |
+| `text` | Between nodes or inside an element | the escaped value |
+| `attr` | Inside an attribute value | the escaped value, quote-escaped |
+| `attr-bool` | Where an attribute name would go | the name if truthy, nothing otherwise |
+| `attr-presence` | Where a whole `name="value"` pair would go | the pair, or nothing |
+| `list` | Between nodes | each item, projected through `nested` if named |
+| `node` | Between nodes | a pre-rendered subtree |
+| `slot` | A streaming hole | **nothing** — the content arrives in a later frame |
+
+`escape` is the compiler's escape-elision decision: `escape` escapes, `proven-safe`
+skips because the value's type makes escaping a no-op, `trusted-raw` skips and must say
+who vouched. The renderer additionally scans a value it was told to escape and skips
+the work when the scan proves it unnecessary, so elision that the compiler missed still
+costs nothing at runtime.
+
+## Wiring table
+
+```ts
+{ path, op, binding, attr?, event?, intent? }
+```
+
+`path` is a list of child indices from the fragment root. The client adopts existing
+DOM by position rather than executing component code, which is what makes startup O(1)
+in component count rather than O(n). `op: "event"` must carry `intent` — the client
+names an intent id, never a server function, so renaming an export does not change the
+wire and a stale client gets a clean rejection instead of a silent mismatch.
+
+## Content addressing
+
+`version` is SHA-256 over a canonical fingerprint, truncated to 128 bits. The
+fingerprint covers `spec`, `irVersion`, `id`, holes, wiring, signals, forms, and every
+segment with its length — and deliberately **excludes `meta`**, so editing a comment
+does not invalidate every resident client's copy.
+
+Template versions are cache-key inputs, compression-dictionary ids, and the thing a
+client claims to hold in `RESIDENT`, so they get a real digest. Base-render ids, used
+only to recover the base a `delta` is computed against, use a fast 64-bit hash: a
+collision there degrades the delta to the data form, which is a performance event and
+not a correctness one.
+
+## Which forms a template can serve
+
+Derived, never declared by hand. `html`, `bundle`, `split`, and `patch` are always
+available. `data` and `delta` additionally require every hole to be value-projectable,
+which a structural `slot` hole is not — declaring them anyway is `E_FORM_UNPROVABLE`.
+
+## Payloads
+
+```jsonc
+{ "spec": "weft.payload/1", "form": "data",  "tpl": "9f2c…", "values": { … } }
+{ "spec": "weft.payload/1", "form": "delta", "tpl": "9f2c…", "base": "a1b2…",
+  "changed": { "rows[3].qty": 4 } }
+```
+
+A delta is keyed by value path, so changing one row of a list costs one entry. A change
+in list *length* is structural and sends the list whole — a diff that tried to be clever
+about insertions would have to reason about identity, which is the case that is known to
+go wrong. Applying a delta to its base and rendering must produce bytes identical to
+rendering the new values directly; that check runs in the harness for every scenario.

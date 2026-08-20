@@ -1,0 +1,108 @@
+import {
+  type DataPayload,
+  type DeltaPayload,
+  type Values,
+  applyDelta,
+  projectData,
+  render,
+} from '../../ir/src/index.ts'
+import type { Candidate } from './candidate.ts'
+import { prepareSegments, segmentsCandidate } from './candidates/segments.ts'
+import type { Scenario } from './workloads/index.ts'
+
+export interface Check {
+  name: string
+  ok: boolean
+  detail?: string
+}
+
+export interface EquivalenceReport {
+  scenario: string
+  ok: boolean
+  checks: Check[]
+}
+
+const decoder = new TextDecoder()
+
+function firstDifference(a: Uint8Array, b: Uint8Array): string {
+  const len = Math.min(a.length, b.length)
+  for (let i = 0; i < len; i++) {
+    if (a[i] !== b[i]) {
+      const from = Math.max(0, i - 40)
+      return `byte ${i} of ${a.length}/${b.length}\n  a: ${JSON.stringify(decoder.decode(a.subarray(from, i + 40)))}\n  b: ${JSON.stringify(decoder.decode(b.subarray(from, i + 40)))}`
+    }
+  }
+  return `identical for ${len} bytes, lengths differ: ${a.length} vs ${b.length}`
+}
+
+/**
+ * Differential testing is not optional here: negotiated wire forms are only safe if
+ * every form of a fragment produces identical bytes. The runner refuses to publish
+ * numbers for a scenario whose forms disagree.
+ */
+export async function checkScenario(scenario: Scenario, candidates: Candidate[]): Promise<EquivalenceReport> {
+  const checks: Check[] = []
+  const compiled = await prepareSegments(scenario)
+
+  const values = scenario.values()
+  const rows = scenario.rows()
+  const withRows: Values = scenario.row
+    ? { ...values, [scenario.row.binding]: rows as unknown as Values[string] }
+    : values
+
+  const reference = segmentsCandidate.render?.(scenario, values, rows)
+  if (!reference) throw new Error('E_NO_REFERENCE_RENDER')
+
+  for (const candidate of candidates) {
+    if (candidate.id === segmentsCandidate.id || !candidate.render) continue
+    const actual = candidate.render(scenario, values, rows)
+    const ok = actual.length === reference.length && actual.every((b, i) => b === reference[i])
+    checks.push({
+      name: `html bytes: segments vs ${candidate.id}`,
+      ok,
+      ...(ok ? {} : { detail: firstDifference(reference, actual) }),
+    })
+  }
+
+  if (compiled.root.forms.includes('data')) {
+    const payload = JSON.parse(
+      decoder.decode(segmentsCandidate.updateForms?.(scenario, values, rows, rows).data as Uint8Array),
+    ) as DataPayload
+    const projected = projectData(compiled.root, payload, compiled.resolve)
+    const ok = projected.length === reference.length && projected.every((b, i) => b === reference[i])
+    checks.push({
+      name: 'data form projects to the same bytes as html',
+      ok,
+      ...(ok ? {} : { detail: firstDifference(reference, projected) }),
+    })
+  }
+
+  if (compiled.root.forms.includes('delta') && scenario.row) {
+    const nextRows = scenario.transition(rows)
+    const nextValues: Values = { ...values, [scenario.row.binding]: nextRows as unknown as Values[string] }
+    const expected = render(compiled.root, nextValues, compiled.resolve)
+    const delta = JSON.parse(
+      decoder.decode(segmentsCandidate.updateForms?.(scenario, values, rows, nextRows).delta as Uint8Array),
+    ) as DeltaPayload
+    const reconstructed = render(compiled.root, applyDelta(withRows, delta), compiled.resolve)
+    const ok = reconstructed.length === expected.length && reconstructed.every((b, i) => b === expected[i])
+    checks.push({
+      name: 'delta applied to the base render reproduces the html bytes',
+      ok,
+      ...(ok ? {} : { detail: firstDifference(expected, reconstructed) }),
+    })
+    checks.push({
+      name: 'delta carries fewer entries than the full value set',
+      ok: Object.keys(delta.changed).length < Object.keys(nextValues).length + nextRows.length * 4,
+      detail: `${Object.keys(delta.changed).length} changed paths`,
+    })
+  }
+
+  return { scenario: scenario.id, ok: checks.every((c) => c.ok), checks }
+}
+
+export async function checkAll(scenarios: Scenario[], candidates: Candidate[]): Promise<EquivalenceReport[]> {
+  const reports: EquivalenceReport[] = []
+  for (const scenario of scenarios) reports.push(await checkScenario(scenario, candidates))
+  return reports
+}
