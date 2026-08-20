@@ -1,0 +1,855 @@
+<title>Weft Field Notes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap">
+
+<style>
+  :root {
+    --ground: #F4F3EE;
+    --surface: #FCFBF8;
+    --sunk: #EAE8E0;
+    --ink: #1A1D33;
+    --muted: #5E6076;
+    --faint: #8A8B9C;
+    --rule: #D6D3C8;
+    --rule-soft: #E4E1D8;
+    --accent: #A3302E;
+    --accent-soft: #F0DEDA;
+    --indigo: #2F3D8F;
+    --indigo-soft: #DFE2F2;
+    --green: #3F6B4A;
+    --green-soft: #DDE9DF;
+
+    --display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    --measure: 68ch;
+    --shell: 1180px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #131629;
+      --surface: #1A1D33;
+      --sunk: #101223;
+      --ink: #ECEAE1;
+      --muted: #A0A2B6;
+      --faint: #787A90;
+      --rule: #2E3358;
+      --rule-soft: #232746;
+      --accent: #E88079;
+      --accent-soft: #3A2028;
+      --indigo: #93A2EC;
+      --indigo-soft: #1E2648;
+      --green: #8FC49C;
+      --green-soft: #1C2E22;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #131629;
+    --surface: #1A1D33;
+    --sunk: #101223;
+    --ink: #ECEAE1;
+    --muted: #A0A2B6;
+    --faint: #787A90;
+    --rule: #2E3358;
+    --rule-soft: #232746;
+    --accent: #E88079;
+    --accent-soft: #3A2028;
+    --indigo: #93A2EC;
+    --indigo-soft: #1E2648;
+    --green: #8FC49C;
+    --green-soft: #1C2E22;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .warp {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image: repeating-linear-gradient(to right, var(--rule-soft) 0 1px, transparent 1px 96px);
+    opacity: .55;
+  }
+  @media (max-width: 900px) { .warp { display: none; } }
+
+  .page { position: relative; z-index: 1; max-width: var(--shell); margin: 0 auto; padding: 0 28px 140px; }
+
+  header.mast { padding: 88px 0 44px; border-bottom: 2px solid var(--ink); }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--accent); margin: 0 0 22px;
+  }
+
+  h1 {
+    font-family: var(--display); font-optical-sizing: auto; font-weight: 800;
+    font-size: clamp(2.6rem, 7vw, 4.8rem); line-height: .95; letter-spacing: -.03em;
+    text-wrap: balance; margin: 0 0 26px;
+  }
+  h1 em { font-style: normal; color: var(--accent); }
+
+  .standfirst { font-size: 1.2rem; line-height: 1.5; color: var(--muted); max-width: 62ch; margin: 0 0 30px; }
+
+  .mast-meta {
+    display: flex; flex-wrap: wrap; gap: 10px 28px;
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: .04em;
+    color: var(--faint); text-transform: uppercase;
+  }
+
+  section { padding: 62px 0 0; border-top: 1px solid var(--rule); }
+  section:first-of-type { border-top: none; }
+
+  .sec-label {
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin: 0 0 14px;
+  }
+
+  h2 {
+    font-family: var(--display); font-weight: 600;
+    font-size: clamp(1.7rem, 3.4vw, 2.35rem); line-height: 1.06; letter-spacing: -.02em;
+    text-wrap: balance; margin: 0 0 20px; max-width: 34ch;
+  }
+
+  h3 {
+    font-family: var(--display); font-weight: 600; font-size: 1.14rem;
+    letter-spacing: -.01em; line-height: 1.25; margin: 38px 0 10px;
+  }
+
+  h4 {
+    font-family: var(--mono); font-size: 11.5px; font-weight: 600;
+    letter-spacing: .13em; text-transform: uppercase; color: var(--indigo); margin: 28px 0 8px;
+  }
+
+  p { margin: 0 0 18px; max-width: var(--measure); }
+  p.lede { font-size: 1.08rem; color: var(--muted); }
+
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  strong { font-weight: 600; }
+  em.term { font-style: italic; }
+
+  code {
+    font-family: var(--mono); font-size: .855em; background: var(--sunk);
+    padding: .12em .38em; border-radius: 2px;
+  }
+
+  ul, ol { max-width: var(--measure); padding-left: 1.2em; margin: 0 0 18px; }
+  li { margin-bottom: 9px; }
+  li::marker { color: var(--faint); }
+
+  .bleed { margin: 30px 0; overflow-x: auto; border: 1px solid var(--rule); background: var(--surface); }
+  table { width: 100%; min-width: 700px; border-collapse: collapse; font-size: .89rem; }
+  caption {
+    text-align: left; font-family: var(--mono); font-size: 11px; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--faint); padding: 16px 20px 12px;
+  }
+  th {
+    text-align: left; font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+    padding: 10px 20px; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  td { padding: 12px 20px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; line-height: 1.45; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.who { font-family: var(--display); font-weight: 600; }
+  td.num {
+    font-family: var(--mono); font-variant-numeric: tabular-nums;
+    white-space: nowrap; font-size: .95em;
+  }
+
+  .tag {
+    font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; padding: 3px 7px; border-radius: 2px; white-space: nowrap;
+  }
+  .t-primary { background: var(--green-soft); color: var(--green); }
+  .t-secondary { background: var(--indigo-soft); color: var(--indigo); }
+  .t-weak { background: var(--accent-soft); color: var(--accent); }
+
+  .finding {
+    padding: 24px 0 4px;
+    border-top: 1px solid var(--rule-soft);
+    max-width: var(--measure);
+  }
+  .finding:first-of-type { border-top: none; }
+  .finding h3 { margin: 0 0 8px; }
+  .finding p { margin: 0 0 12px; }
+  .implication {
+    font-size: .93rem;
+    line-height: 1.5;
+    padding: 12px 16px;
+    background: var(--sunk);
+    border-left: 2px solid var(--accent);
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .implication b {
+    font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--accent); display: block; margin-bottom: 5px;
+  }
+
+  .note {
+    margin: 26px 0; padding: 18px 22px; background: var(--indigo-soft);
+    border-left: 3px solid var(--indigo); max-width: var(--measure);
+  }
+  .note p { margin: 0; font-size: .95rem; line-height: 1.55; max-width: none; }
+  .note p + p { margin-top: 10px; }
+  .note b {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .12em;
+    text-transform: uppercase; display: block; margin-bottom: 8px; color: var(--indigo);
+  }
+
+  .qs { max-width: var(--measure); }
+  .q { padding: 18px 0; border-top: 1px solid var(--rule); }
+  .q b { font-family: var(--display); font-weight: 600; display: block; margin-bottom: 5px; }
+  .q span { color: var(--muted); font-size: .95rem; }
+
+  footer { margin-top: 72px; padding-top: 34px; border-top: 2px solid var(--ink); }
+  footer ol { font-size: .88rem; color: var(--muted); max-width: 76ch; }
+  footer ol a { color: var(--indigo); }
+  footer ol li { margin-bottom: 7px; }
+</style>
+
+<div class="warp" aria-hidden="true"></div>
+
+<div class="page">
+
+  <header class="mast">
+    <p class="eyebrow">Research dossier · companion to Weft &amp; Warp</p>
+    <h1>Weft <em>Field</em> Notes</h1>
+    <p class="standfirst">The complete survey behind the architecture proposal: what was searched, what was found, which numbers are trustworthy, and what each finding actually implies for the design. Including the parts we could not verify.</p>
+    <div class="mast-meta">
+      <span>August 2026</span>
+      <span>46 queries · 3 primary fetches</span>
+      <span>Confidence marked per claim</span>
+    </div>
+  </header>
+
+  <section>
+    <p class="sec-label">Method</p>
+    <h2>How to read this</h2>
+    <p class="lede">Every factual claim carries a source-quality marker, because a meaningful share of what turns up when searching "framework 2026" is search-optimised filler that recycles other people's numbers. Design decisions should not rest on those.</p>
+    <ul>
+      <li><span class="tag t-primary">Primary</span> — official documentation, changelogs, specifications, or a first-party engineering blog. Safe to design against.</li>
+      <li><span class="tag t-secondary">Secondary</span> — a named practitioner or a reputable technical publication summarising primary material. Trustworthy in substance; verify exact figures before quoting.</li>
+      <li><span class="tag t-weak">Unverified</span> — aggregator or content-farm material. Directionally useful, numerically suspect. Flagged wherever it is the only source for a figure.</li>
+    </ul>
+    <p>The survey covered sixteen areas: rendering architectures, reactivity, hypermedia, micro-frontends, server runtimes, build tooling, routing, caching, feature flags, browser transport primitives, off-thread rendering, server-side surgical updates, data prefetching, incremental computation, profile-guided optimisation, and server-driven UI security — plus one production case study. Each finding below ends with its consequence for the design rather than being left as trivia.</p>
+  </section>
+
+  <section>
+    <p class="sec-label">Area one</p>
+    <h2>Rendering architectures</h2>
+
+    <div class="finding">
+      <h3>Streaming SSR with out-of-order holes is a solved problem <span class="tag t-secondary">Secondary</span></h3>
+      <p>React 18's Suspense SSR architecture, Solid's <code>renderToStream</code>, and Marko all implement placeholder-then-fill streaming. Marko's variant is the most complete: it separates component code that never needs to reach the client, streams out-of-order content, and inserts finished sections into the same response via script insertion rather than waiting. Ryan Carniato has stated directly that Solid's streaming SSR came from studying Marko at eBay.</p>
+      <div class="implication"><b>Implication</b>Do not treat streaming as a differentiator. It is table stakes, and the differentiator is what the hole boundary <em class="term">is</em> — component boundary today, addressable slot in our design — and whether the stream survives past the document.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Resumability is architecturally sound and commercially stalled <span class="tag t-weak">Unverified</span></h3>
+      <p>Qwik is reported at roughly 672 detected sites against Astro's 7,885 and Remix's 2,209. The figures come from an aggregator and the absolute numbers should not be quoted, but the ratio is consistent with every other signal about Qwik's traction. The criticisms are consistent across sources: the mental shift, the <code>$</code> sigil syntax, and ecosystem workarounds.</p>
+      <p>Technically, Qwik's primitive is the QRL — a lazy reference to a function — and it serialises not just state but handler locations and component boundaries, which requires serialising closures. Qwik's own documentation calls closure serialisation the key property enabling resumability. A criticism found in the surveyed material is notable: other partial-hydration solutions serialise less because they know statically what is server-only.</p>
+      <div class="implication"><b>Implication</b>The goal is right, the mechanism is the problem, and the lesson is that architecture alone does not win adoption. Resumability via a compiled wiring table plus signal values avoids closure serialisation entirely — and the component syntax must stay unremarkable.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Islands are mainstream, and their costs are now visible <span class="tag t-primary">Primary</span></h3>
+      <p>Astro 7 shipped 22 June 2026. Its model distinguishes client islands, hydrated independently, from server islands, which render dynamic content on the server separately from the page. The 2026 consensus is that islands are the default for content-heavy sites.</p>
+      <div class="implication"><b>Implication</b>Two limits to design past: island boundaries are hand-annotated by the author rather than derived, and each server island costs its own HTTP request. Compiler-derived boundaries plus one multiplexed stream address both.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Signals won reactivity; the wire format for shipping them did not get standardised <span class="tag t-primary">Primary</span></h3>
+      <p>The TC39 Signals proposal sits at Stage 1, deliberately: the stated plan is significant early prototyping and framework integration before advancing. It is backed by maintainers from Angular, Vue, Solid, Preact, Ember, Qwik, and MobX. Polyfills exist and the API is not final.</p>
+      <div class="implication"><b>Implication</b>Build the client graph on the proposal's shape so the runtime can be shed later, but expect no standard for <em class="term">serialising</em> a signal graph server-to-client. That format is ours to define, and it is what makes the <code>data</code> wire form possible.</div>
+    </div>
+
+    <div class="finding">
+      <h3>The 2025–26 mood is consolidation, not new paradigms <span class="tag t-secondary">Secondary</span></h3>
+      <p>Carniato characterises the period as core refinement rather than architectural breakthrough, and identifies three directions: AI-first design — Remix 3 explicitly reducing domain-specific language so models generate it more easily — isomorphic-first architecture, where TanStack Start, SvelteKit, and SolidStart converge on out-of-order streaming plus server functions plus granular optimistic UI plus single-flight mutations, and async-first primitives. He also observes that AI code generation has gutted the value of curated opinion layers such as Redwood and create-t3-app.</p>
+      <div class="implication"><b>Implication</b>Two direct constraints. Keep the component layer conventional and generable — invent syntax only for the delivery plan, where there is nothing to be compatible with. And do not position this as an opinion layer; position it as a primitive nobody has.</div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Area two</p>
+    <h2>Hypermedia and server-driven UI</h2>
+
+    <div class="finding">
+      <h3>Datastar is the closest existing thing to the protocol we want <span class="tag t-primary">Primary</span></h3>
+      <p>Roughly 11 KB, unifying Alpine-style reactivity with htmx-style server interaction. Its signals are JSON objects declared on the client and synchronised with the server over HTTP requests and SSE. It accepts both <code>text/html</code> and <code>text/event-stream</code>, so a handler can return markup or stream events. The stated philosophy is that the backend drives state and is the source of truth.</p>
+      <div class="implication"><b>Implication</b>Study the wire design closely; it has already validated bidirectional signals over SSE with fragment merging. What it lacks is everything around it: a compiler, a type system, a module graph, an island model, a build. That is the whole opportunity — the protocol idea is proven, the engineering around it is absent.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Mobile server-driven UI solved render authority years ago <span class="tag t-secondary">Secondary</span></h3>
+      <p>The practices found: sign layouts with Ed25519 verified against a pinned public key bundle, include expiring timestamps against replay, validate against schemas at the edge and on-device with hard caps on depth, breadth, and total size, allowlist URL schemes and hosts, rate-limit layout requests and bind them to session and device identity with token rotation, and forbid certain component types — PIN entry is the cited example — from ever being server-driven. Critically: components must be registered on the client, so the server cannot conjure new functionality at runtime.</p>
+      <div class="implication"><b>Implication</b>This is the model for the render-intent catalogue. The web's server-function designs let the client reference server code; a registered-capability allowlist inverts that. Adopting a discipline proven in a more adversarial environment is cheap and defensible.</div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Area three</p>
+    <h2>Micro-frontends and fragments</h2>
+
+    <div class="finding">
+      <h3>Cloudflare's fragment architecture is the reference for edge composition <span class="tag t-primary">Primary</span></h3>
+      <p>An application is a tree of fragments, each deployed as a Worker, collaborating to server-side render one response: the browser requests a root fragment, which talks to child fragments. Fragment piercing allows incrementally converting the valuable parts of a legacy UI in isolation from the surrounding shell.</p>
+      <div class="implication"><b>Implication</b>The composition model is validated in production. The reported weaknesses — young tooling, painful debugging, thin observability, platform lock-in — are precisely what a framework-level protocol with a causal explain tool would fix.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Web Fragments buys isolation with an iframe per fragment <span class="tag t-primary">Primary</span></h3>
+      <p>Fragments live in shadow roots for style isolation and execute their JavaScript in a separate context backed by a hidden iframe, while sharing the document, navigation, and history. A fragment gateway middleware routes browser requests to the right fragment endpoint, keeping everything on one origin. Removing a <code>&lt;web-fragment&gt;</code> element destroys its iframe context and releases its memory. In beta, in production at Cloudflare.</p>
+      <div class="implication"><b>Implication</b>The gateway concept transfers directly. The iframe-per-fragment cost does not: with content-addressed templates, per-fragment CSP, and typed signal contracts, isolation can be structural rather than paid for at runtime. Their memory-lifecycle discipline is worth copying regardless.</div>
+    </div>
+
+    <div class="finding">
+      <h3>"Rendering as a service" is common practice and quietly insecure <span class="tag t-secondary">Secondary</span></h3>
+      <p>The documented pattern is extracting SSR into its own Node service to which a monolith delegates, passing component names and the data they need. Reported cost: rendering a complex application to an HTML string takes 10 ms to 100 ms in the worst case as a single synchronous task.</p>
+      <div class="implication"><b>Implication</b>Two findings for the price of one. Tier separation is established practice worth making declarative — and passing component names across a service boundary is exactly the vulnerability the intent catalogue closes. An opaque intent ID with a validated param schema costs nothing extra.</div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Area four</p>
+    <h2>Server runtime and portability</h2>
+
+    <div class="finding">
+      <h3>WinterTC gave portability an actual specification <span class="tag t-primary">Primary</span></h3>
+      <p>WinterCG shut down in January 2025 and was replaced by Ecma TC55, "WinterTC". The Minimum Common Web API's first edition tracks the 2025 snapshot and was adopted as an Ecma standard in December 2025. Work in progress includes a test suite, a Sockets API for unified TCP and TLS, and a CLI API for environment variables, arguments, and working directory.</p>
+      <div class="implication"><b>Implication</b>"Platform-agnostic" can now be a conformance claim rather than an aspiration. The kernel targets the Minimum Common API and nothing else; the eventual test suite becomes our portability CI.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Nitro 3 is the prior art for ports and adapters, and it is only half the idea <span class="tag t-primary">Primary</span></h3>
+      <p>Nitro 3 beta reports roughly 280k weekly downloads since the October 2025 alpha, a minimal server bundle under 10 KB with the standard preset, and dependencies cut from 321 to fewer than 20. Presets are first-party and maintained, so when a platform API changes the preset absorbs it. SWR and ISR are configured declaratively — <code>swr: true</code> or <code>swr: 3600</code>, and an <code>isr</code> property — backed by a caching layer and a storage abstraction. h3 supplies web and plain adapters with Web Streams across Node, Bun, Deno, Workers, and Vercel.</p>
+      <div class="implication"><b>Implication</b>Adopt the preset model wholesale; it is the best-executed deployment abstraction in the ecosystem and the sub-10 KB figure sets our kernel budget. But note what is adapter-shaped there and what is not: platform and storage are ports, while <em class="term">rendering strategy</em> is still a config keyword handled by framework internals. That is the half nobody has done.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Workers' 2026 limits are what make fine-grained fragments viable <span class="tag t-primary">Primary</span></h3>
+      <p>The February 2026 changelog removed the 1,000-subrequest cap: paid Workers now default to 10,000 per invocation and can be configured up to 10 million, while free-plan Workers remain at 50 external subrequests plus 1,000 to Cloudflare services. Startup time rose from 400 ms to 1 second in October 2025. CPU time is 10 ms per request on free and 30 seconds by default on paid, configurable to 300,000 ms. Memory is 128 MB per isolate on both plans. <code>waitUntil</code> extends execution up to 30 seconds after the response is sent or the client disconnects.</p>
+      <div class="implication"><b>Implication</b>Every one of these is a design input. The subrequest change is what makes per-fragment remote rendering plausible at all. The 128 MB ceiling forces a bounded L1 cache and streaming rather than buffering. <code>waitUntil</code> is the SWR revalidation primitive. And the 1-second startup budget is why the kernel must not import Node shims.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Service bindings make splitting cheap, and the docs are honest that it is not free <span class="tag t-primary">Primary</span></h3>
+      <p>Cloudflare's RPC system lets one Worker call another with, in their words, zero overhead or added latency — by default both Workers run on the same thread of the same server, so calls stay in the same execution thread and decomposition introduces no network latency. The same material notes the counterweight: each call still adds latency even if sub-millisecond, and each additional Worker adds deployment, versioning, and cognitive overhead. Use RPC when the target exposes functions, fetch-forwarding when it processes requests.</p>
+      <div class="implication"><b>Implication</b>This is the enabling primitive for tier decomposition, and the stated caveat is why the monolith topology stays the default. Warp-over-fetch-forwarding is the portable tier boundary; RPC is an optimisation on top.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Storage consistency classes differ enough to belong in the type system <span class="tag t-primary">Primary</span></h3>
+      <p>KV offers sub-5 ms reads from 300+ locations but is eventually consistent with writes propagating within 60 seconds, and each key can be written at most once per second — exceeding that errors. D1 is SQLite-backed and queryable. R2 is object storage without egress fees. Durable Objects provide scalable compute with consistent storage.</p>
+      <div class="implication"><b>Implication</b>KV is a good L2 for shell buffers and flag payloads and a bad one for anything write-heavy, and that distinction should not live in a documentation footnote. Putting a <code>consistency</code> field on <code>StorePort</code> turns a production incident into a build error. Durable Objects are the natural stampede-lease holder.</div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Area five</p>
+    <h2>Build tooling</h2>
+
+    <div class="finding">
+      <h3>Vite's Environment API already models what we need <span class="tag t-primary">Primary</span></h3>
+      <p>Vite 6 formalised environments, letting framework authors create as many as their production topology requires. Three communication levels are offered so frameworks can write runtime-agnostic code, with the recommendation to implement the most flexible available. Low-level configuration lets runtime providers ship environments with correct defaults, and environments can spawn processes or threads to run modules in something closer to the production runtime during development. Rolldown, the Rust Rollup replacement, is Rollup-plugin-compatible and reported at 10–30× faster, bringing dev and prod bundling logic closer together.</p>
+      <div class="implication"><b>Implication</b>Do not build a bundler. Client, SSR, edge, and fragment environments map onto this directly, and the ability to run modules in a closer-to-production runtime during dev is what makes per-slot executors testable locally. This is the largest single piece of work we get to skip.</div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Area six</p>
+    <h2>Routing, caching, flags</h2>
+
+    <div class="finding">
+      <h3>Fog of War is proven, and applied to exactly one thing <span class="tag t-primary">Primary</span></h3>
+      <p>React Router's lazy route discovery ships only the manifest entries the current page needs, expanding the route tree as the user navigates, via a <code>/__manifest</code> endpoint and <code>patchRoutesOnNavigation</code>. The headline number is Shopify's: a 1,300-route manifest over 10 MB uncompressed dropped to 3 routes and 1.9 KB for the initial homepage.</p>
+      <div class="implication"><b>Implication</b>The mechanism and its payoff are established. The generalisation is untouched: the same treatment for CSS, island chunks, flag payloads, and data schemas. Also note the practitioner-reported friction with client-side <code>useNavigate</code> — lazy discovery must not make ordinary navigation surprising.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Per-unit caching exists but the keys are hand-written and the runtime is restricted <span class="tag t-primary">Primary</span></h3>
+      <p>Next.js <code>use cache</code> marks a route, component, or function cacheable; functions using it must be async; <code>cacheLife</code> sets duration and <code>cacheTag</code> enables on-demand invalidation via <code>revalidateTag</code> and <code>revalidatePath</code>. Critically, the directive requires the Node.js runtime and the Edge runtime rejects it outright — the documented workaround is falling back to <code>fetch</code> with revalidate options.</p>
+      <div class="implication"><b>Implication</b>Two independent weaknesses to beat. Hand-declared keys drift from what the code actually reads, which is why derived keys are the strongest idea in our design. And a caching primitive unavailable on the edge runtime is a direct consequence of caching being a framework internal rather than a port.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Flag handling is either a runtime branch or a combinatorial build <span class="tag t-primary">Primary</span></h3>
+      <p>The Flags SDK turns each flag into a callable function, works with any provider through adapters, and keeps pages static via precompute: middleware evaluates flags and encodes the result into the URL by rewrite, and <code>generatePermutations</code> builds every combination at build time for CDN distribution. It is described as working well for marketing-page experimentation and for serving multiple static shells for partial prerendering. Separately, a widely-shared 2026 article frames the core problem as one cookie wrecking an entire Next.js app's caching.</p>
+      <div class="implication"><b>Implication</b>The precompute pattern is a workaround for a missing primitive, and its own framing admits the boundary: static shells. Neither approach makes a flag a partition of the module graph, so the losing branch's code still ships. That is the gap — and the cookie article is direct evidence that derived cache keys address a problem people already feel acutely.</div>
+    </div>
+
+    <div class="finding">
+      <h3>No prior art found for flag-aware bundling <span class="tag t-weak">Unverified</span></h3>
+      <p>A targeted search for feature-flag-aware compilation, per-flag bundle splitting, and build-time flag variants returned only C, C++, and Go compiler documentation about dead-code elimination and build tags. The search engine itself noted the absence of web-specific material.</p>
+      <div class="implication"><b>Implication</b>A negative result, and a useful one. Go's build tags are the closest conceptual relative — conditional compilation controlled by declared axes. Treat this as an open area, and verify by reading bundler source directly rather than trusting a search.</div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Area seven</p>
+    <h2>Browser and transport primitives that changed the calculus</h2>
+
+    <div class="finding">
+      <h3>Out-of-order streaming can now need zero JavaScript <span class="tag t-primary">Primary</span></h3>
+      <p>Declarative Shadow DOM turns a <code>&lt;template&gt;</code> with <code>shadowrootmode</code> into its parent's shadow root during parsing. The attribute was renamed from <code>shadowroot</code> specifically to support streaming, and the shadow root attaches on the <em class="term">opening</em> tag rather than the closing one, so content inside can render as it arrives. Slots within the shadow root can receive streamed content, achieving out-of-order streaming without JavaScript replacing anything. Support: Chrome and Edge 111+, Firefox 123+, Safari 16.4+.</p>
+      <div class="implication"><b>Implication</b>This is a significant find. The entire out-of-order hole mechanism can be markup, which means holes fill before our runtime loads, or even if it never loads. It removes JavaScript from the critical path for the mechanism that historically required it most.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Compression Dictionary Transport is the byte-level half of our idea, already shipped <span class="tag t-primary">Primary</span></h3>
+      <p>RFC 9842, in Chrome and Edge since version 130 in late 2024, Firefox in progress. A previously fetched resource serves as a compression dictionary so a later response transfers roughly as a delta plus references. Cloudflare published a detailed preview and confirmed beta availability on 17 April 2026, implementing it at the edge without origin-side work. Google has applied it to Search.</p>
+      <div class="implication"><b>Implication</b>This turns the resident-template idea from speculation into engineering. The two layers compose: the resident-set digest removes semantic redundancy by choosing a cheaper wire form, dictionaries remove byte redundancy from whatever form is sent. Content-addressed template versions are already natural dictionary candidates — the design gets this nearly for free.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Speculation Rules plus cross-document view transitions make MPA navigation competitive <span class="tag t-primary">Primary</span></h3>
+      <p>Speculation Rules is explicitly designed for multi-page sites rather than SPAs, and Chrome 144 in January 2026 added a mode that fetches HTML and begins rendering and subresource loading but pauses JavaScript at the first blocking script — preloading CSS, images, and fonts without triggering script side effects like analytics. Cross-document view transitions opt in from CSS via <code>@view-transition</code> and are supported in Chromium and Safari 18.2+, with Firefox in progress. Combining them means transitioning between two already-rendered documents.</p>
+      <div class="implication"><b>Implication</b>The MPA-versus-SPA choice should be a plan-level decision rather than a framework identity. Our design should emit speculation rules from the plan's own predictive-discovery signals — it already knows which routes are likely next, which is exactly the input the API wants. The script-paused prerender mode is particularly well matched to a design whose first flush needs no JavaScript.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Edge Side Includes has been quietly modernised <span class="tag t-secondary">Secondary</span></h3>
+      <p>ESI designates page elements as independently processable fragments assembled at the CDN edge, with fragment-level caching and per-fragment TTLs. Fastly has published an ESI library for JavaScript Compute, available on npm.</p>
+      <div class="implication"><b>Implication</b>Worth respecting as a twenty-year-old precedent for exactly the composition model being proposed. Its per-fragment TTL model is a subset of derived cache keys, and its main historical failure — no type safety, no shared reactivity across fragments — is what we are adding.</div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Area eight</p>
+    <h2>Off-thread rendering: everyone does it, no framework offers it</h2>
+
+    <div class="finding">
+      <h3>The pattern is universal and entirely outside the frameworks <span class="tag t-secondary">Secondary</span></h3>
+      <p>Published accounts from Yelp, Expedia, Tinkoff, and Wix converge on one architecture: a main thread that receives requests and a pool of rendering workers. The main thread can fast-fail based on average render time and queue depth; a worker handles one request at a time, so blocking its event loop is acceptable. A Node worker thread is a full V8 isolate with its own heap and event loop, roughly 10 MB of memory overhead and startup in the tens of milliseconds. Piscina exists as the general-purpose pool implementation. Wix reports cutting thousands of SSR pods and the associated cost by applying multi-threading. Inngest's assessment — worker threads are problematic but work well for this — is worth heeding.</p>
+      <div class="implication"><b>Implication</b>The strongest kind of gap: a problem every serious operator has solved identically, outside the tool that causes it. Making render locus a per-slot declaration with a CPU budget and a defined degradation path converts institutional folklore into a framework primitive. The fast-fail-on-queue-depth heuristic should be built into the scheduler port, not left to users.</div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Area nine</p>
+    <h2>Surgical updates: the strongest prior art we found</h2>
+
+    <div class="finding">
+      <h3>Phoenix LiveView solved minimal recompute and minimal wire diff with one mechanism <span class="tag t-primary">Primary</span></h3>
+      <p>LiveView's template engine splits a template into static and dynamic parts. The first render sends both; every subsequent render sends only the dynamic parts, and only those whose backing assigns actually changed, tracked through a <code>__changed__</code> map. The wire format is binary and described as efficient on the server as well as over the wire. The documentation is explicit that one design solves two problems at once: not executing the dynamic parts that did not change, and not sending them. LiveView 1.0 shipped and the engine is now at 1.1.x.</p>
+      <div class="implication"><b>Implication</b>This is the standard to beat, and it should be benchmarked against directly rather than hand-waved past. The static/dynamic split validates the pre-encoded-segments approach independently. What it cannot do is the opening: it requires a stateful process per connection holding the previous render, which rules out serverless and edge runtimes, forces sticky sessions, scales memory with concurrent users, and means a diff is computed per connection and never shared. Ten thousand users seeing the same price change means ten thousand identical diffs.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Blazor Server reaches the same destination more expensively <span class="tag t-primary">Primary</span></h3>
+      <p>A component re-render re-executes <code>BuildRenderTree</code>, produces a new render tree, diffs it against the previous one, batches the minimal DOM operations, serialises them and sends them over SignalR. The documented performance advice is about avoiding unnecessary renders, because even with efficient diffing those renders still consume CPU and memory — particularly on the server.</p>
+      <div class="implication"><b>Implication</b>Recompute-then-diff is strictly worse than not recomputing, which is why LiveView's approach is the better model. Blazor also confirms the statefulness constraint is inherent to server-held render state, not an Elixir quirk. Both point to the same conclusion: move the render state to the client and the server can be stateless.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Route-level data prefetching is thoroughly covered <span class="tag t-primary">Primary</span></h3>
+      <p>TanStack Router preloads by intent using hover and touchstart on Link, with a 50 ms default delay configurable via <code>defaultPreloadDelay</code>, and by viewport using IntersectionObserver. It has a built-in SWR cache for route loaders, and preloaded matches are held in memory with unused preload data evicted after 30 seconds by default.</p>
+      <div class="implication"><b>Implication</b>Do not claim prefetch-on-intent as novel; it is mature and well-designed. Three things remain open and all three matter: granularity is the route rather than the slot with its own key, there is one wire form so a client already holding the template still receives markup, and the preload lands in the same cache the live view reads — which is exactly why prefetching can disturb the current view. Epochs, slot-level keys, and form negotiation address those three specifically.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Incremental computation is a mature field that never reached HTML rendering <span class="tag t-secondary">Secondary</span></h3>
+      <p>Self-adjusting computation builds a dynamic dependence graph recording control and data dependencies between sub-computations, then uses graph algorithms to recompute a minimal subset when inputs change; memoisation and adaptive computation are described as duals whose combination yields the technique. Adapton made it composable and demand-driven. Salsa is the Rust framework built on memoising function results, and is what makes rust-analyzer viable. The literature is explicit about the limitation: changes to the <em class="term">structure</em> of the computation graph are difficult for these systems to process.</p>
+      <div class="implication"><b>Implication</b>The theory is available and the production precedent exists. The stated weakness is the design constraint: HTML rendering changes graph structure constantly through conditionals, list reordering, and mount/unmount. So incremental recompute must be opt-in per slot, and honestly it will only pay where the region is expensive and structurally stable. Claiming otherwise would be overselling.</div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Area ten</p>
+    <h2>Profile-guided everything, except delivery</h2>
+
+    <div class="finding">
+      <h3>PGO is standard practice with well-documented gains <span class="tag t-primary">Primary</span></h3>
+      <p>Profile-guided optimisation, also called feedback-driven optimisation, improves large-application performance by improving code locality and instruction-cache utilisation, with reported gains in the 15–30% range. The dominant drivers are function inlining and basic-block reordering. Post-link binary optimisers such as BOLT and Propeller consume AutoFDO profiles to refine layout further, adding 5–15% depending on workload. Go's PGO design document specifies the AutoFDO-style workflow directly: collect profiles from production, then supply them when building the updated binary.</p>
+      <div class="implication"><b>Implication</b>The workflow is proven and the analogy to delivery planning is structural rather than rhetorical. Basic-block reordering maps onto flush order and chunk packing; inlining maps onto folding a near-universal island into the first flush; tiered compilation maps onto prebuilding the head of the traffic distribution and rendering the tail. Adopt the vocabulary deliberately — it makes the design legible to anyone who has shipped a PGO'd binary.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Guess.js already tried the web version, narrowly, in 2018 <span class="tag t-primary">Primary</span></h3>
+      <p>During the build, the Guess plugin fetched a report from Google Analytics, built a model — Markov chains, neural networks, or TensorFlow are all cited — and added a small runtime to the main bundle. At runtime it predicted likely next pages and prefetched their bundles, taking the top-N paths at each step. Early benchmarks reported around 20% better perceived page-load performance. It launched as alpha at Google I/O 2018.</p>
+      <div class="implication"><b>Implication</b>Credit this properly; it is the direct ancestor. It also shows the ceiling of the narrow version: prefetching alone, one decision, and the project is dormant. The generalisation — a profile that decides prebuild sets, flush order, chunk packing, wire-form defaults, island load conditions, compile hints, and speculation eagerness — is only possible if all those decisions live in one artifact, which is precisely what a delivery plan is and what Guess.js had no equivalent of.</div>
+    </div>
+
+    <div class="finding">
+      <h3>The browser now accepts compile hints, and tells you it cannot advise you where <span class="tag t-primary">Primary</span></h3>
+      <p>Chrome 136 ships explicit compile hints: a magic comment at the top of a JavaScript file instructs V8 to parse and compile everything after it eagerly, off the main thread, often overlapping network load — instead of compiling on the main thread at first call. Experiments on popular pages improved 17 of 20, averaging a 630 ms reduction in foreground parse and compile time. File granularity only for now, with per-function selection stated as a long-term goal. The explicit caution is to use it sparingly, because over-compiling costs time and memory.</p>
+      <div class="implication"><b>Implication</b>"Use sparingly" is a profile question with no profile available. A delivery profile knows which chunks are executed on essentially every load, which makes hint emission a derived decision rather than a guess. This is a concrete, shipped, measurable win that falls directly out of having production data at build time.</div>
+    </div>
+
+    <div class="finding">
+      <h3>The RUM-to-build loop runs the wrong way <span class="tag t-secondary">Secondary</span></h3>
+      <p>The 2026 monitoring landscape is mature — Datadog, Grafana, Dynatrace, OpenObserve — and Datadog ships build plugins that integrate with JavaScript bundlers. What those plugins do is upload source maps and deobfuscation data: artifacts pushed <em class="term">to</em> the monitoring service. Nothing found pulls production profiles <em class="term">back into</em> build-time delivery decisions.</p>
+      <div class="implication"><b>Implication</b>A clean, checkable asymmetry, and the tidiest statement of the gap in this entire survey. The instrumentation already exists on both ends; the missing piece is an artifact worth optimising against. That is the argument for making the delivery plan a first-class file rather than behaviour scattered across link props and dynamic imports.</div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Area eleven</p>
+    <h2>The envelope problem, and how every framework handles it</h2>
+
+    <div class="finding">
+      <h3>Late response headers are universally forbidden rather than solved <span class="tag t-primary">Primary</span></h3>
+      <p>Next.js documentation states that setting cookies is not supported during Server Component rendering, and gives the reason directly: streaming responses require headers to be sent before components finish rendering, so <code>Set-Cookie</code> after render has begun is impossible. The prescribed alternatives are a Server Function, a Route Handler, or middleware. SvelteKit's <code>setHeaders</code> must be called before <code>resolve</code>, and setting the same header twice raises an error — the reported case being <code>Cache-Control</code> already set from a root layout. Remix and React Router avoid the problem by running loaders to completion before rendering starts, which is correct and forfeits early flush.</p>
+      <div class="implication"><b>Implication</b>Three mature frameworks, three variations on "you cannot, do it in a different phase." The constraint is HTTP, not a bug, so the design goal is not to defeat it: shrink what it blocks, make the mistake type-impossible rather than runtime-guarded, provide a real second channel for late effects, and enumerate precisely what is irreducibly lost. Notably, <code>Vary</code> and <code>Cache-Control</code> — the most common late-header need — become derived rather than discovered once cache keys come from effects, so that case disappears entirely.</div>
+    </div>
+
+    <div class="finding">
+      <h3>103 Early Hints is shipped, standardised, and unused by frameworks <span class="tag t-primary">Primary</span></h3>
+      <p>RFC 8297 defines a status code that sits between the request and the final response, letting a server nominate resources to preload before the real response is ready. Chrome, Safari, and Cloudflare have implementations, and Cloudflare exposes it in Workers directly. It is restricted to HTTP/2 and HTTP/3; Firefox's HTTP/1.1 implementation is not enabled by default. Cloudflare's own flow sends cached early hints immediately while forwarding the request to the origin in parallel.</p>
+      <div class="implication"><b>Implication</b>This is the most valuable single find of the later research. The pressure to flush early is mostly about subresource discovery, and Early Hints delivers that without sealing the envelope — which means the two-phase lifecycle costs far less TTFB than it appears to. No framework surveyed emits <code>103</code> systematically from its own knowledge of the critical path, and we would already have that knowledge in the plan.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Orchestration is a solved category with two unsolved edges <span class="tag t-primary">Primary</span></h3>
+      <p>single-spa's root config is described as the backbone: an independent container devoid of business logic that registers applications via <code>registerApplication</code> with a name, a promise, and an <code>activeWhen</code> predicate, then drives bootstrap, mount, and unmount across framework boundaries. Its documented hazard is that incorrect lifecycle handling causes memory leaks, UI conflicts, and unexpected behaviour — correctness is the application author's burden. Module Federation covers dependencies: <code>singleton: true</code> with <code>strictVersion: true</code> throws when multiple versions of a shared package appear, <code>requiredVersion</code> sets semver scopes, and mismatches otherwise produce duplicate React instances that break hooks and context. Type safety across remotes exists through a TypeScript plugin generating declaration files, with CI contract tests recommended — and the observation that teams skipping them hear about version skew from users.</p>
+      <div class="implication"><b>Implication</b>Do not claim typed cross-boundary contracts as novel; they exist. The two genuine edges are narrower. First, contracts are verified in CI against <em class="term">published types</em> rather than against what production is serving at the moment of deploy. Second, the runtime failure mode is an exception or a silently duplicated dependency, never a declared degraded fallback. Both are addressable by making the shell a plan — regions get budgets, fallbacks, and optionality from machinery that already exists for slots.</div>
+    </div>
+
+    <div class="finding">
+      <h3>The opt-out cliff is documented by the framework that has it <span class="tag t-primary">Primary</span></h3>
+      <p>In a non-PPR Next.js route, any dynamic function call — <code>cookies()</code>, <code>headers()</code>, <code>searchParams</code> — anywhere in the route tree opts the entire route out of static rendering; the documented example is a personalised banner making a whole page dynamic. Partial Prerendering changes this: dynamic calls isolated inside Suspense boundaries no longer opt the whole route in, and the static shell outside those boundaries is prerendered and cached at the edge. The stated requirement is to identify every dynamic call in the tree and confirm it sits inside a boundary.</p>
+      <div class="implication"><b>Implication</b>The clearest possible confirmation of the cliff problem, from primary docs. The fix exists but the boundary is hand-drawn and must be audited and remembered. Deriving the boundary from effect tracking removes both the audit and the failure mode — which is a modest-sounding difference that eliminates an entire class of production surprise.</div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Case study</p>
+    <h2>A production streaming-SSR app, torn down</h2>
+    <p class="lede">The app is chatgpt.com, and that is incidental — it is cited only because a detailed public teardown of its delivery layer exists, which is rare. It is an ordinary React Router 7 + Vite web app; the subject matter is irrelevant and no part of this proposal involves machine learning. What makes it the single best evidence for where the missing primitives are is that it operates at extreme scale on an unremarkable stack, with everything that makes it fast living <em class="term">above</em> the framework. <span class="tag t-secondary">Secondary</span></p>
+
+    <div class="bleed">
+      <table>
+        <caption>Measured and observed characteristics</caption>
+        <thead><tr><th>Dimension</th><th>Observed</th><th>What it tells us</th></tr></thead>
+        <tbody>
+          <tr><td class="who">Stack</td><td class="num">React 19 · RR7 · Vite · SSR</td><td>Ordinary. Migrated Next 12 Pages → Remix (Aug 2024) → React Router 7 (Nov 2024).</td></tr>
+          <tr><td class="who">TTFB</td><td class="num">50–65 ms</td><td>The bar a new framework must beat with real SSR, not a static file.</td></tr>
+          <tr><td class="who">Document</td><td class="num">84 KB compressed</td><td>~30 KB of actual shell markup; 548 DOM nodes after hydration.</td></tr>
+          <tr><td class="who">Routes</td><td class="num">354</td><td>13 chat routes; the rest marketing, in the same router and codebase.</td></tr>
+          <tr><td class="who">Chunks</td><td class="num">100+ · 14 modulepreloaded</td><td>Hand-tuned critical set. Exactly the decision a delivery plan should own.</td></tr>
+          <tr><td class="who">Boot ordering</td><td class="num">deferStartupImportsUntilComposerTTFI</td><td>A named interactivity milestone, expressed as a feature flag because no primitive exists.</td></tr>
+          <tr><td class="who">Loading flags</td><td class="num">promoteCss · stripModulepreloadImports</td><td>Flags controlling the loading strategy itself, not which UI renders.</td></tr>
+          <tr><td class="who">Flags</td><td class="num">556 gates · 144 configs · 192 layers</td><td>Server-evaluated, entire payload inlined in the initial HTML to avoid a round trip.</td></tr>
+          <tr><td class="who">Flag naming</td><td class="num">hashed (e.g. 3479398748)</td><td>Deliberate, to prevent roadmap leakage. Fog of war as a security practice.</td></tr>
+          <tr><td class="who">Prefetch</td><td class="num">shouldPrefetchModels · shouldPrefetchHistory</td><td>Per-user prefetch decisions computed server-side and inlined.</td></tr>
+          <tr><td class="who">CSS</td><td class="num">route + feature stylesheets</td><td>root, conversation, code-block.css, cot-message.css. Split by hand.</td></tr>
+          <tr><td class="who">Fonts</td><td class="num">system stack only</td><td>No UI webfonts at all; KaTeX math fonts load on demand.</td></tr>
+          <tr><td class="who">Data</td><td class="num">TanStack Query</td><td>Server seeds <code>window.__REACT_QUERY_CACHE__</code>; fetches bypass router loaders.</td></tr>
+          <tr><td class="who">Streaming</td><td class="num">SSE over POST</td><td><code>text/event-stream</code>. Transport unchanged since 2022.</td></tr>
+          <tr><td class="who">Assets</td><td class="num">first-party, 30-day cache</td><td>Served from <code>chatgpt.com/cdn/assets</code> — no CORS, ad-blocker resistant.</td></tr>
+          <tr><td class="who">Service worker</td><td class="num">none</td><td>Deliberate: stale caches judged more costly than offline value.</td></tr>
+          <tr><td class="who">RUM</td><td class="num">__oai_SSR_HTML · __oai_SSR_TTI</td><td>Custom timestamps for their own milestones, because the framework emits none.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>The conclusion this drives</b>
+      <p>Not one item in the second half of that table is a framework feature anywhere. Boot sequencing around a named milestone, per-route CSS splitting, server-computed per-user prefetch, flags that control delivery rather than UI, inlined flag payloads, hashed flag names, and custom RUM marks for framework-invisible milestones — all hand-built, all rebuilt independently at every company operating at this scale.</p>
+      <p>A missing primitive is exactly this: work that competent teams keep re-implementing identically because the layer that should own it does not exist.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Area twelve</p>
+    <h2>Browser baseline audit</h2>
+    <p class="lede">Run against every platform dependency the design introduced. Two findings forced corrections to the proposal.</p>
+
+    <div class="finding">
+      <h3>Declarative Shadow DOM reaches Baseline Widely Available today <span class="tag t-primary">Primary</span></h3>
+      <p>Chrome and Edge 111, Safari 16.4 (March 2023), Firefox 123 (20 February 2024). The web-features explorer gives <code>shadowrootmode</code> an expected Widely Available date of 2026-08-20 — the 30-month threshold falls on the day of this survey. WebKit has its own implementation writeup. Separately, Chromium tracks "streaming declarative shadow DOM" as a distinct feature entry.</p>
+      <div class="implication"><b>Implication</b>The feature is safe to depend on; the <em class="term">streaming semantics</em> are the open question. A separate Chromium feature entry for streaming behaviour, when the attribute itself is standardised and shipped everywhere, is a signal that incremental-parse behaviour may differ by engine. The "zero JavaScript out-of-order streaming" claim was corrected to "zero JS where incremental parsing works, ~1 KB filler script where it does not" — and that script must be built and tested regardless, not treated as a contingency.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Streaming request bodies are Chromium-only, so Warp's uplink had to change <span class="tag t-primary">Primary</span></h3>
+      <p><code>duplex: 'half'</code> must be set on any request with a stream body, and it means the request completes before the response is available. True <code>duplex: 'full'</code> is a reserved future addition that no browser implements. Streaming uploads require HTTP/2. Separately, Safari does not support <code>for await…of</code> over a response stream — proposed for Interop 2026 — though <code>getReader()</code> works.</p>
+      <div class="implication"><b>Implication</b>Describing Warp as a duplex channel was wrong and would have made the core Chromium-only. Corrected to a logical channel with three transport bindings: streamed response down plus discrete POSTs up (the Baseline default), WebSocket for true duplex (also Baseline), and WebTransport later. The frame vocabulary is identical across all three, which is precisely the value of having defined a frame vocabulary rather than an API.</div>
+    </div>
+
+    <div class="finding">
+      <h3><code>requestIdleCallback</code> is not Baseline <span class="tag t-primary">Primary</span></h3>
+      <p>Safari does not support it by default in any stable version; WebKit ships it behind a feature flag on macOS and iOS that production users will not enable. MDN states plainly that it is not Baseline. <code>scheduler.postTask</code> is Chromium-only and still experimental. The recommended pattern is feature detection with a <code>setTimeout</code> fallback.</p>
+      <div class="implication"><b>Implication</b><code>when.idle</code> — used liberally in the plan examples — cannot assume idle callbacks fire. It compiles to a ladder: <code>scheduler.postTask</code>, then <code>requestIdleCallback</code>, then a timeout heuristic. Worth noting that a large fraction of iOS traffic gets the timeout path, so anything gated on idle needs to be genuinely optional.</div>
+    </div>
+
+    <div class="finding">
+      <h3>View Transitions: same-document is Baseline, cross-document is not <span class="tag t-primary">Primary</span></h3>
+      <p>Same-document view transitions reached Baseline Newly Available with Chrome 111, Safari 18, and Firefox 133+; the <code>ViewTransition</code> interface reached Baseline in October 2025, and Firefox 144 supports <code>document.startViewTransition</code> and <code>view-transition-name</code>. Cross-document navigation transitions are not in Firefox stable, with support anticipated during 2026.</p>
+      <div class="implication"><b>Implication</b>Good news for epochs: committing a staged epoch behind a same-document transition is Baseline, so the flagship interaction is safe everywhere. The MPA-mode polish is progressive enhancement, which is the correct place for it.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Three accelerators are Chromium-exclusive <span class="tag t-primary">Primary</span></h3>
+      <p>Speculation Rules is Chromium-only. Compression Dictionary Transport is Chrome and Edge 130+, Firefox in progress, no Safari. V8 explicit compile hints are Chrome 136+ and V8-specific by definition. <code>103 Early Hints</code> is better placed — Chrome, Safari, and the Cloudflare edge — with Firefox's HTTP/1.1 implementation not enabled by default, and it is HTTP/2-and-above only. <code>prefers-reduced-data</code> is Chromium and flagged.</p>
+      <div class="implication"><b>Implication</b>None of these may sit on a critical path, and all of them cost nothing when absent — which is the right shape. The real hazard is benchmarking: a test suite that runs only in Chrome would overstate this design specifically because two of its most attractive features are Chromium-only. Publish per-engine numbers or publish none.</div>
+    </div>
+
+    <div class="note">
+      <b>The architectural payoff</b>
+      <p>Capability variance is not a special case in this design. The <code>RESIDENT</code> frame already carries client capabilities alongside RTT and CPU class, and form selection is already a per-request negotiation — so a browser lacking a capability is never offered the form that needs it.</p>
+      <p>No feature-detection sprawl, no polyfill layer, no parallel code path. Browser fragmentation turns out to be the same problem as network and cache variance, and it gets the same mechanism. This is the most convincing practical argument for negotiation as an architecture rather than a feature.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Area thirteen</p>
+    <h2>Reactivity, isolation, variants, and concurrency</h2>
+
+    <div class="finding">
+      <h3>The virtual DOM question is closed, and so is the update-performance race <span class="tag t-secondary">Secondary</span></h3>
+      <p>Vue 3.6 reached release candidate on 18 July 2026 with Vapor Mode feature-complete, RC.2 following on 22 July, and stable expected in autumn. Vapor compiles templates to imperative DOM operations, shrinking bundles 20–50% for Vapor-only components, with benchmarks reported as landing <em class="term">in the same range as</em> Solid.js and Svelte 5 — up to 97% faster renders in extreme cases, 100,000 components in roughly 100 ms. Solid never had a VDOM; Svelte 5 rebuilt reactivity around runes.</p>
+      <div class="implication"><b>Implication</b>The most important negative finding in the survey. Three independent implementations converging on the same performance band is strong evidence that fine-grained-signals-to-direct-DOM is at the floor. Claiming to beat them on isolated update benchmarks would not be credible, and a design marketed on that axis is marketing a tie. Publish those numbers to prove parity; differentiate elsewhere.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Hydration is O(n); resumability is O(1) — and the spectrum is documented <span class="tag t-secondary">Secondary</span></h3>
+      <p>The clearest available framing: React executes components on hydration <em class="term">and</em> on interaction; SolidJS executes them on hydration only; Qwik does not hydrate and so executes neither. Hydration requires every component in the tree to execute before any event handler is live, which produces the "visible but unresponsive" gap between FCP and TTI. Resumability recovers state without re-executing components, making the JavaScript cost constant in application size rather than linear.</p>
+      <div class="implication"><b>Implication</b>This is where the real headroom is, and it is large. A wiring table that adopts existing DOM by position gives the O(1) property without Qwik's closure serialisation. Two corollaries worth measuring: for server-rendered content the DOM is created by the native HTML parser rather than a JS creation path, and a content-addressed wiring table can be cached across page loads — no framework currently caches its hydration work at all.</div>
+    </div>
+
+    <div class="finding">
+      <h3>SvelteKit's server-only rule is the right standard <span class="tag t-primary">Primary</span></h3>
+      <p>Server-only modules are declared by a <code>.server.js</code> suffix or by living in <code>$lib/server</code>, and SvelteKit refuses to let client code import them. The documented reasoning is the part that matters: even when public-facing code uses only the non-secret exports, the secret code can still end up in the JavaScript the browser downloads, so <em class="term">the import chain itself is considered unsafe</em>. <code>import type</code> is the sanctioned escape.</p>
+      <div class="implication"><b>Implication</b>Adopt the standard — reject on the chain, not on apparent usage — and fix its two gaps. It protects only modules someone named correctly, and it says nothing about data leaking, since a properly server-resident module can still serialise a password hash into the page. Derived transitive residency closes the first; the wire schema doubling as a serialisation allowlist closes the second.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Layered overrides are proven; typed multi-dimensional ones are not <span class="tag t-primary">Primary</span></h3>
+      <p>Nuxt Layers let a project extend a base app from a monorepo, git repository, or npm package; directories are scanned and merged with the consuming project always winning, which makes layers safe to consume. The documented white-label use case is exactly the target: a base layer holding logic, data-fetching patterns, and default UI, with each tenant layer overriding only a branded header, a layout, and config. Priority matters when extending several layers. Separately, React Native resolves <code>.ios</code> and <code>.android</code> file extensions by platform, and Android generalises this to many qualifiers with a documented precedence table that must be followed in order.</p>
+      <div class="implication"><b>Implication</b>Both mechanisms work and both are worth copying. Three things are missing: overrides are not type-checked against the base, so drift is silent until a customer finds it; layers are a linear chain rather than an N-dimensional typed tuple; and neither knows anything about caching. The third is the important one — making a variant dimension taint the fragment means cross-tenant cache leakage becomes structurally impossible, and that is among the most persistent bugs in real multi-tenant systems. Also worth deciding deliberately: Nuxt Layers are build-time only and SaaS multi-tenancy is runtime-only, while the same source needs to support both.</div>
+    </div>
+
+    <div class="finding">
+      <h3>Parallel middleware is standard in distributed systems and absent from web frameworks <span class="tag t-secondary">Secondary</span></h3>
+      <p>Web frameworks model middleware as a sequential chain of responsibility: authentication, logging, parsing, error handling, each passing the request down, with an error short-circuiting the rest. The DAG alternative models inter-item dependencies as read-write, write-read, and write-write relationships in an adjacency matrix; because results are futures, independent branches execute concurrently and — in the literature's own words — the parallelism is a consequence of the declared dependency structure, requiring no explicit concurrency code from developers.</p>
+      <div class="implication"><b>Implication</b>We already have the declarations. <code>reads</code> and <code>provides</code> give exactly that adjacency relation, so dependency edges are inferred rather than hand-written and disjoint items run concurrently by default. The design consequence is the filter-versus-enricher split: short-circuiting requires sequence, enriching does not, and most of what people write as middleware is an enricher. It also extends to fragment evaluation — render as a DAG rather than a root-to-leaf walk — which is safe here only because render is provably read-only.</div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Numbers</p>
+    <h2>Every hard figure, with its confidence</h2>
+    <p>Collected in one place so nothing gets quoted out of context. Anything marked unverified should be re-measured before it appears in a benchmark claim.</p>
+
+    <div class="bleed">
+      <table>
+        <caption>Figures gathered, and how much to trust them</caption>
+        <thead><tr><th>Figure</th><th>Value</th><th>Confidence</th></tr></thead>
+        <tbody>
+          <tr><td class="who">ChatGPT TTFB</td><td class="num">50–65 ms</td><td><span class="tag t-secondary">Secondary</span> single technical writeup, not independently reproduced</td></tr>
+          <tr><td class="who">Shopify manifest, before → after Fog of War</td><td class="num">10 MB → 1.9 KB</td><td><span class="tag t-primary">Primary</span> Remix blog</td></tr>
+          <tr><td class="who">Nitro minimal server bundle</td><td class="num">&lt;10 KB</td><td><span class="tag t-primary">Primary</span> Nitro v3 beta post</td></tr>
+          <tr><td class="who">Datastar runtime size</td><td class="num">~11 KB</td><td><span class="tag t-primary">Primary</span> project site</td></tr>
+          <tr><td class="who">Workers CPU per request</td><td class="num">10 ms free / 30 s paid / 300 s max</td><td><span class="tag t-primary">Primary</span> platform limits</td></tr>
+          <tr><td class="who">Workers subrequests</td><td class="num">10 k default, 10 M max, 50 free</td><td><span class="tag t-primary">Primary</span> Feb 2026 changelog</td></tr>
+          <tr><td class="who">Workers startup limit</td><td class="num">1 s (was 400 ms)</td><td><span class="tag t-primary">Primary</span> Oct 2025 changelog</td></tr>
+          <tr><td class="who">Workers isolate memory</td><td class="num">128 MB</td><td><span class="tag t-primary">Primary</span> platform limits</td></tr>
+          <tr><td class="who">waitUntil extension</td><td class="num">up to 30 s post-response</td><td><span class="tag t-primary">Primary</span> platform limits</td></tr>
+          <tr><td class="who">KV read latency / propagation</td><td class="num">&lt;5 ms / ~60 s / 1 write per key per s</td><td><span class="tag t-primary">Primary</span> KV docs</td></tr>
+          <tr><td class="who">Node worker thread overhead</td><td class="num">~10 MB, startup in tens of ms</td><td><span class="tag t-secondary">Secondary</span> engineering blogs, consistent across sources</td></tr>
+          <tr><td class="who">Complex SSR render cost</td><td class="num">10–100 ms worst case</td><td><span class="tag t-secondary">Secondary</span> practitioner estimate, workload-dependent</td></tr>
+          <tr><td class="who">Rolldown vs Rollup</td><td class="num">10–30× faster</td><td><span class="tag t-secondary">Secondary</span> project claim, synthetic</td></tr>
+          <tr><td class="who">Qwik / Astro / Remix detected sites</td><td class="num">672 / 7,885 / 2,209</td><td><span class="tag t-weak">Unverified</span> aggregator; ratio plausible, absolutes not quotable</td></tr>
+          <tr><td class="who">SolidStart vs Next TTFB</td><td class="num">42 ms p50 · 78 ms p95 vs 128 ms</td><td><span class="tag t-weak">Unverified</span> aggregator, methodology unstated</td></tr>
+          <tr><td class="who">Vue / Svelte 5 SSR throughput</td><td class="num">1,028 / 968 req/s</td><td><span class="tag t-weak">Unverified</span> unclear hardware and payload</td></tr>
+          <tr><td class="who">Hono router</td><td class="num">402,820 ops/s</td><td><span class="tag t-secondary">Secondary</span> project benchmark; routing only, not rendering</td></tr>
+          <tr><td class="who">Nitro v3 weekly downloads</td><td class="num">~280 k</td><td><span class="tag t-primary">Primary</span> Nitro blog</td></tr>
+          <tr><td class="who">PGO application gains</td><td class="num">15–30%</td><td><span class="tag t-primary">Primary</span> compiler literature; workload-dependent</td></tr>
+          <tr><td class="who">Post-link optimisers (BOLT, Propeller)</td><td class="num">5–15%</td><td><span class="tag t-primary">Primary</span> BOLT paper</td></tr>
+          <tr><td class="who">V8 compile hints</td><td class="num">17/20 pages · −630 ms parse+compile</td><td><span class="tag t-primary">Primary</span> V8 blog</td></tr>
+          <tr><td class="who">Guess.js perceived load</td><td class="num">~20%</td><td><span class="tag t-secondary">Secondary</span> "early benchmarks", 2018, methodology unstated</td></tr>
+          <tr><td class="who">TanStack Router preload delay / GC</td><td class="num">50 ms / 30 s</td><td><span class="tag t-primary">Primary</span> router docs, both configurable</td></tr>
+          <tr><td class="who">Complex render, LiveView-class workload</td><td class="num">not established</td><td><span class="tag t-weak">Unverified</span> no comparable diff-cost figures found; must measure ourselves</td></tr>
+          <tr><td class="who">Vue Vapor bundle reduction</td><td class="num">20–50%</td><td><span class="tag t-secondary">Secondary</span> Vapor-only components; 3.6 RC, July 2026</td></tr>
+          <tr><td class="who">Vapor vs Solid / Svelte 5</td><td class="num">same range</td><td><span class="tag t-secondary">Secondary</span> the key figure — convergence, not a winner</td></tr>
+          <tr><td class="who">Vapor mount, 100k components</td><td class="num">~100 ms</td><td><span class="tag t-weak">Unverified</span> hardware unstated; "extreme case" framing</td></tr>
+          <tr><td class="who">Hydration complexity</td><td class="num">O(n) vs O(1)</td><td><span class="tag t-secondary">Secondary</span> algorithmic claim, not a measurement — verify per app</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <b>The consequence for our headline claim</b>
+      <p>Half the comparative performance numbers circulating for 2026 frameworks come from sources that do not state their hardware, payload, or concurrency. "Faster than any framework" cannot rest on beating those figures — they are not solid enough to beat.</p>
+      <p>Which is why the benchmark harness is phase zero. Publish the methodology and the workloads, make it runnable by third parties, and include tuned React Router 7 and SolidStart as the baselines. If the pre-encoded-shell approach does not win reproducibly, that is worth discovering in week two rather than year two.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">Gaps in the research</p>
+    <h2>What we did not establish</h2>
+    <p class="lede">Stated plainly, because a survey that only reports what it found is not trustworthy. Each of these needs primary verification before it becomes load-bearing.</p>
+
+    <div class="qs">
+      <div class="q"><b>Whether flag-aware bundling truly has no prior art.</b><span>The search returned nothing web-specific, but absence of search results is not absence of implementations. Verify by reading Rolldown, Rspack, and Turbopack source for conditional-graph support, and check whether any experimentation platform ships a bundler plugin that partitions rather than branches.</span></div>
+      <div class="q"><b>Whether streaming Declarative Shadow DOM behaves identically across engines.</b><span>Now the highest-priority unknown in the whole survey. The attribute is Baseline as of today, but Chromium tracks streaming behaviour as its own feature entry, which suggests the incremental-parse semantics are less uniform than the support matrix implies. Test in Chromium, Gecko, and WebKit in week one: does content inside the template render as it arrives, and do slot assignments apply incrementally? The answer determines whether the filler script is a fallback or the main path.</span></div>
+      <div class="q"><b>Whether the ~1 KB filler script is actually enough.</b><span>Asserted, not measured. Script-insertion hole-filling is what Marko and React already do, so the technique is proven, but our version also has to handle slot reassignment and out-of-order arrival. If it turns out to be 4 KB, the zero-JS story weakens materially and the content-site positioning changes.</span></div>
+      <div class="q"><b>Real-world Compression Dictionary Transport behaviour at our granularity.</b><span>Google applied it to Search and Cloudflare offers it at the edge, but no source describes using per-template dictionaries at the granularity we propose. Dictionary count, eviction behaviour, and the cost of registering many small dictionaries are all unknown.</span></div>
+      <div class="q"><b>Marko 6's exact current state.</b><span>Search returned fragmentary release notes and a Tags API preview rather than a clear picture of what shipped. Marko is the most architecturally relevant prior art in this entire survey and deserves a proper read of its source and compiler output, not a search summary.</span></div>
+      <div class="q"><b>Whether resumability without closure serialisation is actually sufficient.</b><span>The claim is that a compiled wiring table plus signal values covers every case closures cover. That is a strong claim, and it is the load-bearing assumption of our client design. It needs a prototype against genuinely hard cases — event handlers closing over loop variables, derived state across island boundaries, conditional subtrees.</span></div>
+      <div class="q"><b>What the actual per-request cost of form negotiation is.</b><span>Choosing a form requires a resident-set lookup and a size estimate per slot. At high slot counts that could plausibly cost more than it saves for cheap fragments. It needs measuring, and the answer may be that negotiation applies only above a size threshold.</span></div>
+      <div class="q"><b>Whether stateless delta computation actually beats LiveView's stateful version.</b><span>The claim rests on base-render recovery from cache being cheap and on delta sharing across users being common. Both are plausible and neither is measured. If cache-miss rates on base recovery are high, the fast path rarely engages and the whole mechanism is dead weight. This is the single most important thing to prototype, and it should be benchmarked against a real LiveView app rather than an argument.</span></div>
+      <div class="q"><b>How often deltas are genuinely shareable in practice.</b><span>The ten-thousand-users-one-delta argument assumes many clients transition between the same pair of content-addressed states. For public shared data that is likely; for anything personalised the pairs may be nearly unique, making the shared-delta cache useless. The answer probably differs per slot, which suggests it should be a measured, per-slot decision rather than a global claim.</span></div>
+      <div class="q"><b>Whether epochs are comprehensible to developers.</b><span>Staged generations with atomic commit are a genuinely new mental model, and the whole design already asks a lot. It may need to be invisible by default — prefetch stages automatically, navigation commits automatically — with the explicit API reserved for the cases that need it. Worth testing on people before committing to a public surface.</span></div>
+      <div class="q"><b>How often late envelope effects actually occur in real applications.</b><span>The entire two-phase design is justified by the claim that envelope work is cheap and rare while data fetching is expensive and common. That is intuitive and unmeasured. If a meaningful share of routes genuinely need a cookie written from a late slot, the design needs more than deferral and in-band frames. Worth auditing a few real codebases before committing.</span></div>
+      <div class="q"><b>Whether <code>103 Early Hints</code> survives real CDN paths intact.</b><span>It is HTTP/2-and-above only and passes through proxies, CDNs, and load balancers that may or may not forward it. Cloudflare supports it explicitly; other CDNs and self-hosted setups are unverified. Since the envelope design leans on it to recover TTFB, its real-world hit rate needs measuring rather than assuming.</span></div>
+      <div class="q"><b>Whether deploy-time contract verification is operationally acceptable.</b><span>Refusing a deploy because a remote is serving an incompatible contract is correct and it also means one team can block another's release. That is a governance question as much as a technical one, and the answer may need to be a warning by default with enforcement opt-in per region.</span></div>
+      <div class="q"><b>Whether Guess.js's dormancy has a cause we would inherit.</b><span>It may have stalled for reasons unrelated to the idea — maintainer time, the Google Analytics dependency, webpack coupling. Or it may have stalled because build-time analytics integration is operationally painful in ways that would equally afflict a profile-guided plan. This is worth finding out from the project's history before designing the profile pipeline.</span></div>
+    </div>
+  </section>
+
+  <footer>
+    <p class="sec-label">Sources consulted</p>
+    <ol>
+      <li><a href="https://performance.dev/chatgpt">performance.dev — ChatGPT web architecture teardown</a> <span class="tag t-secondary">Secondary</span></li>
+      <li><a href="https://dev.to/this-is-learning/javascript-frameworks-heading-into-2026-2hel">Ryan Carniato — JavaScript Frameworks Heading into 2026</a> <span class="tag t-secondary">Secondary</span></li>
+      <li><a href="https://developers.cloudflare.com/workers/platform/limits/">Cloudflare Workers platform limits</a> · <a href="https://developers.cloudflare.com/changelog/post/2026-02-11-subrequests-limit/">subrequests changelog</a> · <a href="https://developers.cloudflare.com/changelog/2025-10-10-increased-startup-time/">startup time changelog</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/">Service bindings RPC</a> · <a href="https://developers.cloudflare.com/workers/platform/storage-options/">storage options</a> · <a href="https://developers.cloudflare.com/kv/">Workers KV</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://blog.cloudflare.com/better-micro-frontends/">Cloudflare Workers and micro-frontends</a> · <a href="https://blog.cloudflare.com/fragment-piercing/">fragment piercing</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://web-fragments.dev/documentation/getting-started/">Web Fragments documentation</a> · <a href="https://github.com/web-fragments/web-fragments">repository</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://wintertc.org/">WinterTC</a> · <a href="https://min-common-api.proposal.wintertc.org/">Minimum Common Web API</a> · <a href="https://www.w3.org/community/wintercg/2025/01/10/goodbye-wintercg-welcome-wintertc/">WinterCG → WinterTC transition</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://nitro.build/blog/v3-beta">Nitro v3 beta</a> · <a href="https://nitro.build/config">configuration</a> · <a href="https://unjs.io/blog/2023-08-15-h3-towards-the-edge-of-the-web/">h3 towards the edge</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://vite.dev/guide/api-environment-frameworks">Vite Environment API for frameworks</a> · <a href="https://vite.dev/guide/api-environment-runtimes">for runtimes</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://remix.run/blog/fog-of-war">Fog of War</a> · <a href="https://deepwiki.com/remix-run/react-router/4.4-lazy-route-discovery">lazy route discovery internals</a> · <a href="https://github.com/remix-run/react-router/issues/13149">reported navigation friction</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://nextjs.org/docs/app/api-reference/directives/use-cache">Next.js use cache</a> · <a href="https://nextjs.org/docs/app/guides/migrating-to-cache-components">migrating to Cache Components</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://flags-sdk.dev/docs/frameworks/next/precompute">Flags SDK precompute</a> · <a href="https://vercel.com/blog/flags-as-code-in-next-js">flags as code</a> · <a href="https://blog.devgenius.io/the-precompute-pattern-how-to-stop-one-cookie-from-wrecking-your-entire-next-js-app-efa5451392dc">the one-cookie problem</a> <span class="tag t-secondary">Secondary</span></li>
+      <li><a href="https://web.dev/articles/declarative-shadow-dom">Declarative Shadow DOM</a> · <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/Ovz-6Dte-qA">streaming DSD intent to prototype</a> · <a href="https://tympanus.net/codrops/2024/08/20/server-first-web-components-with-dsd-htmx-and-islands/">server-first web components with DSD</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Glossary/Compression_dictionary_transport">Compression Dictionary Transport (RFC 9842)</a> · <a href="https://blog.cloudflare.com/shared-dictionaries/">Cloudflare Shared Dictionaries</a> · <a href="https://developer.chrome.com/blog/shared-dictionary-compression">Chrome on shared dictionaries</a> · <a href="https://developer.chrome.com/blog/search-compression-dictionaries">Google Search application</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://developer.chrome.com/docs/web-platform/view-transitions/cross-document">Cross-document view transitions</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/API/Speculation_Rules_API">Speculation Rules API</a> · <a href="https://ryanseddon.com/web/view-transitions-speculative/">combining the two</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://github.com/tc39/proposal-signals">TC39 Signals proposal</a> · <a href="https://eisenbergeffect.medium.com/a-tc39-proposal-for-signals-f0bedd37a335">design commentary</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://data-star.dev/guide/reactive_signals">Datastar reactive signals</a> · <a href="https://data-star.dev/guide/backend_requests">backend requests</a> · <a href="https://chrismalek.me/posts/data-star-first-impressions/">practitioner impressions</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://docs.astro.build/en/concepts/islands/">Astro islands</a> · <a href="https://www.thebcms.com/blog/astro-server-islands-tutorial/">server islands in practice</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://dev.to/ryansolid/introducing-the-marko-tags-api-preview-37o4">Marko Tags API preview</a> · <a href="https://dev.to/ryansolid/a-first-look-at-markojs-3h78">a first look at Marko</a> · <a href="https://github.com/marko-js/marko/releases">releases</a> <span class="tag t-secondary">Secondary</span></li>
+      <li><a href="https://qwik.dev/docs/concepts/resumable/">Qwik resumability</a> · <a href="https://qwik.dev/docs/advanced/qwikloader/">Qwikloader</a> · <a href="https://dev.to/this-is-learning/resumable-javascript-with-qwik-2i29">resumable JavaScript analysis</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://www.wix.engineering/post/how-wix-applied-multi-threading-to-node-js-and-cut-thousands-of-ssr-pods-and-money">Wix on multi-threaded SSR</a> · <a href="https://engineeringblog.yelp.com/2022/02/server-side-rendering-at-scale.html">Yelp SSR at scale</a> · <a href="https://medium.com/expedia-group-tech/profiling-react-server-side-rendering-to-free-the-node-js-event-loop-7f0fe455a901">Expedia event-loop profiling</a> · <a href="https://github.com/piscinajs/piscina">Piscina</a> · <a href="https://www.inngest.com/blog/node-worker-threads">Inngest on worker threads</a> <span class="tag t-secondary">Secondary</span></li>
+      <li><a href="https://aws.amazon.com/blogs/compute/server-side-rendering-micro-frontends-the-architecture/">SSR micro-frontends architecture</a> · <a href="https://arkwright.github.io/scaling-react-server-side-rendering.html">scaling React SSR</a> <span class="tag t-secondary">Secondary</span></li>
+      <li><a href="https://debugg.ai/resources/server-driven-ui-2025-versioned-layout-schemas-capability-negotiation-safe-mobile-rollouts">Server-driven UI: layout schemas and capability negotiation</a> · <a href="https://www.builder.io/blog/ui-over-apis">sending UI over APIs</a> <span class="tag t-secondary">Secondary</span></li>
+      <li><a href="https://fastify.dev/docs/latest/Guides/Plugins-Guide/">Fastify plugin guide</a> · <a href="https://nearform.com/digital-community/the-complete-guide-to-fastify-plugin-system/">encapsulation deep dive</a> · <a href="https://deepwiki.com/vitejs/vite/4.4-plugin-container-and-hook-execution">Vite plugin container</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://varnish-cache.readthedocs.io/users-guide/esi.html">Varnish ESI</a> · <a href="https://www.fastly.com/blog/a-modular-edge-side-includes-component-for-javascript-compute">Fastly modular ESI for JS Compute</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://github.com/reactwg/react-18/discussions/37">React 18 Suspense SSR architecture</a> · <a href="https://blog.platformatic.dev/ssr-performance-showdown">an SSR performance showdown</a> <span class="tag t-secondary">Secondary</span></li>
+      <li><a href="https://hexdocs.pm/phoenix_live_view/Phoenix.LiveView.Engine.html">Phoenix LiveView Engine</a> · <a href="https://phoenixframework.org/blog/phoenix-liveview-1.0-released">LiveView 1.0 release</a> · <a href="https://thepugautomatic.com/2020/07/optimising-data-over-the-wire-in-phoenix-liveview/">optimising data over the wire</a> · <a href="https://pragmaticstudio.com/tutorials/the-life-cycle-of-a-phoenix-liveview">LiveView lifecycle</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://learn.microsoft.com/en-us/aspnet/core/blazor/fundamentals/signalr">Blazor SignalR guidance</a> · <a href="https://blazorise.com/blog/optimizing-rendering-and-reconciliation-in-large-blazor-apps">reconciliation in large Blazor apps</a> · <a href="https://github.com/dotnet/aspnetcore/issues/9784">breaking big batches into smaller ones</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://tanstack.com/router/latest/docs/framework/react/guide/preloading">TanStack Router preloading</a> · <a href="https://tanstack.com/router/latest/docs/guide/data-loading">data loading</a> · <a href="https://tkdodo.eu/blog/tan-stack-router-and-query">Dominik on Router and Query</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://www.cs.cmu.edu/~rwh/students/acar.pdf">Acar, Self-Adjusting Computation (CMU-CS-05-129)</a> · <a href="https://www.cs.tufts.edu/~jfoster/papers/cs-tr-5027.pdf">Adapton</a> · <a href="https://arxiv.org/pdf/1106.0447">Selective Memoization</a> · <a href="https://medium.com/@eliah.lakhin/salsa-algorithm-explained-c5d6df1dd291">Salsa algorithm explained</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://go.dev/doc/pgo">Go PGO</a> · <a href="https://go.googlesource.com/proposal/+/master/design/55022-pgo-implementation.md">Go PGO design document</a> · <a href="https://arxiv.org/pdf/1807.06735">BOLT</a> · <a href="https://arxiv.org/pdf/1809.04676">Improved Basic Block Reordering</a> · <a href="https://arxiv.org/pdf/2002.07748">profile-guided binary rewriting</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://v8.dev/blog/explicit-compile-hints">V8 explicit compile hints</a> · <a href="https://github.com/WICG/explicit-javascript-compile-hints-file-based">WICG proposal</a> · <a href="https://devclass.com/2025/05/02/v8-javascript-engine-gets-eager-compilation-hints-but-will-devs-use-sparingly-as-advised/">use-sparingly caveat</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://blog.mgechev.com/2018/05/09/introducing-guess-js-data-driven-user-experiences-web/">Introducing Guess.js</a> · <a href="https://github.com/guess-js/guess/blob/master/README.md">repository</a> · <a href="https://guess-js.github.io/docs/">documentation</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://developers.cloudflare.com/cache/advanced-configuration/early-hints/">Cloudflare Early Hints</a> · <a href="https://developers.cloudflare.com/workers/examples/103-early-hints">103 Early Hints in Workers</a> · <a href="https://datatracker.ietf.org/doc/status-change-early-hints-to-proposed-standard/">RFC 8297 to proposed standard</a> · <a href="https://github.com/whatwg/fetch/issues/1698">restricting 103 to HTTP/2+</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://nextjs.org/docs/app/api-reference/functions/cookies">Next.js cookies()</a> · <a href="https://github.com/vercel/next.js/discussions/62323">setting cookies in SSR discussion</a> · <a href="https://github.com/vercel/next.js/discussions/49708">cookies and headers no longer opt in the entire route</a> · <a href="https://kit.svelte.dev/docs/load">SvelteKit load and setHeaders</a> · <a href="https://github.com/sveltejs/kit/issues/6477">setHeaders issue</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://single-spa.js.org/docs/getting-started-overview/">single-spa getting started</a> · <a href="https://www.acldigital.com/blogs/micro-frontend-architecture-using-single-spa-lessons-from-production">production lessons</a> · <a href="https://www.angulararchitects.io/en/blog/getting-out-of-version-mismatch-hell-with-module-federation/">Module Federation version-mismatch hell</a> · <a href="https://blog.logrocket.com/solving-micro-frontend-challenges-module-federation/">solving micro-frontend challenges</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://wolf-tech.io/blog/nextjs-15-partial-prerendering-real-world-patterns-and-tradeoffs">Next.js PPR patterns and tradeoffs</a> · <a href="https://nextjs.org/docs/app/getting-started/cache-components">Cache Components</a> <span class="tag t-secondary">Secondary</span></li>
+      <li><a href="https://docs.datadoghq.com/real_user_monitoring/browser/">Datadog RUM browser monitoring</a> · <a href="https://grafana.com/products/cloud/frontend-observability/">Grafana frontend observability</a> — surveyed for build-direction integration; found artifact upload only <span class="tag t-secondary">Secondary</span></li>
+      <li><a href="https://web-platform-dx.github.io/web-features-explorer/features/declarative-shadow-dom/">Declarative Shadow DOM Baseline status</a> · <a href="https://chromestatus.com/feature/5161240576393216">streaming DSD in Chromium</a> · <a href="https://webkit.org/blog/13851/declarative-shadow-dom/">WebKit's DSD implementation</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Request/duplex">Request.duplex</a> · <a href="https://developer.chrome.com/docs/capabilities/web-apis/fetch-streaming-requests">streaming fetch requests</a> · <a href="https://jakearchibald.com/2025/fetch-streams-not-for-progress/">Jake Archibald on fetch streams</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback">requestIdleCallback</a> · <a href="https://w3c.github.io/requestidlecallback/">spec</a> · <a href="https://blog.openreplay.com/background-tasks-browser-scheduler-api/">the Scheduler API</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://web.dev/blog/same-document-view-transitions-are-now-baseline-newly-available">Same-document View Transitions reach Baseline</a> · <a href="https://developer.mozilla.org/docs/Web/API/ViewTransition">ViewTransition</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://github.com/vuejs/vue-vapor">Vue Vapor</a> · <a href="https://forkbyte.nl/en/blog/vue-36-vapor-mode-rc">Vue 3.6 RC and Vapor Mode</a> · <a href="https://krausest.github.io/js-framework-benchmark/">js-framework-benchmark official results</a> <span class="tag t-secondary">Secondary</span></li>
+      <li><a href="https://www.builder.io/blog/resumability-vs-hydration">Resumability vs hydration</a> · <a href="https://dev.to/builderio/hydration-is-a-tree-resumability-is-a-map-50i3">hydration is a tree, resumability is a map</a> · <a href="https://dev.to/this-is-learning/conquering-javascript-hydration-a9f">conquering JavaScript hydration</a> <span class="tag t-secondary">Secondary</span></li>
+      <li><a href="https://svelte.dev/docs/kit/server-only-modules">SvelteKit server-only modules</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://nuxt.com/docs/4.x/getting-started/layers">Nuxt Layers</a> · <a href="https://nuxt.com/docs/4.x/guide/going-further/layers">authoring layers</a> · <a href="https://masteringnuxt.com/blog/nuxt-layers-for-theming">layers for theming</a> · <a href="https://reactnative.dev/docs/platform-specific-code">React Native platform-specific code</a> · <a href="https://developer.android.com/guide/topics/resources/providing-resources">Android resource qualifiers</a> <span class="tag t-primary">Primary</span></li>
+      <li><a href="https://leapcell.io/blog/unpacking-middleware-in-web-frameworks-a-chain-of-responsibility-deep-dive">Middleware as chain of responsibility</a> — and the DAG alternative <span class="tag t-secondary">Secondary</span></li>
+      <li><a href="https://pulse.adyog.com/insights/alternatives-to-qwik-2026-framework-comparison">Qwik alternatives and adoption figures</a> · <a href="https://www.johal.in/solidstart-solidjs-full-stack-vite-powered-ssr-2026/">SolidStart TTFB figures</a> <span class="tag t-weak">Unverified</span></li>
+    </ol>
+  </footer>
+
+</div>
+
+<style>
+  .toc { padding: 40px 0 10px; border-bottom: 1px solid var(--rule); }
+  .toc-head {
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin: 0 0 16px;
+  }
+  .toc ol {
+    list-style: none; padding: 0; margin: 0; max-width: none;
+    columns: 2; column-gap: 48px;
+  }
+  @media (max-width: 780px) { .toc ol { columns: 1; } }
+  .toc li { margin: 0; break-inside: avoid; }
+  .toc a {
+    display: flex; gap: 14px; align-items: baseline; text-decoration: none;
+    color: var(--ink); padding: 8px 0; border-bottom: 1px solid var(--rule-soft);
+  }
+  .toc a:hover .toc-t, .toc a:focus-visible .toc-t { color: var(--accent); }
+  .toc-l {
+    font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--faint);
+    flex: 0 0 88px; padding-top: 3px; overflow-wrap: break-word; line-height: 1.4;
+  }
+  .toc-t {
+    font-family: var(--display); font-weight: 600; font-size: .95rem;
+    line-height: 1.3; letter-spacing: -.01em;
+  }
+  section { scroll-margin-top: 20px; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+
+<script>
+(function () {
+  var page = document.querySelector('.page');
+  var mast = document.querySelector('header.mast');
+  if (!page || !mast) return;
+
+  var items = [];
+  Array.prototype.forEach.call(page.querySelectorAll('section'), function (s) {
+    var h = s.querySelector('h2');
+    if (!h) return;
+    var title = (h.textContent || '').trim();
+    var slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 56);
+    if (!slug) return;
+    if (document.getElementById(slug)) slug += '-' + items.length;
+    s.id = slug;
+    var label = s.querySelector('.sec-label') || s.querySelector('.level-n');
+    items.push({ id: slug, title: title, label: label ? label.textContent.trim() : '' });
+  });
+
+  if (items.length < 3) return;
+
+  var nav = document.createElement('nav');
+  nav.className = 'toc';
+  nav.setAttribute('aria-label', 'Contents');
+
+  var head = document.createElement('p');
+  head.className = 'toc-head';
+  head.textContent = 'Contents · ' + items.length + ' sections';
+  nav.appendChild(head);
+
+  var ol = document.createElement('ol');
+  items.forEach(function (it) {
+    var li = document.createElement('li');
+    var a = document.createElement('a');
+    a.href = '#' + it.id;
+    if (it.label) {
+      var l = document.createElement('span');
+      l.className = 'toc-l';
+      l.textContent = it.label;
+      a.appendChild(l);
+    }
+    var t = document.createElement('span');
+    t.className = 'toc-t';
+    t.textContent = it.title;
+    a.appendChild(t);
+    li.appendChild(a);
+    ol.appendChild(li);
+  });
+  nav.appendChild(ol);
+
+  mast.parentNode.insertBefore(nav, mast.nextSibling);
+})();
+</script>

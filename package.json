@@ -1,0 +1,16 @@
+{
+  "name": "weft-monorepo",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.0.0",
+  "engines": { "node": ">=22.18.0" },
+  "scripts": {
+    "bench": "node packages/bench/src/cli.ts run",
+    "bench:list": "node packages/bench/src/cli.ts list",
+    "bench:verify": "node packages/bench/src/cli.ts verify",
+    "test": "node --test packages/*/test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {},
+  "workspaces": ["packages/*"]
+}
