@@ -1,0 +1,36 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":pinAllExceptPeerDependencies"],
+  "timezone": "Asia/Tehran",
+  "minimumReleaseAge": "1 day",
+  "internalChecksFilter": "strict",
+  "prConcurrentLimit": 5,
+  "labels": ["dependencies"],
+  "commitMessagePrefix": "build(deps):",
+  "commitMessageAction": "update",
+  "semanticCommits": "disabled",
+  "packageRules": [
+    {
+      "description": "The toolchain is load-bearing: typescript-eslint already refused TypeScript 7, and the type oracle rides an unstable API. These get read before they land.",
+      "matchPackageNames": ["typescript", "oxc-parser", "rolldown", "oxlint"],
+      "minimumReleaseAge": "7 days",
+      "automerge": false
+    },
+    {
+      "description": "A browser update changes what the harness measures, so it is never silent.",
+      "matchPackageNames": ["playwright"],
+      "minimumReleaseAge": "7 days",
+      "automerge": false,
+      "labels": ["dependencies", "affects-measurements"]
+    },
+    {
+      "description": "Development tooling can group and automerge once it has sat for a day.",
+      "matchDepTypes": ["devDependencies"],
+      "matchPackageNames": ["!typescript", "!oxc-parser", "!rolldown", "!oxlint", "!playwright"],
+      "groupName": "development tooling",
+      "automerge": false
+    }
+  ],
+  "lockFileMaintenance": { "enabled": true, "schedule": ["before 5am on monday"] },
+  "vulnerabilityAlerts": { "minimumReleaseAge": null, "labels": ["security"] }
+}

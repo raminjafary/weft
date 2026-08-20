@@ -81,7 +81,8 @@ export function fromJSON(input: unknown): ParseResult {
   const acc = accepts(raw)
   if (!acc.ok) throw new Error(`${acc.code}: ${acc.reason}`)
 
-  const { doc, applied } = acc.mode === 'upgrade' ? migrate({ ...raw }) : { doc: { ...raw }, applied: [] as string[] }
+  const { doc, applied } =
+    acc.mode === 'upgrade' ? migrate({ ...raw }) : { doc: { ...raw }, applied: [] as string[] }
 
   const forward: Record<string, Json> = {}
   for (const [k, v] of Object.entries(doc)) {
@@ -104,13 +105,20 @@ export function fromJSON(input: unknown): ParseResult {
     wiring: (doc.wiring ?? []) as TemplateIR['wiring'],
     signals: (doc.signals ?? []) as TemplateIR['signals'],
     forms: (doc.forms ?? []) as TemplateIR['forms'],
-    effects: (doc.effects ?? { reads: [], writes: [], envelope: [], residency: 'server' }) as TemplateIR['effects'],
+    effects: (doc.effects ?? {
+      reads: [],
+      writes: [],
+      envelope: [],
+      residency: 'server',
+    }) as TemplateIR['effects'],
     ...(doc.meta ? { meta: doc.meta as Record<string, Json> } : {}),
   }
 
   const check = validateTemplate(ir)
   if (!check.ok) {
-    throw new Error(`E_INVALID_DOCUMENT:\n${check.errors.map((e) => `  ${e.code} at ${e.at}: ${e.message}`).join('\n')}`)
+    throw new Error(
+      `E_INVALID_DOCUMENT:\n${check.errors.map((e) => `  ${e.code} at ${e.at}: ${e.message}`).join('\n')}`,
+    )
   }
 
   return { ir, forward, migrationsApplied: applied, mode: acc.mode }

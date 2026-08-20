@@ -21,7 +21,8 @@ export interface Scenario {
   transition(rows: Values[]): Values[]
 }
 
-const fixture = (name: string) => fileURLToPath(new URL(`../../../compiler/fixtures/${name}`, import.meta.url))
+const fixture = (name: string) =>
+  fileURLToPath(new URL(`../../../compiler/fixtures/${name}`, import.meta.url))
 
 function lcg(seed: number): () => number {
   let s = seed >>> 0

@@ -1,9 +1,4 @@
-import {
-  type DeltaPayload,
-  type Values,
-  applyDelta,
-  render,
-} from '../../ir/src/index.ts'
+import { type DeltaPayload, type Values, applyDelta, render } from '../../ir/src/index.ts'
 import type { Candidate } from './candidate.ts'
 import { segmentsCandidate } from './candidates/segments.ts'
 import { compileScenario, withRows } from './compiled.ts'
@@ -97,7 +92,9 @@ export async function checkServed(scenario: Scenario, candidates: Candidate[]): 
 
   const handles = await Promise.all(servers.map((c) => c.serve!(scenario)))
   try {
-    const bodies = await Promise.all(handles.map(async (h) => new Uint8Array(await (await fetch(h.url)).arrayBuffer())))
+    const bodies = await Promise.all(
+      handles.map(async (h) => new Uint8Array(await (await fetch(h.url)).arrayBuffer())),
+    )
     const reference = bodies[0] as Uint8Array
     servers.forEach((candidate, i) => {
       if (i === 0) return
@@ -120,7 +117,11 @@ export async function checkAll(scenarios: Scenario[], candidates: Candidate[]): 
   for (const scenario of scenarios) {
     const report = await checkScenario(scenario, candidates)
     const served = await checkServed(scenario, candidates)
-    reports.push({ ...report, checks: [...report.checks, ...served], ok: report.ok && served.every((c) => c.ok) })
+    reports.push({
+      ...report,
+      checks: [...report.checks, ...served],
+      ok: report.ok && served.every((c) => c.ok),
+    })
   }
   return reports
 }

@@ -109,20 +109,20 @@ function checks(): Check[] {
   // call. Without this check a template with no wiring measures an empty loop.
   const bindings = wiredBindings()
   if (bindings.length) {
-    const host = region(config.html)
+    const wiredHost = region(config.html)
     const signals = Object.fromEntries(bindings.map((binding) => [binding, signal(0 as never)]))
-    adopt({ root: host, template: config.template, resident: config.resident, signals })
+    adopt({ root: wiredHost, template: config.template, resident: config.resident, signals })
     const binding = bindings[0] as string
-    const before = host.innerHTML
+    const before = wiredHost.innerHTML
     signals[binding]!.set(4242 as never)
     out.push({
       name: 'a signal write reaches the DOM through the wiring table',
-      ok: host.innerHTML !== before && host.innerHTML.includes('4242'),
-      ...(host.innerHTML.includes('4242') ? {} : { detail: host.innerHTML.slice(0, 160) }),
+      ok: wiredHost.innerHTML !== before && wiredHost.innerHTML.includes('4242'),
+      ...(wiredHost.innerHTML.includes('4242') ? {} : { detail: wiredHost.innerHTML.slice(0, 160) }),
     })
   }
 
-  for (const host of [...document.body.children]) host.remove()
+  for (const node of Array.from(document.body.children)) node.remove()
   return out
 }
 
@@ -182,7 +182,7 @@ function timings(): Record<string, number[]> {
         }
       : {}),
   }
-  for (const host of [...document.body.children]) host.remove()
+  for (const node of Array.from(document.body.children)) node.remove()
   return samples
 }
 

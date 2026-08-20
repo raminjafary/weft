@@ -18,7 +18,8 @@ export const blockingSsrCandidate: Candidate = {
     'Resolves the route data first, renders the whole document, then sends it with a content length. The same compiled templates and the same renderer as the segments candidate — only the ordering differs.',
 
   unsupported: {
-    'server-throughput': 'identical to the segments candidate; the difference is response ordering, not render cost',
+    'server-throughput':
+      'identical to the segments candidate; the difference is response ordering, not render cost',
     'update-bytes': 'identical to the segments candidate',
   },
 

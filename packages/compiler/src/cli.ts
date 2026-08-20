@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { mkdir, writeFile } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { join } from 'node:path'
 import { explain, stringify } from '../../ir/src/index.ts'
 import { compileFiles } from './compile.ts'
 import { CompileError } from './errors.ts'
@@ -18,7 +18,10 @@ syntax-only pass, which is correct and slower.
 `
 
 function slug(id: string): string {
-  return id.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase()
+  return id
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase()
 }
 
 async function main(): Promise<number> {
@@ -46,7 +49,10 @@ async function main(): Promise<number> {
   }
 
   await mkdir(out, { recursive: true })
-  const manifest: Record<string, { version: string; file: string; forms: string[]; holes: number; wiring: number }> = {}
+  const manifest: Record<
+    string,
+    { version: string; file: string; forms: string[]; holes: number; wiring: number }
+  > = {}
 
   const { modules, diagnostics } = await compileFiles(files, { types })
   if (diagnostics.length && !quiet) {

@@ -22,11 +22,11 @@ mechanism: **329 bytes** of inline script, sent only when a route actually has s
 Measured with the slow region first — the only arrangement that separates the two — at
 80 ms against 20 ms, p50 of 5 loads:
 
-| | Chromium | Firefox | WebKit |
-| --- | --- | --- | --- |
-| in-order, slow region | 82 ms | 102 ms | 82 ms |
-| in-order, fast region | 103 ms | 104 ms | 103 ms |
-| out-of-order, slow region | 82 ms | 83 ms | 82 ms |
+|                           | Chromium  | Firefox   | WebKit    |
+| ------------------------- | --------- | --------- | --------- |
+| in-order, slow region     | 82 ms     | 102 ms    | 82 ms     |
+| in-order, fast region     | 103 ms    | 104 ms    | 103 ms    |
+| out-of-order, slow region | 82 ms     | 83 ms     | 82 ms     |
 | out-of-order, fast region | **22 ms** | **23 ms** | **22 ms** |
 
 The fast region arrives 4.7× earlier for 329 bytes. Both orders end at identical DOM in
@@ -40,7 +40,7 @@ convenient:
 
 **Zero-JavaScript filling and out-of-order filling are mutually exclusive.** Slot
 assignment works on the light-DOM children of a shadow host, and a child can only be
-streamed into a host that is still open. Keeping a host open until its content arrives *is*
+streamed into a host that is still open. Keeping a host open until its content arrives _is_
 in-order streaming — and in-order streaming needs no fill mechanism in the first place,
 because the content simply lands where it belongs. Out-of-order filling requires every host
 to be closed already, so the content has to arrive somewhere else and be moved, and moving
@@ -53,14 +53,14 @@ are the price of fastest-first, on every engine.
 ## Incremental declarative shadow DOM, measured
 
 The design calls this its largest platform risk: declarative shadow DOM is Baseline, but
-attaching the shadow root *while the host is still streaming* is tracked separately and
+attaching the shadow root _while the host is still streaming_ is tracked separately and
 could differ per engine. Probed with a host that does not close until 60 ms:
 
-| Engine | Shadow root attached | Content slotted | Rendered on arrival |
-| --- | --- | --- | --- |
-| Chromium | 9 ms | 68 ms | yes |
-| Firefox | 38 ms | 69 ms | yes |
-| WebKit | 8 ms | 63 ms | yes |
+| Engine   | Shadow root attached | Content slotted | Rendered on arrival |
+| -------- | -------------------- | --------------- | ------------------- |
+| Chromium | 9 ms                 | 68 ms           | yes                 |
+| Firefox  | 38 ms                | 69 ms           | yes                 |
+| WebKit   | 8 ms                 | 63 ms           | yes                 |
 
 **It works in all three.** The shadow root exists long before the host closes, and slotted
 content renders as it arrives. The risk does not materialise, so in-order streaming is a

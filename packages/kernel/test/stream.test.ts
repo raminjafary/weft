@@ -60,7 +60,13 @@ test('the shell is cut at its slots, one more chunk than slots', async () => {
 test('a slot contributes no bytes of its own to the shell', async () => {
   const ir = await shell()
   const split = splitAtSlots(ir, { title: 'T', a: 'ignored', b: 'ignored' })
-  assert.equal(split.chunks.map((c) => decoder.decode(c)).join('').includes('ignored'), false)
+  assert.equal(
+    split.chunks
+      .map((c) => decoder.decode(c))
+      .join('')
+      .includes('ignored'),
+    false,
+  )
 })
 
 test('in-order streaming puts each region where the document says', async () => {
@@ -88,7 +94,12 @@ test('out-of-order streaming sends the whole shell before any region', async () 
   const { chunks } = await collect(
     streamRoute(route(ir, { a: 30, b: 1 }), { order: 'out-of-order', filler: '<script>/*f*/</script>' }),
   )
-  const beforeFirstFill = chunks.slice(0, chunks.findIndex((c) => c.includes('data-w='))).join('')
+  const beforeFirstFill = chunks
+    .slice(
+      0,
+      chunks.findIndex((c) => c.includes('data-w=')),
+    )
+    .join('')
   assert.equal(beforeFirstFill.includes('<section id="a">'), true)
   assert.equal(beforeFirstFill.includes('<section id="b">'), true)
   assert.equal(beforeFirstFill.includes('<!--w:a-->'), true)
@@ -98,7 +109,10 @@ test('out-of-order streaming sends the whole shell before any region', async () 
 test('out-of-order streaming fills whichever region resolves first', async () => {
   const ir = await shell()
   const { text } = await collect(streamRoute(route(ir, { a: 40, b: 1 }), { order: 'out-of-order' }))
-  assert.ok(text.indexOf('data-w="b"') < text.indexOf('data-w="a"'), 'b resolves first and should arrive first')
+  assert.ok(
+    text.indexOf('data-w="b"') < text.indexOf('data-w="a"'),
+    'b resolves first and should arrive first',
+  )
 })
 
 test('an anchor is left in place, so the region can be filled again later', async () => {
@@ -117,10 +131,15 @@ test('region content is not escaped for JavaScript on the way', () => {
 
 test('a route with no slots streams as one document and needs no filler', async () => {
   const ir = assertValidTemplate(
-    await seal(draftTemplate({ id: 'flat', segments: ['<p>', '</p>'], holes: [hole(0, 'title', { path: [0] })] })),
+    await seal(
+      draftTemplate({ id: 'flat', segments: ['<p>', '</p>'], holes: [hole(0, 'title', { path: [0] })] }),
+    ),
   )
   const { text } = await collect(
-    streamRoute({ template: ir, values: { title: 'x' }, slots: {} }, { order: 'out-of-order', filler: '<script>F</script>' }),
+    streamRoute(
+      { template: ir, values: { title: 'x' }, slots: {} },
+      { order: 'out-of-order', filler: '<script>F</script>' },
+    ),
   )
   assert.equal(text, '<p>x</p>')
 })

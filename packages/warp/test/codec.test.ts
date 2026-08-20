@@ -16,21 +16,35 @@ import {
 const utf8 = new TextEncoder()
 const decode = (b: Uint8Array | undefined) => (b ? new TextDecoder().decode(b) : undefined)
 
-function drain(decoder: ReturnType<typeof createBinaryDecoder>, bytes: Uint8Array, chunkSize: number): AnyFrame[] {
+function drain(
+  decoder: ReturnType<typeof createBinaryDecoder>,
+  bytes: Uint8Array,
+  chunkSize: number,
+): AnyFrame[] {
   const out: AnyFrame[] = []
-  for (let i = 0; i < bytes.length; i += chunkSize) out.push(...decoder.push(bytes.subarray(i, i + chunkSize)))
+  for (let i = 0; i < bytes.length; i += chunkSize)
+    out.push(...decoder.push(bytes.subarray(i, i + chunkSize)))
   decoder.end()
   return out
 }
 
 test('every frame code declares its direction by range', () => {
   for (const [kind, def] of Object.entries(FRAMES)) {
-    assert.equal(def.dir === 'up' ? def.code < 0x10 : def.code >= 0x10, true, `${kind} code contradicts its direction`)
+    assert.equal(
+      def.dir === 'up' ? def.code < 0x10 : def.code >= 0x10,
+      true,
+      `${kind} code contradicts its direction`,
+    )
   }
 })
 
 test('binary framing round-trips a header and an opaque body', () => {
-  const original = frame('HTML', { slot: 's12', form: 'html' }, utf8.encode('<li>Basmati 5kg — 12,000 IQD</li>'), true)
+  const original = frame(
+    'HTML',
+    { slot: 's12', form: 'html' },
+    utf8.encode('<li>Basmati 5kg — 12,000 IQD</li>'),
+    true,
+  )
   const bytes = encodeStream([original])
   const [decoded] = drain(createBinaryDecoder(), bytes, bytes.length)
   assert.equal(decoded?.kind, 'HTML')
@@ -55,7 +69,12 @@ test('the decoder reassembles frames split at every byte boundary', () => {
 
 test('an unknown frame kind is skipped intact, which is why frames are length-prefixed', () => {
   const known = encodeBinaryFrame(frame('SHELL', { route: '/cart' }))
-  const future = encodeBinaryFrame({ kind: 'HTML', header: { slot: 's99' }, body: utf8.encode('later'), bodyIsText: true })
+  const future = encodeBinaryFrame({
+    kind: 'HTML',
+    header: { slot: 's99' },
+    body: utf8.encode('later'),
+    bodyIsText: true,
+  })
   future[0] = 0x7e
   const stream = new Uint8Array(preamble().length + known.length + future.length)
   stream.set(preamble(), 0)
@@ -103,7 +122,10 @@ test('header values survive spaces and equals signs', () => {
 
 test('the text decoder emits frames as lines complete', () => {
   const decoder = createTextDecoder()
-  const bytes = encodeStream([frame('SIGNAL', { name: 'cart.count', value: 3 }), frame('NAV', { to: '/checkout' })], 'text')
+  const bytes = encodeStream(
+    [frame('SIGNAL', { name: 'cart.count', value: 3 }), frame('NAV', { to: '/checkout' })],
+    'text',
+  )
   assert.equal(decoder.push(bytes.subarray(0, 10)).length, 0)
   const rest = decoder.push(bytes.subarray(10))
   assert.equal(rest.length, 2)

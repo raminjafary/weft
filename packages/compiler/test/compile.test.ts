@@ -73,7 +73,7 @@ test('escaping is elided only where the syntax proves it safe', async () => {
   const signals = await only('export default fragment(() => { const n = signal(1); return <p>{n()}</p> })')
   assert.equal(signals.holes[0]?.escape, 'proven-safe')
 
-  const vouched = await only("export default fragment(({ v }) => <p>{raw(v)}</p>)")
+  const vouched = await only('export default fragment(({ v }) => <p>{raw(v)}</p>)')
   assert.equal(vouched.holes[0]?.escape, 'trusted-raw')
   assert.equal(vouched.holes[0]?.provenance, 'v')
 })
@@ -89,7 +89,9 @@ test('a constant folds into the segment instead of becoming a hole', async () =>
 })
 
 test('a dynamic text with siblings gets a marker so the text node is addressable', async () => {
-  const ir = await only('export default fragment(() => { const n = signal(1); return <p>Total: {n()} IQD</p> })')
+  const ir = await only(
+    'export default fragment(() => { const n = signal(1); return <p>Total: {n()} IQD</p> })',
+  )
   assert.equal(decode(ir.segments[0] as Uint8Array), '<p>Total: <!>')
   assert.equal(decode(ir.segments[1] as Uint8Array), '<!> IQD</p>')
   assert.equal(ir.meta?.markers, 2)
@@ -174,8 +176,14 @@ test('the compiler refuses what it cannot lower instead of guessing', async () =
   await rejects('export default fragment((p) => <p {...p}>x</p>)', 'E_SPREAD_UNSUPPORTED')
   await rejects('export default fragment(({ o }) => <p>{o["k"]}</p>)', 'E_COMPUTED_MEMBER')
   await rejects('export default fragment(() => <p>{missing}</p>)', 'E_UNKNOWN_BINDING')
-  await rejects('export default fragment(() => { const n = signal(1); return <p>{n}</p> })', 'E_SIGNAL_NOT_READ')
-  await rejects('export default fragment(() => { const n = signal(1); return <p>{n() * 2}</p> })', 'E_DERIVED_SIGNAL_UNSUPPORTED')
+  await rejects(
+    'export default fragment(() => { const n = signal(1); return <p>{n}</p> })',
+    'E_SIGNAL_NOT_READ',
+  )
+  await rejects(
+    'export default fragment(() => { const n = signal(1); return <p>{n() * 2}</p> })',
+    'E_DERIVED_SIGNAL_UNSUPPORTED',
+  )
 })
 
 test('a slot hole renders nothing and costs the data and delta forms', async () => {

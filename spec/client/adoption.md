@@ -15,7 +15,7 @@ Reference implementation in `packages/client`, exercised in every engine by
    markers.
 2. **Resolve holes.** Element paths are followed by index; text holes take the node after
    their marker, or the element's only text child when the compiler emitted no marker.
-3. **Bind.** Every wiring entry resolves its *own* address and subscribes to its signal.
+3. **Bind.** Every wiring entry resolves its _own_ address and subscribes to its signal.
    Events add a listener that reports an intent id.
 
 No component code runs, nothing is re-rendered, and the markup is never re-parsed.
@@ -62,19 +62,19 @@ rather than the tree the browser ended up with.
 
 50-row region, ~200 bindings, p50, per engine.
 
-| | Chromium | Firefox | WebKit |
-| --- | --- | --- | --- |
-| Adopt the region | 0.047 ms | 0.095 ms | 0.040 ms |
-| Parse the same markup | 0.076 ms | 0.060 ms | 0.140 ms |
+|                                  | Chromium  | Firefox   | WebKit    |
+| -------------------------------- | --------- | --------- | --------- |
+| Adopt the region                 | 0.047 ms  | 0.095 ms  | 0.040 ms  |
+| Parse the same markup            | 0.076 ms  | 0.060 ms  | 0.140 ms  |
 | Apply a 12-path delta surgically | 0.0017 ms | 0.0029 ms | 0.0015 ms |
-| One signal write to one node | 0.29 µs | 1.7 µs | 0.71 µs |
+| One signal write to one node     | 0.29 µs   | 1.7 µs    | 0.71 µs   |
 
 Adoption costs about what parsing the region costs — less in Chromium and WebKit, more in
 Firefox — which is the honest reading of "startup is cheap": it is cheap because it is
 proportional to bindings, not because it is free.
 
 The delta figure is the one that changed a conclusion. Before this runtime existed the
-harness measured a delta by re-projecting the whole region, and reported it *worse* than
+harness measured a delta by re-projecting the whole region, and reported it _worse_ than
 sending markup. Applied as designed it is 20-93× cheaper than the parse it replaces,
 which is what the form was for.
 
@@ -112,12 +112,12 @@ the storage tier next to it.
 
 50-row region, p50 of the boot path, per engine:
 
-| | Chromium | Firefox | WebKit |
-| --- | --- | --- | --- |
-| First visit | 2.50 ms | 6.00 ms | 3.00 ms |
-| Repeat visit | 0.70 ms | 3.00 ms | 1.00 ms |
-| Protocol bytes | 1,124 → 132 | same | same |
-| `TPL` frames | 2 → 0 | same | same |
+|                | Chromium    | Firefox | WebKit  |
+| -------------- | ----------- | ------- | ------- |
+| First visit    | 2.50 ms     | 6.00 ms | 3.00 ms |
+| Repeat visit   | 0.70 ms     | 3.00 ms | 1.00 ms |
+| Protocol bytes | 1,124 → 132 | same    | same    |
+| `TPL` frames   | 2 → 0       | same    | same    |
 
 Decomposed on Chromium, first visit against repeat: decode 0.40 → 0.10, open and read the
 resident set 1.20 → 0.30, store what arrived 0.40 → 0, adopt 0.50 → 0.20.

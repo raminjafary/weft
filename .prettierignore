@@ -1,0 +1,9 @@
+node_modules
+build
+results
+pnpm-lock.yaml
+CHANGELOG.md
+
+# Exported artifacts, 450 KB of generated markup: reformatting them would be churn with a
+# real chance of changing what they render.
+docs/*.html

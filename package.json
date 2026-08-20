@@ -1,10 +1,12 @@
 {
   "name": "weft-monorepo",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@10.0.0",
+  "packageManager": "pnpm@11.22.0",
   "engines": {
-    "node": ">=22.18.0"
+    "node": ">=22.18.0",
+    "pnpm": ">=10.16.0"
   },
   "scripts": {
     "compile": "node packages/compiler/src/cli.ts",
@@ -13,20 +15,37 @@
     "bench:verify": "node packages/bench/src/cli.ts verify",
     "test": "node --test packages/*/test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "prepare": "git config core.hooksPath .githooks",
-    "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s -r 0",
-    "commitlint": "commitlint --from origin/main --to HEAD"
+    "prepare": "husky",
+    "changelog": "commit-and-tag-version --skip.bump --skip.commit --skip.tag",
+    "commitlint": "commitlint --from origin/main --to HEAD",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "commit": "cz",
+    "release": "commit-and-tag-version"
   },
   "devDependencies": {
-    "@commitlint/cli": "^21.2.2",
-    "@commitlint/config-conventional": "^21.2.2",
-    "@types/node": "^26.2.0",
-    "conventional-changelog-cli": "^5.0.0",
-    "playwright": "^1.62.1",
-    "rolldown": "^1.2.5",
-    "typescript": "^7.0.2"
+    "@commitlint/cli": "21.2.2",
+    "@commitlint/config-conventional": "21.2.2",
+    "@types/node": "26.2.0",
+    "commit-and-tag-version": "^13.1.2",
+    "commitizen": "^4.3.2",
+    "cz-conventional-changelog": "^3.3.0",
+    "husky": "9.1.7",
+    "lint-staged": "17.3.0",
+    "oxlint": "1.79.0",
+    "playwright": "1.62.1",
+    "prettier": "3.9.6",
+    "rolldown": "1.2.5",
+    "typescript": "7.0.2"
   },
   "workspaces": [
     "packages/*"
-  ]
+  ],
+  "config": {
+    "commitizen": {
+      "path": "cz-conventional-changelog"
+    }
+  }
 }

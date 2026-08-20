@@ -1,5 +1,14 @@
 import type { EscapeClass, Hole, SignalDecl, WiringEntry } from '../../ir/src/index.ts'
-import { BOOLEAN_ATTRIBUTES, VOID_ELEMENTS, isSurviving, name, node, nodes, trimJsxText, type Node } from './ast.ts'
+import {
+  BOOLEAN_ATTRIBUTES,
+  VOID_ELEMENTS,
+  isSurviving,
+  name,
+  node,
+  nodes,
+  trimJsxText,
+  type Node,
+} from './ast.ts'
 import { CompileError, locate } from './errors.ts'
 import { intentId } from './intents.ts'
 import { cannotBeMarkup, type TypeOracle } from './types.ts'
@@ -104,7 +113,7 @@ function fail(input: LowerInput, at: Node, code: string, message: string): Compi
   return new CompileError(code, message, locate(input.file, input.source, at.start ?? 0))
 }
 
-function text(em: Emitter, value: string): void {
+function emit(em: Emitter, value: string): void {
   em.buffer += value
 }
 
@@ -151,7 +160,12 @@ function classifyBySyntax(expr: Node, input: LowerInput, em: Emitter): Classifie
       throw fail(input, expr, 'E_SIGNAL_NOT_READ', `${ident} is a signal — read it as ${ident}()`)
     }
     if (scope.itemParam && ident === scope.itemParam) {
-      throw fail(input, expr, 'E_ITEM_NOT_A_VALUE', `${ident} is the row itself; interpolate one of its fields`)
+      throw fail(
+        input,
+        expr,
+        'E_ITEM_NOT_A_VALUE',
+        `${ident} is the row itself; interpolate one of its fields`,
+      )
     }
     if (scope.itemParam) throw outOfRowScope(input, expr, ident)
     if (!scope.props.has(ident) && !scope.locals.has(ident)) {
@@ -281,7 +295,8 @@ function mapCall(expr: Node): { array: Node; callback: Node } | null {
   if (callee.type !== 'MemberExpression' || callee.computed) return null
   if (name(node(callee.property)) !== 'map') return null
   const callback = nodes(expr.arguments)[0]
-  if (!callback || (callback.type !== 'ArrowFunctionExpression' && callback.type !== 'FunctionExpression')) return null
+  if (!callback || (callback.type !== 'ArrowFunctionExpression' && callback.type !== 'FunctionExpression'))
+    return null
   return { array: node(callee.object), callback }
 }
 
@@ -289,12 +304,17 @@ function lowerElement(element: Node, path: number[], em: Emitter, input: LowerIn
   const opening = node(element.openingElement)
   const tag = name(node(opening.name))
   if (!/^[a-z][a-z0-9-]*$/.test(tag)) {
-    throw fail(input, element, 'E_COMPONENT_UNSUPPORTED', `<${tag}> is a component; the prototype lowers HTML elements only`)
+    throw fail(
+      input,
+      element,
+      'E_COMPONENT_UNSUPPORTED',
+      `<${tag}> is a component; the prototype lowers HTML elements only`,
+    )
   }
 
-  text(em, `<${tag}`)
+  emit(em, `<${tag}`)
   for (const raw of nodes(opening.attributes)) lowerAttribute(raw, path, em, input)
-  text(em, '>')
+  emit(em, '>')
 
   if (VOID_ELEMENTS.has(tag)) {
     if (nodes(element.children).filter(isSurviving).length) {
@@ -304,12 +324,17 @@ function lowerElement(element: Node, path: number[], em: Emitter, input: LowerIn
   }
 
   lowerChildren(nodes(element.children), path, em, input, tag)
-  text(em, `</${tag}>`)
+  emit(em, `</${tag}>`)
 }
 
 function lowerAttribute(attribute: Node, path: number[], em: Emitter, input: LowerInput): void {
   if (attribute.type === 'JSXSpreadAttribute') {
-    throw fail(input, attribute, 'E_SPREAD_UNSUPPORTED', 'spread attributes hide what the template can contain')
+    throw fail(
+      input,
+      attribute,
+      'E_SPREAD_UNSUPPORTED',
+      'spread attributes hide what the template can contain',
+    )
   }
   const attr = name(node(attribute.name))
   if (attr === 'key') return
@@ -317,12 +342,12 @@ function lowerAttribute(attribute: Node, path: number[], em: Emitter, input: Low
   const value = attribute.value === null || attribute.value === undefined ? null : node(attribute.value)
 
   if (value === null) {
-    text(em, ` ${attr}`)
+    emit(em, ` ${attr}`)
     return
   }
 
   if (value.type === 'Literal') {
-    text(em, ` ${attr}="${escapeStatic(String(value.value ?? ''), true)}"`)
+    emit(em, ` ${attr}="${escapeStatic(String(value.value ?? ''), true)}"`)
     return
   }
 
@@ -340,19 +365,20 @@ function lowerAttribute(attribute: Node, path: number[], em: Emitter, input: Low
   const classified = classify(expression, input, em)
 
   if (classified.constant !== undefined) {
-    const folded = classified.escape === 'trusted-raw' ? classified.constant : escapeStatic(classified.constant, true)
-    text(em, ` ${attr}="${folded}"`)
+    const folded =
+      classified.escape === 'trusted-raw' ? classified.constant : escapeStatic(classified.constant, true)
+    emit(em, ` ${attr}="${folded}"`)
     return
   }
 
   if (BOOLEAN_ATTRIBUTES.has(attr)) {
-    text(em, ' ')
+    emit(em, ' ')
     hole(em, { kind: 'attr-bool', escape: 'proven-safe', binding: classified.binding, path, attr })
     if (classified.signal) em.wiring.push({ path, op: 'bool', binding: classified.binding, attr })
     return
   }
 
-  text(em, ` ${attr}="`)
+  emit(em, ` ${attr}="`)
   hole(em, {
     kind: 'attr',
     escape: classified.escape,
@@ -361,7 +387,7 @@ function lowerAttribute(attribute: Node, path: number[], em: Emitter, input: Low
     attr,
     ...(classified.provenance ? { provenance: classified.provenance } : {}),
   })
-  text(em, '"')
+  emit(em, '"')
   if (classified.signal) em.wiring.push({ path, op: 'attr', binding: classified.binding, attr })
 }
 
@@ -378,7 +404,12 @@ function lowerEvent(attr: string, expression: Node, path: number[], em: Emitter,
   const local = name(expression)
   const imported = input.scope.imports.get(local)
   if (!imported) {
-    throw fail(input, expression, 'E_HANDLER_NOT_IMPORTED', `${local} is not imported, so it has no stable intent id`)
+    throw fail(
+      input,
+      expression,
+      'E_HANDLER_NOT_IMPORTED',
+      `${local} is not imported, so it has no stable intent id`,
+    )
   }
   em.wiring.push({
     path,
@@ -389,13 +420,19 @@ function lowerEvent(attr: string, expression: Node, path: number[], em: Emitter,
   })
 }
 
-function lowerChildren(children: Node[], path: number[], em: Emitter, input: LowerInput, parentTag: string): void {
+function lowerChildren(
+  children: Node[],
+  path: number[],
+  em: Emitter,
+  input: LowerInput,
+  parentTag: string,
+): void {
   const surviving = children.filter(isSurviving)
   let elementIndex = 0
 
   surviving.forEach((child, i) => {
     if (child.type === 'JSXText') {
-      text(em, escapeStatic(trimJsxText(String(child.value ?? '')), false))
+      emit(em, escapeStatic(trimJsxText(String(child.value ?? '')), false))
       return
     }
 
@@ -426,7 +463,10 @@ function lowerChildren(children: Node[], path: number[], em: Emitter, input: Low
     const classified = classify(expression, input, em)
 
     if (classified.constant !== undefined) {
-      text(em, classified.escape === 'trusted-raw' ? classified.constant : escapeStatic(classified.constant, false))
+      emit(
+        em,
+        classified.escape === 'trusted-raw' ? classified.constant : escapeStatic(classified.constant, false),
+      )
       return
     }
 
@@ -440,7 +480,7 @@ function lowerChildren(children: Node[], path: number[], em: Emitter, input: Low
     const sole = surviving.length === 1
     let anchor: number | undefined
     if (!sole) {
-      text(em, '<!>')
+      emit(em, '<!>')
       anchor = em.markers++
     }
 
@@ -455,7 +495,7 @@ function lowerChildren(children: Node[], path: number[], em: Emitter, input: Low
 
     const next = surviving[i + 1]
     if (!sole && next && next.type === 'JSXText') {
-      text(em, '<!>')
+      emit(em, '<!>')
       em.markers++
     }
 
@@ -470,7 +510,12 @@ function lowerChildren(children: Node[], path: number[], em: Emitter, input: Low
   })
 }
 
-function lowerList(list: { array: Node; callback: Node }, path: number[], em: Emitter, input: LowerInput): void {
+function lowerList(
+  list: { array: Node; callback: Node },
+  path: number[],
+  em: Emitter,
+  input: LowerInput,
+): void {
   const arrayBinding = classify(list.array, input, em)
   const param = nodes(list.callback.params)[0]
   if (!param || param.type !== 'Identifier') {
@@ -484,7 +529,7 @@ function lowerList(list: { array: Node; callback: Node }, path: number[], em: Em
       input,
       rowRoot,
       'E_ROW_NOT_SINGLE_ROOT',
-      'a row must be a single element, otherwise the parent\'s children cannot be divided into rows',
+      "a row must be a single element, otherwise the parent's children cannot be divided into rows",
     )
   }
   const id = `${input.id}:${arrayBinding.binding}[]`

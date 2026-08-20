@@ -26,7 +26,9 @@ const routes = [
     async loader() {
       // Streaming mode hands the router an unresolved promise, so the shell is not
       // downstream of the query. Blocking mode awaits it, which is the default shape.
-      return MODE === 'stream' ? { epoch: 'e7', total: 12000, rows: loadRows() } : { epoch: 'e7', total: 12000, rows: await loadRows() }
+      return MODE === 'stream'
+        ? { epoch: 'e7', total: 12000, rows: loadRows() }
+        : { epoch: 'e7', total: 12000, rows: await loadRows() }
     },
     Component: function Feed() {
       const data = useLoaderData()
@@ -39,7 +41,10 @@ const handler = createStaticHandler(routes)
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`)
-  const request = new Request(url, { method: req.method, headers: new Headers(Object.entries(req.headers).filter(([, v]) => typeof v === 'string')) })
+  const request = new Request(url, {
+    method: req.method,
+    headers: new Headers(Object.entries(req.headers).filter(([, v]) => typeof v === 'string')),
+  })
 
   try {
     const context = await handler.query(request)
@@ -71,5 +76,7 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, '127.0.0.1', () => {
   const address = server.address()
-  process.stdout.write(`rr7 ${MODE} listening on http://127.0.0.1:${address.port} (delay ${DELAY}ms, rows ${ROWS})\n`)
+  process.stdout.write(
+    `rr7 ${MODE} listening on http://127.0.0.1:${address.port} (delay ${DELAY}ms, rows ${ROWS})\n`,
+  )
 })

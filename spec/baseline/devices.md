@@ -6,28 +6,28 @@ capability costs a wire form, a fill mechanism, or an animation.
 
 ## Engines
 
-| Surface | Engine | Notes |
-| --- | --- | --- |
-| Desktop Chrome, Edge | Chromium | Everything available, including the Chromium-only bonuses |
-| Desktop Safari | WebKit | No compression dictionaries, no Speculation Rules |
-| Desktop Firefox | Gecko | No cross-document View Transitions in stable yet |
-| Electron | Recent Chromium | Behaves like Chrome |
-| Android WebView | Chromium, updated via Play Store | Old and AOSP devices lag the desktop version |
-| iOS, every webview | WebKit, by policy | Incremental DSD parsing is likely the *filler-script* path, not the fallback |
-| Tauri on Linux | WebKitGTK | The genuine laggard |
+| Surface              | Engine                           | Notes                                                                        |
+| -------------------- | -------------------------------- | ---------------------------------------------------------------------------- |
+| Desktop Chrome, Edge | Chromium                         | Everything available, including the Chromium-only bonuses                    |
+| Desktop Safari       | WebKit                           | No compression dictionaries, no Speculation Rules                            |
+| Desktop Firefox      | Gecko                            | No cross-document View Transitions in stable yet                             |
+| Electron             | Recent Chromium                  | Behaves like Chrome                                                          |
+| Android WebView      | Chromium, updated via Play Store | Old and AOSP devices lag the desktop version                                 |
+| iOS, every webview   | WebKit, by policy                | Incremental DSD parsing is likely the _filler-script_ path, not the fallback |
+| Tauri on Linux       | WebKitGTK                        | The genuine laggard                                                          |
 
 ## Capability floor
 
-| Capability | Status | Without it |
-| --- | --- | --- |
-| HTTP response streaming | Universal | — |
-| Web Streams `getReader()` | Baseline | — |
-| WebSocket, EventSource | Baseline everywhere, webviews included | Both Warp bindings work |
-| Declarative Shadow DOM | iOS 16.4+, WebView 111+ | Holes fill via the ~1 KB filler script |
-| Same-document View Transitions | iOS 18, WebView 111+ | `COMMIT` is an instant swap; epochs lose polish, not correctness |
-| `requestIdleCallback` | Flag-gated in WKWebView | `when.idle` lands on the timeout rung of its ladder |
-| Service workers | Gated behind app-bound domains in WKWebView | Resident templates go to IndexedDB, then the HTTP cache |
-| Compression dictionaries, Speculation Rules | Chromium only | Pure bonus; the `delta` form already cuts semantic redundancy |
+| Capability                                  | Status                                      | Without it                                                       |
+| ------------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------- |
+| HTTP response streaming                     | Universal                                   | —                                                                |
+| Web Streams `getReader()`                   | Baseline                                    | —                                                                |
+| WebSocket, EventSource                      | Baseline everywhere, webviews included      | Both Warp bindings work                                          |
+| Declarative Shadow DOM                      | iOS 16.4+, WebView 111+                     | Holes fill via the ~1 KB filler script                           |
+| Same-document View Transitions              | iOS 18, WebView 111+                        | `COMMIT` is an instant swap; epochs lose polish, not correctness |
+| `requestIdleCallback`                       | Flag-gated in WKWebView                     | `when.idle` lands on the timeout rung of its ladder              |
+| Service workers                             | Gated behind app-bound domains in WKWebView | Resident templates go to IndexedDB, then the HTTP cache          |
+| Compression dictionaries, Speculation Rules | Chromium only                               | Pure bonus; the `delta` form already cuts semantic redundancy    |
 
 Because incremental DSD parsing is tracked separately from DSD support, the honest claim
 is "zero JavaScript hole filling where incremental parsing works, plus at worst 1 KB
@@ -53,6 +53,6 @@ Three things need real devices and are therefore out of the harness's reach toda
 2. What a host app's request interception does to first-byte timing.
 3. How often a backgrounded webview is evicted, and what `RESUME` recovers in practice.
 
-The harness covers what it can: the buffered-transport mode reproduces the *shape* of an
+The harness covers what it can: the buffered-transport mode reproduces the _shape_ of an
 intercepted request, per-engine numbers are never aggregated, and the storage tier that
 the repeat-visit axis depends on is stated with the result.

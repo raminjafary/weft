@@ -68,7 +68,8 @@ function renderTemplate(ir: TemplateIR, values: Values, compiled: Compiled): str
         break
       }
       default:
-        out += hole.escape === 'trusted-raw' ? stringify(value) : escape(stringify(value), hole.kind === 'attr')
+        out +=
+          hole.escape === 'trusted-raw' ? stringify(value) : escape(stringify(value), hole.kind === 'attr')
     }
   }
   return out
@@ -76,7 +77,9 @@ function renderTemplate(ir: TemplateIR, values: Values, compiled: Compiled): str
 
 function renderDocument(scenario: Scenario, values: Values, rows: Values[]): string {
   const compiled = compiledFor(scenario)
-  const all = compiled.rowBinding ? { ...values, [compiled.rowBinding]: rows as unknown as Values[string] } : values
+  const all = compiled.rowBinding
+    ? { ...values, [compiled.rowBinding]: rows as unknown as Values[string] }
+    : values
   return renderTemplate(compiled.root, all, compiled)
 }
 
@@ -85,7 +88,11 @@ function renderDocument(scenario: Scenario, values: Values, rows: Values[]): str
  * each piece as a string before it can send it, and it cannot know the total length in
  * advance, so the response is chunked.
  */
-function renderSplit(scenario: Scenario, values: Values, rows: Values[]): { prefix: string; rest: string } | null {
+function renderSplit(
+  scenario: Scenario,
+  values: Values,
+  rows: Values[],
+): { prefix: string; rest: string } | null {
   const compiled = compiledFor(scenario)
   const listIndex = compiled.root.holes.findIndex((h) => h.kind === 'list')
   if (listIndex < 0 || !compiled.row) return null
@@ -96,7 +103,10 @@ function renderSplit(scenario: Scenario, values: Values, rows: Values[]): { pref
     prefix += template.parts[i]
     const hole = template.holes[i]
     if (hole && i < listIndex) {
-      prefix += hole.escape === 'trusted-raw' ? stringify(values[hole.binding]) : escape(stringify(values[hole.binding]), hole.kind === 'attr')
+      prefix +=
+        hole.escape === 'trusted-raw'
+          ? stringify(values[hole.binding])
+          : escape(stringify(values[hole.binding]), hole.kind === 'attr')
     }
   }
 
@@ -108,7 +118,10 @@ function renderSplit(scenario: Scenario, values: Values, rows: Values[]): { pref
     rest += template.parts[i]
     const hole = template.holes[i]
     if (hole) {
-      rest += hole.escape === 'trusted-raw' ? stringify(values[hole.binding]) : escape(stringify(values[hole.binding]), hole.kind === 'attr')
+      rest +=
+        hole.escape === 'trusted-raw'
+          ? stringify(values[hole.binding])
+          : escape(stringify(values[hole.binding]), hole.kind === 'attr')
     }
   }
   return { prefix, rest }
@@ -129,7 +142,8 @@ export const stringSsrCandidate: Candidate = {
   },
 
   unsupported: {
-    'update-bytes:delta': 'no addressable base render to diff against, and no resident template to write into',
+    'update-bytes:delta':
+      'no addressable base render to diff against, and no resident template to write into',
   },
 
   async serve(scenario, options?: ServeOptions): Promise<ServeHandle> {

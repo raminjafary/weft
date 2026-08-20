@@ -70,7 +70,9 @@ export function encodeTextFrame(f: Frame): string {
   const header = encodeHeader(f.header)
   if (header) parts.push(header)
   if (f.body) {
-    parts.push(f.bodyIsText ? `body=${encodeURIComponent(decodeUtf8.decode(f.body))}` : `bodyB64=${toBase64(f.body)}`)
+    parts.push(
+      f.bodyIsText ? `body=${encodeURIComponent(decodeUtf8.decode(f.body))}` : `bodyB64=${toBase64(f.body)}`,
+    )
   }
   return parts.join(' ')
 }
@@ -95,7 +97,12 @@ export function decodeTextFrame(line: string): AnyFrame {
 
   const kind = kindText in FRAMES ? (kindText as FrameKind) : undefined
   if (!kind) {
-    return { kind: 'UNKNOWN', code: -1, header: { ...header, name: kindText }, ...(body ? { body, bodyIsText } : {}) }
+    return {
+      kind: 'UNKNOWN',
+      code: -1,
+      header: { ...header, name: kindText },
+      ...(body ? { body, bodyIsText } : {}),
+    }
   }
   return { kind, header, ...(body ? { body, bodyIsText } : {}) }
 }
@@ -176,7 +183,9 @@ export function createBinaryDecoder(options: DecoderOptions = {}): Decoder {
         const body = hasBody ? buf.slice(8 + headerLen, total) : undefined
 
         if (options.expect && directionOfCode(code) !== options.expect) {
-          throw new Error(`E_WRONG_DIRECTION: frame code 0x${code.toString(16)} is not a ${options.expect} frame`)
+          throw new Error(
+            `E_WRONG_DIRECTION: frame code 0x${code.toString(16)} is not a ${options.expect} frame`,
+          )
         }
 
         const kind = kindForCode(code)

@@ -54,9 +54,14 @@ export function validateTemplate(ir: TemplateIR): ValidationResult {
       }
     }
     if (h.nested !== undefined) {
-      if (h.kind !== 'list') fail('E_NESTED_KIND', `holes[${i}]`, 'only a list hole can name a nested template')
+      if (h.kind !== 'list')
+        fail('E_NESTED_KIND', `holes[${i}]`, 'only a list hole can name a nested template')
       if (!HEX128.test(h.nested)) {
-        fail('E_NESTED_SHAPE', `holes[${i}].nested`, `nested must be a sealed template version, got ${h.nested}`)
+        fail(
+          'E_NESTED_SHAPE',
+          `holes[${i}].nested`,
+          `nested must be a sealed template version, got ${h.nested}`,
+        )
       }
     }
     if (!h.path.every((p) => Number.isInteger(p) && p >= 0)) {
@@ -76,7 +81,11 @@ export function validateTemplate(ir: TemplateIR): ValidationResult {
     }
     if (w.op === 'event' && !w.event) fail('E_WIRING_EVENT', `wiring[${i}]`, 'event op must name an event')
     if (w.op === 'event' && !w.intent) {
-      fail('E_WIRING_INTENT', `wiring[${i}]`, 'event op must name an intent id; the client never names server code')
+      fail(
+        'E_WIRING_INTENT',
+        `wiring[${i}]`,
+        'event op must name an intent id; the client never names server code',
+      )
     }
     if ((w.op === 'attr' || w.op === 'bool') && !w.attr) {
       fail('E_WIRING_ATTR', `wiring[${i}]`, `${w.op} op must name its attribute`)
@@ -128,7 +137,13 @@ export function assertValidTemplate(ir: TemplateIR): TemplateIR {
 export async function verifySealed(ir: TemplateIR): Promise<ValidationResult> {
   const base = validateTemplate(ir)
   if (ir.version === '') {
-    return { ok: false, errors: [...base.errors, { code: 'E_VERSION_UNSEALED', at: 'version', message: 'template was never sealed' }] }
+    return {
+      ok: false,
+      errors: [
+        ...base.errors,
+        { code: 'E_VERSION_UNSEALED', at: 'version', message: 'template was never sealed' },
+      ],
+    }
   }
   const expected = await templateVersion(ir)
   if (expected !== ir.version) {
@@ -136,7 +151,11 @@ export async function verifySealed(ir: TemplateIR): Promise<ValidationResult> {
       ok: false,
       errors: [
         ...base.errors,
-        { code: 'E_VERSION_MISMATCH', at: 'version', message: `content hashes to ${expected}, document claims ${ir.version}` },
+        {
+          code: 'E_VERSION_MISMATCH',
+          at: 'version',
+          message: `content hashes to ${expected}, document claims ${ir.version}`,
+        },
       ],
     }
   }

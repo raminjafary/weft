@@ -31,7 +31,7 @@ Two properties follow from the length prefix, and both are tested:
 
 **Text, for tooling.** One frame per line, `KIND key=value …`. Header values that
 contain a space, `=`, `%`, or a newline are percent-encoded, and bodies are encoded into
-the line, so the one-frame-per-line invariant holds. Text framing is therefore *not*
+the line, so the one-frame-per-line invariant holds. Text framing is therefore _not_
 byte-transparent for bodies, which is why production is binary.
 
 Headers are strings on the wire. Typed accessors (`num`, `bool`, `list`) are the
@@ -43,22 +43,22 @@ Codes below `0x10` travel client to server, codes from `0x10` up travel server t
 client. A decoder rejects a frame arriving from the wrong side (`E_WRONG_DIRECTION`)
 without knowing what the frame means.
 
-| Client to server | | Server to client | |
-| --- | --- | --- | --- |
-| `RESIDENT` 0x01 | held templates, capabilities, network class | `WARP` 0x10 | versions and negotiated strategy |
-| `HELD` 0x02 | base renders the client can be deltaed against | `SHELL` 0x11 | route, plan, flags, device class |
-| `REFRESH` 0x03 | refresh a slot, form negotiable | `SLOT` 0x12 | open or close a hole |
-| `WARM` 0x04 | stage data for a route, do not paint | `HTML` 0x13 | rendered markup for a slot |
-| `INTENT` 0x05 | an intent id and its params | `TPL` 0x14 | wiring table plus byte segments |
-| `ACK` 0x06 | applied through epoch | `DATA` 0x15 | values for a resident template |
-| `RESUME` 0x07 | continue from a committed epoch | `DELTA` 0x16 | changed values against a named base |
-| | | `PATCH` 0x17 | DOM operations |
-| | | `SIGNAL` 0x18 | a signal value |
-| | | `COMMIT` 0x19 | atomic flip of an epoch |
-| | | `MOD` 0x1a / `CSS` 0x1b | chunk and stylesheet requirements |
-| | | `STALE` 0x1c | push invalidation, client decides |
-| | | `NAV` 0x1d / `PLAN` 0x1e | navigation and lazy plan extension |
-| | | `ERROR` 0x1f | a named failure |
+| Client to server |                                                | Server to client         |                                     |
+| ---------------- | ---------------------------------------------- | ------------------------ | ----------------------------------- |
+| `RESIDENT` 0x01  | held templates, capabilities, network class    | `WARP` 0x10              | versions and negotiated strategy    |
+| `HELD` 0x02      | base renders the client can be deltaed against | `SHELL` 0x11             | route, plan, flags, device class    |
+| `REFRESH` 0x03   | refresh a slot, form negotiable                | `SLOT` 0x12              | open or close a hole                |
+| `WARM` 0x04      | stage data for a route, do not paint           | `HTML` 0x13              | rendered markup for a slot          |
+| `INTENT` 0x05    | an intent id and its params                    | `TPL` 0x14               | wiring table plus byte segments     |
+| `ACK` 0x06       | applied through epoch                          | `DATA` 0x15              | values for a resident template      |
+| `RESUME` 0x07    | continue from a committed epoch                | `DELTA` 0x16             | changed values against a named base |
+|                  |                                                | `PATCH` 0x17             | DOM operations                      |
+|                  |                                                | `SIGNAL` 0x18            | a signal value                      |
+|                  |                                                | `COMMIT` 0x19            | atomic flip of an epoch             |
+|                  |                                                | `MOD` 0x1a / `CSS` 0x1b  | chunk and stylesheet requirements   |
+|                  |                                                | `STALE` 0x1c             | push invalidation, client decides   |
+|                  |                                                | `NAV` 0x1d / `PLAN` 0x1e | navigation and lazy plan extension  |
+|                  |                                                | `ERROR` 0x1f             | a named failure                     |
 
 The frame sketch in the design notes uses positional shorthand (`SLOT s12 open prio=1`).
 The canonical encoding is all `key=value`; the shorthand is for prose.
@@ -67,8 +67,8 @@ The canonical encoding is all `key=value`; the shorthand is for prose.
 
 Warp is a logical channel with three bindings and one frame vocabulary:
 
-1. **Streamed response down, discrete POSTs up.** Default. The initial document *is*
-   the first frames. Streaming a *request* body is Chromium-only, HTTP/2-only, and never
+1. **Streamed response down, discrete POSTs up.** Default. The initial document _is_
+   the first frames. Streaming a _request_ body is Chromium-only, HTTP/2-only, and never
    truly duplex, so it is not the foundation.
 2. **WebSocket.** The only Baseline true-duplex transport. Baseline in every webview.
 3. **WebTransport.** Later, where it exists.
@@ -85,14 +85,14 @@ per-tab channel. Nothing degrades to broken without them.
 `RESIDENT` carries capabilities alongside network class, so a missing capability costs a
 form, a fill mechanism, or an animation — never correctness. `negotiate()` returns:
 
-| Field | Meaning | Degraded value |
-| --- | --- | --- |
-| `forms` | wire forms this client can be sent, from the IR's vocabulary | `['html']` on an IR major mismatch |
-| `strategy` | `stream`, `collapse`, or `socket` | `collapse` when the document response is buffered |
-| `fill` | who fills an out-of-order hole | `script` — the ~1 KB filler — without incremental DSD parsing |
-| `commit` | how an epoch commits | `instant` without same-document View Transitions |
-| `residency` | where resident templates live | `indexeddb`, then `http-cache` |
-| `resumable` | may a severed channel continue | `false` when the transport buffers |
+| Field       | Meaning                                                      | Degraded value                                                |
+| ----------- | ------------------------------------------------------------ | ------------------------------------------------------------- |
+| `forms`     | wire forms this client can be sent, from the IR's vocabulary | `['html']` on an IR major mismatch                            |
+| `strategy`  | `stream`, `collapse`, or `socket`                            | `collapse` when the document response is buffered             |
+| `fill`      | who fills an out-of-order hole                               | `script` — the ~1 KB filler — without incremental DSD parsing |
+| `commit`    | how an epoch commits                                         | `instant` without same-document View Transitions              |
+| `residency` | where resident templates live                                | `indexeddb`, then `http-cache`                                |
+| `resumable` | may a severed channel continue                               | `false` when the transport buffers                            |
 
 Three webview cases are specified rather than discovered:
 

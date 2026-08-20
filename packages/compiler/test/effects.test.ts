@@ -112,10 +112,7 @@ test('reads are sorted, so a cache key cannot depend on authoring order', async 
 })
 
 test('an untracked ambient read is a build error, not a lint note', async () => {
-  await rejects(
-    "export default fragment(() => <p>{process.env.MODE}</p>)",
-    'E_UNTRACKED_EFFECT',
-  )
+  await rejects('export default fragment(() => <p>{process.env.MODE}</p>)', 'E_UNTRACKED_EFFECT')
   await rejects(
     'export default fragment(() => { const t = Date.now(); return <p>{t}</p> })',
     'E_UNTRACKED_EFFECT',
@@ -136,7 +133,11 @@ test('an untracked ambient read is a build error, not a lint note', async () => 
 
 test('the error names the alternative, because the point is to redirect the read', async () => {
   await assert.rejects(
-    () => compileSource(`${PRELUDE}export default fragment(() => { const t = Date.now(); return <p>{t}</p> })`, 't.tsx'),
+    () =>
+      compileSource(
+        `${PRELUDE}export default fragment(() => { const t = Date.now(); return <p>{t}</p> })`,
+        't.tsx',
+      ),
     (error: unknown) => {
       assert.match((error as CompileError).message, /ctx\.now\(\)/)
       return true

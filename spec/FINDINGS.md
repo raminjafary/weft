@@ -9,24 +9,24 @@ Nothing here is a hypothetical. Every number comes from
 `node packages/bench/src/cli.ts`, on an Apple M4, and every one of them is reproducible by
 the command the report prints.
 
-| The design says | Verdict |
-| --- | --- |
-| TTFB against a tuned React Router 7 app is the phase-zero gate | **Reversed** — worth 1.2 ms |
-| Six negotiable wire forms, including `data` | **Cut to five** |
-| Escape elision is a throughput lever | **Reversed** — worth nothing |
+| The design says                                                 | Verdict                                |
+| --------------------------------------------------------------- | -------------------------------------- |
+| TTFB against a tuned React Router 7 app is the phase-zero gate  | **Reversed** — worth 1.2 ms            |
+| Six negotiable wire forms, including `data`                     | **Cut to five**                        |
+| Escape elision is a throughput lever                            | **Reversed** — worth nothing           |
 | Incremental declarative shadow DOM is the largest platform risk | **Did not materialise**, and sharpened |
-| Streaming beats a blocking response | **Confirmed** — 2.19× |
-| Pre-encoded segments beat string concatenation | **Confirmed** — 1.4× to 2× |
-| The `delta` form is the smallest possible payload | **Confirmed** — 3.2× after brotli |
-| A returning visitor does zero wiring construction | **Confirmed, with a correction** |
-| The client runtime fits in 4–6 KB | **Confirmed** for what exists |
-| Isolated DOM updates will tie | **Consistent** — 0.29–1.7 µs |
-| Warp unifies five jobs on one channel | **One path exercised** of five |
+| Streaming beats a blocking response                             | **Confirmed** — 2.19×                  |
+| Pre-encoded segments beat string concatenation                  | **Confirmed** — 1.4× to 2×             |
+| The `delta` form is the smallest possible payload               | **Confirmed** — 3.2× after brotli      |
+| A returning visitor does zero wiring construction               | **Confirmed, with a correction**       |
+| The client runtime fits in 4–6 KB                               | **Confirmed** for what exists          |
+| Isolated DOM updates will tie                                   | **Consistent** — 0.29–1.7 µs           |
+| Warp unifies five jobs on one channel                           | **One path exercised** of five         |
 
 ## Reversed: TTFB was the wrong gate
 
-> *"If the pre-encoded-buffer shell does not beat a tuned React Router 7 app on TTFB in a
-> reproducible test, the central premise is wrong and better to know in week two."*
+> _"If the pre-encoded-buffer shell does not beat a tuned React Router 7 app on TTFB in a
+> reproducible test, the central premise is wrong and better to know in week two."_
 
 The test exists now — a route whose data takes 40 ms, 40 ms of injected RTT, and a real RR7
 app in two configurations. Against the **tuned** one (promise loader, Suspense boundary,
@@ -43,8 +43,8 @@ construction.
 
 ## Cut: the `data` form
 
-> *"`data` — values only, keyed to a resident template. Client work: project through
-> template."*
+> _"`data` — values only, keyed to a resident template. Client work: project through
+> template."_
 
 Raw, it was half the size of `html`. After brotli it was 599 bytes against 605 — a 1%
 difference, because compression already removes the template redundancy that `data` removed
@@ -61,8 +61,8 @@ documents refuse rather than misparse.
 
 ## Reversed: escape elision is not a throughput lever
 
-> *"Escape elision. The compiler proves which interpolations are already safe — numbers,
-> enums, values from sanitizing sources — and skips escaping them entirely."*
+> _"Escape elision. The compiler proves which interpolations are already safe — numbers,
+> enums, values from sanitizing sources — and skips escaping them entirely."_
 
 The compiler does this, using type information from the checker. It is worth nothing:
 16,780 ns per render with four holes elided against 16,503 ns with none. The renderer
@@ -78,8 +78,8 @@ makes the lie harmless.
 
 ## Did not materialise, and sharpened: declarative shadow DOM
 
-> *"Incremental DSD parsing is the single largest platform risk … If the three engines
-> diverge, the filler script becomes the primary path rather than the fallback."*
+> _"Incremental DSD parsing is the single largest platform risk … If the three engines
+> diverge, the filler script becomes the primary path rather than the fallback."_
 
 Probed with a host that does not close until 60 ms: the shadow root is attached at 9 ms in
 Chromium, 38 ms in Firefox, 8 ms in WebKit, and slotted content renders as it arrives in all
@@ -87,7 +87,7 @@ three. Incremental parsing works. The engines do not diverge.
 
 Building on it produced a sharper statement than the design's own correction, though.
 **Zero-JavaScript filling and out-of-order filling are mutually exclusive.** Slot assignment
-works on the light-DOM children of a host that is *still open*, and keeping a host open
+works on the light-DOM children of a host that is _still open_, and keeping a host open
 until its content arrives is precisely in-order streaming — which needs no fill mechanism
 at all, because the content lands where it belongs. Out-of-order requires every host to be
 closed, so content must arrive elsewhere and be moved, and moving a node is JavaScript.
@@ -97,14 +97,14 @@ on every engine, and it costs 329 bytes to buy a fast region at 22 ms instead of
 
 ## Confirmed, with a correction: repeat visits
 
-> *"Wiring tables are content-addressed per template version, so a returning visitor does
-> zero wiring construction."*
+> _"Wiring tables are content-addressed per template version, so a returning visitor does
+> zero wiring construction."_
 
 True, and not the same as zero startup work. A repeat visit skips receiving, parsing and
 storing templates — 2 frames and about a kilobyte become none — and the boot path drops from
 2.50 ms to 0.70 ms in Chromium, 6.00 to 3.00 in Firefox, 3.00 to 1.00 in WebKit. What it
 still pays is **adoption**, because the DOM in front of it is new every time and the bindings
-must be found again. Only the table adoption builds *from* is cached, never the walk.
+must be found again. Only the table adoption builds _from_ is cached, never the walk.
 
 Storage is IndexedDB rather than a service worker, because WKWebView gates service workers
 behind app-bound domains — the traffic where a repeat-visit gain matters most is the traffic
@@ -125,12 +125,12 @@ measures the stand-in, and reports it as if it were the thing.
 
 ## Two claims the design makes that cannot be tested yet
 
-**Effect-tracked rendering.** *Partly answered since this page was written.* The compiler
+**Effect-tracked rendering.** _Partly answered since this page was written._ The compiler
 now infers the design's full read surface, derives the cache class, `Vary`, key components
 and flag axes from it, and refuses an untracked ambient read with a hard error — see
 [effects and the ban](compiler/effects.md). What is still missing is everything downstream:
 no route contagion, no cache-policy declaration for `requiresTtl` to contradict, no writes,
-and no runtime that resolves a read's *value* into an actual key.
+and no runtime that resolves a read's _value_ into an actual key.
 
 **Warp as one channel for five jobs.** One path runs end to end: a document carrying `WARP`,
 `SHELL` and `TPL` as binary frames, decoded in the browser by the codec that encoded them.
