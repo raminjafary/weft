@@ -125,11 +125,12 @@ measures the stand-in, and reports it as if it were the thing.
 
 ## Two claims the design makes that cannot be tested yet
 
-**Effect-tracked rendering.** `EffectSet` is a field in the IR that is always empty. Nothing
-infers what a render read, so nothing derives a cache key, a cache class, an island
-boundary, or a residency decision. The design's own warning — *"one direct `req.headers` or
-`process.env` read punches a hole in the entire cacheability guarantee"* — has no
-enforcement behind it.
+**Effect-tracked rendering.** *Partly answered since this page was written.* The compiler
+now infers the design's full read surface, derives the cache class, `Vary`, key components
+and flag axes from it, and refuses an untracked ambient read with a hard error — see
+[effects and the ban](compiler/effects.md). What is still missing is everything downstream:
+no route contagion, no cache-policy declaration for `requiresTtl` to contradict, no writes,
+and no runtime that resolves a read's *value* into an actual key.
 
 **Warp as one channel for five jobs.** One path runs end to end: a document carrying `WARP`,
 `SHELL` and `TPL` as binary frames, decoded in the browser by the codec that encoded them.

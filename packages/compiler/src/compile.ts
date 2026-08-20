@@ -5,12 +5,14 @@ import {
   assertValidTemplate,
   draftTemplate,
   seal,
+  type EffectSet,
   type Json,
   type SignalDecl,
   type TemplateIR,
 } from '../../ir/src/index.ts'
 import { name, node, nodes, type Node } from './ast.ts'
 import { CompileError, locate } from './errors.ts'
+import { inferEffects } from './effects.ts'
 import { lower, returnedJsx, type ImportRef, type Lowered, type Scope } from './lower.ts'
 import { createTypeOracle, type TypeOracle } from './types.ts'
 
@@ -92,16 +94,49 @@ function readSignals(body: Node, imports: Map<string, ImportRef>): Map<string, S
   return signals
 }
 
-function readProps(param: Node | undefined): { props: Set<string>; propsIdent?: string } {
+interface Params {
+  props: Set<string>
+  ctxParam?: string
+}
+
+/**
+ * `fragment((ctx) => …)` takes the context. `fragment(({ a, b }) => …)` takes props.
+ * `fragment(({ a }, ctx) => …)` takes both. A bare identifier is always the context,
+ * because a fragment that needs props destructures them.
+ */
+function readParams(params: Node[]): Params {
   const props = new Set<string>()
-  if (!param) return { props }
-  if (param.type === 'Identifier') return { props, propsIdent: name(param) }
-  if (param.type === 'ObjectPattern') {
-    for (const property of nodes(param.properties)) {
-      if (property.type === 'Property') props.add(name(node(property.key)))
+  const first = params[0]
+  const second = params[1]
+
+  if (second && second.type === 'Identifier') {
+    collectProps(first, props)
+    return { props, ctxParam: name(second) }
+  }
+  if (first && first.type === 'Identifier') return { props, ctxParam: name(first) }
+  collectProps(first, props)
+  return { props }
+}
+
+function collectProps(param: Node | undefined, into: Set<string>): void {
+  if (!param || param.type !== 'ObjectPattern') return
+  for (const property of nodes(param.properties)) {
+    if (property.type === 'Property') into.add(name(node(property.key)))
+  }
+}
+
+/** Anything the body computes can be interpolated, whatever it was computed from. */
+function readLocals(body: Node): Set<string> {
+  const locals = new Set<string>()
+  if (body.type !== 'BlockStatement') return locals
+  for (const statement of nodes(body.body)) {
+    if (statement.type !== 'VariableDeclaration') continue
+    for (const declarator of nodes(statement.declarations)) {
+      const id = node(declarator.id)
+      if (id.type === 'Identifier') locals.add(name(id))
     }
   }
-  return { props }
+  return locals
 }
 
 function fragmentCall(declaration: Node, imports: Map<string, ImportRef>): Node | null {
@@ -139,7 +174,7 @@ function discover(program: Node, imports: Map<string, ImportRef>): Discovered[] 
 }
 
 /** Nested rows are sealed first, so a parent can name the exact version it projects through. */
-async function sealTree(lowered: Lowered): Promise<{ entry: TemplateIR; all: TemplateIR[] }> {
+async function sealTree(lowered: Lowered, effects?: EffectSet): Promise<{ entry: TemplateIR; all: TemplateIR[] }> {
   const all: TemplateIR[] = []
   const holes = [...lowered.holes]
 
@@ -157,6 +192,7 @@ async function sealTree(lowered: Lowered): Promise<{ entry: TemplateIR; all: Tem
     holes,
     wiring: lowered.wiring,
     signals: lowered.signals,
+    ...(effects ? { effects } : {}),
     meta: { markers: lowered.markers },
   })
   const entry = assertValidTemplate(await seal(draft))
@@ -182,14 +218,22 @@ export async function compileSource(source: string, file: string, options?: Comp
     }
     const body = node(fn.body)
     const signals = readSignals(body, imports)
-    const { props, propsIdent } = readProps(nodes(fn.params)[0])
-    const scope: Scope = { props, signals, imports, ...(propsIdent ? { propsIdent } : {}) }
+    const { props, ctxParam } = readParams(nodes(fn.params))
+    const locals = readLocals(body)
+    const scope: Scope = {
+      props,
+      signals,
+      imports,
+      locals,
+      ...(ctxParam ? { ctxParam } : {}),
+    }
     const id = `${moduleId(file, options?.root)}#${exportName}`
     const input = { id, root: body, scope, file, source, ...(options?.types ? { types: options.types } : {}) }
     const root = body.type === 'BlockStatement' ? returnedJsx(body, input) : body
 
+    const effects = inferEffects({ fn, file, source, ...(ctxParam ? { ctxParam } : {}) })
     const lowered = lower({ ...input, root })
-    const { entry, all } = await sealTree(lowered)
+    const { entry, all } = await sealTree(lowered, effects)
     fragments.push({ entry, templates: all, exportName })
   }
 
