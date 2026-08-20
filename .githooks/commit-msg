@@ -1,0 +1,4 @@
+#!/bin/sh
+# Conventional Commits are checked here rather than in CI, because a rejected message is
+# only cheap to fix before the commit exists.
+exec npx --no-install commitlint --edit "$1"
