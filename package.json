@@ -12,10 +12,16 @@
     "bench:list": "node packages/bench/src/cli.ts list",
     "bench:verify": "node packages/bench/src/cli.ts verify",
     "test": "node --test packages/*/test/*.test.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepare": "git config core.hooksPath .githooks",
+    "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s -r 0",
+    "commitlint": "commitlint --from origin/main --to HEAD"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
     "@types/node": "^26.2.0",
+    "conventional-changelog-cli": "^5.0.0",
     "playwright": "^1.62.1",
     "rolldown": "^1.2.5",
     "typescript": "^7.0.2"
