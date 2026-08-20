@@ -22,6 +22,11 @@ async function only(source: string): Promise<TemplateIR> {
   return fragment.entry
 }
 
+function versions(templates: TemplateIR[]) {
+  const byVersion = new Map(templates.map((t) => [t.version, t]))
+  return (version: string) => byVersion.get(version)
+}
+
 async function rejects(source: string, code: string): Promise<void> {
   await assert.rejects(
     () => compile(PRELUDE + source),
@@ -172,7 +177,7 @@ test('a row cannot close over the outer scope', async () => {
 })
 
 test('the compiler refuses what it cannot lower instead of guessing', async () => {
-  await rejects('export default fragment(({ x }) => <Widget a={x} />)', 'E_COMPONENT_UNSUPPORTED')
+  await rejects('export default fragment(({ x }) => <Widget a={x} />)', 'E_COMPONENT_UNRESOLVED')
   await rejects('export default fragment((p) => <p {...p}>x</p>)', 'E_SPREAD_UNSUPPORTED')
   await rejects('export default fragment(({ o }) => <p>{o["k"]}</p>)', 'E_COMPUTED_MEMBER')
   await rejects('export default fragment(() => <p>{missing}</p>)', 'E_UNKNOWN_BINDING')
@@ -235,6 +240,93 @@ test('a signal read inside a derived value still cannot cross into a list row', 
   await rejects(
     'export default fragment(({ rows }) => { const n = signal(1); return <ul>{rows.map((r) => <li>{r.qty * n()}</li>)}</ul> })',
     'E_SIGNAL_IN_LIST',
+  )
+})
+
+const BADGE = 'const Badge = fragment(({ tone, label }) => <span class={tone}>{label}</span>)\n'
+
+test('a component is a nested template plus a projection, never an inlined copy', async () => {
+  const out = await compile(
+    PRELUDE +
+      BADGE +
+      'export default fragment(({ t, n }) => <p><Badge tone={t} label="new" /><em>{n}</em></p>)',
+  )
+  const { entry, templates } = out.fragments[0] as { entry: TemplateIR; templates: TemplateIR[] }
+  assert.deepEqual(
+    templates.map((t) => t.id),
+    ['test.tsx#Badge', 'test.tsx#default'],
+  )
+
+  const instance = entry.holes[0]
+  assert.equal(instance?.kind, 'component')
+  assert.equal(instance?.nested, templates[0]?.version)
+  assert.deepEqual(instance?.props, { tone: 't', label: 'd0' })
+  assert.equal(instance?.provenance, 'test.tsx#Badge')
+
+  // The instance occupies one element position, so the sibling after it does not shift.
+  assert.deepEqual(entry.holes[1]?.path, [0, 1])
+
+  const resolve = versions(templates)
+  assert.equal(
+    decode(render(entry, { t: 'warn', n: 3 }, resolve)),
+    '<p><span class="warn">new</span><em>3</em></p>',
+  )
+})
+
+test('one component used twice is one sealed template', async () => {
+  const out = await compile(
+    PRELUDE +
+      BADGE +
+      'export default fragment(({ a, b }) => <p><Badge tone={a} label="x" /><Badge tone={b} label="y" /></p>)',
+  )
+  const { entry, templates } = out.fragments[0] as { entry: TemplateIR; templates: TemplateIR[] }
+  assert.equal(templates.length, 2, 'the child is sealed once, because the version is the content')
+  assert.equal(entry.holes[0]?.nested, entry.holes[1]?.nested)
+  assert.equal(
+    decode(render(entry, { a: 'warn', b: 'ok' }, versions(templates))),
+    '<p><span class="warn">x</span><span class="ok">y</span></p>',
+  )
+})
+
+test("a component's reads become its caller's reads", async () => {
+  const out = await compile(
+    PRELUDE +
+      'const Who = fragment((ctx) => { const who = ctx.user(); return <b>{who}</b> })\n' +
+      'export default fragment(() => <p><Who /></p>)',
+  )
+  const { entry } = out.fragments[0] as { entry: TemplateIR }
+  assert.deepEqual(entry.effects.reads, ['identity'])
+  assert.equal(entry.effects.residency, 'server')
+})
+
+test('a component that renders itself is refused rather than expanded', async () => {
+  await rejects(
+    'const Node = fragment(({ n }) => <li><Node n={n} /></li>)\nexport default fragment(({ n }) => <ul><Node n={n} /></ul>)',
+    'E_COMPONENT_CYCLE',
+  )
+})
+
+test('the refusals around a component name what is missing', async () => {
+  await rejects(
+    BADGE + 'export default fragment(({ t }) => <p><Badge tone={t} /></p>)',
+    'E_COMPONENT_PROP_MISSING',
+  )
+  await rejects(
+    BADGE + 'export default fragment(({ t }) => <p><Badge tone={t} label="a" extra={t} /></p>)',
+    'E_COMPONENT_PROP_UNKNOWN',
+  )
+  await rejects(
+    BADGE + 'export default fragment(({ t }) => <p><Badge tone={t} label="a">child</Badge></p>)',
+    'E_COMPONENT_CHILDREN_UNSUPPORTED',
+  )
+  await rejects(
+    BADGE + 'export default fragment(({ t }) => <p><Badge tone={t} label="a" onClick={save} /></p>)',
+    'E_COMPONENT_EVENT_UNSUPPORTED',
+  )
+  await rejects(
+    BADGE +
+      'export default fragment(({ rows, t }) => <ul>{rows.map((r) => <li><Badge tone={t} label="a" /></li>)}</ul>)',
+    'E_COMPONENT_IN_LIST',
   )
 })
 
