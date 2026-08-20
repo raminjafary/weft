@@ -45,6 +45,11 @@ imports, and the compiler recognises them by resolving the import rather than by
 | `<slot>{fallback}</slot>` | a `slot` hole: the base render emits nothing and a later frame fills it |
 | `<>…</>` at the root | a template with no wrapper element |
 
+## Effects
+
+What a fragment reads is inferred, and an untracked ambient read is a hard error. That has
+its own page: [effects and the ban](effects.md).
+
 ## Escape elision asks the type checker
 
 Two passes decide whether a hole is `escape` or `proven-safe`.

@@ -23,6 +23,7 @@ without a harness and a wire format cannot be versioned retroactively.
 | Device and engine reality | [`spec/baseline/devices.md`](spec/baseline/devices.md) | Written before the numbers |
 | Template compiler | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler` | TSX to IR, on Oxc, with type-driven escape elision |
 | Client runtime | [`spec/client/adoption.md`](spec/client/adoption.md), `packages/client` | Adoption, signals, surgical deltas, resident templates over Warp |
+| Effect inference | [`spec/compiler/effects.md`](spec/compiler/effects.md), `packages/compiler` | Reads inferred, cache class derived, ambient reads banned |
 | Route streaming | [`spec/kernel/streaming.md`](spec/kernel/streaming.md), `packages/kernel` | Slots streamed in order or fastest-first |
 | Benchmark harness | `packages/bench` | All six axes measured |
 | React Router 7 candidate | [`benchmarks/rr7`](benchmarks/rr7) | The phase-zero gate, tuned and default shapes |
@@ -47,7 +48,7 @@ node packages/bench/src/cli.ts run --axes shell-ttfb --scenarios slow-feed \
   --latency 40 --external benchmarks/rr7/candidates.json    # the gate, against RR7
 node packages/bench/src/cli.ts ir cart                       # the compiled, sealed IR
 npm run typecheck                                            # TypeScript 7, clean
-node --test packages/*/test/*.test.ts                        # 110 conformance tests
+node --test packages/*/test/*.test.ts                        # 125 conformance tests
 node packages/bench/src/cli.ts run --axes client-work         # what each form costs a client
 ```
 

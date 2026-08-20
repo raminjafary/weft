@@ -14,6 +14,10 @@ export interface Scope {
   propsIdent?: string
   signals: Map<string, SignalDecl>
   imports: Map<string, ImportRef>
+  /** Values computed in the fragment body, including everything read through the context. */
+  locals: Set<string>
+  /** The context parameter, whose calls are the fragment's reads. */
+  ctxParam?: string
   /** Set inside a list row: the map callback's parameter name. */
   itemParam?: string
 }
@@ -150,8 +154,13 @@ function classifyBySyntax(expr: Node, input: LowerInput, em: Emitter): Classifie
       throw fail(input, expr, 'E_ITEM_NOT_A_VALUE', `${ident} is the row itself; interpolate one of its fields`)
     }
     if (scope.itemParam) throw outOfRowScope(input, expr, ident)
-    if (!scope.props.has(ident)) {
-      throw fail(input, expr, 'E_UNKNOWN_BINDING', `${ident} is not a prop of this fragment`)
+    if (!scope.props.has(ident) && !scope.locals.has(ident)) {
+      throw fail(
+        input,
+        expr,
+        'E_UNKNOWN_BINDING',
+        `${ident} is neither a prop of this fragment nor a value computed in its body`,
+      )
     }
     return { binding: ident, escape: 'escape' }
   }
@@ -164,6 +173,14 @@ function classifyBySyntax(expr: Node, input: LowerInput, em: Emitter): Classifie
       const owner = name(object)
       if (scope.itemParam && owner === scope.itemParam) return { binding: name(property), escape: 'escape' }
       if (scope.propsIdent && owner === scope.propsIdent) return { binding: name(property), escape: 'escape' }
+      if (owner === scope.ctxParam) {
+        throw fail(
+          input,
+          expr,
+          'E_CTX_IN_MARKUP',
+          `read ${owner}.${name(property)} into a value in the fragment body, so the compiler can record what it taints`,
+        )
+      }
       if (scope.itemParam) throw outOfRowScope(input, expr, owner)
     }
     throw fail(input, expr, 'E_EXPRESSION_UNSUPPORTED', `cannot resolve ${source(input, expr)} to a binding`)
@@ -171,6 +188,17 @@ function classifyBySyntax(expr: Node, input: LowerInput, em: Emitter): Classifie
 
   if (expr.type === 'CallExpression') {
     const callee = node(expr.callee)
+    if (callee.type === 'MemberExpression' && !callee.computed) {
+      const owner = node(callee.object)
+      if (owner.type === 'Identifier' && name(owner) === scope.ctxParam) {
+        throw fail(
+          input,
+          expr,
+          'E_CTX_IN_MARKUP',
+          `read ${name(owner)}.${name(node(callee.property))}() into a value in the fragment body, so the compiler can record what it taints`,
+        )
+      }
+    }
     if (callee.type === 'Identifier') {
       const called = name(callee)
       const signal = scope.signals.get(called)
@@ -467,7 +495,7 @@ function lowerList(list: { array: Node; callback: Node }, path: number[], em: Em
     file: input.file,
     source: input.source,
     ...(input.types ? { types: input.types } : {}),
-    scope: { ...input.scope, itemParam: name(param), signals: input.scope.signals },
+    scope: { ...input.scope, itemParam: name(param), signals: input.scope.signals, locals: new Set() },
   })
 
   const holeIndex = hole(em, {

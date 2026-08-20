@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { mkdir, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import { stringify } from '../../ir/src/index.ts'
+import { explain, stringify } from '../../ir/src/index.ts'
 import { compileFiles } from './compile.ts'
 import { CompileError } from './errors.ts'
 
@@ -72,7 +72,8 @@ async function main(): Promise<number> {
         if (!quiet) {
           const elided = template.holes.filter((h) => h.escape === 'proven-safe').length
           process.stdout.write(
-            `${template.version.slice(0, 8)}  ${template.holes.length} holes (${elided} elided)  ${template.wiring.length} wiring  ${template.forms.join(',')}  ${template.id}\n`,
+            `${template.version.slice(0, 8)}  ${template.holes.length} holes (${elided} elided)  ${template.wiring.length} wiring  ${template.id}\n` +
+              `          ${explain(template.effects)}\n`,
           )
         }
       }
