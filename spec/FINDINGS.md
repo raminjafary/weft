@@ -308,6 +308,80 @@ design says the plan is data specifically so `SchedulerPort` can reorder slots a
 the pipe fastest-first, so freezing the waves at build time gives up a declared capability. It is
 the one candidate where bytes cost a design property, and it is not being given up by accident.
 
+## Caught by the first client that actually negotiated: the server advertised an IR it stopped emitting
+
+`SERVER_DEFAULTS.ir` in `@weft/warp` said `1.0.0`. The emitter has been on `2.4.0` since IR
+2.0.0 landed. So `negotiate` saw an IR **major** mismatch on every current client and returned
+`forms: ['html']` — markup only, no delta, no patch. Phase 6's entire mechanism was
+unreachable through the default negotiation.
+
+It surfaced the first time a real client asked for a delta over a socket and got markup.
+
+Two things made it survive. Every negotiation test supplied matching versions on both sides, so
+the mismatch branch was only ever exercised deliberately — and one test exercised it _with the
+current IR major_, asserting the html-only downgrade as correct behaviour under the name "an IR
+major mismatch". The test was enforcing the bug. And the repeat-visit benchmark negotiated
+`ir: '2.1.0'` against the same default, so its `WARP` frame had been advertising `html` while
+the page applied deltas anyway.
+
+The fix is not a corrected constant. `@weft/warp` owns the Warp version and the template IR is
+versioned separately, on purpose — so a default in that package could only ever state an IR
+version it cannot see. `negotiate`'s second argument is now required, `SERVER_DEFAULTS` is
+gone, and the composition lives in the one place that can see both versions:
+`serverCapabilities()` in the kernel, deriving from `TEMPLATE_IR_VERSION`. A gate asserts it
+equals the emitter's version, and the test that used to assert the bug now asserts a current
+client keeps every form.
+
+**A default in a module that cannot see the answer is a wrong answer waiting for a reader.**
+
+## Found by exporting one more function: the 8 KB never included the route matcher
+
+`createRouter` was not exported from `entry-request.ts`, so it was not in the bundle the
+document request path was measured as. Every figure quoted for the kernel — 7,602, 7,833,
+7,360 — described a kernel whose `serve()` throws `E_NO_ROUTES`.
+
+Adding it costs 639 bytes brotli. The path is 7,999 against 8,192, so the design's claim still
+holds, on 193 bytes of headroom rather than 832.
+
+Worth being precise about what happened here. The 473 bytes recovered earlier in the same
+session were real, and they were immediately spent by an accounting correction that had been
+outstanding longer. The net of the session on this figure is +166 bytes and a number that
+describes something deployable.
+
+## The line-count ceiling should not have moved
+
+It went 2,500 to 2,900 last session when routing landed, recorded at the time as something to
+be uncomfortable about. The discomfort was right and the diagnosis was wrong: it was summing
+every file in `src/`, which is the same gross-versus-marginal mistake the byte budget had
+already made and already fixed one section above. Measured against the request path it is
+meant to describe, routing never took it near 2,500 — the request path is 2,285 lines.
+
+So it is back at 2,500, each entry has its own ceiling by the same reachability walk the byte
+budget uses, and a companion gate asserts every source file is reachable from some entry or
+named as off the request path. A module no ceiling applies to is invisible to both gates.
+
+**A gate that fires and then moves is worth re-deriving before it is renegotiated.** Twice now
+the answer has been that the gate was measuring the wrong set.
+
+## Paid for, honestly: the channel
+
+| Entry                                 | brotli   | Ceiling  |
+| ------------------------------------- | -------- | -------- |
+| Document request path                 | 7,999 B  | 8,192 B  |
+| Plus surgical refresh and epochs      | 10,221 B | 12,288 B |
+| Plus a live channel                   | 12,343 B | 13,312 B |
+| Client: app route plus a frame router | 3,626 B  | 4,096 B  |
+
+Charged to `entry-channel.ts` the channel came out 53 bytes over a ceiling that was set before
+it existed. Raising that ceiling was available and was not taken: the rule written earlier the
+same session says a new capability gets its own entry, and there is a real deployment behind
+the split — surgical refresh over plain request/response, with no long-lived connection, is
+how every phase 6 test worked before a channel existed.
+
+The new ceilings are watermarks and say so. Two of them state how much room is left and what
+it is for, because a ceiling picked to fit what was just built is a label unless the next thing
+has to argue with it.
+
 ## Found by writing the routing tests: a private entry could reach a shared tier
 
 `tieredStore.set` wrote every entry to every tier. `EntryMeta.class` recorded that an entry was

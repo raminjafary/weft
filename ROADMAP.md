@@ -19,37 +19,75 @@ draw on the document request path's headroom.
 
 The nine phases are from [the architecture proposal](docs/weft-and-warp.html).
 
-| Phase                                 | State                                                                                                                                        |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 · Prove the physics, version the IR | Done. RR7 gate measured, IR versioned from commit one, harness gates every claim                                                             |
-| 2 · Kernel and ports                  | Request state machine, two-phase envelope, 103 Early Hints, deferral, routing, thirteen ports declared and six implemented                   |
-| 3 · Client runtime                    | Signals, wiring, adoption, deltas, residency, epochs, budget. Missing: navigation, intent transport                                          |
-| 4 · The plan layer                    | Plan DSL, effect inference, runtime keys, plugin DAG, `weft why`, and a plan that lowers to a served route. Missing: generated plans         |
-| 5 · Negotiation and locus             | Resident digests, form selection, `STALE`, epochs with atomic commit, executors, per-slot budgets. Missing: a transport binding, a real pool |
-| 6 · Stateless surgical updates        | `HELD` flow, base recovery through the store, memoized deltas. Missing: incremental recompute, a LiveView benchmark                          |
-| 7 · Discovery and authority           | Not started. No lazy plan extension, render intents, capability checks, signed intents                                                       |
-| 8 · Profile-guided planning           | Not started. No `weft profile`, generated plans, chunk packing, V8 compile hints                                                             |
-| 9 · Composition and topology          | Composition is in-process. `remote` is a declared wire form with no implementation                                                           |
+| Phase                                 | State                                                                                                                                                 |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 · Prove the physics, version the IR | Done. RR7 gate measured, IR versioned from commit one, harness gates every claim                                                                      |
+| 2 · Kernel and ports                  | Request state machine, two-phase envelope, 103 Early Hints, deferral, routing, thirteen ports declared and six implemented                            |
+| 3 · Client runtime                    | Signals, wiring, adoption, deltas, residency, epochs, budget, a frame router. Missing: navigation, intent transport                                   |
+| 4 · The plan layer                    | Plan DSL, effect inference, runtime keys, plugin DAG, `weft why`, and a plan that lowers to a served route. Missing: generated plans                  |
+| 5 · Negotiation and locus             | Resident digests, form selection, `STALE`, epochs with atomic commit, executors, per-slot budgets, all three transport bindings. Missing: a real pool |
+| 6 · Stateless surgical updates        | `HELD` flow, base recovery through the store, memoized deltas, served over a live channel. Missing: incremental recompute, a LiveView benchmark       |
+| 7 · Discovery and authority           | Not started. No lazy plan extension, render intents, capability checks, signed intents                                                                |
+| 8 · Profile-guided planning           | Not started. No `weft profile`, generated plans, chunk packing, V8 compile hints                                                                      |
+| 9 · Composition and topology          | Composition is in-process. `remote` is a declared wire form with no implementation                                                                    |
 
 ---
 
 ## Near term — closing the seams that were opened
 
-### 1. A Warp transport binding
-
-`HELD`, `REFRESH`, `STALE`, `COMMIT`, `REDIRECT` and `COOKIE` are produced, parsed and tested
-as frames. Nothing carries them over a live connection, so every one of phases 5 and 6's flows
-is exercised in a test and never over a wire.
-
-The design names three bindings — streamed response with discrete POSTs up, SSE, WebSocket.
-The first is already half-built: the document response _is_ the first frames.
-
-### 2. Intents, and therefore invalidation
+### 1. Intents, and therefore invalidation
 
 `EffectSet.writes` and `.envelope` are still empty because nothing writes. Intents unblock
 invalidation, `revalidateTag`, optimistic epochs driven by a real mutation, the `INTENT` and
 `ACK` frames, and method-aware routing — the table is path-only today because a method match
 would have nothing to dispatch to.
+
+### 2. Instant navigation, and what is already prepared for it
+
+The hard primitive exists and is tested. The thing that would compose it into "navigate and
+it is already there" does not.
+
+**What is available.** Three layers of preparation, and they cover more than assets.
+
+- **Bytes.** 103 Early Hints (`kernel/src/hints.ts`), `PreloadLink` carrying `preload` and
+  `modulepreload`, fed by `AssetPort.criticalFor(route)` and `chunksFor(route)`. This is the
+  CSS-and-JS layer, and it is the least interesting part.
+- **Templates.** The `WARM` frame asks the server to push `TPL` for versions the client does
+  not hold, and the resident store (`client/src/resident.ts`, IndexedDB) keeps them across
+  visits. The structure of a page you have not visited can be resident before you go there,
+  so adoption on arrival costs only bindings.
+- **Data, resolved and unpainted.** The real one. An epoch is exactly "fully fetched, fully
+  resolved, painting nothing": any number of staged epochs coexist with `live`, and one
+  `COMMIT` flips every slot staged in one of them at once. Prefetch being unable to disturb
+  the present falls out of that rather than being built, which is the design's own argument
+  for separating data currency from view currency. The client frame router honours it —
+  a `DELTA` carrying an `epoch` header performs zero DOM writes, and a region's base
+  deliberately does not advance until the commit paints it, with a test asserting exactly
+  that nothing is written.
+
+**What is missing.**
+
+- **Navigation itself.** Phase 3's stated gap. Nothing intercepts a link, requests the target
+  route's slots under an epoch, and commits on click. `NAV` (0x1d) is a declared frame code
+  with no implementation. Regions are keyed by slot on the current page, so there is no notion
+  of a staged _route_: tomorrow's prices can be staged into today's page, a different page
+  cannot.
+- **Knowing a route's slot set before arriving there.** Lazy plan extension is phase 7 and not
+  started. Without it there is nothing to ask for.
+- **Off-main-thread rendering, server side.** `ExecutorPort` declares `pool`, `isolate`,
+  `binding` and `svc`; `inline`, `deferred` and `client` are implemented, and `deferred` is
+  honest about being a fresh macrotask preemptible at await points rather than a worker
+  thread. That is why `.budget({ cpu })` is advisory on it. See the worker-pool item below.
+- **Off-main-thread rendering, client side.** Nothing runs in a worker. `applyDelta` writes the
+  DOM and cannot leave the main thread by nature; what could be prepared off-thread — parsing
+  a `TPL`, resolving derived values — is not.
+
+**What it would take.** A navigation module on the client that, on hover or viewport entry,
+sends `WARM` for the target's templates and a `REFRESH` scoped to the target route under a
+fresh epoch, then commits that epoch on click. The transport exists now and the epoch
+semantics exist; what is missing is a route-scoped staging model and something that knows a
+route's slot set before arrival. So: real, and blocked on phase 7's discovery rather than on
+the transport.
 
 ### 3. A stampede lease in the request path
 
