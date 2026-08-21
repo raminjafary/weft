@@ -83,7 +83,19 @@ export interface KernelRoute {
  * What a matched route resolves to. The params come from the router, so a plan can be lowered
  * once and produce a route per request without the kernel knowing what a plan is.
  */
-export type RouteResolver = (params: Record<string, string>) => KernelRoute | Promise<KernelRoute>
+/**
+ * A plan, resolved for one request.
+ *
+ * `params` is what the router matched. `url` is the request's, and it is here because "resolved
+ * per request" is not a meaningful phrase if the resolver cannot see the request: a page whose
+ * subject is a per-slot budget or a delivery order has to be able to read a control, and a control
+ * on a server-rendered page is a query parameter.
+ *
+ * This decides *placement*, which is the plan's own business. It cannot smuggle an unkeyed read
+ * into a render: what a cache key contains still comes from the effect set the compiler inferred,
+ * and nothing here can add to it.
+ */
+export type RouteResolver = (params: Record<string, string>, url?: URL) => KernelRoute | Promise<KernelRoute>
 
 export interface KernelOptions {
   ports: Ports
@@ -312,9 +324,15 @@ export function createKernel(options: KernelOptions): Kernel {
     const work = dispatch(nodes, {
       maxConcurrency: route.maxConcurrency ?? options.ports.scheduler?.maxConcurrency ?? 6,
       run: async (node) => {
-        const slot = byName.get(node.name) as KernelSlot
-        const bytes = await renderOne(slot)
-        results.get(node.name)?.open(bytes)
+        const held = results.get(node.name) as Gate
+        try {
+          held.open(await renderOne(byName.get(node.name) as KernelSlot))
+        } catch (error) {
+          // The stream is awaiting this slot. Handing it the failure is what ends the response;
+          // swallowing it is what used to hang it.
+          held.fail(error)
+          throw error
+        }
       },
     })
 
@@ -372,12 +390,13 @@ export function createKernel(options: KernelOptions): Kernel {
       if (!options.routes) {
         throw new Error('E_NO_ROUTES: serve() needs a route table; pass `routes` to createKernel')
       }
-      const matched = options.routes.match(new URL(request.url))
+      const url = new URL(request.url)
+      const matched = options.routes.match(url)
       if (!matched) {
         trace = emptyTrace()
         return options.notFound ? options.notFound(request) : new Response(null, { status: 404 })
       }
-      const route = await matched.value(matched.params)
+      const route = await matched.value(matched.params, url)
       const response = await handle(request, route, matched.params)
       if (trace) trace.matched = { pattern: matched.pattern, params: matched.params }
       return response
@@ -399,17 +418,32 @@ function emptyTrace(): KernelTrace {
   }
 }
 
+/**
+ * One slot's bytes, awaited by the stream and opened by the render.
+ *
+ * It has to be able to fail. A slot whose render throws — which is exactly what
+ * `onExceed: 'fail'` is for — would otherwise leave this promise pending forever, and the stream
+ * awaiting it would never close: the shell and every other slot would be on the wire and the
+ * response would simply never end. A request that has already failed and does not say so is the
+ * one outcome indistinguishable from a hung server.
+ */
 interface Gate {
   open(bytes: Uint8Array): void
+  fail(error: unknown): void
   bytes: Promise<Uint8Array>
 }
 
 function gate(): Gate {
-  const held: { open?: (bytes: Uint8Array) => void } = {}
-  const bytes = new Promise<Uint8Array>((resolve) => {
-    held.open = resolve
+  let open!: Gate['open']
+  let fail!: Gate['fail']
+  const bytes = new Promise<Uint8Array>((a, b) => {
+    open = a
+    fail = b
   })
-  return { open: held.open as (bytes: Uint8Array) => void, bytes }
+  // The stream is the only awaiter and it may already have gone, so a rejection with nobody
+  // listening would take the process down. The rejection still reaches whoever does await.
+  void bytes.catch(() => {})
+  return { open, fail, bytes }
 }
 
 async function resolveAll(

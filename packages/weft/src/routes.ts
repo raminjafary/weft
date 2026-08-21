@@ -17,6 +17,7 @@ import {
 import { composedIn, slotHoles, type CompiledApp, type CompiledFragment } from './compile.ts'
 import type { Discovered, DiscoveredRoute } from './convention.ts'
 import type { CacheDeclaration, RouteModule, SlotDeclaration } from './route.ts'
+import type { ExceedPolicy } from './types.ts'
 import type { ResolvedConfig } from './config.ts'
 
 const utf8 = new TextEncoder()
@@ -464,6 +465,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
           ...(module_.incremental ? { incremental: true } : {}),
           ...(module_.executor ? { executor: module_.executor } : {}),
           ...(module_.budget ? { budget: module_.budget } : {}),
+          ...(module_.budgetFor ? { budgetFor: module_.budgetFor } : {}),
           ...(module_.placeholder ? { placeholder: module_.placeholder } : {}),
           ...(module_.refresh !== undefined ? { refresh: module_.refresh } : {}),
           ...(module_.form ? { form: module_.form } : {}),
@@ -601,8 +603,30 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
 
   const resolver = lowerPlan(plan, { facts, executors: Object.keys(options.config.executors) }, bindings)
   const order = module_.order
-  const value: RouteResolver = async (params) => {
+  /**
+   * Slots whose budget is a function of the request, and the declared one they override.
+   *
+   * Collected here rather than looked up per request: the declaration is build-time knowledge,
+   * and a resolver that had to re-read it on every request would be doing the plan's work again.
+   */
+  const perRequest = holes
+    .map((name) => ({
+      name,
+      for: (declarations[name] as (typeof declarations)[string]).declaration.budgetFor,
+    }))
+    .filter((entry): entry is { name: string; for: NonNullable<typeof entry.for> } => Boolean(entry.for))
+
+  const value: RouteResolver = async (params, url) => {
     const resolved = await resolver(params)
+    const query = url?.searchParams ?? new URLSearchParams()
+    const overrides = new Map<string, { cpuBudgetMs?: number; onExceed?: ExceedPolicy }>()
+    for (const entry of perRequest) {
+      const asked = entry.for({ params, query })
+      overrides.set(entry.name, {
+        ...(asked.cpu !== undefined ? { cpuBudgetMs: every(asked.cpu) } : {}),
+        ...(asked.onExceed ? { onExceed: asked.onExceed } : {}),
+      })
+    }
     return {
       ...resolved,
       /**
@@ -618,8 +642,8 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
         effects: layout.entry.effects,
       },
       ...(order ? { order: typeof order === 'function' ? order(params) : order } : {}),
-      slots: resolved.slots.map((slot) =>
-        wrapSlot(
+      slots: resolved.slots.map((slot) => ({
+        ...wrapSlot(
           slot,
           slot.name,
           route.pattern,
@@ -628,7 +652,8 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
           expose,
           Boolean(live[slot.name]),
         ),
-      ),
+        ...overrides.get(slot.name),
+      })),
     }
   }
 
