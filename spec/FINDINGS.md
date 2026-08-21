@@ -257,6 +257,57 @@ claim and the line count is a smell detector for the kernel absorbing port-shape
 routing is one of the four jobs the design gives a kernel. If the line count moves again for
 something that is not one of those four, it was never a gate.
 
+## Paid back: 473 bytes that were never request work
+
+Two things in the request path had no business being measured against a per-request budget,
+and moving them cost nothing the design had promised.
+
+`resolvePlugins` infers plugin ordering from static `reads` and `provides` declarations, runs a
+topological sort, and refuses duplicates, ambiguity and cycles. None of that involves a request.
+`createKernel` now takes the resolved `PluginSchedule` instead of a plugin list, so the sort
+happens once at build. Collecting `planAxis()` moved with it, for the same reason: it takes no
+request either.
+
+`guardReads` wraps the envelope context so a plugin's undeclared read throws. The design already
+specifies this as a check that throws _in dev_; it was in the production path because it had been
+built as one thing with the plugin runner. It is now passed in — `createKernel({ guard: guardReads })`
+— and a production build never imports it.
+
+| Entry                 | Before   | After   | Ceiling  |
+| --------------------- | -------- | ------- | -------- |
+| Document request path | 7,833 B  | 7,360 B | 8,192 B  |
+| Plus the Warp channel | 10,084 B | 9,583 B | 12,288 B |
+
+**832 bytes of headroom**, up from 359. Worth naming what this is and is not: it is 473 bytes of
+work that was in the wrong place, not 473 bytes of savings found by shrinking the kernel. Nothing
+the design promised got smaller.
+
+The exclusion is now a gate rather than a preference — a reachability walk from
+`entry-request.ts` that fails if it can reach either module, with a positive control asserting
+the same walk does find them from the barrel. A grep would not have caught a module three
+imports deep, which is the version of this mistake worth catching.
+
+## Decided, and narrowed: the 8 KB covers the document request path
+
+The alternative to narrowing was one pool that every capability draws from, and the failure mode
+of that is visible in the paragraph above this one: routing spent 231 bytes of a shared figure and
+the next feature inherited the argument. So the claim is scoped, each entry states what it
+covers, and a new capability gets its own entry and its own ceiling rather than a share of an
+existing one. [`spec/kernel/budgets.md`](kernel/budgets.md) is the normative version.
+
+This is the second time in this project a stated ceiling has been redrawn — the line count moved
+from 2,500 to 2,900 when routing landed. The two are not the same move and the difference is the
+whole argument: the line count moved its _number_ while covering the same thing, which is what
+makes it a label. This one keeps every number where it is and says which one covers what. If the
+distinction turns out to be a rationalisation, the tell will be a third redrawing, and it should
+be treated as one.
+
+One byte saving was available and deliberately not taken. `schedule()` reaches the request path
+transitively through `dispatch()`, and the waves could be precomputed when a plan is lowered. The
+design says the plan is data specifically so `SchedulerPort` can reorder slots at runtime to fill
+the pipe fastest-first, so freezing the waves at build time gives up a declared capability. It is
+the one candidate where bytes cost a design property, and it is not being given up by accident.
+
 ## Found by writing the routing tests: a private entry could reach a shared tier
 
 `tieredStore.set` wrote every entry to every tier. `EntryMeta.class` recorded that an entry was

@@ -26,16 +26,22 @@ run.
 
 ## Measured
 
-| Entry                               | brotli   | Ceiling                                     |
-| ----------------------------------- | -------- | ------------------------------------------- |
-| `entry-request.ts` — document path  | 7,833 B  | 8,192 B, from the design's "under 8 KB"     |
-| `entry-channel.ts` — plus Warp path | 10,084 B | 12,288 B, no design figure, measured anyway |
+| Entry                               | brotli  | Ceiling                                     |
+| ----------------------------------- | ------- | ------------------------------------------- |
+| `entry-request.ts` — document path  | 7,360 B | 8,192 B, from the design's "under 8 KB"     |
+| `entry-channel.ts` — plus Warp path | 9,583 B | 12,288 B, no design figure, measured anyway |
 
-359 bytes of headroom on the claim, after routing spent 231 of it. The whole barrel (`index.ts`, including build-time
-validation and serialisation) is 10,686 B and is deliberately **not** the entry the claim is
+832 bytes of headroom on the claim. The whole barrel (`index.ts`, including build-time
+validation and serialisation) is 11,601 B and is deliberately **not** the entry the claim is
 measured against — a deployment serving documents does not import the channel path, and
 measuring gross rather than marginal is how byte budgets become meaningless and get switched
 off.
+
+What each figure covers, and what may enter the request path at all, is
+[`budgets.md`](budgets.md). Two modules are excluded by a reachability gate rather than by
+convention: `plugin-graph.ts`, because plugin ordering is inferred from static declarations and
+belongs to the build, and `plugin-guard.ts`, because the design specifies declared-read
+enforcement as a dev-time check.
 
 ## The thirteen
 
