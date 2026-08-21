@@ -1,5 +1,5 @@
 import { defineRoute } from 'weft'
-import { lane, laneName, lanesFrom, type RaceLane } from '../../../../src/race.ts'
+import { lane, laneName, lanesFrom, type RaceLane } from '../../../lib/race.ts'
 
 /**
  * The streaming race: the same three regions, the same three latencies, served in both orders.

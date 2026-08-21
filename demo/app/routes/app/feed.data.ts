@@ -1,7 +1,7 @@
 import { defineRoute } from 'weft'
-import { feedItems, at } from '../../../src/data.ts'
-import { field, panel, press, slider } from '../../../src/pages.ts'
-import { LOG } from '../../../src/showcase.ts'
+import { feedItems, at } from '../../lib/data.ts'
+import { field, panel, press, slider } from '../../lib/controls.ts'
+import { LOG } from '../../lib/showcase.ts'
 import { fragmentIR, listHole } from 'weft'
 
 /**

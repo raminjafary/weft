@@ -1,6 +1,6 @@
 import { defineRoute } from 'weft'
-import { ARTICLE } from '../../../src/data.ts'
-import { panel } from '../../../src/pages.ts'
+import { ARTICLE } from '../../lib/data.ts'
+import { panel } from '../../lib/controls.ts'
 import { fragmentIR, listHole } from 'weft'
 
 /**

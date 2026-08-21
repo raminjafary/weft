@@ -1,65 +1,48 @@
-# The demo
+# demo
 
-Every capability this framework has, running, with a control that lets you feel the mechanism
-rather than read about it.
-
-```
-npm run demo          # http://localhost:4173
-npm run demo:dev      # the same, restarted on change
-PORT=5000 npm run demo
-```
-
-## What is here
-
-**Five showcases** — whole pages, each leaning on several capabilities at once, because a
-framework can win every isolated station and still be miserable to build a page with.
-
-| Page                   | Stands for                                                          |
-| ---------------------- | ------------------------------------------------------------------- |
-| `/app/ordinary/pantry` | Most pages. Components, props, no streaming, no channel, no deltas  |
-| `/app/feed`            | Hundreds of rows, shared cache, deltas over a live channel          |
-| `/app/cart`            | A signed-in region inside a shared shell, and intents that write it |
-| `/app/article`         | The case where almost nothing should ship                           |
-| `/app/dashboard`       | Four independent queries of very different cost                     |
-
-**Thirty-three stations** — one per mechanism, at `/s/<id>`. `/` lists them and `/spec` is the
-coverage table.
-
-## Three rules this directory keeps
-
-**Every page is served by the framework.** The index, the coverage page and every station go
-through `kernel.serve`, not only the showcases. A demo whose own chrome is rendered by something
-else has quietly exempted itself from its own claims.
-
-**Every number comes from `@weft/bench`.** A demo with its own measurement path is a demo that
-will disagree with the harness, and the disagreement will be found by somebody who trusted the
-demo. Each station prints what produced its number and what the number does not cover.
-
-**Not a subset.** If a capability is in the specs it has a station, and
-[`test/stations.test.ts`](test/stations.test.ts) fails the build when a spec document has no
-station pointing at it. The same test refuses to let a station claim `live` without a handler
-registered, so the index cannot advertise a page that does not run. A station for something that
-does not exist says so and links to the roadmap — better an honest empty station than a mock.
-
-## No build step
-
-Client modules are TypeScript served with their types stripped by Node, so what runs in the
-browser is the file in the repository. Fragments are compiled by the real compiler at boot, so a
-station showing you an inferred read set is showing you what the compiler inferred from the file
-open next to it.
-
-## Where things are
+Five shapes of page, built with weft. It is an application, and the interesting thing about it is
+what it does _not_ contain.
 
 ```
-src/fragments/*.tsx   the pages and components, compiled by @weft/compiler
-src/showcases.ts      the five showcases, authored through the plan DSL
-src/stations/*.ts     one handler per station
-src/channel.ts        the Warp hub and the intents the cart dispatches
-src/race.ts           the live streaming race the streaming-order station frames
-src/client/boot.ts    the browser half: adoption, controls, the channel
-src/server.ts         the wiring — and the honest measure of how much of it there is
+pnpm demo
 ```
 
-`src/server.ts` being two hundred lines of wiring is itself a finding. It is the only worked
-example of standing this framework up, and hiding it behind a CLI is the first item on
-[`ROADMAP.md`](../ROADMAP.md).
+## It imports nothing but `weft`
+
+Not `@weft/kernel`, not `@weft/plan`, not `@weft/adapters`. Its `package.json` depends on `weft`
+alone, so it could not reach past the front door even by accident. If a page here needs something,
+that is a gap in the framework's front door rather than a reason to open a side one — and the demo
+is the thing that keeps finding those gaps.
+
+The stations that _do_ take the framework apart moved to `@weft/inspector`, where that is the job.
+
+## It has no client code
+
+There is no `app/client.ts`. Adoption, intents, the channel, control wiring and the runtime
+readouts are all the framework's, reached through attributes rather than through glue:
+
+|                               |                                                          |
+| ----------------------------- | -------------------------------------------------------- |
+| `data-weft-control="rows"`    | this input owns the `rows` query parameter               |
+| `data-weft-apply`             | make the page agree with its controls                    |
+| `data-weft-intent="cart.add"` | dispatch this intent, over the channel or as a form post |
+| `data-weft-stat="writes"`     | paint the runtime's own numbers here                     |
+
+## One directory
+
+```
+app/
+  layout.tsx            the document
+  layouts/dash.tsx      the dashboard's, because it has a different shape
+  layouts/race.tsx      the streaming race's
+  routes/**             the route table, which is this tree
+  fragments/**          components, each with its own .css beside it
+  intents/**            mutations. The manifest is generated from this directory
+  styles.css            linked on every page after the framework's own
+  lib/**               fixtures and markup helpers. The framework does not read this
+weft.config.ts          what this deployment binds
+```
+
+`app/lib/` is ordinary application code — fake products, an article, the form widgets the panels
+are made of. The framework only reads the directories named above it, so there is nowhere for
+`lib/` to accidentally become a route.
