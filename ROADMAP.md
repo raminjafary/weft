@@ -8,6 +8,11 @@ Two rules carry over from phase zero and apply to everything below. A claim that
 measured is not made. A capability that does not exist is refused with a named error rather
 than approximated.
 
+A third rule now applies to anything that adds to the server. Byte ceilings are per entry and
+each one states what it covers — see [`spec/kernel/budgets.md`](spec/kernel/budgets.md). A new
+capability on the server gets its own measured entry and its own stated ceiling; it does not
+draw on the document request path's headroom.
+
 ---
 
 ## Where the design's own build order stands
@@ -46,51 +51,41 @@ invalidation, `revalidateTag`, optimistic epochs driven by a real mutation, the 
 `ACK` frames, and method-aware routing — the table is path-only today because a method match
 would have nothing to dispatch to.
 
-### 3. The last 359 bytes of the kernel
-
-The document request path is 7,833 B brotli against the design's 8,192, and routing spent 231 of
-the headroom. Intents and an epoch transport do not fit in what is left.
-
-Two honest options, and the choice should be deliberate rather than discovered: accept that the
-8 KB figure describes a smaller kernel than the design's full feature list, or move something
-currently in the request path behind a port. Either way it is a decision, and it is due before
-the next thing goes in rather than after.
-
-### 4. A stampede lease in the request path
+### 3. A stampede lease in the request path
 
 `StorePort.lease` is implemented and tested and the kernel never takes one, so two concurrent
 misses render twice. This is a small change with a large effect under load, and it is the
 difference between a cache and a cache that helps during an incident.
 
-### 5. L0: fragments that read nothing
+### 4. L0: fragments that read nothing
 
 A fragment classified `static` could be resolved at build time and served by a CDN with the
 kernel never invoked — the fastest tier by a wide margin, and free. Today it renders and caches
 like anything else, which means the cheapest thing in the design is not implemented.
 
-### 6. Generated plans, and plans from a convention
+### 5. Generated plans, and plans from a convention
 
 `lowerPlan` takes a plan, some `SlotFacts` derived from compiler output, and a bindings object.
 The first is derived; the other two are written by hand. A file convention or a profile that
 emits both is phase 8, and it is what makes a plan diffable in review rather than authored.
 
-### 7. A real worker pool
+### 6. A real worker pool
 
 `deferred` is preemptible at await points and is not a worker thread; it says so. A CPU budget
 is only a hard limit on a genuinely separate crash domain, so `pool:` is what makes
 `.budget({ cpu })` mean anything.
 
-### 8. Slots inside components
+### 7. Slots inside components
 
 `<Widget>content</Widget>` is `E_COMPONENT_CHILDREN_UNSUPPORTED`. A component takes props only.
 Children need a slot mechanism inside a nested template, which is a different problem from the
 streaming `slot` hole and should not reuse it by accident.
 
-### 9. Components inside list rows
+### 8. Components inside list rows
 
 `E_COMPONENT_IN_LIST`. A row is its own template and cannot carry an instance today.
 
-### 10. Incremental recompute
+### 9. Incremental recompute
 
 `.incremental()` is recorded in a plan, warns when there is nothing to memoize, and is read by
 nothing. The design's three memoisation levels exist only at the coarsest — fragment, keyed by
@@ -98,12 +93,12 @@ effect signature, which is `StorePort`. Derived-value and template-segment memoi
 opt-in part, and the literature is explicit that structural change to the computation graph is
 the hard case, which is why it stays per-slot rather than becoming a mode.
 
-### 11. A LiveView benchmark
+### 10. A LiveView benchmark
 
 Beating LiveView on shared-delta efficiency is the specific claim phase 6 exists to make, and
 it has not been measured against LiveView. The mechanism is built and the comparison is not.
 
-### 12. iOS WebKit on a real device
+### 11. iOS WebKit on a real device
 
 Playwright's WebKit is a desktop proxy and is labelled as one everywhere it appears. A
 WKWebView on a device has app-bound-domain rules, host-app request interception, and OS

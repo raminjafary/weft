@@ -121,9 +121,13 @@ shell's own resolved key.
 | ------------------------------ | ------- | ------- | ------- |
 | Document request path (brotli) | 7,602 B | 7,833 B | 8,192 B |
 
-231 bytes, leaving 359. The design's "under 8 KB server-side" still holds and the headroom is
-now small enough to be a real constraint on what else can go in: intents and an epoch transport
-do not fit in 359 bytes.
+231 bytes, leaving 359. The design's "under 8 KB server-side" still holds.
+
+359 bytes was small enough to be a real constraint, and what came of it is in
+[`budgets.md`](budgets.md): the plugin ordering graph and the dev-only read guard came out of the
+request path, which returned 473 bytes, and the claim is now scoped to the document request path
+by name rather than covering "the kernel" and being renegotiated per feature. Current figure is
+7,360 B with 832 of headroom.
 
 The kernel's source-line check fired at the same time, at 2,770 against a 2,500 ceiling.
 Routing is one of the four jobs the design gives a kernel, so the ceiling moved to 2,900 — and

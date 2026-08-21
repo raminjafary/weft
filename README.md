@@ -208,13 +208,13 @@ every engine.
 The design states four ceilings and none had ever been measured. Bundled with Rolldown,
 minified, compressed the way it would ship:
 
-| Entry                                     | Raw    | gzip   | brotli     | Budget |
-| ----------------------------------------- | ------ | ------ | ---------- | ------ |
-| Client runtime, everything                | 8,525  | 3,272  | **2,996**  | 6,144  |
-| Content route — adopt and bind            | 6,120  | 2,282  | **2,082**  | 5,120  |
-| App route — adopt, bind, patch, epochs    | 8,494  | 3,258  | **2,982**  | 12,288 |
-| Server kernel — the document request path | 23,866 | 8,824  | **7,833**  | 8,192  |
-| Server kernel — plus the Warp channel     | 30,879 | 11,344 | **10,084** | 12,288 |
+| Entry                                     | Raw    | gzip   | brotli    | Budget |
+| ----------------------------------------- | ------ | ------ | --------- | ------ |
+| Client runtime, everything                | 8,525  | 3,272  | **2,996** | 6,144  |
+| Content route — adopt and bind            | 6,120  | 2,282  | **2,082** | 5,120  |
+| App route — adopt, bind, patch, epochs    | 8,494  | 3,258  | **2,982** | 12,288 |
+| Server kernel — the document request path | 21,779 | 8,269  | **7,360** | 8,192  |
+| Server kernel — plus the Warp channel     | 28,792 | 10,787 | **9,583** | 12,288 |
 
 Comfortably inside on the client, and a content route still drops by never importing the
 update path, which is the module-level version of paying only for what you use.
@@ -223,11 +223,17 @@ Those client figures grew by about 1,300 bytes across the signal graph rewrite, 
 values, component adoption, property bindings, and staged epochs. It is recorded here rather
 than smoothed over, because a byte budget that only ever moves in reports is not a gate.
 
-**The kernel is the tight one.** The design says "target under 8 KB server-side"; the
-document request path is 7,833 B brotli, so the claim holds with 359 bytes of headroom — routing
-spent 231 of it. Nothing about intents or an epoch transport fits in what is left. The first attempt
-measured the whole barrel and came out 29% over — the gross-versus-marginal mistake the
-design warns about in the same paragraph as the byte budget, made immediately.
+**The kernel is the tight one, and the claim is scoped.** The design says "target under 8 KB
+server-side"; that number covers **the document request path** — lifecycle, envelope, routing,
+key derivation, wave dispatch, the stream — and the channel path has its own stated ceiling
+rather than a share of the same one. 7,360 B brotli against 8,192, so 832 bytes of headroom.
+Routing spent 231; taking the plugin ordering graph and the dev-only read guard out of the
+request path returned 473, because neither was ever request work. A reachability gate keeps them
+out. [`spec/kernel/budgets.md`](spec/kernel/budgets.md) says what each figure covers and why a
+new capability gets its own entry instead of drawing on someone else's headroom.
+
+The first attempt measured the whole barrel and came out 29% over — the gross-versus-marginal
+mistake the design warns about in the same paragraph as the byte budget, made immediately.
 
 Read the client headroom carefully too. **This runtime still does less than the design's
 runtime will.** No navigation, no form negotiation, no intent transport. What the numbers
