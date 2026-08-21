@@ -16,7 +16,9 @@ Not a preference — a constraint on what the kernel is allowed to know, which i
 - `process.`, `Buffer`, CommonJS `require(`, `__dirname`
 - a relative import reaching outside `@weft/ir` and `@weft/warp`, the two versioned wire
   packages
-- kernel source growing past 2,500 lines
+- kernel source growing past 2,900 lines — a smell detector for the kernel absorbing work that
+  belongs in a port, not the real gate. It moved from 2,500 when routing was added, because
+  routing is one of the four jobs the design gives a kernel
 
 `serveRoute` used to live in the kernel and imported `node:http`. It moved to
 `@weft/adapters` when the gate was written, which is the gate doing its job on its first
@@ -24,12 +26,12 @@ run.
 
 ## Measured
 
-| Entry                               | brotli  | Ceiling                                     |
-| ----------------------------------- | ------- | ------------------------------------------- |
-| `entry-request.ts` — document path  | 7,602 B | 8,192 B, from the design's "under 8 KB"     |
-| `entry-channel.ts` — plus Warp path | 9,846 B | 12,288 B, no design figure, measured anyway |
+| Entry                               | brotli   | Ceiling                                     |
+| ----------------------------------- | -------- | ------------------------------------------- |
+| `entry-request.ts` — document path  | 7,846 B  | 8,192 B, from the design's "under 8 KB"     |
+| `entry-channel.ts` — plus Warp path | 10,078 B | 12,288 B, no design figure, measured anyway |
 
-590 bytes of headroom on the claim. The whole barrel (`index.ts`, including build-time
+346 bytes of headroom on the claim, after routing spent 244 of it. The whole barrel (`index.ts`, including build-time
 validation and serialisation) is 10,686 B and is deliberately **not** the entry the claim is
 measured against — a deployment serving documents does not import the channel path, and
 measuring gross rather than marginal is how byte budgets become meaningless and get switched
@@ -61,6 +63,7 @@ A port that does not exist refuses with a named error. It does not approximate.
 interface StorePort {
   consistency: 'eventual' | 'strong'
   coherence: 'ttl' | 'generation' | 'pubsub' | 'tracking' | 'warp'
+  scope: 'process' | 'shared'
   maxValueBytes: number
   get(key): Promise<StoreEntry | null>
   set(key, value: Uint8Array | ReadableStream, meta): Promise<void>
@@ -70,7 +73,7 @@ interface StorePort {
 }
 ```
 
-Three of those signatures are load-bearing in ways that are easy to miss.
+Four of those signatures are load-bearing in ways that are easy to miss.
 
 **`coherence` names how a tier learns that something it holds is now wrong.** An in-process
 cache that cannot be invalidated from outside is not really a cache; it is a short buffer
@@ -86,8 +89,13 @@ frames for the connections holding them.
 **`set` takes a `ReadableStream`**, so a fragment can be cached while it streams to the first
 reader rather than only after it completes.
 
-`tieredStore` composes tiers and reports the **weakest** consistency and the **weakest**
-coherence of its members. Reporting the strongest would be the comfortable lie: an L1 that
+**`scope` says who can read the tier**, which is a different question from consistency and from
+coherence, and conflating them is how a private entry ends up somewhere it can be served to the
+wrong person. `tieredStore` writes a private entry only to `process` tiers — the filter is on the
+write rather than the read, because an entry that never left cannot be served to anyone.
+
+`tieredStore` composes tiers, reports the **weakest** consistency and coherence of its members,
+and the **most reachable** scope — a stack containing one shared tier is a shared stack. Reporting the strongest would be the comfortable lie: an L1 that
 cannot be invalidated remotely puts a ceiling on what the whole stack can promise, and the
 plan refuses a `consistency: 'strong'` policy against an eventual store on the strength of
 exactly this number (`E_CONSISTENCY_MISMATCH`).

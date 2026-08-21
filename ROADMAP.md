@@ -17,9 +17,9 @@ The nine phases are from [the architecture proposal](docs/weft-and-warp.html).
 | Phase                                 | State                                                                                                                                        |
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1 · Prove the physics, version the IR | Done. RR7 gate measured, IR versioned from commit one, harness gates every claim                                                             |
-| 2 · Kernel and ports                  | Request state machine, two-phase envelope, 103 Early Hints, deferral, thirteen ports declared and six implemented. Missing: routing          |
+| 2 · Kernel and ports                  | Request state machine, two-phase envelope, 103 Early Hints, deferral, routing, thirteen ports declared and six implemented                   |
 | 3 · Client runtime                    | Signals, wiring, adoption, deltas, residency, epochs, budget. Missing: navigation, intent transport                                          |
-| 4 · The plan layer                    | Plan DSL, effect inference, runtime keys, plugin DAG, `weft why`. Missing: the seam that turns a plan into a route                           |
+| 4 · The plan layer                    | Plan DSL, effect inference, runtime keys, plugin DAG, `weft why`, and a plan that lowers to a served route. Missing: generated plans         |
 | 5 · Negotiation and locus             | Resident digests, form selection, `STALE`, epochs with atomic commit, executors, per-slot budgets. Missing: a transport binding, a real pool |
 | 6 · Stateless surgical updates        | `HELD` flow, base recovery through the store, memoized deltas. Missing: incremental recompute, a LiveView benchmark                          |
 | 7 · Discovery and authority           | Not started. No lazy plan extension, render intents, capability checks, signed intents                                                       |
@@ -30,17 +30,7 @@ The nine phases are from [the architecture proposal](docs/weft-and-warp.html).
 
 ## Near term — closing the seams that were opened
 
-### 1. Routing, and a plan that becomes a route
-
-The largest single gap, and it is a seam rather than a subsystem. `createKernel` takes a
-hand-assembled `KernelRoute`; `validatePlan` takes hand-assembled `SlotFacts`. Both shapes
-exist, the compiler produces the effects and forms that go in them, and nothing joins the
-three. Until it does, phase 2 and phase 4 are two working halves of one thing.
-
-Needs: URL matching to a plan, `Plan` → `KernelRoute` lowering, and the compiler emitting
-`SlotFacts` directly.
-
-### 2. A Warp transport binding
+### 1. A Warp transport binding
 
 `HELD`, `REFRESH`, `STALE`, `COMMIT`, `REDIRECT` and `COOKIE` are produced, parsed and tested
 as frames. Nothing carries them over a live connection, so every one of phases 5 and 6's flows
@@ -49,11 +39,22 @@ is exercised in a test and never over a wire.
 The design names three bindings — streamed response with discrete POSTs up, SSE, WebSocket.
 The first is already half-built: the document response _is_ the first frames.
 
-### 3. Intents, and therefore invalidation
+### 2. Intents, and therefore invalidation
 
 `EffectSet.writes` and `.envelope` are still empty because nothing writes. Intents unblock
-invalidation, `revalidateTag`, optimistic epochs driven by a real mutation, and the `INTENT`
-and `ACK` frames.
+invalidation, `revalidateTag`, optimistic epochs driven by a real mutation, the `INTENT` and
+`ACK` frames, and method-aware routing — the table is path-only today because a method match
+would have nothing to dispatch to.
+
+### 3. The last 346 bytes of the kernel
+
+The document request path is 7,846 B brotli against the design's 8,192, and routing spent 244 of
+the headroom. Intents and an epoch transport do not fit in what is left.
+
+Two honest options, and the choice should be deliberate rather than discovered: accept that the
+8 KB figure describes a smaller kernel than the design's full feature list, or move something
+currently in the request path behind a port. Either way it is a decision, and it is due before
+the next thing goes in rather than after.
 
 ### 4. A stampede lease in the request path
 
@@ -67,23 +68,29 @@ A fragment classified `static` could be resolved at build time and served by a C
 kernel never invoked — the fastest tier by a wide margin, and free. Today it renders and caches
 like anything else, which means the cheapest thing in the design is not implemented.
 
-### 6. A real worker pool
+### 6. Generated plans, and plans from a convention
+
+`lowerPlan` takes a plan, some `SlotFacts` derived from compiler output, and a bindings object.
+The first is derived; the other two are written by hand. A file convention or a profile that
+emits both is phase 8, and it is what makes a plan diffable in review rather than authored.
+
+### 7. A real worker pool
 
 `deferred` is preemptible at await points and is not a worker thread; it says so. A CPU budget
 is only a hard limit on a genuinely separate crash domain, so `pool:` is what makes
 `.budget({ cpu })` mean anything.
 
-### 7. Slots inside components
+### 8. Slots inside components
 
 `<Widget>content</Widget>` is `E_COMPONENT_CHILDREN_UNSUPPORTED`. A component takes props only.
 Children need a slot mechanism inside a nested template, which is a different problem from the
 streaming `slot` hole and should not reuse it by accident.
 
-### 8. Components inside list rows
+### 9. Components inside list rows
 
 `E_COMPONENT_IN_LIST`. A row is its own template and cannot carry an instance today.
 
-### 9. Incremental recompute
+### 10. Incremental recompute
 
 `.incremental()` is recorded in a plan, warns when there is nothing to memoize, and is read by
 nothing. The design's three memoisation levels exist only at the coarsest — fragment, keyed by
@@ -91,12 +98,12 @@ effect signature, which is `StorePort`. Derived-value and template-segment memoi
 opt-in part, and the literature is explicit that structural change to the computation graph is
 the hard case, which is why it stays per-slot rather than becoming a mode.
 
-### 10. A LiveView benchmark
+### 11. A LiveView benchmark
 
 Beating LiveView on shared-delta efficiency is the specific claim phase 6 exists to make, and
 it has not been measured against LiveView. The mechanism is built and the comparison is not.
 
-### 11. iOS WebKit on a real device
+### 12. iOS WebKit on a real device
 
 Playwright's WebKit is a desktop proxy and is labelled as one everywhere it appears. A
 WKWebView on a device has app-bound-domain rules, host-app request interception, and OS
@@ -182,6 +189,8 @@ cost.
 | **Contagion**           | A private fragment inside a shared route                   | A switch making the child private; watch the route's cache class stay `shared` and the instance become its own unit            |
 | **Effects and caching** | The inferred read set of a live fragment                   | Toggle each `ctx` read on; watch the class, `Vary`, and key components change                                                  |
 | **Cache keys**          | The same reads resolved into a key                         | Edit a cookie, a header, a flag; watch the key change and the hit turn into a miss                                             |
+| **Routing**             | A path matching a plan, and the plan becoming a route      | Type a path; watch which pattern wins, what params it captured, and the plan that lowered                                      |
+| **Shell boundaries**    | A plan whose slots disagree with the shell's holes         | Add a slot the shell does not have; watch the build refuse it and name the boundaries it does leave                            |
 | **The envelope**        | Phase A against phase B                                    | Try to set a cookie in a render and watch the type refuse it; move it to a guard and watch a real 302                          |
 | **Early hints**         | 103 against a flush-to-discover baseline                   | A toggle, and the shell's critical link set; watch when the browser starts fetching                                            |
 | **Waves**               | The DAG, its waves, and the critical path                  | Drag a `needs` edge; watch the critical path move and the sequential figure stay where it was                                  |
@@ -212,9 +221,10 @@ cost.
 
 ### Sequencing
 
-The demo depends on routing, because every station is a route. The docs site and its
-playground depend on none of it and can start immediately — the compiler already has no Node
-dependency in its hot path, and only `compileFiles` needs a virtual file system.
+Every station is a route, and routes now exist, so the demo is unblocked. Its caching and
+negotiation stations still want a Warp transport binding. The docs site and its playground depend
+on none of that and can start immediately — the compiler already has no Node dependency in its
+hot path, and only `compileFiles` needs a virtual file system.
 
 ---
 

@@ -239,6 +239,42 @@ Two smaller things surfaced in the same test. The kernel was returning a documen
 None of these are interesting bugs. They are all bugs that only a test going over a real
 socket can find, which is the argument for having one.
 
+## Paid for, honestly: routing
+
+244 bytes brotli. The document request path went 7,602 to 7,846 against the design's 8,192, so
+**346 bytes of headroom remain**.
+
+That number is now small enough to be a real constraint rather than a reassurance. Intents, a
+Warp transport binding and lazy plan extension are all still to come, and none of them fits in
+346 bytes. The honest reading is that either the 8 KB claim covers a smaller kernel than the
+design's full feature list implies, or something currently in the request path has to move
+behind a port. Recorded now, while it is a measurement rather than an argument.
+
+The kernel's source-line check fired at the same time — 2,770 against a 2,500 ceiling — and the
+ceiling moved to 2,900. That is worth being uncomfortable about: a gate that moves when it
+fires is not a gate. The distinction being relied on is that the byte budget is the design's
+claim and the line count is a smell detector for the kernel absorbing port-shaped work, and
+routing is one of the four jobs the design gives a kernel. If the line count moves again for
+something that is not one of those four, it was never a gate.
+
+## Found by writing the routing tests: a private entry could reach a shared tier
+
+`tieredStore.set` wrote every entry to every tier. `EntryMeta.class` recorded that an entry was
+private and nothing acted on it, so an L1 hit keyed by identity would also be written to
+whatever external store sat behind it.
+
+The fix needed a field that did not exist. `consistency` and `coherence` both describe _when_ a
+tier is right, and neither says _who can read it_ — so `StorePort.scope` is now `'process' |
+'shared'`, and a tiered store writes a private entry only to process-local tiers. The filter is
+on the write rather than the read, because an entry that never left cannot be served to the
+wrong person.
+
+Two things about how this surfaced. It was found by a test asserting a cache **hit**, not by one
+looking for a leak: the expectation said one slot would hit and both did, because
+`.cache('private')` is still a policy. And the field it needed was missing rather than
+misapplied — the design put consistency and coherence in the port interface for exactly this
+reason, and stopped one question short.
+
 ## Paid for, honestly: client epochs
 
 254 bytes brotli. The client runtime went 2,742 → 2,996 B against a 6,144 B ceiling, for
