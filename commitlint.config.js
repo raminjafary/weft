@@ -56,6 +56,7 @@ export default {
         'bench',
         'weft',
         'create',
+        'inspector',
         'demo',
         'spec',
         'deps',

@@ -318,7 +318,7 @@ export const incremental: StationHandler = async (ctx) => {
   const rows = numeric(ctx, 'rows', 200, 10, 800)
   const changeEvery = numeric(ctx, 'every', 8, 2, 50)
   const reorder = ctx.query('reorder') === 'yes'
-  const feed = fragmentIR('fragment:feed')
+  const feed = fragmentIR('fragment:clock')
   const binding = listHole(feed)
   const memo = createSegmentMemo()
 
@@ -510,9 +510,9 @@ export const warp: StationHandler = async (ctx) => {
   )
   const frames = [
     warpFrame(settled),
-    frame('SHELL', { route: '/app/feed', tpl: fragmentIR('fragment:feed').entry.version }),
+    frame('SHELL', { route: '/app/feed', tpl: fragmentIR('fragment:clock').entry.version }),
     ...(cold
-      ? fragmentIR('fragment:feed').templates.map((t) =>
+      ? fragmentIR('fragment:clock').templates.map((t) =>
           frame(
             'TPL',
             { tpl: t.version },
@@ -579,7 +579,7 @@ export const warp: StationHandler = async (ctx) => {
 
 export const escaping: StationHandler = async (ctx) => {
   const value = ctx.query('value') ?? '<img src=x onerror=alert(1)> & "quoted"'
-  const article = fragmentIR('fragment:article')
+  const article = fragmentIR('fragment:static')
   const blocks = listHole(article)
   const html = new TextDecoder().decode(
     render(

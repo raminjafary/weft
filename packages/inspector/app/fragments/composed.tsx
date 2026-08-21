@@ -1,5 +1,5 @@
 import { fragment } from 'weft'
-import ProductCard from './product-card.tsx'
+import ProductCard from './card.tsx'
 
 interface OrdinaryProps {
   category: string
