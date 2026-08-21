@@ -25,8 +25,8 @@ On the client, same rule:
 | ------------------ | ---------------------------------------------------- | -------- | -------- |
 | `entry-content.ts` | Adopt and bind                                       | 2,082 B  | 5,120 B  |
 | `entry-app.ts`     | Plus deltas, epochs, residency                       | 2,982 B  | 12,288 B |
-| `entry-channel.ts` | Plus routing arriving frames into regions and epochs | 3,721 B  | 4,096 B  |
-| `index.ts`         | Everything                                           | 3,735 B  | 6,144 B  |
+| `entry-channel.ts` | Plus routing arriving frames into regions and epochs | 3,852 B  | 4,096 B  |
+| `index.ts`         | Everything                                           | 3,865 B  | 6,144 B  |
 
 **The 8 KB is the document request path, and it now includes the route matcher.** It did not
 at first: `createRouter` was never exported from the entry, so the figure described a kernel
