@@ -66,6 +66,18 @@ export function stationRoute(id: string): RouteModule {
   const station = BY_ID[id]
   if (!station) throw new Error(`E_NO_STATION: ${id}`)
   const handler = HANDLERS[id]
+  /**
+   * Whether this station's regions may be refreshed from the server.
+   *
+   * The client stations hold state the server does not have: a signal's current value is the
+   * browser's, and the quantity you just typed exists nowhere else. Re-rendering such a region
+   * from the server overwrites it with the fixture's value — so the page appears to ignore your
+   * input, which is the opposite of what those stations are demonstrating.
+   *
+   * Every other station's regions are a function of the request, so they are refreshable and
+   * their controls patch instead of navigating.
+   */
+  const refreshable = station.group !== 'client'
 
   return defineRoute({
     head: { title: `${station.title} · weft demo`, description: station.shows },
@@ -89,12 +101,12 @@ export function stationRoute(id: string): RouteModule {
        */
       panel: { fragment: 'markup', stream: false, html: (ctx) => part(id, ctx, 'panel') },
       body: handler
-        ? { fragment: 'markup', stream: false, live: true, html: (ctx) => part(id, ctx, 'body') }
+        ? { fragment: 'markup', stream: false, live: refreshable, html: (ctx) => part(id, ctx, 'body') }
         : { fragment: 'markup', stream: false, html: notBuilt(id) },
       readout: {
         fragment: 'markup',
         stream: false,
-        live: true,
+        live: refreshable,
         html: (ctx) => part(id, ctx, 'readout'),
       },
     },

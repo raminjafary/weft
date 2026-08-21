@@ -164,9 +164,21 @@ export function draftTemplate(t: DraftTemplate): TemplateIR {
  */
 export function derivableForms(holes: Hole[]): WireForm[] {
   const forms: WireForm[] = ['html', 'bundle', 'split', 'patch']
-  // An isolated instance is structurally a hole this render does not fill, which is what
-  // a slot is. Neither can be projected from values the parent holds.
-  const projectable = holes.every((h) => h.kind !== 'slot' && !h.isolated)
+  const projectable = holes.every(
+    (h) =>
+      // An isolated instance is structurally a hole this render does not fill, which is what
+      // a slot is. Neither can be projected from values the parent holds.
+      h.kind !== 'slot' &&
+      !h.isolated &&
+      // A `raw()` hole's *value* is markup, and a delta is applied by writing values into nodes —
+      // where the only thing a node can be written is text. Projecting one therefore displays the
+      // markup escaped, which is worse than sending the region again.
+      //
+      // `list` and `component` holes are trusted-raw as well and are not this case: their markup
+      // comes from a nested template the client already holds, and a delta projects values into
+      // it. The distinction is where the markup comes from — a template, or the value set.
+      !(h.escape === 'trusted-raw' && h.kind !== 'component' && h.kind !== 'list'),
+  )
   if (projectable) forms.push('delta')
   return forms
 }

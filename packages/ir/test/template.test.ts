@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
+  derivableForms,
   applyDelta,
   baseRenderId,
   byteLength,
@@ -458,4 +459,32 @@ test('a component hole must name both the template it renders and what it passes
     }),
   )
   assert.equal(wrongKind.errors[0]?.code, 'E_PROPS_KIND')
+})
+
+test('a raw value hole cannot serve a delta, but a component hole can', () => {
+  // `raw()` puts markup in the value set. A delta is applied by writing values into nodes, and a
+  // node can only be written text — so a client projecting one would display the markup escaped.
+  assert.equal(
+    derivableForms([{ index: 0, kind: 'text', escape: 'trusted-raw', binding: 'html', path: [0] }]).includes(
+      'delta',
+    ),
+    false,
+  )
+  // `component` and `list` holes are trusted-raw as well and are not the same case: their markup
+  // comes from a nested template the client already holds, and a delta projects values into it.
+  for (const kind of ['component', 'list'] as const) {
+    assert.equal(
+      derivableForms([
+        { index: 0, kind, escape: 'trusted-raw', binding: 'c0', path: [0], nested: 'v1' },
+      ]).includes('delta'),
+      true,
+      `a ${kind} hole's markup comes from a template, not from the value set`,
+    )
+  }
+  assert.equal(
+    derivableForms([{ index: 0, kind: 'text', escape: 'escape', binding: 'name', path: [0] }]).includes(
+      'delta',
+    ),
+    true,
+  )
 })

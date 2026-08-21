@@ -105,9 +105,9 @@ function describe(frame: ChannelFrame): string {
   return `${frame.kind} ${header}${frame.body ? ` (${frame.body.length} B)` : ''}`
 }
 
-function payloads<T>(id: string): T[] {
+function payloads<T>(id: string, within: ParentNode = document): T[] {
   const out: T[] = []
-  for (const node of document.querySelectorAll(`script[type="application/json"][data-weft="${id}"]`)) {
+  for (const node of within.querySelectorAll(`script[type="application/json"][data-weft="${id}"]`)) {
     if (!node.textContent) continue
     out.push(JSON.parse(node.textContent) as T)
   }
@@ -127,8 +127,8 @@ const intentTargets = new Map<string, string>()
  * way, and only those props: `qty * unitPrice` is recomputed in the browser, so the browser
  * is sent `unitPrice` and nothing else out of the value set.
  */
-async function adoptRegions(): Promise<Region[]> {
-  const entries = payloads<AdoptPayload>('adopt').flat()
+async function adoptRegions(within?: Element): Promise<Region[]> {
+  const entries = payloads<AdoptPayload>('adopt', within).flat()
   if (!entries.length) return []
   const store = await openResident()
   const resident = await store.all()
@@ -255,8 +255,13 @@ function payloadOf(element: HTMLElement): unknown {
  * only upgrades it — which is the whole progressive-enhancement story, and it is one branch
  * rather than two code paths.
  */
+/** Elements already bound. A region replaced as markup is wired again, and only the new nodes are. */
+const wired = new WeakSet<Element>()
+
 function wireIntents(): void {
   for (const node of document.querySelectorAll('[data-weft-intent]')) {
+    if (wired.has(node)) continue
+    wired.add(node)
     const element = node as HTMLElement
     const name = element.dataset.weftIntent as string
     const id = intentIds[name]
@@ -316,6 +321,8 @@ async function apply(): Promise<void> {
 
 function wireControls(): void {
   for (const node of document.querySelectorAll('[data-weft-apply]')) {
+    if (wired.has(node)) continue
+    wired.add(node)
     node.addEventListener('click', () => void apply())
   }
   // A range input whose value is invisible is a mystery until you let go of it. This needs no
@@ -324,6 +331,7 @@ function wireControls(): void {
     const input = node as HTMLInputElement
     const label = input.closest('label')
     if (!label || label.querySelector('[data-weft-readout]')) continue
+    wired.add(input)
     const out = document.createElement('span')
     out.dataset.weftReadout = ''
     out.className = 'mono'
@@ -471,9 +479,32 @@ async function open(): Promise<Wire> {
     onStale: (slot, reason) => log('down', `STALE ${slot} — ${reason}`),
     onAck: (ack) => log('down', `ACK ${ack.intent} ok=${ack.ok}${ack.code ? ` ${ack.code}` : ''}`),
     onRedirect: (to) => window.location.assign(to),
-    onHtml: (slot, html) => {
+    /**
+     * A region sent as markup rather than as a delta, and the two things that has to trigger.
+     *
+     * Replacing the nodes means every binding adopted inside them is pointing at nodes that are
+     * no longer in the document — so the region is adopted again from the payload the new markup
+     * carries. And any control or intent in it is new, so those are wired again. Without both, the
+     * first HTML fallback on a page silently turned everything inside that region into decoration.
+     */
+    onHtml: (slot, html, showing) => {
       const target = document.querySelector(`[data-weft-slot="${slot}"]`)
-      if (target) target.innerHTML = html
+      if (!target) return
+      target.innerHTML = html
+      void (async () => {
+        // The region this frame replaced keeps its entry with the base it is now showing; the
+        // regions *inside* it were adopted against nodes that no longer exist, so those are
+        // replaced by whatever the new markup declares. Dropping the outer entry — which an
+        // earlier version did — loses the base the next delta would be computed against.
+        const fresh = await adoptRegions(target)
+        const replaced = new Set(fresh.map((region) => region.slot))
+        regionsHeld = [...regionsHeld.filter((region) => !replaced.has(region.slot)), ...fresh]
+        const held = regionsHeld.find((region) => region.slot === slot)
+        if (held) held.base = showing
+        state.regions = regionsHeld.length
+        wireIntents()
+        wireControls()
+      })()
     },
   })
 
