@@ -471,7 +471,24 @@ export async function serveApp(app: App): Promise<Serving> {
       res.end()
       return
     }
-    Readable.fromWeb(response.body as never).pipe(res)
+
+    /**
+     * A body that fails mid-stream has to end the response.
+     *
+     * By the time a slot throws, the status line and the headers are long gone — so there is no
+     * status code left to say it with, and the only honest signal is a truncated body. What is
+     * *not* honest is leaving the socket open: the browser then waits forever on a request that
+     * has already failed, which is the one outcome indistinguishable from a hung server.
+     *
+     * `onExceed: 'fail'` is the policy that reaches this deliberately. It is supposed to fail the
+     * response; it is not supposed to hang it.
+     */
+    const out_ = Readable.fromWeb(response.body as never)
+    out_.on('error', (error: Error) => {
+      process.stderr.write(`  slot failed mid-stream on ${path}: ${error.message}\n`)
+      res.destroy()
+    })
+    out_.pipe(res)
   }
 
   function remember(url: URL, cookie: string | undefined): void {

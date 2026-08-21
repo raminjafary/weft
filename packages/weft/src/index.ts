@@ -93,7 +93,16 @@ declare global {
   }
 }
 
-export { defineRoute, type RouteModule, type RouteLoad, type SlotDeclaration } from './route.ts'
+export {
+  defineRoute,
+  type BudgetDeclaration,
+  type BudgetFor,
+  type CacheDeclaration,
+  type RouteLoad,
+  type RouteModule,
+  type SlotDeclaration,
+} from './route.ts'
+export type { ExceedPolicy, PolicyClass, WireForm } from './types.ts'
 export { allFragments, allTemplates, asset, fragmentIR } from './current.ts'
 export { listHole, slotHoles, type CompiledFragment } from './compile.ts'
 export { adoptScript, type AdoptOptions } from './routes.ts'

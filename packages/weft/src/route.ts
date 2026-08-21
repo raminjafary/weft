@@ -31,6 +31,23 @@ export interface BudgetDeclaration {
   onExceed?: ExceedPolicy
 }
 
+/**
+ * A budget stated per request rather than per build.
+ *
+ * A budget is normally a plan declaration and should stay one: it is a promise about the shape of
+ * a deployment, not a knob. The exception is a page whose subject *is* the budget — one that lets
+ * you move it and watch what the exceed policy does.
+ *
+ * The plan keeps the declared values, so `weft why` and the build report still show a real
+ * declaration and the ceiling a deployment states is the one it states. What varies is an
+ * override on the slot this request resolved to, and only `cpu` and `onExceed` can vary — a JS
+ * ceiling is about what was built, and nothing at request time can change that.
+ */
+export type BudgetFor = (request: { params: Record<string, string>; query: URLSearchParams }) => {
+  cpu?: string | number
+  onExceed?: ExceedPolicy
+}
+
 export interface SlotDeclaration {
   /**
    * Which fragment renders it, by name under `app/fragments/`. Omitted for the `body` slot,
@@ -47,6 +64,8 @@ export interface SlotDeclaration {
   incremental?: boolean
   executor?: string
   budget?: BudgetDeclaration
+  /** Overrides `budget`'s cpu ceiling and exceed policy for this request. See `BudgetFor`. */
+  budgetFor?: BudgetFor
   /** Rendered while the slot is degraded. Without one a degraded slot is empty, which is honest. */
   placeholder?: string
   refresh?: string | number
@@ -95,6 +114,7 @@ export interface RouteModule {
   placeholder?: string
   executor?: string
   budget?: BudgetDeclaration
+  budgetFor?: BudgetFor
   refresh?: string | number
   form?: { prefer?: WireForm; fallback?: WireForm }
   /**
