@@ -127,11 +127,171 @@ export function createKernel(options: KernelOptions): Kernel {
     return bound as KernelExecutor
   }
 
+  /**
+   * Declared as a function rather than a method so `serve` can call it directly. A kernel
+   * whose entry point breaks when somebody destructures it is a kernel with a footgun.
+   */
+  async function handle(
+    request: Request,
+    route: KernelRoute,
+    params: Record<string, string> = {},
+  ): Promise<Response> {
+    const life: Lifecycle = lifecycle()
+    const envelope = createEnvelope(life)
+    const facts = requestFacts(request, params)
+    const connection = options.connectionOf
+      ? options.connectionOf(request)
+      : request.headers.get('x-weft-connection')
+
+    const hints = await sendEarlyHints(life, options.ports.transport, route.critical ?? [])
+    options.ports.telemetry?.mark('hints', performance.now())
+
+    life.to('envelope')
+
+    // A deferred effect from a previous response becomes a real header here, which is the
+    // only place it still can be one.
+    if (connection) applyDeferred(envelope, mailbox.claim(connection))
+
+    const reads = createReads(facts, options.ports, options.clock ? { clock: options.clock } : {})
+    const phaseA = envelopeContext(reads, envelope)
+
+    for (const cookie of (await options.ports.session.rotateIfStale?.(facts)) ?? []) {
+      envelope.setCookie(cookie)
+    }
+
+    const pluginResult = await runPlugins(plugins, phaseA)
+    if (pluginResult.response) {
+      life.to('settled')
+      trace = { ...emptyTrace(), states: life.log, hints }
+      return pluginResult.response
+    }
+
+    await route.envelope?.(phaseA)
+    options.ports.telemetry?.mark('envelope.end', performance.now())
+
+    // Still phase A: the plan resolves and the derived headers are written while the
+    // envelope is open, because `Cache-Control` and `Vary` come from the same effect
+    // signature that produced the keys and there is no later moment they could be added.
+    const keys = await resolveAll(route, facts, options.ports)
+    const document = route.shell
+      ? await resolveKey(
+          { id: route.shell.id, version: route.shell.version, effects: route.shell.effects },
+          facts,
+          options.ports,
+        )
+      : null
+    const headers = routeHeaders(route, keys, document)
+    for (const [name, value] of Object.entries(headers)) envelope.header(name, value)
+    // Set last and only if phase A did not, so a route that produces something other than a
+    // document can say so while the envelope is still open.
+    if (!envelope.redirected) envelope.headerIfUnset('content-type', 'text/html; charset=utf-8')
+
+    life.to('planned')
+    const init = envelope.seal()
+
+    if (envelope.redirected || envelope.refused) {
+      life.to('settled')
+      trace = { ...emptyTrace(), states: life.log, hints, keys, document }
+      return new Response(null, init)
+    }
+
+    life.to('streaming')
+
+    const hits: string[] = []
+    const degraded: { slot: string; code: string; message: string }[] = []
+    // One gate per slot. The stream awaits these; the wave scheduler opens them, so
+    // document order and completion order stay independent of each other.
+    const results = new Map<string, Gate>()
+    for (const slot of route.slots) results.set(slot.name, gate())
+
+    const nodes: DagNode[] = route.slots.map((slot) => ({
+      name: slot.name,
+      needs: slot.needs ?? [],
+      prio: slot.prio ?? 0,
+    }))
+
+    const renderOne = async (slot: KernelSlot): Promise<Uint8Array> => {
+      const resolved = keys[slot.name] as ResolvedKey
+      if (resolved.key) {
+        const entry = await options.ports.store.get(resolved.key)
+        if (entry) {
+          hits.push(slot.name)
+          return entry.value
+        }
+      }
+      const outcome = await executorFor(slot.executor).run({
+        slot: slot.name,
+        ...(slot.cpuBudgetMs !== undefined ? { cpuBudgetMs: slot.cpuBudgetMs } : {}),
+        run: async () => slot.render(renderContext(reads, envelope)),
+      })
+      if (outcome.failure) {
+        degraded.push({ slot: slot.name, ...outcome.failure })
+        options.ports.telemetry?.measure('slot.degraded', outcome.ms, {
+          slot: slot.name,
+          code: outcome.failure.code,
+        })
+        return degrade(
+          {
+            slot: slot.name,
+            policy: slot.onExceed ?? 'placeholder',
+            ...(slot.placeholder ? { placeholder: slot.placeholder } : {}),
+          },
+          outcome.failure,
+        )
+      }
+      if (resolved.key && slot.policy) {
+        await options.ports.store.set(resolved.key, outcome.bytes, {
+          class: resolved.class,
+          ...(slot.policy.ttlMs !== undefined ? { ttlMs: slot.policy.ttlMs } : {}),
+          ...(slot.policy.tags ? { tags: slot.policy.tags } : {}),
+        })
+      }
+      return outcome.bytes
+    }
+
+    const byName = new Map(route.slots.map((s) => [s.name, s]))
+    const work = dispatch(nodes, {
+      maxConcurrency: route.maxConcurrency ?? options.ports.scheduler?.maxConcurrency ?? 6,
+      run: async (node) => {
+        const slot = byName.get(node.name) as KernelSlot
+        const bytes = await renderOne(slot)
+        results.get(node.name)?.open(bytes)
+      },
+    })
+
+    const stream = streamRoute(
+      {
+        template: route.template,
+        values: route.values,
+        ...(route.resolve ? { resolve: route.resolve } : {}),
+        slots: Object.fromEntries(
+          route.slots.map((slot) => [
+            slot.name,
+            () => results.get(slot.name)?.bytes ?? Promise.resolve(new Uint8Array(0)),
+          ]),
+        ),
+      },
+      { order: route.order ?? 'out-of-order' },
+    )
+
+    const owed = envelope.deferred.length
+    const settled = work.then(() => {
+      life.to('settled')
+      if (connection) mailbox.owe(connection, envelope.deferred)
+      options.ports.telemetry?.mark('settled', performance.now())
+    })
+    void settled.catch(() => {})
+
+    trace = { states: life.log, hints, keys, document, hits, degraded, deferred: owed, matched: null }
+    return new Response(stream, init)
+  }
+
   return {
     get trace() {
       return trace
     },
     mailbox,
+    handle,
 
     async serve(request) {
       if (!options.routes) {
@@ -143,160 +303,9 @@ export function createKernel(options: KernelOptions): Kernel {
         return options.notFound ? options.notFound(request) : new Response(null, { status: 404 })
       }
       const route = await matched.value(matched.params)
-      const response = await this.handle(request, route, matched.params)
+      const response = await handle(request, route, matched.params)
       if (trace) trace.matched = { pattern: matched.pattern, params: matched.params }
       return response
-    },
-
-    async handle(request, route, params = {}) {
-      const life: Lifecycle = lifecycle()
-      const envelope = createEnvelope(life)
-      const facts = requestFacts(request, params)
-      const connection = options.connectionOf
-        ? options.connectionOf(request)
-        : request.headers.get('x-weft-connection')
-
-      const hints = await sendEarlyHints(life, options.ports.transport, route.critical ?? [])
-      options.ports.telemetry?.mark('hints', performance.now())
-
-      life.to('envelope')
-
-      // A deferred effect from a previous response becomes a real header here, which is the
-      // only place it still can be one.
-      if (connection) applyDeferred(envelope, mailbox.claim(connection))
-
-      const reads = createReads(facts, options.ports, options.clock ? { clock: options.clock } : {})
-      const phaseA = envelopeContext(reads, envelope)
-
-      for (const cookie of (await options.ports.session.rotateIfStale?.(facts)) ?? []) {
-        envelope.setCookie(cookie)
-      }
-
-      const pluginResult = await runPlugins(plugins, phaseA)
-      if (pluginResult.response) {
-        life.to('settled')
-        trace = { ...emptyTrace(), states: life.log, hints }
-        return pluginResult.response
-      }
-
-      await route.envelope?.(phaseA)
-      options.ports.telemetry?.mark('envelope.end', performance.now())
-
-      // Still phase A: the plan resolves and the derived headers are written while the
-      // envelope is open, because `Cache-Control` and `Vary` come from the same effect
-      // signature that produced the keys and there is no later moment they could be added.
-      const keys = await resolveAll(route, facts, options.ports)
-      const document = route.shell
-        ? await resolveKey(
-            { id: route.shell.id, version: route.shell.version, effects: route.shell.effects },
-            facts,
-            options.ports,
-          )
-        : null
-      const headers = routeHeaders(route, keys, document)
-      for (const [name, value] of Object.entries(headers)) envelope.header(name, value)
-      // Set last and only if phase A did not, so a route that produces something other than a
-      // document can say so while the envelope is still open.
-      if (!envelope.redirected) envelope.headerIfUnset('content-type', 'text/html; charset=utf-8')
-
-      life.to('planned')
-      const init = envelope.seal()
-
-      if (envelope.redirected || envelope.refused) {
-        life.to('settled')
-        trace = { ...emptyTrace(), states: life.log, hints, keys, document }
-        return new Response(null, init)
-      }
-
-      life.to('streaming')
-
-      const hits: string[] = []
-      const degraded: { slot: string; code: string; message: string }[] = []
-      // One gate per slot. The stream awaits these; the wave scheduler opens them, so
-      // document order and completion order stay independent of each other.
-      const results = new Map<string, Gate>()
-      for (const slot of route.slots) results.set(slot.name, gate())
-
-      const nodes: DagNode[] = route.slots.map((slot) => ({
-        name: slot.name,
-        needs: slot.needs ?? [],
-        prio: slot.prio ?? 0,
-      }))
-
-      const renderOne = async (slot: KernelSlot): Promise<Uint8Array> => {
-        const resolved = keys[slot.name] as ResolvedKey
-        if (resolved.key) {
-          const entry = await options.ports.store.get(resolved.key)
-          if (entry) {
-            hits.push(slot.name)
-            return entry.value
-          }
-        }
-        const outcome = await executorFor(slot.executor).run({
-          slot: slot.name,
-          ...(slot.cpuBudgetMs !== undefined ? { cpuBudgetMs: slot.cpuBudgetMs } : {}),
-          run: async () => slot.render(renderContext(reads, envelope)),
-        })
-        if (outcome.failure) {
-          degraded.push({ slot: slot.name, ...outcome.failure })
-          options.ports.telemetry?.measure('slot.degraded', outcome.ms, {
-            slot: slot.name,
-            code: outcome.failure.code,
-          })
-          return degrade(
-            {
-              slot: slot.name,
-              policy: slot.onExceed ?? 'placeholder',
-              ...(slot.placeholder ? { placeholder: slot.placeholder } : {}),
-            },
-            outcome.failure,
-          )
-        }
-        if (resolved.key && slot.policy) {
-          await options.ports.store.set(resolved.key, outcome.bytes, {
-            class: resolved.class,
-            ...(slot.policy.ttlMs !== undefined ? { ttlMs: slot.policy.ttlMs } : {}),
-            ...(slot.policy.tags ? { tags: slot.policy.tags } : {}),
-          })
-        }
-        return outcome.bytes
-      }
-
-      const byName = new Map(route.slots.map((s) => [s.name, s]))
-      const work = dispatch(nodes, {
-        maxConcurrency: route.maxConcurrency ?? options.ports.scheduler?.maxConcurrency ?? 6,
-        run: async (node) => {
-          const slot = byName.get(node.name) as KernelSlot
-          const bytes = await renderOne(slot)
-          results.get(node.name)?.open(bytes)
-        },
-      })
-
-      const stream = streamRoute(
-        {
-          template: route.template,
-          values: route.values,
-          ...(route.resolve ? { resolve: route.resolve } : {}),
-          slots: Object.fromEntries(
-            route.slots.map((slot) => [
-              slot.name,
-              () => results.get(slot.name)?.bytes ?? Promise.resolve(new Uint8Array(0)),
-            ]),
-          ),
-        },
-        { order: route.order ?? 'out-of-order' },
-      )
-
-      const owed = envelope.deferred.length
-      const settled = work.then(() => {
-        life.to('settled')
-        if (connection) mailbox.owe(connection, envelope.deferred)
-        options.ports.telemetry?.mark('settled', performance.now())
-      })
-      void settled.catch(() => {})
-
-      trace = { states: life.log, hints, keys, document, hits, degraded, deferred: owed, matched: null }
-      return new Response(stream, init)
     },
   }
 }

@@ -241,12 +241,12 @@ socket can find, which is the argument for having one.
 
 ## Paid for, honestly: routing
 
-244 bytes brotli. The document request path went 7,602 to 7,846 against the design's 8,192, so
-**346 bytes of headroom remain**.
+231 bytes brotli. The document request path went 7,602 to 7,833 against the design's 8,192, so
+**359 bytes of headroom remain**.
 
 That number is now small enough to be a real constraint rather than a reassurance. Intents, a
 Warp transport binding and lazy plan extension are all still to come, and none of them fits in
-346 bytes. The honest reading is that either the 8 KB claim covers a smaller kernel than the
+359 bytes. The honest reading is that either the 8 KB claim covers a smaller kernel than the
 design's full feature list implies, or something currently in the request path has to move
 behind a port. Recorded now, while it is a measurement rather than an argument.
 
