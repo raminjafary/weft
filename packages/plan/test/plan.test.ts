@@ -7,10 +7,13 @@ import {
   every,
   guard,
   plan,
+  shell,
   slot,
   validatePlan,
   when,
   why,
+  type PlanOptions,
+  type SlotBuilder,
   type SlotFacts,
 } from '../src/index.ts'
 
@@ -25,6 +28,25 @@ function facts(reads: string[], extra: Partial<SlotFacts> = {}): SlotFacts {
     effects: effects(reads),
     forms: ['html', 'bundle', 'split', 'patch', 'delta'],
     ...extra,
+  }
+}
+
+const SHELL = 'shell.tsx#default'
+
+/**
+ * A plan is only complete with a document to fill, so these unit tests build one: a shell
+ * whose boundaries are exactly the slots declared. Anything else is a different error, and
+ * there are tests for those below.
+ */
+function route(
+  entries: SlotBuilder[],
+  f: Record<string, SlotFacts> = {},
+  options: PlanOptions = {},
+): { plan: ReturnType<typeof plan>; facts: Record<string, SlotFacts> } {
+  const names = entries.map((entry) => entry.spec.name)
+  return {
+    plan: plan('/cart', [shell(SHELL), ...entries], options),
+    facts: { ...f, [SHELL]: facts([], { fillable: names }) },
   }
 }
 
@@ -64,21 +86,23 @@ test('a slot declared twice is caught at build', () => {
 })
 
 test('a public policy on a slot that reads identity fails the build, naming the read', () => {
-  const p = plan('/cart', [slot('summary').cache('public', { ttl: '60s' })])
-  const { errors } = validatePlan(p, { facts: { summary: facts(['identity', 'cookie:currency']) } })
+  const r = route([slot('summary').cache('public', { ttl: '60s' })], {
+    summary: facts(['identity', 'cookie:currency']),
+  })
+  const { errors } = validatePlan(r.plan, { facts: r.facts })
   assert.equal(errors.length, 1)
   assert.equal(errors[0]?.code, 'E_CACHE_POLICY_CONFLICT')
   assert.match(errors[0]?.message ?? '', /The read that caused it: identity/)
 })
 
 test('a private policy on the same slot is fine', () => {
-  const p = plan('/cart', [slot('summary').cache('private', { ttl: '60s' })])
-  assert.deepEqual(validatePlan(p, { facts: { summary: facts(['identity']) } }).errors, [])
+  const r = route([slot('summary').cache('private', { ttl: '60s' })], { summary: facts(['identity']) })
+  assert.deepEqual(validatePlan(r.plan, { facts: r.facts }).errors, [])
 })
 
 test('a policy with no ttl on a slot that reads the clock fails the build', () => {
-  const p = plan('/cart', [slot('feed').cache('public')])
-  const { errors } = validatePlan(p, { facts: { feed: facts(['time']) } })
+  const r = route([slot('feed').cache('public')], { feed: facts(['time']) })
+  const { errors } = validatePlan(r.plan, { facts: r.facts })
   assert.deepEqual(
     errors.map((e) => e.code),
     ['E_TTL_REQUIRED'],
@@ -86,9 +110,11 @@ test('a policy with no ttl on a slot that reads the clock fails the build', () =
 })
 
 test('a strong policy against an eventual store is a build error, not a surprise', () => {
-  const p = plan('/cart', [slot('feed').cache('public', { ttl: '60s', consistency: 'strong' })])
-  const { errors } = validatePlan(p, {
-    facts: { feed: facts([]) },
+  const r = route([slot('feed').cache('public', { ttl: '60s', consistency: 'strong' })], {
+    feed: facts([]),
+  })
+  const { errors } = validatePlan(r.plan, {
+    facts: r.facts,
     store: { consistency: 'eventual', name: 'workers-kv' },
   })
   assert.equal(errors[0]?.code, 'E_CONSISTENCY_MISMATCH')
@@ -96,47 +122,49 @@ test('a strong policy against an eventual store is a build error, not a surprise
 })
 
 test('preferring a form the template cannot serve is refused', () => {
-  const p = plan('/cart', [slot('feed').form({ prefer: 'delta' })])
-  const { errors } = validatePlan(p, {
-    facts: { feed: facts([], { forms: ['html', 'bundle', 'split', 'patch'] }) },
+  const r = route([slot('feed').form({ prefer: 'delta' })], {
+    feed: facts([], { forms: ['html', 'bundle', 'split', 'patch'] }),
   })
+  const { errors } = validatePlan(r.plan, { facts: r.facts })
   assert.equal(errors[0]?.code, 'E_FORM_UNAVAILABLE')
 })
 
 test('a cpu budget on an inline slot is a warning that names the fix', () => {
-  const p = plan('/cart', [slot('report').budget({ cpu: '120ms' })])
-  const { errors, warnings } = validatePlan(p, { facts: { report: facts([]) } })
+  const r = route([slot('report').budget({ cpu: '120ms' })], { report: facts([]) })
+  const { errors, warnings } = validatePlan(r.plan, { facts: r.facts })
   assert.deepEqual(errors, [])
   assert.equal(warnings[0]?.code, 'W_CPU_BUDGET_INLINE')
   assert.match(warnings[0]?.message ?? '', /pool:, isolate, binding:, or svc:/)
 })
 
 test('the same budget on a preemptible executor is silent', () => {
-  const p = plan('/cart', [slot('report').executor('pool:heavy').budget({ cpu: '120ms' })])
-  assert.deepEqual(validatePlan(p, { facts: { report: facts([]) } }).warnings, [])
+  const r = route([slot('report').executor('pool:heavy').budget({ cpu: '120ms' })], {
+    report: facts([]),
+  })
+  assert.deepEqual(validatePlan(r.plan, { facts: r.facts }).warnings, [])
 })
 
 test('an executor this deployment does not bind is named', () => {
-  const p = plan('/cart', [slot('reviews').executor('svc:reviews')])
-  const { errors } = validatePlan(p, { facts: { reviews: facts([]) }, executors: ['pool:heavy'] })
+  const r = route([slot('reviews').executor('svc:reviews')], { reviews: facts([]) })
+  const { errors } = validatePlan(r.plan, { facts: r.facts, executors: ['pool:heavy'] })
   assert.equal(errors[0]?.code, 'E_UNKNOWN_EXECUTOR')
   assert.match(errors[0]?.message ?? '', /pool:heavy/)
 })
 
 test('a nonsense executor is refused whether or not a binding list was supplied', () => {
-  const p = plan('/cart', [slot('reviews').executor('magic')])
-  assert.equal(validatePlan(p, { facts: { reviews: facts([]) } }).errors[0]?.code, 'E_UNKNOWN_EXECUTOR')
+  const r = route([slot('reviews').executor('magic')], { reviews: facts([]) })
+  assert.equal(validatePlan(r.plan, { facts: r.facts }).errors[0]?.code, 'E_UNKNOWN_EXECUTOR')
 })
 
 test('a dependency on a slot outside the plan is refused', () => {
-  const p = plan('/cart', [slot('buy').needs('price-box')])
-  const { errors } = validatePlan(p, { facts: { buy: facts([]) } })
+  const r = route([slot('buy').needs('price-box')], { buy: facts([]) })
+  const { errors } = validatePlan(r.plan, { facts: r.facts })
   assert.deepEqual(errors.map((e) => e.code).sort(), ['E_UNKNOWN_SLOT'])
 })
 
 test('a plan referencing a fragment the compiler never produced is refused', () => {
-  const p = plan('/cart', [slot('ghost')])
-  assert.equal(validatePlan(p, { facts: {} }).errors[0]?.code, 'E_NO_SUCH_FRAGMENT')
+  const r = route([slot('ghost')])
+  assert.equal(validatePlan(r.plan, { facts: r.facts }).errors[0]?.code, 'E_NO_SUCH_FRAGMENT')
 })
 
 test('a wave wider than the ceiling warns rather than melting a database quietly', () => {
@@ -151,32 +179,35 @@ test('a wave wider than the ceiling warns rather than melting a database quietly
 })
 
 test('incremental recompute on a slot with no graph to memoize is called out as overhead', () => {
-  const p = plan('/cart', [slot('feed').incremental()])
-  const { warnings } = validatePlan(p, { facts: { feed: facts([], { derivedCount: 0 }) } })
+  const r = route([slot('feed').incremental()], { feed: facts([], { derivedCount: 0 }) })
+  const { warnings } = validatePlan(r.plan, { facts: r.facts })
   assert.equal(warnings[0]?.code, 'W_INCREMENTAL_NO_GRAPH')
 })
 
 test('assertPlan throws with every error listed at once', () => {
-  const p = plan('/cart', [slot('a').cache('public'), slot('b').executor('magic')])
+  const r = route([slot('a').cache('public'), slot('b').executor('magic')], {
+    a: facts(['identity', 'time']),
+    b: facts([]),
+  })
   assert.throws(
-    () => assertPlan(p, { facts: { a: facts(['identity', 'time']), b: facts([]) } }),
+    () => assertPlan(r.plan, { facts: r.facts }),
     /E_PLAN_INVALID[\s\S]*E_CACHE_POLICY_CONFLICT[\s\S]*E_TTL_REQUIRED[\s\S]*E_UNKNOWN_EXECUTOR/,
   )
 })
 
 test('weft why reports waves, the critical path, and that timings are estimates', () => {
-  const p = plan('/product', [
-    slot('shell'),
+  const slots = [
+    slot('masthead'),
     slot('product-core'),
     slot('price-box').needs('product-core'),
     slot('buy-panel').needs('price-box'),
-  ])
-  const f = {
-    shell: facts([]),
+  ]
+  const { plan: p, facts: f } = route(slots, {
+    masthead: facts([]),
     'product-core': facts(['route:sku']),
     'price-box': facts(['cookie:currency']),
     'buy-panel': facts([]),
-  }
+  })
 
   const unmeasured = why({ plan: p, facts: f })
   assert.equal(unmeasured.measured, false)
@@ -185,7 +216,7 @@ test('weft why reports waves, the critical path, and that timings are estimates'
   const measured = why({
     plan: p,
     facts: f,
-    timings: { shell: 0.2, 'product-core': 28.4, 'price-box': 12.1, 'buy-panel': 2.2 },
+    timings: { masthead: 0.2, 'product-core': 28.4, 'price-box': 12.1, 'buy-panel': 2.2 },
   })
   assert.equal(measured.measured, true)
   assert.deepEqual(measured.criticalPath, ['product-core', 'price-box', 'buy-panel'])
@@ -197,10 +228,10 @@ test('weft why reports waves, the critical path, and that timings are estimates'
 })
 
 test('weft why prints resolved keys when it is asked at request time', () => {
-  const p = plan('/cart', [slot('summary')])
+  const r = route([slot('summary')], { summary: facts(['cookie:currency']) })
   const report = why({
-    plan: p,
-    facts: { summary: facts(['cookie:currency']) },
+    plan: r.plan,
+    facts: r.facts,
     resolved: {
       summary: {
         key: 'deadbeef',

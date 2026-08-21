@@ -1,8 +1,17 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { cacheClassOf } from '../../ir/src/index.ts'
-import { KEYED, LINES, OPAQUE, PRIVATE, SHELL } from '../../kernel/fixtures/cart-route.ts'
-import { cart, complaints, contradictions, facts } from '../fixtures/cart.ts'
+import {
+  cart,
+  complaints,
+  contradictions,
+  facts,
+  KEYED_ID,
+  LINES_ID,
+  OPAQUE_ID,
+  PRIVATE_ID,
+  SHELL_ID,
+} from '../fixtures/cart.ts'
 import { assertPlan, validatePlan, why } from '../src/index.ts'
 
 /**
@@ -14,18 +23,18 @@ const store = { consistency: 'eventual' as const, name: 'workers-kv' }
 
 test('the compiler classifies the fixtures the way the plan fixtures assume', async () => {
   const f = await facts()
-  assert.equal(cacheClassOf(f[KEYED]!.effects), 'shared')
-  assert.equal(cacheClassOf(f[PRIVATE]!.effects), 'private')
-  assert.equal(cacheClassOf(f[OPAQUE]!.effects), 'private')
+  assert.equal(cacheClassOf(f[KEYED_ID]!.effects), 'shared')
+  assert.equal(cacheClassOf(f[PRIVATE_ID]!.effects), 'private')
+  assert.equal(cacheClassOf(f[OPAQUE_ID]!.effects), 'private')
 
   // The reads that make the refusals below refusals.
-  assert.ok(f[KEYED]!.effects.reads.includes('time'))
-  assert.ok(f[PRIVATE]!.effects.reads.includes('identity'))
-  assert.ok(f[OPAQUE]!.effects.reads.includes('opaque'))
+  assert.ok(f[KEYED_ID]!.effects.reads.includes('time'))
+  assert.ok(f[PRIVATE_ID]!.effects.reads.includes('identity'))
+  assert.ok(f[OPAQUE_ID]!.effects.reads.includes('opaque'))
 
   // Derived rather than declared: a shell has slot holes, so it cannot serve `delta`.
-  assert.ok(!f[SHELL]!.forms.includes('delta'))
-  assert.ok(f[LINES]!.forms.includes('delta'))
+  assert.ok(!f[SHELL_ID]!.forms.includes('delta'))
+  assert.ok(f[LINES_ID]!.forms.includes('delta'))
 })
 
 test('the cart plan is valid against what the compiler inferred', async () => {
@@ -46,6 +55,10 @@ test('every contradiction fixture is refused, and by the code it exists for', as
     unknownDependency: 'E_UNKNOWN_SLOT',
     missingFragment: 'E_NO_SUCH_FRAGMENT',
     cycle: 'E_PLAN_CYCLE',
+    noShell: 'E_NO_SHELL',
+    slotNotInShell: 'E_SLOT_NOT_IN_SHELL',
+    holeUnfilled: 'E_SHELL_HOLE_UNFILLED',
+    publicDocument: 'E_DOCUMENT_POLICY_CONFLICT',
   }
 
   for (const [name, plan] of Object.entries(contradictions)) {
@@ -71,6 +84,29 @@ test('the shell is told which forms it can actually serve', async () => {
   const { errors } = validatePlan(contradictions.deltaOnAShell!, { facts: await facts() })
   const unavailable = errors.find((e) => e.code === 'E_FORM_UNAVAILABLE')
   assert.match(unavailable?.message ?? '', /it can serve html, bundle, split, patch/)
+})
+
+test('the shell says which boundaries it actually leaves', async () => {
+  const f = await facts()
+  assert.deepEqual(f[SHELL_ID]?.fillable, ['cartLines', 'recs'])
+
+  const extra = validatePlan(contradictions.slotNotInShell!, { facts: f }).errors
+  assert.match(
+    extra.find((e) => e.code === 'E_SLOT_NOT_IN_SHELL')?.message ?? '',
+    /it leaves cartLines, recs/,
+  )
+
+  const missing = validatePlan(contradictions.holeUnfilled!, { facts: f }).errors
+  assert.match(
+    missing.find((e) => e.code === 'E_SHELL_HOLE_UNFILLED')?.message ?? '',
+    /boundary 'recs' that no slot/,
+  )
+})
+
+test('a public document over a private region is refused, naming the region', async () => {
+  const { errors } = validatePlan(contradictions.publicDocument!, { facts: await facts() })
+  const conflict = errors.find((e) => e.code === 'E_DOCUMENT_POLICY_CONFLICT')
+  assert.match(conflict?.message ?? '', /public document while recs is private/)
 })
 
 test('every complaint fixture warns and none of them fails the build', async () => {
@@ -100,9 +136,8 @@ test('assertPlan reports every error in one throw', async () => {
 test('weft why over the cart plan explains each slot from its real effect set', async () => {
   const report = why({ plan: cart, facts: await facts() })
   assert.equal(report.measured, false)
-  assert.deepEqual(report.criticalPath, ['prices', 'lines'])
-  assert.match(report.text, /prices .* shared . reads cookie:currency/)
-  assert.match(report.text, /greeting .* private . reads cookie:currency, identity/)
-  assert.match(report.text, /banner .* private . reads opaque/)
+  assert.deepEqual(report.criticalPath, ['cartLines'])
+  assert.match(report.text, /cartLines .* shared . reads cookie:currency/)
+  assert.match(report.text, /recs .* private . reads cookie:currency, identity/)
   assert.match(report.text, /needs a TTL/)
 })

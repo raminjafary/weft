@@ -1,110 +1,195 @@
-import { compileFixtures, KEYED, LINES, OPAQUE, PRIVATE, SHELL } from '../../kernel/fixtures/cart-route.ts'
-import { and, every, guard, plan, slot, when, type Plan } from '../src/dsl.ts'
+import {
+  compileFixtures,
+  fragmentId,
+  KEYED,
+  LINES,
+  OPAQUE,
+  PRIVATE,
+  SHELL,
+} from '../../kernel/fixtures/cart-route.ts'
+import { factsFrom } from '../src/facts.ts'
+import { and, every, guard, plan, shell, slot, when, type Plan } from '../src/dsl.ts'
 import type { SlotFacts } from '../src/validate.ts'
 
 /**
  * Plans over fragments the compiler actually produced.
  *
- * `SlotFacts` are derived from the compiled entry rather than written down, which is the
- * whole claim of this layer: the plan is checked against what was inferred, so a fixture
- * asserting a build error has to earn it from real effect inference. Change what
- * `private.tsx` reads and `contradictions.publicOnPrivate` stops failing — which is exactly
- * the coupling you want a fixture to have.
+ * `SlotFacts` are derived from the compiled entry rather than written down, which is the whole
+ * claim of this layer: the plan is checked against what was inferred, so a fixture asserting a
+ * build error has to earn it from real effect inference. Change what `private.tsx` reads and
+ * `contradictions.publicOnPrivate` stops failing — which is exactly the coupling you want a
+ * fixture to have.
+ *
+ * Fragments are named the way the compiler names them, `module#export`, because that is what a
+ * generated plan would emit and a second naming scheme is a second thing to keep in sync.
  */
 export const FIXTURES = [SHELL, KEYED, PRIVATE, OPAQUE, LINES] as const
 
+export const SHELL_ID = fragmentId(SHELL)
+export const KEYED_ID = fragmentId(KEYED)
+export const PRIVATE_ID = fragmentId(PRIVATE)
+export const OPAQUE_ID = fragmentId(OPAQUE)
+export const LINES_ID = fragmentId(LINES)
+
 export async function facts(): Promise<Record<string, SlotFacts>> {
   const compiled = await compileFixtures(FIXTURES)
-  const out: Record<string, SlotFacts> = {}
-  for (const [file, fixture] of Object.entries(compiled)) {
-    out[file] = {
-      id: fixture.entry.id,
-      version: fixture.entry.version,
-      effects: fixture.entry.effects,
-      forms: fixture.entry.forms,
-      derivedCount: fixture.entry.derived.length,
-    }
-  }
-  return out
+  return factsFrom(Object.values(compiled).map((fixture) => ({ fragments: [{ entry: fixture.entry }] })))
 }
 
 /**
- * The design's `/cart`, expressed over those fixtures. Every declaration here is about
- * placement, and none of it states a key.
+ * The design's `/cart`. `shell.tsx` leaves exactly two boundaries — `cartLines` and `recs` —
+ * so the plan fills exactly those two. Naming a third, or leaving one of them out, is a build
+ * error rather than an empty region in production.
  */
 export const cart: Plan = plan(
   '/cart',
   [
+    shell(SHELL_ID),
     guard('session.required', { redirect: '/login' }),
 
-    slot('prices')
-      .fragment(KEYED)
+    slot('cartLines')
+      .fragment(KEYED_ID)
       .stream({ prio: 1 })
       // keyed.tsx reads the clock, so a policy without a ttl would be a build error
       .cache('public', { ttl: '60s', swr: '5m', tags: ['prices'] })
       .refresh(every('30s'), { when: and(when.visible, when.focused) })
       .form({ prefer: 'html', fallback: 'html' }),
 
-    slot('greeting').fragment(PRIVATE).cache('private'),
-
-    slot('banner').fragment(OPAQUE),
-
-    slot('lines')
-      .fragment(LINES)
-      .stream({ prio: 2 })
-      // lines.tsx is value-projectable throughout, so delta is derivable rather than declared
-      .form({ prefer: 'delta', fallback: 'html' })
-      .needs('prices'),
+    slot('recs').fragment(PRIVATE_ID).cache('private'),
   ],
   { maxConcurrency: 4 },
 )
 
 /**
- * One plan per refusal. These are fixtures for the errors, because a compiler whose value is
- * what it refuses has to make refusal reproducible — every one of these is a line somebody
- * will plausibly write.
+ * A second route, so the router has something to choose between and a param has somewhere to
+ * come from. `route:sku` becomes a key component without the plan mentioning keys at all.
+ */
+export const product: Plan = plan('/product/:sku', [
+  shell(SHELL_ID),
+  slot('cartLines').fragment(LINES_ID).stream({ prio: 1 }).form({ prefer: 'delta', fallback: 'html' }),
+  slot('recs').fragment(OPAQUE_ID).buffered(),
+])
+
+/** Every slot buffers, so this lowers to `in-order` and costs no fill mechanism. */
+export const quiet: Plan = plan('/quiet', [
+  shell(SHELL_ID),
+  slot('cartLines').fragment(LINES_ID).buffered(),
+  slot('recs').fragment(LINES_ID).buffered(),
+])
+
+/**
+ * One plan per refusal. These are fixtures for the errors, because a layer whose value is what
+ * it refuses has to make refusal reproducible — every one of these is a line somebody will
+ * plausibly write.
  */
 export const contradictions: Record<string, Plan> = {
   /** The promise the design makes in its strongest terms. */
-  publicOnPrivate: plan('/cart', [slot('greeting').fragment(PRIVATE).cache('public', { ttl: '60s' })]),
-
-  /** keyed.tsx reads the clock, so a policy with no ttl never expires. */
-  policyWithoutTtl: plan('/cart', [slot('prices').fragment(KEYED).cache('public')]),
-
-  /** The shell has slot holes, so it cannot be projected from values a client holds. */
-  deltaOnAShell: plan('/cart', [slot('shell').fragment(SHELL).form({ prefer: 'delta' })]),
-
-  /** `ctx.raw()` leaves tracking, so there is no key and no honest public policy. */
-  publicOnOpaque: plan('/cart', [slot('banner').fragment(OPAQUE).cache('public', { ttl: '60s' })]),
-
-  strongOnEventual: plan('/cart', [
-    slot('lines').fragment(LINES).cache('public', { ttl: '60s', consistency: 'strong' }),
+  publicOnPrivate: plan('/cart', [
+    shell(SHELL_ID),
+    slot('cartLines').fragment(KEYED_ID).cache('public', { ttl: '60s' }),
+    slot('recs').fragment(PRIVATE_ID).cache('public', { ttl: '60s' }),
   ]),
 
-  unknownExecutor: plan('/cart', [slot('lines').fragment(LINES).executor('magic')]),
+  /** keyed.tsx reads the clock, so a policy with no ttl never expires. */
+  policyWithoutTtl: plan('/cart', [
+    shell(SHELL_ID),
+    slot('cartLines').fragment(KEYED_ID).cache('public'),
+    slot('recs').fragment(LINES_ID),
+  ]),
 
-  unknownDependency: plan('/cart', [slot('lines').fragment(LINES).needs('nothing-declares-this')]),
+  /** The shell has slot holes, so it cannot be projected from values a client holds. */
+  deltaOnAShell: plan('/cart', [
+    shell(SHELL_ID),
+    slot('cartLines').fragment(SHELL_ID).form({ prefer: 'delta' }),
+    slot('recs').fragment(LINES_ID),
+  ]),
 
-  missingFragment: plan('/cart', [slot('ghost').fragment('packages/compiler/fixtures/nope.tsx')]),
+  /** `ctx.raw()` leaves tracking, so there is no key and no honest public policy. */
+  publicOnOpaque: plan('/cart', [
+    shell(SHELL_ID),
+    slot('cartLines').fragment(OPAQUE_ID).cache('public', { ttl: '60s' }),
+    slot('recs').fragment(LINES_ID),
+  ]),
 
-  cycle: plan('/cart', [slot('a').fragment(LINES).needs('b'), slot('b').fragment(LINES).needs('a')]),
+  strongOnEventual: plan('/cart', [
+    shell(SHELL_ID),
+    slot('cartLines').fragment(LINES_ID).cache('public', { ttl: '60s', consistency: 'strong' }),
+    slot('recs').fragment(LINES_ID),
+  ]),
+
+  unknownExecutor: plan('/cart', [
+    shell(SHELL_ID),
+    slot('cartLines').fragment(LINES_ID).executor('magic'),
+    slot('recs').fragment(LINES_ID),
+  ]),
+
+  unknownDependency: plan('/cart', [
+    shell(SHELL_ID),
+    slot('cartLines').fragment(LINES_ID).needs('nothing-declares-this'),
+    slot('recs').fragment(LINES_ID),
+  ]),
+
+  missingFragment: plan('/cart', [
+    shell(SHELL_ID),
+    slot('cartLines').fragment('packages/compiler/fixtures/nope.tsx#default'),
+    slot('recs').fragment(LINES_ID),
+  ]),
+
+  cycle: plan('/cart', [
+    shell(SHELL_ID),
+    slot('cartLines').fragment(LINES_ID).needs('recs'),
+    slot('recs').fragment(LINES_ID).needs('cartLines'),
+  ]),
+
+  /** A plan with slots and no document for them to fill. */
+  noShell: plan('/cart', [slot('cartLines').fragment(LINES_ID), slot('recs').fragment(LINES_ID)]),
+
+  /** A boundary the shell does not leave. Naming a hole is not the same as having one. */
+  slotNotInShell: plan('/cart', [
+    shell(SHELL_ID),
+    slot('cartLines').fragment(LINES_ID),
+    slot('recs').fragment(LINES_ID),
+    slot('sidebar').fragment(LINES_ID),
+  ]),
+
+  /** A boundary the shell leaves and nothing fills. */
+  holeUnfilled: plan('/cart', [shell(SHELL_ID), slot('cartLines').fragment(LINES_ID)]),
+
+  /** A public document over a private region. */
+  publicDocument: plan(
+    '/cart',
+    [shell(SHELL_ID), slot('cartLines').fragment(LINES_ID), slot('recs').fragment(PRIVATE_ID)],
+    { cache: { class: 'public', ttl: '60s' } },
+  ),
 }
 
 /** Warnings, which are not failures and still have to be produced. */
 export const complaints: Record<string, Plan> = {
   /** A cpu budget on inline, where nothing can preempt a synchronous render. */
-  inlineCpuBudget: plan('/cart', [slot('lines').fragment(LINES).budget({ cpu: '120ms' })]),
+  inlineCpuBudget: plan('/cart', [
+    shell(SHELL_ID),
+    slot('cartLines').fragment(LINES_ID).budget({ cpu: '120ms' }),
+    slot('recs').fragment(LINES_ID),
+  ]),
 
   /** Reads the clock and declares nothing, so nothing is cached and nothing expires. */
-  clockWithoutPolicy: plan('/cart', [slot('prices').fragment(KEYED)]),
+  clockWithoutPolicy: plan('/cart', [
+    shell(SHELL_ID),
+    slot('cartLines').fragment(KEYED_ID),
+    slot('recs').fragment(LINES_ID),
+  ]),
 
   /** Memoisation with no derived values to memoize is pure input hashing. */
-  incrementalWithoutGraph: plan('/cart', [slot('greeting').fragment(PRIVATE).incremental()]),
+  incrementalWithoutGraph: plan('/cart', [
+    shell(SHELL_ID),
+    slot('cartLines').fragment(PRIVATE_ID).incremental(),
+    slot('recs').fragment(LINES_ID),
+  ]),
 
-  /** Nine independent slots against a ceiling of four. */
+  /** Two independent slots against a ceiling of one: they queue rather than melt anything. */
   tooWide: plan(
     '/cart',
-    Array.from({ length: 9 }, (_, i) => slot(`s${i}`).fragment(LINES)),
-    { maxConcurrency: 4 },
+    [shell(SHELL_ID), slot('cartLines').fragment(LINES_ID), slot('recs').fragment(LINES_ID)],
+    { maxConcurrency: 1 },
   ),
 }
