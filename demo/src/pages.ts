@@ -1,6 +1,5 @@
 import { render, type Values } from '@weft/ir'
-import type { RenderContext } from '@weft/kernel'
-import { compileDemo, type Compiled } from './compile.ts'
+import { fragmentIR, type CompiledFragment, type RenderContext } from 'weft'
 import type { StationStatus } from './stations.ts'
 
 /**
@@ -80,7 +79,7 @@ export async function readout(
   rows: readonly ReadoutRow[],
   explainer?: Explainer,
 ): Promise<string> {
-  const { panels } = await compileDemo()
+  const panels = fragmentIR('fragment:panels')
   const values = {
     caption,
     rows: rows.map((row) => ({
@@ -94,7 +93,7 @@ export async function readout(
   return `<div class="card">${table}</div>${explainer ? explain(explainer) : ''}`
 }
 
-export function renderOf(compiled: Compiled, values: Values): string {
+export function renderOf(compiled: CompiledFragment, values: Values): string {
   return new TextDecoder().decode(render(compiled.entry, values, compiled.resolve))
 }
 

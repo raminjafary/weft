@@ -5,7 +5,7 @@ import { HANDLERS } from '../src/stations/index.ts'
 import { SHOWCASES, STATIONS } from '../src/stations.ts'
 import { fileURLToPath } from 'node:url'
 import { createApp } from 'weft/server'
-import { compileDemo, slotBindings } from '../src/compile.ts'
+import { fragmentIR, slotHoles } from 'weft'
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url))
 
@@ -105,9 +105,8 @@ test('every showcase says what shape of application it stands for', () => {
  */
 test('every demo fragment compiles, and the shells leave the boundaries the pages fill', async () => {
   await app()
-  const compiled = await compileDemo()
-  assert.deepEqual(slotBindings(compiled.shell), ['panel', 'body', 'readout'])
-  assert.deepEqual(slotBindings(compiled['dash-shell'] as never), [
+  assert.deepEqual(slotHoles(fragmentIR('layout')), ['panel', 'body', 'readout'])
+  assert.deepEqual(slotHoles(fragmentIR('layout:dash')), [
     'panel',
     'traffic',
     'revenue',
@@ -117,21 +116,25 @@ test('every demo fragment compiles, and the shells leave the boundaries the page
   ])
   // The effect sets the cache stations are about, asserted so a change to a fragment that changes
   // its class fails here rather than being quietly wrong on a station page.
-  assert.deepEqual(compiled.article.entry.effects.reads, [], 'article.tsx is the static case')
+  assert.deepEqual(fragmentIR('fragment:article').entry.effects.reads, [], 'article.tsx is the static case')
   assert.deepEqual(
-    compiled.cart.entry.effects.reads,
+    fragmentIR('fragment:cart').entry.effects.reads,
     ['cookie:currency', 'identity'],
     'cart.tsx is the private case',
   )
-  assert.deepEqual(compiled.feed.entry.effects.reads, ['time'], 'feed.tsx is the case that forces a ttl')
+  assert.deepEqual(
+    fragmentIR('fragment:feed').entry.effects.reads,
+    ['time'],
+    'feed.tsx is the case that forces a ttl',
+  )
   assert.equal(
-    compiled.interactive.entry.signals.length,
+    fragmentIR('fragment:interactive').entry.signals.length,
     1,
     'the client stations need a signal to demonstrate',
   )
-  assert.ok(compiled.interactive.entry.derived.length >= 2, 'and at least two derived values')
+  assert.ok(fragmentIR('fragment:interactive').entry.derived.length >= 2, 'and at least two derived values')
   assert.ok(
-    compiled.interactive.entry.wiring.some((w) => w.op === 'prop'),
+    fragmentIR('fragment:interactive').entry.wiring.some((w) => w.op === 'prop'),
     'and a prop binding, which is what the controls station is about',
   )
 })

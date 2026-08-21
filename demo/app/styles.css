@@ -115,4 +115,4 @@ body.race[data-order=in-order] .race-order{color:var(--warn)}
 .waiting{display:block;color:var(--dim);font-family:var(--mono);font-size:.8rem}
 .race-frames{display:grid;gap:.7rem;grid-template-columns:1fr 1fr;margin:.7rem 0}
 .race-frames iframe{width:100%;height:15rem;border:1px solid var(--line);border-radius:.5rem;background:var(--bg)}
-@media (max-width:52rem){.race-frames{grid-template-columns:1fr}}\n
+@media (max-width:52rem){.race-frames{grid-template-columns:1fr}}

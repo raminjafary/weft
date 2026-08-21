@@ -1,5 +1,5 @@
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join, relative } from 'node:path'
+import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { compileFiles } from '@weft/compiler'
 import type { Resolver, TemplateIR } from '@weft/ir'
@@ -19,6 +19,15 @@ export interface CompiledFragment {
   resolve: Resolver
   /** Project-relative, for a diagnostic that has to name a file. */
   file: string
+  /**
+   * The bytes on disk that produced this IR.
+   *
+   * Carried rather than left for the caller to read, because a page that shows you a template's
+   * holes beside its source has to be showing you the file that produced *those* holes — and a
+   * caller reading the path itself could read a file that has since changed. Empty when the
+   * source is not present, which is the case in a deployment that shipped only the build.
+   */
+  source: string
 }
 
 export interface CompiledApp {
@@ -114,6 +123,10 @@ export async function compileApp(
   // Deduplicated, because one file may be both the layout and a named fragment, and the
   // compiler must see each file once or a template would be sealed twice under one id.
   const files = [...new Set(named.map((n) => n.file))]
+  // Read once, before the compiler is asked for anything, so what a station displays and what the
+  // compiler saw are the same bytes even if the file changes mid-build.
+  const sources = new Map<string, string>()
+  for (const file of files) sources.set(file, await readFile(file, 'utf8'))
   const { modules, diagnostics } = await compileFiles(files, {
     root,
     ...(options.types === false ? { types: false } : {}),
@@ -133,6 +146,7 @@ export async function compileApp(
       templates: chosen.templates,
       resolve: (version) => byVersion.get(version),
       file: relative(root, file),
+      source: sources.get(file) ?? '',
     }
     templates.push(...chosen.templates)
   }
@@ -155,13 +169,20 @@ export function composedIn(app: CompiledApp, fragment: CompiledFragment): Compil
   )
 }
 
-/** Slot boundaries a layout leaves, in document order. The plan has to fill exactly these. */
-export function slotHoles(layout: CompiledFragment): string[] {
-  return layout.entry.holes.filter((h) => h.kind === 'slot').map((h) => h.binding)
+/** Slot boundaries a fragment leaves for somebody else to fill, in document order. */
+export function slotHoles(fragment: CompiledFragment): string[] {
+  return fragment.entry.holes.filter((h) => h.kind === 'slot').map((h) => h.binding)
 }
 
-export function listHole(fragment: CompiledFragment): string | undefined {
-  return fragment.entry.holes.find((h) => h.kind === 'list')?.binding
+/**
+ * The binding name of a fragment's list hole, taken from the IR rather than written down.
+ *
+ * A loader has to name the key it puts its rows under, and that name is the compiler's — it came
+ * from the parameter the template destructured. Asking the IR means a rename in the `.tsx` cannot
+ * leave a loader filling a hole that no longer exists.
+ */
+export function listHole(fragment: CompiledFragment): string {
+  const hole = fragment.entry.holes.find((h) => h.kind === 'list')
+  if (!hole) throw new Error(`E_NO_LIST_HOLE: ${fragment.file} has no list hole`)
+  return hole.binding
 }
-
-export { dirname }

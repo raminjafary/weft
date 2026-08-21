@@ -1,8 +1,8 @@
 import { defineRoute } from 'weft'
 import { feedItems, at } from '../../../src/data.ts'
-import { compileDemo, listBinding } from '../../../src/compile.ts'
 import { field, panel, pick, press, slider } from '../../../src/pages.ts'
 import { LOG } from '../../../src/showcase.ts'
+import { fragmentIR, listHole } from 'weft'
 
 /**
  * A content-heavy feed, authored the way the design says an application is authored — except that
@@ -43,13 +43,12 @@ export default defineRoute({
       live: true,
       placeholder: '<p class="skeleton"></p>',
       load: async (ctx) => {
-        const compiled = await compileDemo()
         const rows = Number(ctx.query('rows') ?? 120)
         return {
           heading: 'Markets',
           count: rows,
           generated: ctx.now(),
-          [listBinding(compiled.feed)]: feedItems(rows, at()),
+          [listHole(fragmentIR('fragment:feed'))]: feedItems(rows, at()),
         }
       },
     },
