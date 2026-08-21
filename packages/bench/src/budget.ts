@@ -25,6 +25,7 @@ export interface BundleSize {
 }
 
 const src = (name: string) => fileURLToPath(new URL(`../../client/src/${name}`, import.meta.url))
+const kernelSrc = (name: string) => fileURLToPath(new URL(`../../kernel/src/${name}`, import.meta.url))
 
 export const BUDGETS: ByteBudget[] = [
   {
@@ -40,6 +41,20 @@ export const BUDGETS: ByteBudget[] = [
     entry: src('entry-content.ts'),
     limit: 5 * 1024,
     limitNote: '<5 KB for a content route, including the runtime',
+  },
+  {
+    id: 'kernel',
+    label: 'Server kernel: the document request path',
+    entry: kernelSrc('entry-request.ts'),
+    limit: 8 * 1024,
+    limitNote: 'under 8 KB server-side',
+  },
+  {
+    id: 'kernel-channel',
+    label: 'Server kernel plus the Warp channel path',
+    entry: kernelSrc('entry-channel.ts'),
+    limit: 12 * 1024,
+    limitNote: 'no design figure; measured so a regression is visible',
   },
   {
     id: 'app-route',
@@ -61,7 +76,7 @@ export async function measureBudgets(budgets = BUDGETS): Promise<BundleSize[]> {
   for (const budget of budgets) {
     const build = await rolldown({
       input: budget.entry,
-      platform: 'browser',
+      platform: budget.id.startsWith('kernel') ? 'neutral' : 'browser',
       resolve: { extensions: ['.ts', '.js'] },
     })
     const { output } = await build.generate({ format: 'esm', minify: true })
