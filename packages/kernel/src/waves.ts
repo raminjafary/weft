@@ -1,0 +1,139 @@
+/**
+ * Render is a DAG, not a tree walk.
+ *
+ * Every server renderer in production walks depth-first from root to leaf on one thread,
+ * so a page with forty independent sections evaluates them one after another. The
+ * conflation at the heart of that is treating existence dependency as data dependency: a
+ * child usually cannot start because its parent decides whether it exists, not because it
+ * needs the parent's result.
+ *
+ * `needs` here is data dependency only. Everything else is dispatched immediately, and the
+ * critical path — not the sum — is the floor for a complete page.
+ *
+ * This is safe here for one specific reason: render is provably read-only. Envelope writes
+ * are confined to phase A and effects are tracked, so two fragments evaluated concurrently
+ * cannot observe each other's side effects, because they cannot have any.
+ */
+export interface DagNode {
+  name: string
+  /** Slots whose *results* this one consumes. */
+  needs?: readonly string[]
+  /** Higher runs first inside a wave, when the scheduler has a choice. */
+  prio?: number
+  /** Measured or estimated cost, used for the critical path. */
+  ms?: number
+  executor?: string
+  /**
+   * A slot the page is complete without. It is still scheduled and still costs CPU, but it
+   * cannot be the end of the critical path — otherwise one slow recommendations panel would
+   * be reported as the floor for a page that is perfectly usable without it.
+   */
+  optional?: boolean
+}
+
+export class PlanGraphError extends Error {
+  code: string
+
+  constructor(code: string, message: string) {
+    super(`${code} — ${message}`)
+    this.name = 'PlanGraphError'
+    this.code = code
+  }
+}
+
+export interface Schedule {
+  waves: string[][]
+  /** The widest wave. Compared against the scheduler's concurrency ceiling. */
+  width: number
+}
+
+export function schedule(nodes: readonly DagNode[]): Schedule {
+  const byName = new Map(nodes.map((n) => [n.name, n]))
+  for (const node of nodes) {
+    for (const need of node.needs ?? []) {
+      if (!byName.has(need)) {
+        throw new PlanGraphError('E_UNKNOWN_SLOT', `${node.name} needs ${need}, which is not in this plan`)
+      }
+    }
+  }
+
+  const placed = new Map<string, number>()
+  const waves: string[][] = []
+  let remaining = nodes.filter(() => true)
+
+  while (remaining.length) {
+    const ready = remaining.filter((n) => (n.needs ?? []).every((need) => placed.has(need)))
+    if (!ready.length) {
+      const stuck = remaining.map((n) => n.name).sort()
+      throw new PlanGraphError('E_PLAN_CYCLE', `slots depend on each other in a cycle: ${stuck.join(' -> ')}`)
+    }
+    ready.sort((a, b) => (b.prio ?? 0) - (a.prio ?? 0) || a.name.localeCompare(b.name))
+    const index = waves.length
+    for (const node of ready) placed.set(node.name, index)
+    waves.push(ready.map((n) => n.name))
+    const done = new Set(ready.map((n) => n.name))
+    remaining = remaining.filter((n) => !done.has(n.name))
+  }
+
+  return { waves, width: waves.reduce((max, w) => Math.max(max, w.length), 0) }
+}
+
+export interface CriticalPath {
+  path: string[]
+  ms: number
+  /** The number a root-to-leaf sequential walk would have produced, for contrast. */
+  sequentialMs: number
+}
+
+export function criticalPath(nodes: readonly DagNode[]): CriticalPath {
+  const byName = new Map(nodes.map((n) => [n.name, n]))
+  const best = new Map<string, { ms: number; path: string[] }>()
+
+  const cost = (name: string): { ms: number; path: string[] } => {
+    const cached = best.get(name)
+    if (cached) return cached
+    const node = byName.get(name)
+    if (!node) throw new PlanGraphError('E_UNKNOWN_SLOT', `${name} is not in this plan`)
+    // Marked before recursing so a cycle is caught here as well as in schedule().
+    best.set(name, { ms: 0, path: [name] })
+    let deepest: { ms: number; path: string[] } = { ms: 0, path: [] }
+    for (const need of node.needs ?? []) {
+      const upstream = cost(need)
+      if (upstream.ms > deepest.ms) deepest = upstream
+    }
+    const result = { ms: deepest.ms + (node.ms ?? 0), path: [...deepest.path, name] }
+    best.set(name, result)
+    return result
+  }
+
+  let winner: { ms: number; path: string[] } = { ms: 0, path: [] }
+  for (const node of nodes) {
+    const result = cost(node.name)
+    if (node.optional) continue
+    if (result.ms > winner.ms) winner = result
+  }
+  const sequentialMs = nodes.reduce((sum, n) => sum + (n.ms ?? 0), 0)
+  return { path: winner.path, ms: winner.ms, sequentialMs }
+}
+
+export interface DispatchOptions {
+  maxConcurrency: number
+  /** Called for each node when its turn comes. Rejections are the caller's to police. */
+  run(node: DagNode): Promise<void>
+}
+
+/**
+ * Waves with a concurrency ceiling. Forty concurrent queries from one page request will
+ * melt a database, so the cap is not optional and the build warns when a plan's widest
+ * wave exceeds it.
+ */
+export async function dispatch(nodes: readonly DagNode[], options: DispatchOptions): Promise<void> {
+  const byName = new Map(nodes.map((n) => [n.name, n]))
+  const { waves } = schedule(nodes)
+  for (const wave of waves) {
+    for (let i = 0; i < wave.length; i += options.maxConcurrency) {
+      const batch = wave.slice(i, i + options.maxConcurrency)
+      await Promise.all(batch.map((name) => options.run(byName.get(name) as DagNode)))
+    }
+  }
+}
