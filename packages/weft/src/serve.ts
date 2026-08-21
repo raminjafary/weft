@@ -160,6 +160,7 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     config,
     styleHref: (pattern) => table().pageCss(pattern),
     styleOf,
+    store,
     runtime: () => table().boot,
     brand: basename(root) || 'weft',
   })

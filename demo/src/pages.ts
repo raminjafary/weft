@@ -106,19 +106,41 @@ export function field(label: string, control: string): string {
   return `<label>${label}${control}</label>`
 }
 
+/**
+ * Which query parameter a control owns, taken from its own id.
+ *
+ * Every control in this demo is named `<station>-<parameter>`, so the parameter is the id after
+ * the first dash. That convention used to live in the client as a forty-entry table mapping ids
+ * to parameter names — one the framework could not have guessed and the demo had to keep in step
+ * with every slider it added. Stated here, once, it is the same fact in the place that already
+ * knows both halves.
+ */
+function paramOf(id: string): string {
+  const dash = id.indexOf('-')
+  return dash < 0 ? id : id.slice(dash + 1)
+}
+
 export function slider(id: string, min: number, max: number, value: number, step = 1): string {
-  return `<input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${value}">`
+  return (
+    `<input type="range" id="${id}" data-weft-control="${paramOf(id)}"` +
+    ` min="${min}" max="${max}" step="${step}" value="${value}">`
+  )
 }
 
 export function pick(id: string, options: readonly string[], selected?: string): string {
   const opts = options
     .map((o) => `<option value="${o}"${o === selected ? ' selected' : ''}>${o}</option>`)
     .join('')
-  return `<select id="${id}">${opts}</select>`
+  return `<select id="${id}" data-weft-control="${paramOf(id)}">${opts}</select>`
 }
 
+/**
+ * A button. One whose name ends in `-go`, `-run`, `-reload` or `-reschedule` applies the page's
+ * controls, which the framework wires — so no code here or in the client knows its id.
+ */
 export function press(id: string, label: string): string {
-  return `<button type="button" id="${id}">${label}</button>`
+  const applies = /-(go|run|reschedule|reload)$/.test(id) ? ' data-weft-apply' : ''
+  return `<button type="button" id="${id}"${applies}>${label}</button>`
 }
 
 export function escapeHtml(value: string): string {

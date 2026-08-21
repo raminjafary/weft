@@ -15,6 +15,11 @@ import type { PageParts, SlotContent } from './pages.ts'
  * The handler runs once per request even though three slots read from it. It measures things, and
  * a station that measured its own subject three times would be reporting a number nobody asked
  * for.
+ *
+ * The body and the readout are live, so pressing a station's "go" button asks the server for
+ * those two regions and patches them. It used to navigate — which threw the document away and
+ * built another one to show you a number that had changed, and lost the sliders you were holding
+ * on the way.
  */
 const inflight = new WeakMap<object, Promise<PageParts>>()
 
@@ -73,13 +78,25 @@ export function stationRoute(id: string): RouteModule {
       status: station.status,
     },
     slots: {
-      // The panel is sent first and buffered, because a control you cannot touch until the
-      // measurement lands is not a control.
+      /**
+       * The panel is sent first, buffered, and deliberately *not* live.
+       *
+       * A control you cannot touch until the measurement lands is not a control, which is why it
+       * is first. And a panel that refreshed itself would re-render the sliders you are holding —
+       * losing their position and the focus — to show you the values you just typed. The two
+       * regions that change when a control changes are the body and the readout, and those are
+       * the two that are live.
+       */
       panel: { fragment: 'markup', stream: false, html: (ctx) => part(id, ctx, 'panel') },
       body: handler
-        ? { fragment: 'markup', stream: false, html: (ctx) => part(id, ctx, 'body') }
+        ? { fragment: 'markup', stream: false, live: true, html: (ctx) => part(id, ctx, 'body') }
         : { fragment: 'markup', stream: false, html: notBuilt(id) },
-      readout: { fragment: 'markup', stream: false, html: (ctx) => part(id, ctx, 'readout') },
+      readout: {
+        fragment: 'markup',
+        stream: false,
+        live: true,
+        html: (ctx) => part(id, ctx, 'readout'),
+      },
     },
   })
 }

@@ -96,9 +96,12 @@ export const streamingOrder: StationHandler = async (ctx) => {
    * with the same three latencies, served once in each order, and every region reports the
    * millisecond it was rendered at so the arrival order is still legible after the load finishes.
    */
+  // The order is a route parameter, so each frame is a URL rather than a query the server had to
+  // smuggle past the router. Applying the sliders refreshes this region, which re-renders both
+  // frames with the new latencies — so nothing on the client has to know these two iframes exist.
   const race = `<div class="race-frames">
-      <iframe id="race-ooo" title="out-of-order" src="/live/race?order=out-of-order&amp;${q}"></iframe>
-      <iframe id="race-io" title="in-order" src="/live/race?order=in-order&amp;${q}"></iframe>
+      <iframe id="race-ooo" title="out-of-order" src="/live/race/out-of-order?${q}"></iframe>
+      <iframe id="race-io" title="in-order" src="/live/race/in-order?${q}"></iframe>
     </div>`
 
   const rows = [

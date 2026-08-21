@@ -310,7 +310,7 @@ export const residency: StationHandler = async () => {
   )
   return {
     panel: panel(
-      ['<button type="button" id="residency-forget">forget everything</button>'].join(''),
+      ['<button type="button" data-weft-forget>forget everything</button>'].join(''),
       'The button clears the IndexedDB store the resident templates live in, so the next load is a cold visit.',
     ),
     body: async () =>
@@ -330,7 +330,7 @@ export const residency: StationHandler = async () => {
           },
           {
             label: 'held right now',
-            value: '<span id="residency-held" class="mono">reading…</span>',
+            value: '<span data-weft-resident class="mono">reading…</span>',
             note: 'read from your browser’s store on load',
           },
           {
@@ -362,8 +362,8 @@ export const transport: StationHandler = async () => {
       'A channel is open on this page. Every frame in either direction is logged below, unedited.',
     ),
     body: `<div class="card">
-        <p class="hint">channel: <span id="channel-state" class="mono">opening…</span> · <span id="channel-writes" class="mono">0 DOM writes</span></p>
-        <div class="card log" id="frame-log"></div>
+        <p class="hint">channel: <span data-weft-stat="state" class="mono">idle</span> · <span data-weft-stat="writes" class="mono">0 DOM writes</span></p>
+        <div class="card log" data-weft-log></div>
       </div>
       ${explain({
         what: `The live channel. Three bindings carry the same frames — a long-lived GET with discrete POSTs up, an SSE stream, and a WebSocket — and the state machine above them does not know which one it is talking to. This page uses the first, because it is the one that needs no upgrade and no second connection type.`,
@@ -392,8 +392,8 @@ export const intents: StationHandler = async () => {
       'Three paths to the same intent: optimistic over the channel, deliberately failing, and a plain form post.',
     ),
     body: `<div class="card">
-        <p class="hint">channel: <span id="channel-state" class="mono">opening…</span></p>
-        <div class="card log" id="frame-log"></div>
+        <p class="hint">channel: <span data-weft-stat="state" class="mono">idle</span></p>
+        <div class="card log" data-weft-log></div>
       </div>
       ${explain({
         what: `An intent is the only thing in this framework allowed to write, and it declares the tags it may invalidate — an undeclared one throws, in production, because an undeclared write is a cache invalidation nobody can predict from reading the code. Watch the frame log: the optimistic path sends INTENT with an epoch, gets an ACK, and the server stages the real values into that same epoch and commits, so the guess is replaced in one paint. The failing path gets ok=false and no commit, and the client discards the epoch — nothing painted, so nothing has to be un-painted.`,

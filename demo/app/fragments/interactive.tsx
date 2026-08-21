@@ -27,7 +27,7 @@ export default fragment(({ sku, name, unitPrice }: InteractiveProps) => {
       <p class="name">{name}</p>
       <label>
         quantity
-        <input type="number" min="0" value={qty()} onInput={setQuantity} />
+        <input type="number" name="qty" min="0" value={qty()} onInput={setQuantity} />
       </label>
       <p class="line">
         <span class="unit">{unitPrice}</span> ×<output class="qty">{qty()}</output> =
