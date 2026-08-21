@@ -46,6 +46,21 @@ interface WeftState {
   /** How far boot got. A silent failure in an async boot looks exactly like a page with no script. */
   stage: string
   frames: { dir: 'up' | 'down'; text: string }[]
+  /** Slots on this page the server will refresh over the channel. Empty means there is nothing to ask for. */
+  live: string[]
+  /**
+   * Ask the server for these slots again, optionally from a different URL.
+   *
+   * This is what a control on a page with a live region should do instead of navigating. A
+   * navigation throws the document away and builds another one; this sends one frame and gets
+   * back a delta — one DOM write per value that actually changed, and the scroll position, the
+   * focus and every other region left alone.
+   *
+   * `at` re-registers where the client is, because the server resolves a refresh by matching that
+   * path against the same route table the document went through. Without it a control could
+   * change what it asks for but not what the answer is computed from.
+   */
+  refresh(slots?: readonly string[], at?: string): Promise<number>
 }
 
 declare global {
@@ -58,7 +73,15 @@ declare global {
   }
 }
 
-const state: WeftState = { regions: 0, writes: 0, connected: false, stage: 'loaded', frames: [] }
+const state: WeftState = {
+  regions: 0,
+  writes: 0,
+  connected: false,
+  stage: 'loaded',
+  frames: [],
+  live: [],
+  refresh: (slots, at) => refresh(slots, at),
+}
 /** True once a region declares itself refreshable, which is what decides whether to connect. */
 let liveRegions = false
 window.weft = state
@@ -156,7 +179,10 @@ async function adoptRegions(): Promise<Region[]> {
         void send([intentFrame(intent, payloadOf(target))])
       },
     })
-    if (entry.live) liveRegions = true
+    if (entry.live) {
+      liveRegions = true
+      state.live.push(entry.slot)
+    }
     regions.push({ slot: entry.slot, adopted, base: entry.base })
   }
 
@@ -198,15 +224,23 @@ function intentFrame(id: string, input: unknown): ChannelFrame {
 function payloadOf(element: HTMLElement): unknown {
   const raw = element.dataset.weftPayload
   if (raw) return JSON.parse(raw)
-  const form = element.closest('form')
-  if (form) return Object.fromEntries(new FormData(form) as unknown as Iterable<[string, string]>)
 
+  // Merged, in increasing precedence, because each source knows something the others do not: the
+  // row knows which record it is, the form knows what it is submitting, and the control knows what
+  // you just typed. Taking only the first source that exists is how a form whose control has no
+  // `name` sent an empty payload while a `data-sku` sat one element above it.
   const payload: Record<string, string> = {}
   for (let node: HTMLElement | null = element; node; node = node.parentElement) {
-    const own = Object.entries(node.dataset).filter(([key]) => !key.startsWith('weft'))
-    if (!own.length) continue
-    for (const [key, value] of own) if (value !== undefined && !(key in payload)) payload[key] = value
-    break
+    for (const [key, value] of Object.entries(node.dataset)) {
+      if (key.startsWith('weft') || value === undefined || key in payload) continue
+      payload[key] = value
+    }
+  }
+  const form = element.closest('form')
+  if (form) {
+    for (const [key, value] of new FormData(form) as unknown as Iterable<[string, string]>) {
+      payload[key] = value
+    }
   }
   const control = element as HTMLInputElement
   if (control.name) payload[control.name] = control.value
@@ -243,6 +277,133 @@ function wireIntents(): void {
   }
 }
 
+// ── controls ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * A control on a server-rendered page is a query parameter, and this is the whole of wiring one.
+ *
+ * `data-weft-control="rows"` says which parameter an input owns. `data-weft-apply` on a button
+ * says "put every control's value in the URL and get the page to agree with it". Neither needs a
+ * table mapping element ids to parameter names, which is what every application that did this by
+ * hand ended up writing.
+ *
+ * How the page is made to agree depends on what the page is. With a live region it asks the server
+ * for that region and patches it: one DOM write per value that changed, and the control you are
+ * holding keeps its position and its focus. Without one there is nothing to ask for, so it
+ * navigates — which is not a fallback, it is what such a page has always cost.
+ */
+function urlFromControls(): URL {
+  const url = new URL(window.location.href)
+  for (const node of document.querySelectorAll('[data-weft-control]')) {
+    const element = node as HTMLInputElement | HTMLSelectElement
+    const key = (element as HTMLElement).dataset.weftControl as string
+    if (element.value === '') url.searchParams.delete(key)
+    else url.searchParams.set(key, element.value)
+  }
+  return url
+}
+
+async function apply(): Promise<void> {
+  const url = urlFromControls()
+  if (!state.live.length) {
+    window.location.assign(url.toString())
+    return
+  }
+  // The address bar has to agree with what the server was asked, or a reload shows something else.
+  window.history.replaceState(null, '', url.toString())
+  await refresh(undefined, url.pathname + url.search)
+}
+
+function wireControls(): void {
+  for (const node of document.querySelectorAll('[data-weft-apply]')) {
+    node.addEventListener('click', () => void apply())
+  }
+  // A range input whose value is invisible is a mystery until you let go of it. This needs no
+  // application knowledge, so it is not the application's to write.
+  for (const node of document.querySelectorAll('input[type=range][data-weft-control]')) {
+    const input = node as HTMLInputElement
+    const label = input.closest('label')
+    if (!label || label.querySelector('[data-weft-readout]')) continue
+    const out = document.createElement('span')
+    out.dataset.weftReadout = ''
+    out.className = 'mono'
+    out.textContent = ` ${input.value}`
+    label.append(out)
+    input.addEventListener('input', () => {
+      out.textContent = ` ${input.value}`
+    })
+  }
+}
+
+// ── what the runtime is doing ────────────────────────────────────────────────────────
+
+/**
+ * The framework's own state, painted into whatever asks for it.
+ *
+ * `data-weft-stat="writes"` and friends are here because every page that wanted to show these
+ * numbers was writing the same polling loop against `window.weft` — which is glue over the
+ * framework's internals, in the application, kept in step by hand. The state belongs to the
+ * runtime, so describing it does too.
+ *
+ * `state` is the connection, `writes` the DOM writes deltas have performed, `regions` how many
+ * adopted regions this page holds, `stage` how far boot got, and `resident` what the template
+ * store is holding — the last of which only the client can answer, because it is in IndexedDB.
+ */
+async function describeResident(): Promise<string> {
+  try {
+    const store = await openResident()
+    const all = await store.all()
+    const count = Object.keys(all).length
+    return `${count} template${count === 1 ? '' : 's'} · ${store.durable ? 'IndexedDB' : 'memory only'}`
+  } catch (error) {
+    return `unavailable: ${String(error)}`
+  }
+}
+
+function paintStats(): void {
+  for (const node of document.querySelectorAll('[data-weft-stat]')) {
+    const element = node as HTMLElement
+    switch (element.dataset.weftStat) {
+      case 'state':
+        element.textContent = state.connected ? `open · ${state.regions} region(s)` : state.stage
+        break
+      case 'writes':
+        element.textContent = `${state.writes} DOM writes`
+        break
+      case 'regions':
+        element.textContent = String(state.regions)
+        break
+      case 'stage':
+        element.textContent = state.stage
+        break
+      default:
+        break
+    }
+  }
+}
+
+async function wireRuntimeReadouts(): Promise<void> {
+  const stats = document.querySelectorAll('[data-weft-stat]')
+  const resident = document.querySelectorAll('[data-weft-resident]')
+  const forget = document.querySelectorAll('[data-weft-forget]')
+  if (stats.length) {
+    paintStats()
+    // Polled rather than pushed: a delta arriving is not an event the application asked for, and
+    // a subscription nobody unsubscribes from outlives the element it was painting.
+    window.setInterval(paintStats, 500)
+  }
+  for (const node of resident) node.textContent = await describeResident()
+  for (const node of forget) {
+    node.addEventListener('click', () => {
+      indexedDB.deleteDatabase('weft')
+      document.cookie = 'weft-resident=; path=/; max-age=0'
+      for (const target of document.querySelectorAll('[data-weft-resident]')) {
+        target.textContent = 'cleared — reload for a cold visit'
+      }
+    })
+  }
+}
+
 // ── the channel ──────────────────────────────────────────────────────────────────────
 
 interface Wire {
@@ -268,18 +429,40 @@ async function send(frames: readonly ChannelFrame[]): Promise<void> {
   await w.send(frames)
 }
 
+/**
+ * A refresh, and the one thing it has to say first: where the client is now.
+ *
+ * The server matched this channel to a page when it opened, and a refresh re-runs *that* route's
+ * loader. So a control that changed the query has to re-register before it asks, or it gets the
+ * old answer computed from the old URL. That is one extra POST on a path the server already
+ * reads, rather than a frame the protocol would have to grow.
+ */
+async function refresh(slots?: readonly string[], at?: string): Promise<number> {
+  const w = await wire()
+  const names = slots?.length ? [...slots] : state.live
+  if (!names.length) return 0
+  // Every POST carries the current location, so setting it is the whole of re-registering: the
+  // REFRESH frame's own request is what tells the server where the answer is computed from.
+  if (at) location_ = at
+  const before = state.writes
+  await w.send([{ kind: 'REFRESH', header: { s: names.join(',') } }])
+  // The answer arrives on the down connection, so the writes it caused are counted there.
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  return state.writes - before
+}
+
 function encodeUp(frames: readonly ChannelFrame[]): Uint8Array<ArrayBuffer> {
   const encoded = frames.map((f) => warpFrame(f.kind as FrameKind, f.header, f.body, true)) as Frame[]
   return new Uint8Array(encodeStream(encoded))
 }
 
+/** Where the client last told the server it is. A refresh re-registers this before it asks. */
+let location_ = ''
+
 async function open(): Promise<Wire> {
   const base = channelPath()
   const id = `c-${Math.random().toString(36).slice(2, 10)}`
-  // The server matches the page's own path to a route, so a refresh re-runs that route's loader
-  // rather than a slot source somebody had to register by hand.
-  const at = encodeURIComponent(window.location.pathname + window.location.search)
-  const url = `${base}?c=${id}&at=${at}`
+  location_ = window.location.pathname + window.location.search
   const epochs = createEpochs()
 
   const client = createChannelClient({
@@ -296,7 +479,7 @@ async function open(): Promise<Wire> {
 
   const post = async (frames: readonly ChannelFrame[]): Promise<void> => {
     for (const f of frames) log('up', describe(f))
-    const response = await fetch(url, {
+    const response = await fetch(`${base}?c=${id}&at=${encodeURIComponent(location_)}`, {
       method: 'POST',
       headers: { 'content-type': 'application/warp' },
       body: encodeUp(frames),
@@ -315,7 +498,9 @@ async function open(): Promise<Wire> {
   // ERR_INCOMPLETE_CHUNKED_ENCODING, which looks like a server fault and is not one.
   const leaving = new AbortController()
   window.addEventListener('pagehide', () => leaving.abort(), { once: true })
-  const down = await fetch(url, { signal: leaving.signal })
+  const down = await fetch(`${base}?c=${id}&at=${encodeURIComponent(location_)}`, {
+    signal: leaving.signal,
+  })
   state.connected = true
 
   void (async () => {
@@ -358,6 +543,8 @@ async function boot(): Promise<void> {
   state.regions = regionsHeld.length
   state.stage = 'intents'
   wireIntents()
+  wireControls()
+  await wireRuntimeReadouts()
   state.stage = 'ready'
   // A page with a live region wants the channel now; every other page opens one on first use.
   if (regionsHeld.length && liveRegions) await wire()

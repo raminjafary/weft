@@ -1,6 +1,13 @@
 import { pathToFileURL } from 'node:url'
 import { baseRenderId, clientOwned, clientView, readsOf, type Values } from '@weft/ir'
-import type { KernelSlot, RenderContext, RouteEntry, RouteResolver } from '@weft/kernel'
+import {
+  recordBase,
+  type KernelSlot,
+  type RenderContext,
+  type RouteEntry,
+  type RouteResolver,
+  type StorePort,
+} from '@weft/kernel'
 import {
   every,
   factsFrom,
@@ -334,6 +341,7 @@ function wrapSlot(
   captured: WeakMap<object, Map<string, Values>>,
   expose: readonly string[],
   live: boolean,
+  store: StorePort,
 ): KernelSlot {
   const open = utf8.encode(`<div data-weft-slot="${name}">`)
   return {
@@ -356,6 +364,15 @@ function wrapSlot(
     render: async (ctx) => {
       const bytes = await slot.render(ctx)
       const values = captured.get(ctx as unknown as object)?.get(name)
+      /**
+       * A live slot records the render the client is about to be shown.
+       *
+       * A delta is computed against the base the client says it is holding, and the server can
+       * only do that if it can recover that base. Without this the *first* refresh on every page
+       * fell back to sending the region's HTML — the delta path only started working on the
+       * second interaction, which is the one nobody measures and everybody notices.
+       */
+      if (live && values) await recordBase(store, fragment.entry, values)
       const script = values ? adoptScript(name, fragment, values, { expose, live }) : null
       const tail = utf8.encode(script ? `</div>${script}` : '</div>')
       const out = new Uint8Array(open.length + bytes.length + tail.length)
@@ -380,6 +397,8 @@ export interface GenerateOptions {
   styleHref(pattern: string): string
   /** A fragment file's colocated stylesheet, if it brought one. */
   styleOf(file: string): string | undefined
+  /** Where a live slot's base render is recorded, so its first refresh can be a delta. */
+  store: StorePort
   /** The client entry the layout loads. Also a digest-bearing URL, so also resolved late. */
   runtime(): string
   brand: string
@@ -651,6 +670,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
           captured,
           expose,
           Boolean(live[slot.name]),
+          options.store,
         ),
         ...overrides.get(slot.name),
       })),
