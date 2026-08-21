@@ -30,6 +30,8 @@ interface AdoptPayload {
   slot: string
   selector: string
   template: ClientTemplate
+  /** Row and component templates the region's holes name. Without them a row adopts nothing. */
+  templates?: ClientTemplate[]
   base: string
   signals?: { id: string; init: unknown }[]
   values?: Record<string, unknown>
@@ -112,8 +114,10 @@ async function adoptRegions(): Promise<Region[]> {
   for (const entry of entries) {
     const root = document.querySelector(entry.selector)
     if (!root) continue
-    resident[entry.template.version] = entry.template
-    await store.put(entry.template)
+    for (const template of [entry.template, ...(entry.templates ?? [])]) {
+      resident[template.version] = template
+      await store.put(template)
+    }
 
     const signals: Record<string, Readable<unknown>> = {}
     for (const declaration of entry.signals ?? []) {
@@ -138,14 +142,18 @@ async function adoptRegions(): Promise<Region[]> {
       resident,
       signals,
       onIntent: (intent, event) => {
-        // The local half of an optimistic write: the box that fired writes its own signal now,
-        // and the server's answer arrives in an epoch that paints over it or rolls it back.
-        const target = event.target as HTMLInputElement | null
+        const target = event.target as HTMLElement | null
+        if (!target) return
+        // The local half of an optimistic write, when there is a signal to write: the control
+        // that fired updates it now, and the server's answer arrives in an epoch that paints
+        // over it or rolls it back. A region with no signal has nothing to guess with, and its
+        // truth comes back as a delta — which for a cart total is the only version worth having.
         const binding = intentTargets.get(intent)
-        if (!target || !binding) return
-        const next = Number(target.value)
-        if (Number.isFinite(next)) writable.get(binding)?.set(next)
-        void send([intentFrame(intent, { value: target.value })])
+        if (binding) {
+          const next = Number((target as HTMLInputElement).value)
+          if (Number.isFinite(next)) writable.get(binding)?.set(next)
+        }
+        void send([intentFrame(intent, payloadOf(target))])
       },
     })
     if (entry.live) liveRegions = true
@@ -176,12 +184,33 @@ function intentFrame(id: string, input: unknown): ChannelFrame {
   }
 }
 
+/**
+ * What an intent is sent, when the markup has not spelled it out.
+ *
+ * An explicit `data-weft-payload` wins. Failing that: a form's fields, because a form already
+ * says what it is submitting. Failing that, the control's own `name` and value plus the data
+ * attributes of the nearest ancestor carrying any — which is how a row identifies itself. A
+ * quantity box inside `<tr data-sku="RICE-5K">` sends `{ sku: 'RICE-5K', qty: '3' }`, and nothing
+ * had to declare that mapping.
+ *
+ * `data-weft-*` attributes are the framework's own and are never sent.
+ */
 function payloadOf(element: HTMLElement): unknown {
   const raw = element.dataset.weftPayload
   if (raw) return JSON.parse(raw)
   const form = element.closest('form')
-  if (!form) return {}
-  return Object.fromEntries(new FormData(form) as unknown as Iterable<[string, string]>)
+  if (form) return Object.fromEntries(new FormData(form) as unknown as Iterable<[string, string]>)
+
+  const payload: Record<string, string> = {}
+  for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+    const own = Object.entries(node.dataset).filter(([key]) => !key.startsWith('weft'))
+    if (!own.length) continue
+    for (const [key, value] of own) if (value !== undefined && !(key in payload)) payload[key] = value
+    break
+  }
+  const control = element as HTMLInputElement
+  if (control.name) payload[control.name] = control.value
+  return payload
 }
 
 /**

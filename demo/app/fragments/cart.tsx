@@ -1,4 +1,5 @@
 import { fragment, type Ctx } from 'weft'
+import { setQuantity } from '../intents/cart.ts'
 
 interface Line {
   sku: string
@@ -20,6 +21,11 @@ interface CartProps {
  * it can never be a shared entry — and because it is a slot in a shared shell, the shell stays
  * shared and only this region is per-user. That is contagion working rather than a page becoming
  * uncacheable because one line of it is personal.
+ *
+ * The quantity boxes name an intent. There is no signal here and there should not be: a cart total
+ * is not something a client should guess at. Typing sends the row's `sku` and the new quantity,
+ * the server recomputes the line, the subtotal and the total, and what comes back is a delta —
+ * one DOM write per value that actually changed.
  */
 export default fragment(async ({ lines, subtotal, shipping, total }: CartProps, ctx: Ctx) => {
   // These two reads are the whole reason this region is a slot rather than part of the shell.
@@ -37,7 +43,7 @@ export default fragment(async ({ lines, subtotal, shipping, total }: CartProps, 
             <tr data-sku={line.sku}>
               <td class="name">{line.name}</td>
               <td class="qty">
-                <input type="number" name="qty" value={line.qty} min="0" />
+                <input type="number" name="qty" value={line.qty} min="0" onInput={setQuantity} />
               </td>
               <td class="price">{line.price}</td>
               <td class="line-total">{line.total}</td>

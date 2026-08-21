@@ -245,14 +245,19 @@ export function adoptScript(
   const { entry } = fragment
   const live = options.live ?? false
   const expose = options.expose ?? []
-  const interactive = entry.wiring.length > 0 || entry.signals.length > 0
+  // Every template, not only the entry: a quantity box inside a list row has its wiring in the
+  // row's template, and a region whose only interactive part is a row is still interactive.
+  const nested = fragment.templates.filter((template) => template.version !== entry.version)
+  const interactive = fragment.templates.some((t) => t.wiring.length > 0 || t.signals.length > 0)
   // A static slot ships nothing. That is the case a hand-written script tag could never get
   // right, because it had to be written before anyone knew whether the slot needed one.
   if (!interactive && !live) return null
 
   const intents: Record<string, string> = {}
-  for (const wiring of entry.wiring) {
-    if (wiring.op === 'event' && wiring.intent) intents[wiring.intent] = wiring.event ?? 'input'
+  for (const template of fragment.templates) {
+    for (const wiring of template.wiring) {
+      if (wiring.op === 'event' && wiring.intent) intents[wiring.intent] = wiring.event ?? 'input'
+    }
   }
   const record = values as unknown as Record<string, unknown>
   const exposed: Record<string, unknown> = {}
@@ -264,6 +269,15 @@ export function adoptScript(
     slot,
     selector: options.selector ?? `[data-weft-slot="${slot}"]`,
     template: clientView(entry),
+    /**
+     * The row and component templates this region needs.
+     *
+     * Adoption walks a list hole by looking up `hole.nested` in the templates the client holds,
+     * so a region whose rows carry wiring is unadoptable without them. Shipping only the entry
+     * meant a quantity box inside a row was bound to nothing at all — the markup was there, the
+     * wiring was in the IR, and nothing connected the two.
+     */
+    templates: nested.map(clientView),
     base: baseRenderId(entry, values),
     signals: entry.signals.map((declaration) => ({ id: declaration.id, init: declaration.init })),
     values: exposed,
