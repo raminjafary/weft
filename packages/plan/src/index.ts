@@ -1,3 +1,5 @@
 export * from './dsl.ts'
+export * from './facts.ts'
 export * from './validate.ts'
+export * from './lower.ts'
 export * from './why.ts'

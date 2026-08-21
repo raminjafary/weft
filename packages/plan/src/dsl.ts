@@ -122,10 +122,27 @@ export interface GuardSpec {
   status?: number
 }
 
+/**
+ * Which fragment is the document. Its slot holes are the boundaries the plan's slots fill,
+ * and the two sets have to agree exactly — a declaration naming a hole the shell does not
+ * have, or a hole nothing fills, is a build error rather than an empty region in production.
+ */
+export interface ShellSpec {
+  shell: string
+}
+
 export interface Plan {
   route: string
+  /** The fragment that is the document. Absent only for a plan with no slots. */
+  shell?: string
   guards: GuardSpec[]
   slots: SlotSpec[]
+  /**
+   * The document's own policy. Per-slot `.cache()` decides what is stored; this decides what
+   * the response advertises, and it is checked against the strictest class among the shell and
+   * its slots rather than trusted.
+   */
+  cache?: CacheSpec
   /** Per-request ceiling. Forty concurrent queries from one page request will melt a database. */
   maxConcurrency: number
 }
@@ -241,23 +258,59 @@ export function guard(name: string, options: { redirect?: string; status?: numbe
   return { name, ...options }
 }
 
-export type PlanEntry = SlotBuilder | GuardSpec
+export function shell(fragment: string): ShellSpec {
+  return { shell: fragment }
+}
 
-export function plan(
-  route: string,
-  entries: readonly PlanEntry[] = [],
-  options: { maxConcurrency?: number } = {},
-): Plan {
+export type PlanEntry = SlotBuilder | GuardSpec | ShellSpec
+
+export interface PlanOptions {
+  maxConcurrency?: number
+  /** The document's `Cache-Control`, validated against what the shell and its slots read. */
+  cache?: {
+    class: PolicyClass
+    ttl?: string | number
+    swr?: string | number
+    tags?: string[]
+    consistency?: 'eventual' | 'strong'
+  }
+}
+
+export function plan(route: string, entries: readonly PlanEntry[] = [], options: PlanOptions = {}): Plan {
   const guards: GuardSpec[] = []
   const slots: SlotSpec[] = []
+  let shellFragment: string | undefined
   for (const entry of entries) {
-    if ('spec' in entry) slots.push(entry.spec)
-    else guards.push(entry)
+    if ('spec' in entry) {
+      slots.push(entry.spec)
+    } else if ('shell' in entry) {
+      if (shellFragment) throw new PlanError('E_DUPLICATE_SHELL', `${route} declares two shells`)
+      shellFragment = entry.shell
+    } else {
+      guards.push(entry)
+    }
   }
   const names = new Set<string>()
   for (const s of slots) {
     if (names.has(s.name)) throw new PlanError('E_DUPLICATE_SLOT', `${s.name} is declared twice in ${route}`)
     names.add(s.name)
   }
-  return { route, guards, slots, maxConcurrency: options.maxConcurrency ?? 6 }
+  return {
+    route,
+    guards,
+    slots,
+    maxConcurrency: options.maxConcurrency ?? 6,
+    ...(shellFragment ? { shell: shellFragment } : {}),
+    ...(options.cache
+      ? {
+          cache: {
+            class: options.cache.class,
+            ...(options.cache.ttl !== undefined ? { ttlMs: every(options.cache.ttl) } : {}),
+            ...(options.cache.swr !== undefined ? { staleWhileRevalidateMs: every(options.cache.swr) } : {}),
+            ...(options.cache.tags ? { tags: options.cache.tags } : {}),
+            ...(options.cache.consistency ? { consistency: options.cache.consistency } : {}),
+          },
+        }
+      : {}),
+  }
 }

@@ -28,6 +28,11 @@ export const OPAQUE = 'packages/compiler/fixtures/opaque.tsx'
 /** Value-projectable throughout, so `delta` is derivable and a surgical refresh is possible. */
 export const LINES = 'packages/compiler/fixtures/lines.tsx'
 
+/** The id the compiler gives a default export, which is what a plan names. */
+export function fragmentId(file: string, exported = 'default'): string {
+  return `${file}#${exported}`
+}
+
 export interface CompiledFixture {
   /** Module and export, as the compiler names it. Stable across content changes. */
   id: string

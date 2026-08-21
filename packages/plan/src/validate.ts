@@ -19,6 +19,12 @@ export interface SlotFacts {
   effects: EffectSet
   /** Forms the template can serve, derived by the compiler. */
   forms: readonly WireForm[]
+  /**
+   * Boundary names this fragment leaves for somebody else to fill: its `slot` holes, and any
+   * component instance the compiler isolated. Both are holes this render does not own, which
+   * is why they are one list rather than two.
+   */
+  fillable?: readonly string[]
   /** Whether the fragment has anything a memoized recompute could skip. */
   derivedCount?: number
 }
@@ -95,7 +101,99 @@ export function validatePlan(plan: Plan, context: ValidateContext): Diagnostics 
       else throw error
     }
 
+  // Last, so a whole-plan complaint never masks the specific slot that is wrong.
+  const shell = checkShell(plan, context, errors)
+  checkDocument(plan, shell, context, errors)
+
   return { errors, warnings }
+}
+
+/**
+ * The plan's slots and the shell's holes have to agree exactly. Both sides are already
+ * written down — one by an author, one by the compiler — so a disagreement is a build error
+ * rather than a region that renders empty in production.
+ */
+function checkShell(plan: Plan, context: ValidateContext, errors: Issue[]): SlotFacts | undefined {
+  if (!plan.shell) {
+    if (plan.slots.length) {
+      errors.push({
+        code: 'E_NO_SHELL',
+        message: `${plan.route} declares slots but no shell, so there is no document for them to fill`,
+      })
+    }
+    return undefined
+  }
+
+  const facts = context.facts[plan.shell]
+  if (!facts) {
+    errors.push({
+      code: 'E_NO_SUCH_FRAGMENT',
+      message: `${plan.route} names shell '${plan.shell}', which the compiler did not produce`,
+    })
+    return undefined
+  }
+
+  // Absent rather than empty means the caller did not derive it, and inventing an answer
+  // from that would turn a missing input into a confident refusal.
+  if (!facts.fillable) return facts
+
+  const holes = new Set(facts.fillable)
+  const declared = new Set(plan.slots.map((s) => s.name))
+  for (const spec of plan.slots) {
+    if (!holes.has(spec.name)) {
+      errors.push({
+        code: 'E_SLOT_NOT_IN_SHELL',
+        slot: spec.name,
+        message: `is not a boundary in ${plan.shell} (it leaves ${[...holes].sort().join(', ') || 'none'})`,
+      })
+    }
+  }
+  for (const hole of facts.fillable) {
+    if (!declared.has(hole)) {
+      errors.push({
+        code: 'E_SHELL_HOLE_UNFILLED',
+        message: `${plan.shell} leaves a boundary '${hole}' that no slot in ${plan.route} fills`,
+      })
+    }
+  }
+  return facts
+}
+
+/**
+ * The document contains everything, so it may only advertise what the strictest region among
+ * them allows. Catching it here rather than at the first request is the difference between a
+ * build error and an identity leak.
+ */
+function checkDocument(
+  plan: Plan,
+  shell: SlotFacts | undefined,
+  context: ValidateContext,
+  errors: Issue[],
+): void {
+  const policy = plan.cache
+  if (!policy || policy.class !== 'public') return
+
+  const offenders: string[] = []
+  for (const spec of plan.slots) {
+    const facts = context.facts[spec.fragment ?? spec.name]
+    if (facts && cacheClassOf(facts.effects) === 'private') offenders.push(spec.name)
+  }
+  if (shell && cacheClassOf(shell.effects) === 'private') offenders.push('the shell')
+
+  if (offenders.length) {
+    errors.push({
+      code: 'E_DOCUMENT_POLICY_CONFLICT',
+      message:
+        `${plan.route} declares a public document while ${offenders.join(', ')} ` +
+        `${offenders.length === 1 ? 'is' : 'are'} private`,
+    })
+  }
+  if (shell && requiresTtl(shell.effects) && policy.ttlMs === undefined) {
+    errors.push({
+      code: 'E_TTL_REQUIRED',
+      message: `${plan.route}: the shell reads the clock, so a document policy without a ttl never expires`,
+    })
+  }
 }
 
 function checkExecutor(spec: SlotSpec, context: ValidateContext, errors: Issue[]): void {
