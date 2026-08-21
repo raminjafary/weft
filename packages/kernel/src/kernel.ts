@@ -10,7 +10,14 @@ import {
 import { applyDeferred, createEnvelope, createMailbox, type DeferredMailbox } from './envelope.ts'
 import { degrade, inlineExecutor, type ExceedPolicy, type KernelExecutor } from './executor.ts'
 import { sendEarlyHints, type HintResult } from './hints.ts'
-import { requestFacts, type PreloadLink, type Ports, type RequestFacts } from './ports.ts'
+import {
+  requestFacts,
+  type Coalescer,
+  type JobAddress,
+  type PreloadLink,
+  type Ports,
+  type RequestFacts,
+} from './ports.ts'
 import type { Router } from './router.ts'
 import { lifecycle, type Lifecycle } from './request.ts'
 import { runPlugins, type PluginSchedule, type ReadGuard } from './plugins.ts'
@@ -42,6 +49,11 @@ export interface KernelSlot {
   policy?: CachePolicy
   /** Emitted when the slot degrades. Honest, cheap, and visibly incomplete. */
   placeholder?: Uint8Array
+  /**
+   * Where this slot's render lives, for an executor that runs it somewhere a closure cannot
+   * reach. Without one only same-thread executors can take the slot.
+   */
+  address?: JobAddress
   render(ctx: RenderContext): Promise<Uint8Array>
 }
 
@@ -95,6 +107,13 @@ export interface KernelOptions {
   connectionOf?(request: Request): string | null
   /** The route table. Without one, `serve()` has nothing to match and says so. */
   routes?: Router<RouteResolver>
+  /**
+   * What happens when two requests miss the same cacheable key at once. Without one they both
+   * render, which is the behaviour a cache is supposed to prevent and the behaviour that turns
+   * a cold cache into an incident. `leaseCoalescer` is the implementation; it is opt-in because
+   * the good version of this is store-specific and the kernel should not have a favourite.
+   */
+  coalesce?: Coalescer
   /** What an unmatched path returns. A 404 with no body by default. */
   notFound?(request: Request): Response | Promise<Response>
   /**
@@ -115,6 +134,8 @@ export interface KernelTrace {
   document: ResolvedKey | null
   hits: string[]
   degraded: { slot: string; code: string; message: string }[]
+  /** Slots that missed, waited for another renderer's result, and got it. A stampede avoided. */
+  coalesced: string[]
   deferred: number
   /** Which pattern matched and with what params. Null when `handle` was called directly. */
   matched: { pattern: string; params: Record<string, string> } | null
@@ -216,6 +237,7 @@ export function createKernel(options: KernelOptions): Kernel {
     life.to('streaming')
 
     const hits: string[] = []
+    const coalesced: string[] = []
     const degraded: { slot: string; code: string; message: string }[] = []
     // One gate per slot. The stream awaits these; the wave scheduler opens them, so
     // document order and completion order stay independent of each other.
@@ -230,6 +252,7 @@ export function createKernel(options: KernelOptions): Kernel {
 
     const renderOne = async (slot: KernelSlot): Promise<Uint8Array> => {
       const resolved = keys[slot.name] as ResolvedKey
+      const cacheable = Boolean(resolved.key && slot.policy)
       if (resolved.key) {
         const entry = await options.ports.store.get(resolved.key)
         if (entry) {
@@ -237,9 +260,27 @@ export function createKernel(options: KernelOptions): Kernel {
           return entry.value
         }
       }
+
+      // A miss under load is where a cache stops helping: N concurrent requests all miss and
+      // all render, and the render is the expensive part. The kernel knows the two things that
+      // decide it — this key is cacheable, and a render is about to happen — and hands both to
+      // whatever was wired to do something about it. It does not decide *how*: a lease TTL, a
+      // bounded wait, polling against pub/sub are all properties of the store, and a Redis
+      // adapter can be told when the fill happened where an isolate-local map can only poll.
+      if (!cacheable || !options.coalesce) return render(slot, resolved)
+      const result = await options.coalesce(resolved.key as string, () => render(slot, resolved))
+      if (result.waited) {
+        hits.push(slot.name)
+        coalesced.push(slot.name)
+      }
+      return result.bytes
+    }
+
+    const render = async (slot: KernelSlot, resolved: ResolvedKey): Promise<Uint8Array> => {
       const outcome = await executorFor(slot.executor).run({
         slot: slot.name,
         ...(slot.cpuBudgetMs !== undefined ? { cpuBudgetMs: slot.cpuBudgetMs } : {}),
+        ...(slot.address ? { address: slot.address } : {}),
         run: async () => slot.render(renderContext(reads, envelope)),
       })
       if (outcome.failure) {
@@ -300,7 +341,17 @@ export function createKernel(options: KernelOptions): Kernel {
     })
     void settled.catch(() => {})
 
-    trace = { states: life.log, hints, keys, document, hits, degraded, deferred: owed, matched: null }
+    trace = {
+      states: life.log,
+      hints,
+      keys,
+      document,
+      hits,
+      coalesced,
+      degraded,
+      deferred: owed,
+      matched: null,
+    }
     return new Response(stream, init)
   }
 
@@ -341,6 +392,7 @@ function emptyTrace(): KernelTrace {
     keys: {},
     document: null,
     hits: [],
+    coalesced: [],
     degraded: [],
     deferred: 0,
     matched: null,

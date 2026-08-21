@@ -48,6 +48,14 @@ The request path grew 41 bytes, for the delegation that answers a non-GET with a
 POST is a kernel where a write can look like it succeeded, so those 41 bytes are not optional.
 The other 9 KB is `entry-intent.ts`, and a read-only deployment never imports it.
 
+The stampede lease is the case where the budget changed a design rather than a number. In the
+request path — the kernel takes the lease, waits for the holder, polls the store — it came out
+**13 bytes over 8,192**, and the design's own figure does not move. So the kernel names the seam
+instead: it knows the two things that decide a coalesce (this key is cacheable, a render is
+about to happen) and hands both to a `Coalescer`. 59 bytes rather than 165, and better layering
+than the version that fitted would have been — an isolate-local map can only poll, and a store
+with pub/sub should subscribe, and only the store knows which it is.
+
 **Where there is no design figure, the ceiling is a watermark and says so.** Its only job is
 to make a regression visible. Two of them state how much room is left and what it is for,
 because a ceiling picked to fit what was just built is a label unless the next thing has to

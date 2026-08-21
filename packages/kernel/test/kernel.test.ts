@@ -8,7 +8,7 @@ import {
   type Hole,
   type TemplateIR,
 } from '../../ir/src/index.ts'
-import { createKernel, type KernelRoute, type KernelSlot, type Ports } from '../src/index.ts'
+import { createKernel, leaseCoalescer, type KernelRoute, type KernelSlot, type Ports } from '../src/index.ts'
 import { collectingTelemetry } from '../../adapters/src/telemetry.ts'
 import { cookieSession } from '../../adapters/src/session.ts'
 import { memoryStore } from '../../adapters/src/memory-store.ts'
@@ -333,4 +333,34 @@ test('slots render in waves, so a dependent slot sees its dependency finished', 
     ),
   )
   assert.deepEqual(order, ['lines', 'greeting'])
+})
+
+test('two concurrent requests for one cacheable slot render it once', async () => {
+  const store = memoryStore()
+  let renders = 0
+  const cached = (): KernelSlot =>
+    slot('lines', ['cookie:currency'], {
+      policy: { class: 'public', ttlMs: 60_000 },
+      render: async () => {
+        renders++
+        await new Promise((resolve) => setTimeout(resolve, 25))
+        return utf8.encode('<p>lines</p>')
+      },
+    })
+  const kernel = createKernel({
+    ports: ports(store),
+    coalesce: leaseCoalescer(store, { pollMs: 2 }),
+  })
+  const request = async (): Promise<string> =>
+    text(
+      await kernel.handle(
+        new Request('https://example.test/cart', { headers: { cookie: 'currency=IQD' } }),
+        await route([cached()]),
+      ),
+    )
+
+  const [a, b] = await Promise.all([request(), request()])
+  assert.equal(renders, 1, 'the second request waited for the first rather than rendering again')
+  assert.equal(a, b, 'and both got the same bytes')
+  assert.deepEqual(kernel.trace?.coalesced, ['lines'], 'the trace says a stampede was avoided')
 })
