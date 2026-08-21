@@ -1,4 +1,4 @@
-import type { Values } from '../../packages/ir/src/index.ts'
+import type { Values } from '@weft/ir'
 
 /**
  * The demo's data, generated deterministically from a seed.
@@ -160,14 +160,35 @@ export function dashPanel(
 ): Values {
   const random = seeded(seed)
   const labels = ['Baghdad', 'Basra', 'Erbil', 'Mosul', 'Najaf']
+  const values = labels.map(() => Math.floor(random() * 9000) + 100)
+  const peak = Math.max(...values)
   return {
     name,
     costMs,
     executor,
     cacheClass,
-    series: labels.map((label) => {
-      const value = Math.floor(random() * 9000) + 100
+    // A computed length. No stylesheet can hold this, which is why the fragment sets it inline:
+    // one escaped attribute hole, and no client code to compute it in the browser.
+    barStyle: `--bar:${Math.round(((values[0] as number) / peak) * 100)}%`,
+    series: labels.map((label, index) => {
+      const value = values[index] as number
       return { label, value: value.toLocaleString('en-US'), trend: value % 2 === 0 ? 'up' : 'down' }
     }),
   } as unknown as Values
+}
+
+/**
+ * The feed's clock. It lives here rather than in a route so that the intent that advances it and
+ * the loader that reads it are looking at one number — a demo where those two disagree is a demo
+ * whose deltas describe a page nobody was shown.
+ */
+let tick = 0
+
+export function advance(): number {
+  tick += 1
+  return tick
+}
+
+export function at(): number {
+  return tick
 }

@@ -1,12 +1,14 @@
-import { measureBudgets } from '../../packages/bench/src/budget.ts'
-import { measureSharedDelta } from '../../packages/bench/src/measure/shared-delta.ts'
-import { checkScenario } from '../../packages/bench/src/equivalence.ts'
-import { segmentsCandidate } from '../../packages/bench/src/candidates/segments.ts'
-import { stringSsrCandidate } from '../../packages/bench/src/candidates/string-ssr.ts'
-import { scenario } from '../../packages/bench/src/workloads/index.ts'
-import { fillerSize } from '../../packages/kernel/src/index.ts'
-import { TEMPLATE_IR_VERSION } from '../../packages/ir/src/index.ts'
-import { WARP_VERSION } from '../../packages/warp/src/index.ts'
+import {
+  checkScenario,
+  measureBudgets,
+  measureSharedDelta,
+  scenario,
+  segmentsCandidate,
+  stringSsrCandidate,
+} from '@weft/bench'
+import { fillerSize } from '@weft/kernel'
+import { TEMPLATE_IR_VERSION } from '@weft/ir'
+import { WARP_VERSION } from '@weft/warp'
 
 /**
  * Every number this demo shows comes from here, and everything here calls the benchmark harness.

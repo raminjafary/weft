@@ -1,0 +1,46 @@
+/*
+ * A component's own stylesheet, colocated with the component.
+ *
+ * `product-card.tsx` is rendered by `ordinary.tsx`, which is the body of `/app/ordinary/:category`
+ * and of nothing else — so this file is in that one page's bundle and in no other. Nothing declared
+ * that. The framework reads the sealed template set of every fragment a page renders, finds this
+ * component's template inside the page's, and links the `.css` beside it.
+ *
+ * Open any other page and check: these rules are not in its stylesheet.
+ */
+.product {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--acc);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+}
+
+.product h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.product .price {
+  font-family: var(--mono);
+  font-size: 1.15rem;
+  margin: 0;
+}
+
+.product .price .unit {
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+.product .badge {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--dim);
+}
+
+.product button:disabled {
+  opacity: 0.5;
+}

@@ -1,10 +1,4 @@
-import {
-  baseRenderId,
-  clientView,
-  deltaPayload,
-  render,
-  type Values,
-} from '../../../packages/ir/src/index.ts'
+import { baseRenderId, clientView, deltaPayload, render, type Values } from '@weft/ir'
 import { compileDemo } from '../compile.ts'
 import { explain, field, panel, pick, pre, press, readout, slider } from '../pages.ts'
 import { numeric, type StationHandler } from './kind.ts'

@@ -1,9 +1,11 @@
-import { createSegmentMemo, render, renderIncremental, type Values } from '../../../packages/ir/src/index.ts'
+import { createSegmentMemo, render, renderIncremental, TEMPLATE_IR_VERSION, type Values } from '@weft/ir'
 import {
   createEnvelope,
   criticalPath,
-  degrade,
+  type DagNode,
   deferredExecutor,
+  degrade,
+  type ExceedPolicy,
   fillerSize,
   inlineExecutor,
   isHardLimit,
@@ -11,13 +13,10 @@ import {
   lifecycle,
   linkHeader,
   schedule,
-  type DagNode,
-  type ExceedPolicy,
-} from '../../../packages/kernel/src/index.ts'
-import { memoryStore, workerPool } from '../../../packages/adapters/src/index.ts'
-import { encodeStream, frame, negotiate, residentFrame, warpFrame } from '../../../packages/warp/src/index.ts'
-import { serverCapabilities } from '../../../packages/kernel/src/index.ts'
-import { TEMPLATE_IR_VERSION } from '../../../packages/ir/src/index.ts'
+  serverCapabilities,
+} from '@weft/kernel'
+import { memoryStore, workerPool } from '@weft/adapters'
+import { encodeStream, frame, negotiate, residentFrame, warpFrame } from '@weft/warp'
 import { compileDemo, listBinding } from '../compile.ts'
 import { feedItems } from '../data.ts'
 import { escapeHtml, field, panel, pick, pre, press, readout, slider } from '../pages.ts'

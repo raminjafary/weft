@@ -5,6 +5,20 @@
   "type": "module",
   "description": "Every capability this framework has, running, with a control that lets you feel the mechanism",
   "scripts": {
-    "start": "node src/cli.ts"
+    "dev": "weft dev",
+    "build": "weft build",
+    "start": "weft start",
+    "routes": "weft routes"
+  },
+  "dependencies": {
+    "weft": "workspace:*",
+    "@weft/adapters": "workspace:*",
+    "@weft/bench": "workspace:*",
+    "@weft/client": "workspace:*",
+    "@weft/compiler": "workspace:*",
+    "@weft/ir": "workspace:*",
+    "@weft/kernel": "workspace:*",
+    "@weft/plan": "workspace:*",
+    "@weft/warp": "workspace:*"
   }
 }

@@ -8,6 +8,9 @@ interface NavItem {
 
 interface DashProps {
   title: string
+  description: string
+  heading: string
+  brand: string
   css: string
   runtime: string
   nav: NavItem[]
@@ -28,7 +31,21 @@ interface DashProps {
  * the kernel can stream independently, with its own cache policy, executor and budget.
  */
 export default fragment(
-  ({ title, css, runtime, nav, panel, traffic, revenue, errors, slowest, readout }: DashProps) => (
+  ({
+    title,
+    description,
+    heading,
+    brand,
+    css,
+    runtime,
+    nav,
+    panel,
+    traffic,
+    revenue,
+    errors,
+    slowest,
+    readout,
+  }: DashProps) => (
     <>
       {raw('<!doctype html>')}
       <html lang="en">
@@ -36,13 +53,14 @@ export default fragment(
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width,initial-scale=1" />
           <title>{title}</title>
+          <meta name="description" content={description} />
           <link rel="stylesheet" href={css} />
           <script type="module" src={runtime} />
         </head>
         <body data-station="dashboard">
           <header class="top">
             <a class="brand" href="/">
-              weft
+              {brand}
             </a>
             <nav>
               {nav.map((item) => (
@@ -53,7 +71,7 @@ export default fragment(
             </nav>
           </header>
           <main>
-            <h1>A dashboard with slow panels</h1>
+            <h1>{heading}</h1>
             <p class="shows">
               Four independent queries of very different cost. Each panel is its own slot, with its own
               latency, its own cache policy and its own executor.

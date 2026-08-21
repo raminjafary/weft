@@ -1,4 +1,4 @@
-import { cacheClassOf, requiresTtl, varyOn, type EffectSet } from '../../../packages/ir/src/index.ts'
+import { cacheClassOf, requiresTtl, varyOn, type EffectSet } from '@weft/ir'
 import {
   cacheHeaders,
   createRouter,
@@ -8,9 +8,9 @@ import {
   PORTS,
   type PortName,
   type Ports,
-} from '../../../packages/kernel/src/index.ts'
-import { cookieSession, memoryStore, staticFlags } from '../../../packages/adapters/src/index.ts'
-import { factsFrom, plan, shell, slot, validatePlan } from '../../../packages/plan/src/index.ts'
+} from '@weft/kernel'
+import { cookieSession, memoryStore, staticFlags } from '@weft/adapters'
+import { factsFrom, plan, shell, slot, validatePlan } from '@weft/plan'
 import { compileDemo } from '../compile.ts'
 import { escapeHtml, field, panel, pick, pre, press, readout } from '../pages.ts'
 import type { StationHandler } from './kind.ts'
