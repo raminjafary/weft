@@ -58,14 +58,23 @@ test('the kernel only reaches sideways into the two versioned wire packages', ()
   assert.deepEqual(offenders, [])
 })
 
-test('the kernel is small enough to be a kernel', () => {
-  const lines = sources().reduce((sum, { text }) => sum + text.split('\n').length, 0)
-  // The gate that matters is the 8 KB byte budget in `@weft/bench`, measured against the
-  // document request path. This is a shape check on top of it: it fires when the kernel starts
-  // absorbing work that belongs in a port, and it is allowed to move when the thing added is
-  // one of the four jobs a kernel has. Routing was, so it moved from 2,500 to 2,900.
-  assert.ok(lines < 2900, `kernel source is ${lines} lines`)
-})
+/**
+ * The line count is a smell detector for the kernel absorbing work that belongs in a port.
+ * It is not the byte budget — that is in `@weft/bench` — and after this session it is not one
+ * number over everything either.
+ *
+ * It moved once, from 2,500 to 2,900, when routing landed. That move should not have
+ * happened: it was measuring every file in `src/`, which is the same gross-versus-marginal
+ * mistake the byte budget already made and already fixed. Measured against the request path
+ * it is meant to describe, routing never took it near 2,500. So the ceiling is back where it
+ * was, and each entry now has its own — which is the rule `spec/kernel/budgets.md` states for
+ * bytes, applied to the detector as well.
+ */
+const LINE_CEILINGS: Record<string, number> = {
+  'entry-request.ts': 2500,
+  'entry-channel.ts': 2900,
+  'entry-transport.ts': 3300,
+}
 
 /**
  * The request path is what the 8 KB claim is measured against, so what may enter it is a
@@ -120,4 +129,27 @@ test('the barrel does reach them, so the walk is finding real edges', () => {
   for (const file of OFF_THE_REQUEST_PATH) {
     assert.ok(reached.has(file), `the walk did not find ${file} from the barrel, which exports it`)
   }
+})
+
+test('each entry is small enough for what it is', () => {
+  const over: string[] = []
+  for (const [entry, ceiling] of Object.entries(LINE_CEILINGS)) {
+    const lines = [...reachableFrom(entry)].reduce(
+      (sum, file) => sum + readFileSync(SRC + file, 'utf8').split('\n').length,
+      0,
+    )
+    if (lines >= ceiling) over.push(`${entry}: ${lines} lines against ${ceiling}`)
+  }
+  assert.deepEqual(over, [])
+})
+
+test('every source file is reachable from an entry or named as off the request path', () => {
+  // Otherwise a module can be added, gated by nothing, and be perfectly invisible to both
+  // the byte budget and the line count.
+  const reached = new Set<string>()
+  for (const entry of Object.keys(LINE_CEILINGS)) for (const file of reachableFrom(entry)) reached.add(file)
+  const orphans = sources()
+    .map(({ file }) => file)
+    .filter((file) => file !== 'index.ts' && !reached.has(file) && !OFF_THE_REQUEST_PATH.includes(file))
+  assert.deepEqual(orphans, [], 'reachable from no entry, so no ceiling applies to it')
 })

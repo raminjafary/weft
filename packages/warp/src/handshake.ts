@@ -1,5 +1,5 @@
 import { frame, list, str, type Frame } from './frames.ts'
-import { WARP_SPEC, WARP_VERSION } from './version.ts'
+import { WARP_SPEC } from './version.ts'
 
 export type WireForm = 'html' | 'bundle' | 'split' | 'patch' | 'delta' | 'remote'
 
@@ -39,11 +39,17 @@ export interface ServerCapabilities {
   forms: WireForm[]
 }
 
-export const SERVER_DEFAULTS: ServerCapabilities = {
-  warp: WARP_VERSION,
-  ir: '1.0.0',
-  forms: ['html', 'bundle', 'split', 'patch', 'delta'],
-}
+/**
+ * There is deliberately no default. This package owns the Warp version and nothing else —
+ * the template IR is versioned separately, on purpose, and a default here could only ever
+ * state an IR version this package cannot see.
+ *
+ * It did, for a while: `SERVER_DEFAULTS.ir` said `1.0.0` while the emitter had moved to
+ * 2.4.0, so every current client negotiated an IR *major* mismatch and was served
+ * `html` only. Whoever composes a Warp version with an IR version has to be able to see
+ * both, which is the kernel — `serverCapabilities()` there.
+ */
+export const WARP_FORMS: WireForm[] = ['html', 'bundle', 'split', 'patch', 'delta']
 
 export interface Negotiation {
   ok: boolean
@@ -84,7 +90,7 @@ function minVersion(a: string, b: string): string {
  * are the same problem, and they get the same mechanism. Nothing here fails — every
  * missing capability costs a form, a fill mechanism, or an animation, never correctness.
  */
-export function negotiate(hello: ClientHello, server: ServerCapabilities = SERVER_DEFAULTS): Negotiation {
+export function negotiate(hello: ClientHello, server: ServerCapabilities): Negotiation {
   const downgrades: string[] = []
 
   const transport: Transport = hello.transport ?? 'stream'

@@ -2,9 +2,10 @@ import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { stripTypeScriptTypes } from 'node:module'
 import { fileURLToPath } from 'node:url'
-import { render, type TemplateIR } from '../../../ir/src/index.ts'
+import { clientView, render, TEMPLATE_IR_VERSION, type TemplateIR } from '../../../ir/src/index.ts'
 import { heldBy, isHeld } from '../../../client/src/resident.ts'
 import { encodeStream, frame, negotiate, type Frame } from '../../../warp/src/index.ts'
+import { serverCapabilities } from '../../../kernel/src/channel.ts'
 import { compileScenario, withRows } from '../compiled.ts'
 import type { Scenario } from '../workloads/index.ts'
 import { loadPlaywright, type EngineName } from './browser.ts'
@@ -31,10 +32,6 @@ export interface RepeatVisitRun {
   engineVersion: string
   cold: Visit[]
   repeat: Visit[]
-}
-
-function clientTemplate(ir: TemplateIR): Record<string, unknown> {
-  return { version: ir.version, holes: ir.holes, wiring: ir.wiring, derived: ir.derived }
 }
 
 function toBase64(bytes: Uint8Array): string {
@@ -107,7 +104,10 @@ export async function measureRepeatVisit(
     }
 
     const held = heldBy(cookieValue(req.headers.cookie, 'weft-resident'))
-    const settled = negotiate({ warp: '1.0.0', ir: '2.1.0', forms: ['html', 'delta'], transport: 'stream' })
+    const settled = negotiate(
+      { warp: '1.0.0', ir: TEMPLATE_IR_VERSION, forms: ['html', 'delta'], transport: 'stream' },
+      serverCapabilities(),
+    )
 
     const frames: Frame[] = [
       frame('WARP', {
@@ -123,7 +123,7 @@ export async function measureRepeatVisit(
     for (const template of templates) {
       if (isHeld(held, template.version)) continue
       frames.push(
-        frame('TPL', { tpl: template.version }, utf8.encode(JSON.stringify(clientTemplate(template))), true),
+        frame('TPL', { tpl: template.version }, utf8.encode(JSON.stringify(clientView(template))), true),
       )
       sent++
     }

@@ -50,11 +50,25 @@ export const BUDGETS: ByteBudget[] = [
     limitNote: 'under 8 KB server-side',
   },
   {
-    id: 'kernel-channel',
-    label: 'Server kernel plus the Warp channel path',
+    id: 'kernel-refresh',
+    label: 'Server kernel plus surgical refresh and epochs',
     entry: kernelSrc('entry-channel.ts'),
     limit: 12 * 1024,
     limitNote: 'no design figure; measured so a regression is visible',
+  },
+  {
+    id: 'kernel-transport',
+    label: 'Server kernel plus a live Warp channel',
+    entry: kernelSrc('entry-transport.ts'),
+    limit: 13 * 1024,
+    limitNote: 'no design figure; ~970 B of room, which is what intents have to fit inside',
+  },
+  {
+    id: 'channel-route',
+    label: 'Channel route: an app route plus arriving frames',
+    entry: src('entry-channel.ts'),
+    limit: 4 * 1024,
+    limitNote: 'no design figure; a watermark with ~470 B of room, so the next addition argues with a number',
   },
   {
     id: 'app-route',
