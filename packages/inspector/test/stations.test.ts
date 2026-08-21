@@ -98,14 +98,14 @@ test('every station says what it shows and what the control is', () => {
 test('every fragment the stations render compiles, and the document leaves the boundaries they fill', async () => {
   await app()
   assert.deepEqual(slotHoles(fragmentIR('layout')), ['panel', 'body', 'readout'])
-  assert.deepEqual(fragmentIR('fragment:article').entry.effects.reads, [], 'article.tsx is the static case')
+  assert.deepEqual(fragmentIR('fragment:static').entry.effects.reads, [], 'article.tsx is the static case')
   assert.deepEqual(
-    fragmentIR('fragment:cart').entry.effects.reads,
+    fragmentIR('fragment:private').entry.effects.reads,
     ['cookie:currency', 'identity'],
     'cart.tsx is the private case',
   )
   assert.deepEqual(
-    fragmentIR('fragment:feed').entry.effects.reads,
+    fragmentIR('fragment:clock').entry.effects.reads,
     ['time'],
     'feed.tsx is the case that forces a ttl',
   )

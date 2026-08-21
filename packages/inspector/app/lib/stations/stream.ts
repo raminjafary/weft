@@ -215,7 +215,7 @@ export const blockingControl: StationHandler = async (ctx) => {
 
 export const epochs: StationHandler = async (ctx) => {
   const commit = ctx.query('commit') === 'yes'
-  const feed = fragmentIR('fragment:feed')
+  const feed = fragmentIR('fragment:clock')
   const binding = listHole(feed)
   const epochs_ = createEpochs()
 
@@ -304,7 +304,7 @@ export const epochs: StationHandler = async (ctx) => {
 // ── components ───────────────────────────────────────────────────────────────────────
 
 export const components: StationHandler = async () => {
-  const ordinary = fragmentIR('fragment:ordinary')
+  const ordinary = fragmentIR('fragment:composed')
   const instances = ordinary.entry.holes.filter((h) => h.kind === 'component')
   const nested = new Set(instances.map((h) => h.nested).filter(Boolean))
 
@@ -354,6 +354,6 @@ export const components: StationHandler = async () => {
             'Open /app/ordinary/pantry, then /app/ordinary/household. Different content, same two templates.',
         },
       ),
-    readout: pre(fragmentIR('fragment:product-card')?.source ?? ''),
+    readout: pre(fragmentIR('fragment:card')?.source ?? ''),
   }
 }

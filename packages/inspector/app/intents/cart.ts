@@ -19,7 +19,7 @@ function skuOf(raw: unknown): string {
 }
 
 export const addToCart = defineIntent<{ sku: string; qty: number; fail?: boolean }>({
-  name: 'cart.add',
+  name: 'inspect.cart.add',
   writes: ['cart'],
   input: (raw) => {
     const body = raw as { qty?: unknown; fail?: unknown }
@@ -42,7 +42,7 @@ export const addToCart = defineIntent<{ sku: string; qty: number; fail?: boolean
 })
 
 export const setQuantity = defineIntent<{ sku: string; qty: number }>({
-  name: 'cart.setQty',
+  name: 'inspect.cart.setQty',
   writes: ['cart'],
   input: (raw) => {
     const body = raw as { qty?: unknown }

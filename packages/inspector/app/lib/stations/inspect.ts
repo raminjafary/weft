@@ -27,10 +27,18 @@ const ports = (): Ports => ({
   executors: {},
 })
 
-const FRAGMENT_CHOICES = ['article', 'feed', 'cart', 'greeting', 'ordinary', 'panels'] as const
+/**
+ * The fixtures this station lets you switch between, each one a case worth seeing.
+ *
+ * `static` reads nothing, so its class resolves at build time. `clock` reads the clock, which is
+ * what forces a ttl. `private` reads identity and a cookie, so it can never be a shared entry.
+ * `identity` is the smallest fragment that changes a page's class. `composed` renders a component
+ * three times, and `panels` is an ordinary list.
+ */
+const FRAGMENT_CHOICES = ['static', 'clock', 'private', 'identity', 'composed', 'panels'] as const
 
 export const effects: StationHandler = async (ctx) => {
-  const which = (ctx.query('fragment') ?? 'cart') as (typeof FRAGMENT_CHOICES)[number]
+  const which = (ctx.query('fragment') ?? 'private') as (typeof FRAGMENT_CHOICES)[number]
   const target = fragmentIR(`fragment:${which}`)
   const set: EffectSet = target.entry.effects
   const cls = cacheClassOf(set)
@@ -103,7 +111,7 @@ export const effects: StationHandler = async (ctx) => {
 
 export const contagion: StationHandler = async () => {
   const shellSet = fragmentIR('layout').entry.effects
-  const child = fragmentIR('fragment:greeting').entry.effects
+  const child = fragmentIR('fragment:identity').entry.effects
   const union: EffectSet = {
     reads: [...new Set([...shellSet.reads, ...child.reads])].sort(),
     writes: [],
@@ -168,18 +176,18 @@ export const cacheKeys: StationHandler = async (ctx) => {
   const p = ports()
   const cart = await resolveKey(
     {
-      id: fragmentIR('fragment:cart').entry.id,
-      version: fragmentIR('fragment:cart').entry.version,
-      effects: fragmentIR('fragment:cart').entry.effects,
+      id: fragmentIR('fragment:private').entry.id,
+      version: fragmentIR('fragment:private').entry.version,
+      effects: fragmentIR('fragment:private').entry.effects,
     },
     facts,
     p,
   )
   const article = await resolveKey(
     {
-      id: fragmentIR('fragment:article').entry.id,
-      version: fragmentIR('fragment:article').entry.version,
-      effects: fragmentIR('fragment:article').entry.effects,
+      id: fragmentIR('fragment:static').entry.id,
+      version: fragmentIR('fragment:static').entry.version,
+      effects: fragmentIR('fragment:static').entry.effects,
     },
     facts,
     p,
@@ -312,7 +320,7 @@ export const shellBoundaries: StationHandler = async () => {
           plan('/x', [
             shell(fragmentIR('layout').entry.id),
             slot('panel').fragment(fragmentIR('fragment:markup').entry.id),
-            slot('body').fragment(fragmentIR('fragment:article').entry.id),
+            slot('body').fragment(fragmentIR('fragment:static').entry.id),
             slot('readout').fragment(fragmentIR('fragment:markup').entry.id),
           ]),
           { facts },
@@ -325,7 +333,7 @@ export const shellBoundaries: StationHandler = async () => {
           plan('/x', [
             shell(fragmentIR('layout').entry.id),
             slot('panel').fragment(fragmentIR('fragment:markup').entry.id),
-            slot('body').fragment(fragmentIR('fragment:article').entry.id),
+            slot('body').fragment(fragmentIR('fragment:static').entry.id),
             slot('readout').fragment(fragmentIR('fragment:markup').entry.id),
             slot('sidebar').fragment(fragmentIR('fragment:markup').entry.id),
           ]),
@@ -339,7 +347,7 @@ export const shellBoundaries: StationHandler = async () => {
           plan('/x', [
             shell(fragmentIR('layout').entry.id),
             slot('panel').fragment(fragmentIR('fragment:markup').entry.id),
-            slot('body').fragment(fragmentIR('fragment:article').entry.id),
+            slot('body').fragment(fragmentIR('fragment:static').entry.id),
           ]),
           { facts },
         ),
@@ -347,7 +355,7 @@ export const shellBoundaries: StationHandler = async () => {
     {
       label: 'no shell at all',
       build: () =>
-        validatePlan(plan('/x', [slot('body').fragment(fragmentIR('fragment:article').entry.id)]), { facts }),
+        validatePlan(plan('/x', [slot('body').fragment(fragmentIR('fragment:static').entry.id)]), { facts }),
     },
     {
       label: 'public on a fragment that reads identity',
@@ -356,7 +364,7 @@ export const shellBoundaries: StationHandler = async () => {
           plan('/x', [
             shell(fragmentIR('layout').entry.id),
             slot('panel').fragment(fragmentIR('fragment:markup').entry.id),
-            slot('body').fragment(fragmentIR('fragment:cart').entry.id).cache('public', { ttl: '60s' }),
+            slot('body').fragment(fragmentIR('fragment:private').entry.id).cache('public', { ttl: '60s' }),
             slot('readout').fragment(fragmentIR('fragment:markup').entry.id),
           ]),
           { facts },
@@ -369,7 +377,7 @@ export const shellBoundaries: StationHandler = async () => {
           plan('/x', [
             shell(fragmentIR('layout').entry.id),
             slot('panel').fragment(fragmentIR('fragment:markup').entry.id),
-            slot('body').fragment(fragmentIR('fragment:feed').entry.id).cache('public'),
+            slot('body').fragment(fragmentIR('fragment:clock').entry.id).cache('public'),
             slot('readout').fragment(fragmentIR('fragment:markup').entry.id),
           ]),
           { facts },

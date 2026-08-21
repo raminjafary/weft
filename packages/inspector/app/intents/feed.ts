@@ -10,7 +10,7 @@ import { advance } from '../lib/data.ts'
  * connections there are.
  */
 export const tick = defineIntent({
-  name: 'feed.tick',
+  name: 'inspect.feed.tick',
   writes: ['feed'],
   async run(ctx) {
     const at = advance()
