@@ -1,8 +1,6 @@
 import { Readable } from 'node:stream'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { linkValue } from '../../kernel/src/hints.ts'
-import type { PreloadLink, TransportPort } from '../../kernel/src/ports.ts'
-import type { Kernel, KernelRoute } from '../../kernel/src/kernel.ts'
+import { type Kernel, type KernelRoute, linkValue, type PreloadLink, type TransportPort } from '@weft/kernel'
 
 /**
  * The kernel takes a Request and returns a Response, and nothing more. This is the whole of

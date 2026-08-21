@@ -1,4 +1,4 @@
-import type { Values } from '../../ir/src/index.ts'
+import type { Values } from '@weft/ir'
 import type { Scenario } from './workloads/index.ts'
 
 /**

@@ -5,12 +5,18 @@ import {
   type SegmentMemo,
   type TemplateIR,
   type Values,
-} from '../../ir/src/index.ts'
-import type { EnvelopeContext, RenderContext } from '../../kernel/src/context.ts'
-import type { CachePolicy } from '../../kernel/src/cache.ts'
-import type { KernelRoute, KernelSlot, RouteResolver } from '../../kernel/src/kernel.ts'
-import type { Order } from '../../kernel/src/stream.ts'
-import type { JobAddress, PreloadLink } from '../../kernel/src/ports.ts'
+} from '@weft/ir'
+import {
+  type CachePolicy,
+  type EnvelopeContext,
+  type JobAddress,
+  type KernelRoute,
+  type KernelSlot,
+  type Order,
+  type PreloadLink,
+  type RenderContext,
+  type RouteResolver,
+} from '@weft/kernel'
 import { PlanError, type CacheSpec, type Plan, type SlotSpec } from './dsl.ts'
 import { assertPlan, type ValidateContext } from './validate.ts'
 

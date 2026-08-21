@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { cacheClassOf } from '../../ir/src/index.ts'
+import { cacheClassOf } from '@weft/ir'
 import {
   cart,
   complaints,

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { cacheClassOf, explain, flagAxes, keyComponents, requiresTtl, varyOn } from '../../ir/src/index.ts'
+import { cacheClassOf, explain, flagAxes, keyComponents, requiresTtl, varyOn } from '@weft/ir'
 import { compileSource } from '../src/compile.ts'
 import { CompileError } from '../src/errors.ts'
 

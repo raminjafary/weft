@@ -1,20 +1,51 @@
 {
   "name": "@weft/compiler",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "TSX to Template IR, with effect inference and escape elision.",
+  "license": "MIT",
+  "author": "raminjafary",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raminjafary/weft.git",
+    "directory": "packages/compiler"
+  },
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "bin": {
-    "weft-compile": "./src/cli.ts"
+    "weft-compile": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
+    "@weft/ir": "workspace:*",
     "oxc-parser": "0.146.0"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.7.0"
   },
   "peerDependenciesMeta": {
     "typescript": {
       "optional": true
     }
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "weft": "workspace:*"
   }
 }

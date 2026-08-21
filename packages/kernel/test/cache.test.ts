@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import type { EffectSet } from '../../ir/src/index.ts'
+import type { EffectSet } from '@weft/ir'
 import { cacheHeaders, keyMaterial, requestFacts, resolveKey, resolveRead, type Ports } from '../src/index.ts'
-import { cookieSession } from '../../adapters/src/session.ts'
-import { staticFlags } from '../../adapters/src/flags.ts'
-import { memoryStore } from '../../adapters/src/memory-store.ts'
+import { cookieSession, memoryStore, staticFlags } from '@weft/adapters'
 
 function effects(reads: string[]): EffectSet {
   return { reads: [...reads].sort(), writes: [], envelope: [], residency: reads.length ? 'server' : 'either' }

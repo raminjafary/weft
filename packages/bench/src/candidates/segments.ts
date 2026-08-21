@@ -1,10 +1,16 @@
-import { baseRenderId, deltaPayload, render } from '../../../ir/src/index.ts'
+import {
+  baseRenderId,
+  deltaPayload,
+  render,
+  renderHole,
+  resolveDerived,
+  type TemplateIR,
+  type Values,
+} from '@weft/ir'
 import type { Candidate, ServeHandle, ServeOptions, UpdatePayloads } from '../candidate.ts'
 import { compileScenario, compiledFor, withRows, type Compiled } from '../compiled.ts'
 import { sleep } from '../workloads/index.ts'
 import { createServer } from 'node:http'
-import type { TemplateIR, Values } from '../../../ir/src/index.ts'
-import { renderHole, resolveDerived } from '../../../ir/src/index.ts'
 
 const utf8 = new TextEncoder()
 

@@ -1,12 +1,48 @@
 {
   "name": "@weft/bench",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "The measurement harness. Every claim in the specs is a number this produced.",
+  "license": "MIT",
+  "author": "raminjafary",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raminjafary/weft.git",
+    "directory": "packages/bench"
+  },
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "bin": {
-    "weft-bench": "./src/cli.ts"
+    "weft-bench": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@weft/compiler": "workspace:*",
+    "@weft/ir": "workspace:*",
+    "@weft/kernel": "workspace:*"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1",
+    "@weft/adapters": "workspace:*",
+    "@weft/plan": "workspace:*",
+    "@weft/client": "workspace:*",
+    "@weft/warp": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

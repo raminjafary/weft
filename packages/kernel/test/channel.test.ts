@@ -1,10 +1,16 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { TEMPLATE_IR_VERSION } from '../../ir/src/index.ts'
-import { WARP_VERSION, frame, negotiate, residentFrame, str, type Frame } from '../../warp/src/index.ts'
+import {
+  assertValidTemplate,
+  draftTemplate,
+  type Hole,
+  seal,
+  TEMPLATE_IR_VERSION,
+  type TemplateIR,
+} from '@weft/ir'
+import { WARP_VERSION, frame, negotiate, residentFrame, str, type Frame } from '@weft/warp'
 import { createHub, serverCapabilities, type ChannelSink } from '../src/channel.ts'
 import { baseKey, DEFAULT_REFRESH_TTL, recordBase, selectForm } from '../src/refresh.ts'
-import { assertValidTemplate, draftTemplate, seal, type Hole, type TemplateIR } from '../../ir/src/index.ts'
 
 function hole(index: number, binding: string, extra: Partial<Hole> = {}): Hole {
   return { index, kind: 'text', escape: 'escape', binding, path: [index], ...extra }
@@ -21,7 +27,7 @@ async function priceList(): Promise<TemplateIR> {
     ),
   )
 }
-import { memoryStore } from '../../adapters/src/memory-store.ts'
+import { memoryStore } from '@weft/adapters'
 
 /**
  * The channel without a socket. The bindings are tested over real ones in

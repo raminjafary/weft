@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
-import { cacheClassOf, render, verifySealed, type TemplateIR, type Values } from '../../ir/src/index.ts'
+import { cacheClassOf, render, verifySealed, type TemplateIR, type Values } from '@weft/ir'
 import { compileFile, compileFiles, compileSource, type CompiledFragment } from '../src/compile.ts'
 import { CompileError } from '../src/errors.ts'
 import { intentId } from '../src/intents.ts'

@@ -1,7 +1,6 @@
 import { Worker } from 'node:worker_threads'
 import { fileURLToPath } from 'node:url'
-import type { KernelExecutor } from '../../kernel/src/executor.ts'
-import type { RenderJob, RenderOutcome, TelemetryPort } from '../../kernel/src/ports.ts'
+import { type KernelExecutor, type RenderJob, type RenderOutcome, type TelemetryPort } from '@weft/kernel'
 
 /**
  * A real worker pool, which is what makes `.budget({ cpu })` a limit rather than a report.

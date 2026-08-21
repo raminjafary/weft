@@ -1,4 +1,4 @@
-import { renderHole, type Resolver, type TemplateIR, type Values } from '../../ir/src/index.ts'
+import { renderHole, type Resolver, type TemplateIR, type Values } from '@weft/ir'
 
 const utf8 = new TextEncoder()
 

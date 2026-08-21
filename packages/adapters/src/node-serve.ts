@@ -1,7 +1,6 @@
 import { Readable } from 'node:stream'
 import { createServer, type Server } from 'node:http'
-import { fillerBytes } from '../../kernel/src/filler.ts'
-import { streamRoute, type Order, type Route, type SlotContent } from '../../kernel/src/stream.ts'
+import { fillerBytes, type Order, type Route, type SlotContent, streamRoute } from '@weft/kernel'
 
 export interface ServeOptions {
   order: Order

@@ -6,8 +6,8 @@ import {
   type TemplateIR,
   type Values,
   type WireForm,
-} from '../../ir/src/index.ts'
-import { frame, type Frame } from '../../warp/src/index.ts'
+} from '@weft/ir'
+import { frame, type Frame } from '@weft/warp'
 import type { StorePort } from './ports.ts'
 
 /**

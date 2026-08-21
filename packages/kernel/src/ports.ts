@@ -1,4 +1,4 @@
-import type { CacheClass } from '../../ir/src/index.ts'
+import type { CacheClass } from '@weft/ir'
 import type { Intent } from './intent.ts'
 
 /**

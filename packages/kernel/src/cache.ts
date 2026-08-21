@@ -6,7 +6,7 @@ import {
   varyOn,
   type CacheClass,
   type EffectSet,
-} from '../../ir/src/index.ts'
+} from '@weft/ir'
 import type { Ports, RequestFacts } from './ports.ts'
 import { deviceOf, localeOf } from './context.ts'
 

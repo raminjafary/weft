@@ -1,9 +1,9 @@
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'node:http'
-import { compileFiles } from '../../../compiler/src/index.ts'
-import type { TemplateIR } from '../../../ir/src/index.ts'
-import { serveRoute } from '../../../adapters/src/node-serve.ts'
-import type { Order, Route } from '../../../kernel/src/index.ts'
+import { compileFiles } from '@weft/compiler'
+import type { TemplateIR } from '@weft/ir'
+import { serveRoute } from '@weft/adapters'
+import type { Order, Route } from '@weft/kernel'
 import { loadPlaywright, type EngineName } from './browser.ts'
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url))

@@ -1,4 +1,4 @@
-import type { StorePort } from '../../kernel/src/ports.ts'
+import type { StorePort } from '@weft/kernel'
 
 /**
  * Cache is a topology, not a boolean. "Store it on the server or hook up an external store"

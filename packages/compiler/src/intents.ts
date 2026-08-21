@@ -1,4 +1,4 @@
-import { fastHash } from '../../ir/src/index.ts'
+import { fastHash } from '@weft/ir'
 
 /**
  * An intent id is opaque and derived from the module and export it came from, so the

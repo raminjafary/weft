@@ -1,6 +1,5 @@
-import type { WireForm } from '../../ir/src/index.ts'
-import type { ExceedPolicy } from '../../kernel/src/executor.ts'
-import type { PolicyClass } from '../../kernel/src/cache.ts'
+import type { WireForm } from '@weft/ir'
+import { type ExceedPolicy, type PolicyClass } from '@weft/kernel'
 
 /**
  * The plan.

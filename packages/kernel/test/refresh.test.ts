@@ -1,14 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import {
-  assertValidTemplate,
-  baseRenderId,
-  draftTemplate,
-  seal,
-  type Hole,
-  type TemplateIR,
-} from '../../ir/src/index.ts'
-import { str } from '../../warp/src/index.ts'
+import { assertValidTemplate, baseRenderId, draftTemplate, seal, type Hole, type TemplateIR } from '@weft/ir'
+import { str } from '@weft/warp'
 import {
   createEpochs,
   createStaleRegistry,
@@ -20,7 +13,7 @@ import {
   selectForm,
   surgicalRefresh,
 } from '../src/index.ts'
-import { memoryStore } from '../../adapters/src/memory-store.ts'
+import { memoryStore } from '@weft/adapters'
 
 const decoder = new TextDecoder()
 

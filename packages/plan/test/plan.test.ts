@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import type { EffectSet } from '../../ir/src/index.ts'
+import type { EffectSet } from '@weft/ir'
 import {
   and,
   assertPlan,

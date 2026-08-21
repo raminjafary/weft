@@ -1,0 +1,76 @@
+import { spawnSync } from 'node:child_process'
+import { readdirSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+/**
+ * Built in dependency order, because a package's exports map points at its declarations and a
+ * dependent cannot typecheck against a `.d.ts` that does not exist yet. The order is the DAG in
+ * `pnpm-workspace.yaml`, stated once here rather than inferred on every run.
+ */
+const ORDER = [
+  'ir',
+  'warp',
+  'client',
+  'compiler',
+  'kernel',
+  'plan',
+  'adapters',
+  'bench',
+  'weft',
+  'create-weft',
+]
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+const only = process.argv.slice(2)
+let failed = 0
+
+for (const name of ORDER) {
+  if (only.length && !only.includes(name)) continue
+  const cwd = join(root, 'packages', name)
+  process.stdout.write(`  ${name} … `)
+  const result = spawnSync('pnpm', ['run', 'build'], { cwd, encoding: 'utf8' })
+  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim()
+  if (result.status === 0) {
+    process.stdout.write('ok\n')
+    continue
+  }
+  failed++
+  process.stdout.write('failed\n')
+  process.stdout.write(`${output}\n\n`)
+  // Stop at the first failure: everything after it would fail against missing declarations and
+  // bury the one error that matters.
+  break
+}
+
+/**
+ * Nothing may be emitted beside a source file.
+ *
+ * `rootDir` already refuses a program that reaches outside `src`, but it refuses it *after*
+ * writing what it had — so a build that failed once can leave a `.js` next to a `.ts` that then
+ * shadows it for every tool that resolves extensions. Checking is cheap and the failure is silent
+ * otherwise.
+ */
+const stray = []
+for (const name of ORDER) {
+  const src = join(root, 'packages', name, 'src')
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name)
+      if (entry.isDirectory()) walk(path)
+      else if (/\.(js|d\.ts|map)$/.test(entry.name)) stray.push(path)
+    }
+  }
+  try {
+    walk(src)
+  } catch {
+    // A package with no src is not a package this script built.
+  }
+}
+if (stray.length) {
+  process.stdout.write(`\n  emitted beside source, which shadows it:\n`)
+  for (const path of stray) process.stdout.write(`    ${path.slice(root.length + 1)}\n`)
+  process.exit(1)
+}
+
+process.exit(failed ? 1 : 0)

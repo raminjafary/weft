@@ -1,19 +1,19 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { assertValidTemplate, draftTemplate, seal, type Hole, type TemplateIR, type Values } from '@weft/ir'
 import {
-  assertValidTemplate,
-  draftTemplate,
-  seal,
-  type Hole,
-  type TemplateIR,
-  type Values,
-} from '../../ir/src/index.ts'
-import { createHub, type Channel, type ChannelHub, type SlotRender } from '../../kernel/src/channel.ts'
-import { createIntentDispatch, defineIntent } from '../../kernel/src/intent.ts'
-import { createEnvelope } from '../../kernel/src/envelope.ts'
-import { createReads, envelopeContext } from '../../kernel/src/context.ts'
-import { requestFacts } from '../../kernel/src/ports.ts'
-import { lifecycle } from '../../kernel/src/request.ts'
+  type Channel,
+  type ChannelHub,
+  createEnvelope,
+  createHub,
+  createIntentDispatch,
+  createReads,
+  defineIntent,
+  envelopeContext,
+  lifecycle,
+  requestFacts,
+  type SlotRender,
+} from '@weft/kernel'
 import { cookieSession } from '../src/session.ts'
 import { staticFlags } from '../src/flags.ts'
 import {
@@ -25,10 +25,14 @@ import {
   WARP_VERSION,
   type AnyFrame,
   type Frame,
-} from '../../warp/src/index.ts'
-import type { Adopted } from '../../client/src/adopt.ts'
-import { createChannelClient, type ChannelFrame, type Region } from '../../client/src/channel.ts'
-import { createEpochs as createClientEpochs } from '../../client/src/epoch.ts'
+} from '@weft/warp'
+import {
+  type Adopted,
+  type ChannelFrame,
+  createChannelClient,
+  createEpochs as createClientEpochs,
+  type Region,
+} from '@weft/client'
 import { memoryStore } from '../src/memory-store.ts'
 import { mountChannel, upFrames } from '../src/node-channel.ts'
 import { collectingTelemetry } from '../src/telemetry.ts'

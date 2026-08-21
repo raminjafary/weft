@@ -1,4 +1,4 @@
-import type { RequestFacts, SessionPort, SetCookie } from '../../kernel/src/ports.ts'
+import type { RequestFacts, SessionPort, SetCookie } from '@weft/kernel'
 
 /**
  * Cookies, tokens, identity — and nothing else. The whole reason this is swappable without
