@@ -161,19 +161,107 @@ the fix was to move a prop instead. The rule it forced into the format is worth 
 the fix: a derived value that reaches a signal is the client's, and a delta must never
 carry it.
 
+## Clarified: a flag axis is also a key component
+
+The design says a flag is "an axis rather than a key component", and `keyComponents()` in
+`@weft/ir` excludes `flag:` reads accordingly. The design's own worked example puts one in the
+key:
+
+```
+derived key = h(cart-summary@a91f, new-cart=on, currency=IQD)
+```
+
+Both are right about different things, and building the resolver forced the distinction to be
+made explicit. An axis **partitions the plan**, which is what makes the losing branch's chunks
+unreachable — that is why it is reported separately. It is still **in the key**, because two
+flag resolutions produce different bytes and one entry cannot hold both. `ResolvedKey` now
+carries `components` and `axes` as separate fields and hashes both.
+
+## Corrected: the degradation ladder has two rungs, not three
+
+The design's stateless-refresh flow degrades in three steps — base not in cache → send `data`;
+template not resident → send `html`. The `data` form was cut in IR 2.0.0 on measurement, so
+there is no middle rung. A client that holds the template but whose base render the server
+cannot recover falls straight to `html`.
+
+This is the `data` cut paying a second time. The first cost was a wire form; the second is a
+coarser degradation for a returning client on a cache miss. Both were the right call on the
+numbers, and the second cost was not visible when the first decision was made.
+
+## Measured: the kernel against the design's 8 KB
+
+The design claims "target under 8 KB server-side" for the microkernel and nothing had measured
+it. Bundled with Rolldown, minified, brotli:
+
+| Entry                                           | brotli   | Ceiling  |
+| ----------------------------------------------- | -------- | -------- |
+| Document request path (`entry-request.ts`)      | 7,563 B  | 8,192 B  |
+| Plus the Warp channel path (`entry-channel.ts`) | 9,803 B  | 12,288 B |
+| The whole barrel (`index.ts`)                   | 10,599 B | —        |
+
+The claim holds, with **629 bytes of headroom**, and only for the entry the claim is about.
+The first attempt measured the barrel and came out 29% over — which is the marginal-versus-gross
+mistake the design warns about in the same paragraph as the byte budget, made immediately and
+in the obvious place. The split into two entries is not bookkeeping: a deployment serving
+documents does not import surgical refresh or epochs, and measuring it as though it did is how
+budgets become meaningless and get switched off.
+
+There is no headroom for routing, intents, or an epoch transport in the 629 bytes. That is a
+statement about the next phase, not this one.
+
+## Caught by a gate on its first run: the kernel imported `node:http`
+
+`spec/kernel/ports.md` states the rule absolutely — the kernel imports nothing but the WinterTC
+Minimum Common Web API — so a test was written to enforce it. It failed immediately:
+`serveRoute` had lived in `packages/kernel` since the streaming work and imports `node:http`
+and `node:stream`. It moved to `@weft/adapters`.
+
+Worth recording because the rule had been written down for weeks and read by people who
+believed it. A design constraint that is not a gate is a design constraint that is already
+violated somewhere you have not looked.
+
+## Caught by a test with two links in it
+
+`nodeTransport` joined its preload hints into one `Link` value, the way a real `Link` response
+header is written. Node's `writeEarlyHints` validates each value and rejects the joined form
+with `ERR_INVALID_ARG_VALUE`. Every manual check had used a single link, where the joined form
+and the array form are the same string.
+
+The fix is two exports rather than one — `linkValue` for a transport that needs them
+separately, `linkHeader` for a real header — and the note is on the function, because the next
+person will reach for the joined form too.
+
+Two smaller things surfaced in the same test. The kernel was returning a document with no
+`content-type`, which nothing had noticed because every other test read the body as text. And
+`mountKernel`'s `close()` never resolved once a keep-alive socket existed, because
+`server.close()` waits for connections — a close that does not close.
+
+None of these are interesting bugs. They are all bugs that only a test going over a real
+socket can find, which is the argument for having one.
+
+## Paid for, honestly: client epochs
+
+254 bytes brotli. The client runtime went 2,742 → 2,996 B against a 6,144 B ceiling, for
+staged epochs, atomic multi-slot commit, discard-as-rollback, and a View Transition wrapper
+where the engine has one.
+
 ## Two claims the design makes that cannot be tested yet
 
-**Effect-tracked rendering.** _Partly answered since this page was written._ The compiler
-now infers the design's full read surface, derives the cache class, `Vary`, key components
-and flag axes from it, and refuses an untracked ambient read with a hard error — see
-[effects and the ban](compiler/effects.md). What is still missing is everything downstream:
-no route contagion, no cache-policy declaration for `requiresTtl` to contradict, no writes,
-and no runtime that resolves a read's _value_ into an actual key.
+**Effect-tracked rendering.** _Largely answered since this page was written._ The compiler
+infers the design's full read surface, derives the cache class, `Vary`, key components and flag
+axes from it, and refuses an untracked ambient read with a hard error — see
+[effects and the ban](compiler/effects.md). Route contagion isolates a private child rather
+than tainting its route. The kernel resolves those reads into an actual key at request time
+(`spec/kernel/cache.md`), and the plan layer contradicts a declaration that disagrees with the
+derivation (`spec/plan/plan.md`). What is still missing is `EffectSet.writes`, which needs
+intents, and the L0 build-time resolution of a fragment that reads nothing.
 
-**Warp as one channel for five jobs.** One path runs end to end: a document carrying `WARP`,
-`SHELL` and `TPL` as binary frames, decoded in the browser by the codec that encoded them.
-Navigation, mutation, refresh and invalidation remain specified and untried, along with the
-socket binding, `RESUME`, and epochs.
+**Warp as one channel for five jobs.** Two paths now run end to end, and neither over a live
+connection. A document carries `WARP`, `SHELL` and `TPL` as binary frames, decoded in the
+browser by the codec that encoded them. `HELD`/`REFRESH` produce a memoized `DELTA` and
+`STALE` is pushed for the keys an invalidation dropped — but only as frames in a test, because
+there is no transport binding. Navigation, mutation, the socket binding and `RESUME` remain
+specified and untried.
 
 ## What the harness refuses to do, and why that mattered
 

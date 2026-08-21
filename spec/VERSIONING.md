@@ -8,7 +8,7 @@ later means every client already in the field is unversioned.
 | ---------------- | -------------------- | ------- | ------------------------ |
 | Template IR      | `weft.template-ir/2` | 2.4.0   | `packages/ir`            |
 | Payloads (delta) | `weft.payload/2`     | 2.4.0   | `packages/ir`            |
-| Warp frames      | `weft.warp/1`        | 1.0.0   | `packages/warp`          |
+| Warp frames      | `weft.warp/1`        | 1.1.0   | `packages/warp`          |
 
 ## What each version component means
 
@@ -45,6 +45,22 @@ requires nothing resident on the client, which is why it is the fallback wheneve
 versions disagree: a version mismatch costs a form, never the page.
 
 ## Changelog
+
+### Warp 1.1.0 — REDIRECT and COOKIE
+
+Two frames for what a sealed response can still carry in-band, which is layer three of the
+envelope design. `REDIRECT` (`0x20`) is acted on by the client and degrades to a meta refresh
+with no JavaScript. `COOKIE` (`0x21`) carries non-`HttpOnly` values only.
+
+Additive and genuinely forward-compatible, unlike the IR's last two minors: the frame
+vocabulary is length-prefixed, so a reader that does not know a code skips it and reports it as
+`UNKNOWN` rather than misinterpreting it. Adding frame types is explicitly allowed; redefining
+`SHELL`, `SLOT`, `DATA` or `DELTA` is not, because they are the shared language that makes tier
+decomposition, form negotiation and remote fragments the same mechanism.
+
+Neither frame is a substitute for the real thing, and the spec says so where a reader will meet
+it: a crawler will not follow a `REDIRECT` frame, and `HttpOnly` is precisely the property a
+body cannot grant.
 
 ### Template IR 2.4.0 — isolated instances
 

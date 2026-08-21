@@ -10,55 +10,93 @@ than approximated.
 
 ---
 
-## Near term — the runtime the design describes
+## Where the design's own build order stands
 
-### 1. Runtime cache key resolution
+The nine phases are from [the architecture proposal](docs/weft-and-warp.html).
 
-`packages/kernel/src/cache.ts`. The compiler records _which_ reads taint a fragment and
-derives its class, `Vary`, key components and flag axes. Nothing turns those into an actual
-key at request time. This is the last piece that makes effect inference load-bearing rather
-than descriptive, and everything about caching waits behind it.
+| Phase                                 | State                                                                                                                                        |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 · Prove the physics, version the IR | Done. RR7 gate measured, IR versioned from commit one, harness gates every claim                                                             |
+| 2 · Kernel and ports                  | Request state machine, two-phase envelope, 103 Early Hints, deferral, thirteen ports declared and six implemented. Missing: routing          |
+| 3 · Client runtime                    | Signals, wiring, adoption, deltas, residency, epochs, budget. Missing: navigation, intent transport                                          |
+| 4 · The plan layer                    | Plan DSL, effect inference, runtime keys, plugin DAG, `weft why`. Missing: the seam that turns a plan into a route                           |
+| 5 · Negotiation and locus             | Resident digests, form selection, `STALE`, epochs with atomic commit, executors, per-slot budgets. Missing: a transport binding, a real pool |
+| 6 · Stateless surgical updates        | `HELD` flow, base recovery through the store, memoized deltas. Missing: incremental recompute, a LiveView benchmark                          |
+| 7 · Discovery and authority           | Not started. No lazy plan extension, render intents, capability checks, signed intents                                                       |
+| 8 · Profile-guided planning           | Not started. No `weft profile`, generated plans, chunk packing, V8 compile hints                                                             |
+| 9 · Composition and topology          | Composition is in-process. `remote` is a declared wire form with no implementation                                                           |
 
-Design is already written in [`spec/compiler/effects.md`](spec/compiler/effects.md).
+---
 
-### 2. Cache policy declarations
+## Near term — closing the seams that were opened
 
-`.cache('public' | 'private', { ttl })` on a fragment, validated against what the compiler
-inferred. The design promises a specific build error — _a `.cache('public')` declaration on
-a slot that reads identity is a build error naming the read that caused it_ — and there is
-currently nothing for `requiresTtl` to contradict.
+### 1. Routing, and a plan that becomes a route
 
-Depends on nothing; can run in parallel with 1.
+The largest single gap, and it is a seam rather than a subsystem. `createKernel` takes a
+hand-assembled `KernelRoute`; `validatePlan` takes hand-assembled `SlotFacts`. Both shapes
+exist, the compiler produces the effects and forms that go in them, and nothing joins the
+three. Until it does, phase 2 and phase 4 are two working halves of one thing.
 
-### 3. Effect writes and invalidation
+Needs: URL matching to a plan, `Plan` → `KernelRoute` lowering, and the compiler emitting
+`SlotFacts` directly.
 
-`EffectSet.writes` and `.envelope` are empty because invalidation happens in intents and API
-routes, and neither exists. Needs the request state machine below.
+### 2. A Warp transport binding
 
-### 4. The two-phase envelope
+`HELD`, `REFRESH`, `STALE`, `COMMIT`, `REDIRECT` and `COOKIE` are produced, parsed and tested
+as frames. Nothing carries them over a live connection, so every one of phases 5 and 6's flows
+is exercised in a test and never over a wire.
 
-`ctx.setCookie()`, `ctx.status()`, `ctx.redirect()` — separated from the render phase, so a
-fragment cannot mutate the response while producing markup. `E_ENVELOPE_IN_RENDER` already
-exists and fires; the phase it should be legal in does not.
+The design names three bindings — streamed response with discrete POSTs up, SSE, WebSocket.
+The first is already half-built: the document response _is_ the first frames.
 
-### 5. Slots inside components
+### 3. Intents, and therefore invalidation
 
-`<Widget>content</Widget>` is `E_COMPONENT_CHILDREN_UNSUPPORTED`. A component takes props
-only. Children need a slot mechanism inside a nested template, which is a different problem
-from the streaming `slot` hole and should not reuse it by accident.
+`EffectSet.writes` and `.envelope` are still empty because nothing writes. Intents unblock
+invalidation, `revalidateTag`, optimistic epochs driven by a real mutation, and the `INTENT`
+and `ACK` frames.
 
-### 6. Components inside list rows
+### 4. A stampede lease in the request path
 
-`E_COMPONENT_IN_LIST`. A row is its own template and cannot carry an instance today. Worth
-doing once component composition has been used enough to know what it costs.
+`StorePort.lease` is implemented and tested and the kernel never takes one, so two concurrent
+misses render twice. This is a small change with a large effect under load, and it is the
+difference between a cache and a cache that helps during an incident.
 
-### 7. Routing and the request state machine
+### 5. L0: fragments that read nothing
 
-No routing, no plan system, no epochs, no navigation, no form negotiation, no intent
-transport. This is the largest single body of unbuilt work and the point at which the
-project stops being a set of verified mechanisms and becomes a framework.
+A fragment classified `static` could be resolved at build time and served by a CDN with the
+kernel never invoked — the fastest tier by a wide margin, and free. Today it renders and caches
+like anything else, which means the cheapest thing in the design is not implemented.
 
-### 8. iOS WebKit on a real device
+### 6. A real worker pool
+
+`deferred` is preemptible at await points and is not a worker thread; it says so. A CPU budget
+is only a hard limit on a genuinely separate crash domain, so `pool:` is what makes
+`.budget({ cpu })` mean anything.
+
+### 7. Slots inside components
+
+`<Widget>content</Widget>` is `E_COMPONENT_CHILDREN_UNSUPPORTED`. A component takes props only.
+Children need a slot mechanism inside a nested template, which is a different problem from the
+streaming `slot` hole and should not reuse it by accident.
+
+### 8. Components inside list rows
+
+`E_COMPONENT_IN_LIST`. A row is its own template and cannot carry an instance today.
+
+### 9. Incremental recompute
+
+`.incremental()` is recorded in a plan, warns when there is nothing to memoize, and is read by
+nothing. The design's three memoisation levels exist only at the coarsest — fragment, keyed by
+effect signature, which is `StorePort`. Derived-value and template-segment memoisation are the
+opt-in part, and the literature is explicit that structural change to the computation graph is
+the hard case, which is why it stays per-slot rather than becoming a mode.
+
+### 10. A LiveView benchmark
+
+Beating LiveView on shared-delta efficiency is the specific claim phase 6 exists to make, and
+it has not been measured against LiveView. The mechanism is built and the comparison is not.
+
+### 11. iOS WebKit on a real device
 
 Playwright's WebKit is a desktop proxy and is labelled as one everywhere it appears. A
 WKWebView on a device has app-bound-domain rules, host-app request interception, and OS
@@ -82,7 +120,7 @@ playground, not prose.
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Start here | What a fragment is, what the compiler refuses, and why refusing is the point                                                                                    |
 | Guides     | Templates and holes · signals and derived values · components and composition · effects and caching · streaming and slots · the wire forms · Warp and residency |
-| Reference  | Every error code with the source that triggers it and the fix; the authoring surface; `ctx` in full                                                             |
+| Reference  | Every error code with the source that triggers it and the fix; the authoring surface; `ctx` in full, in both phases                                             |
 | The IR     | The document, hole by hole, generated from `spec/ir/template-ir-2.md` and checked against the real emitter                                                      |
 | Playground | The editor described below                                                                                                                                      |
 | Findings   | `spec/FINDINGS.md` rendered, including the reversals                                                                                                            |
@@ -90,7 +128,7 @@ playground, not prose.
 ### The playground
 
 An editor pane, and tabs over the result: **HTML**, **IR**, **wire bytes**, **effects**,
-**errors**.
+**keys**, **errors**.
 
 - The compiler runs in the browser. It is Oxc plus AST walks and already has no Node
   dependency in the hot path; the file reading in `compileFiles` needs a virtual file
@@ -101,8 +139,10 @@ An editor pane, and tabs over the result: **HTML**, **IR**, **wire bytes**, **ef
   section links to a playground URL that reproduces it. A compiler whose value is what it
   refuses has to make refusal legible.
 - The **effects** tab shows the inferred read set, the derived cache class, the `Vary`
-  header, the key components, and — once contagion is visible — which instances were
-  isolated and why.
+  header, the key components and flag axes, and which instances were isolated and why.
+- The **keys** tab shows the same reads resolved against a request you can edit — change a
+  cookie, watch the key change. This is the one thing that makes "the key is derived, never
+  written" convincing rather than assertable.
 - Sharable URLs: the state is the file set, compressed into the fragment.
 
 ### Build notes
@@ -141,6 +181,13 @@ cost.
 | **Components**          | Composition, cross-module, one child used many times       | A count of instances against the number of sealed templates — it stays at one                                                  |
 | **Contagion**           | A private fragment inside a shared route                   | A switch making the child private; watch the route's cache class stay `shared` and the instance become its own unit            |
 | **Effects and caching** | The inferred read set of a live fragment                   | Toggle each `ctx` read on; watch the class, `Vary`, and key components change                                                  |
+| **Cache keys**          | The same reads resolved into a key                         | Edit a cookie, a header, a flag; watch the key change and the hit turn into a miss                                             |
+| **The envelope**        | Phase A against phase B                                    | Try to set a cookie in a render and watch the type refuse it; move it to a guard and watch a real 302                          |
+| **Early hints**         | 103 against a flush-to-discover baseline                   | A toggle, and the shell's critical link set; watch when the browser starts fetching                                            |
+| **Waves**               | The DAG, its waves, and the critical path                  | Drag a `needs` edge; watch the critical path move and the sequential figure stay where it was                                  |
+| **Budgets**             | A slot over its CPU budget                                 | A slowness slider and an `onExceed` picker; watch the same breach produce five different pages                                 |
+| **Epochs**              | Data arrived, not painted                                  | A "stage" button and a "commit" button, with a half-typed form to prove the commit did not disturb it                          |
+| **Shared deltas**       | Ten clients making one transition                          | A client count; watch computations stay at one while deliveries climb                                                          |
 | **The wire forms**      | `html`, `bundle`, `split`, `patch`, `delta`                | A form picker and a byte counter, with brotli sizes; the equivalence check running live                                        |
 | **Deltas**              | One changed value becoming one DOM write                   | Edit any value; a highlight on exactly the nodes that were written                                                             |
 | **Controls**            | A `prop` binding surviving a user's edit                   | Type into the input, then push a new value; an attribute-only mode to show the bug it fixes                                    |
@@ -148,7 +195,7 @@ cost.
 | **Warp**                | `WARP`/`SHELL`/`TPL` frames in the document                | A frame inspector; a switch for a cold visit against a warm one                                                                |
 | **Residency**           | Repeat visits with templates already held                  | A "forget everything" button; boot path timing for both states                                                                 |
 | **Negotiation**         | A client that speaks an older IR                           | A version picker; watch forms drop and `html` survive                                                                          |
-| **Byte budgets**        | The runtime measured against its ceiling                   | Per-entry breakdown, updated from the real bundle                                                                              |
+| **Byte budgets**        | The runtime and the kernel measured against their ceilings | Per-entry breakdown, updated from the real bundle                                                                              |
 
 ### Build notes
 
@@ -165,9 +212,9 @@ cost.
 
 ### Sequencing
 
-The demo depends on the runtime being real, so it lands **after** cache key resolution and
-policy declarations, and its caching and negotiation stations depend on the request state
-machine. The docs site and its playground depend on none of that and can start immediately.
+The demo depends on routing, because every station is a route. The docs site and its
+playground depend on none of it and can start immediately — the compiler already has no Node
+dependency in its hot path, and only `compileFiles` needs a virtual file system.
 
 ---
 
@@ -176,9 +223,15 @@ machine. The docs site and its playground depend on none of that and can start i
 - **A virtual DOM, or a diffing renderer.** The delta form addresses holes directly and is
   20–93× cheaper than the parse it replaces. There is nothing to reconcile.
 - **A `data` wire form.** Cut in IR 2.0.0 after measurement: 1% smaller after brotli and
-  1.07–1.33× slower to apply than `html`. See [`spec/FINDINGS.md`](spec/FINDINGS.md).
+  1.07–1.33× slower to apply than `html`. See [`spec/FINDINGS.md`](spec/FINDINGS.md). It cost
+  a second time when the surgical-refresh ladder came out two rungs instead of three, and it
+  was still the right call.
 - **Escape elision as a throughput claim.** Kept for correctness and for native codec
   boundaries. Measured at nothing.
 - **Zero-JavaScript out-of-order streaming.** Not possible: slot assignment needs a host
   that is still open, and keeping it open is in-order streaming. The 329-byte filler is the
   price of fastest-first, not a gap to close.
+- **A cache key that can be written by hand.** There is no setter, and a plugin may add an
+  axis but never a key. This is the one extension point the design refuses on purpose.
+- **HTTP trailers as an escape from the sealed envelope.** They look like one. Browsers do
+  not apply them to these semantics.

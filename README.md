@@ -17,15 +17,21 @@ without a harness and a wire format cannot be versioned retroactively.
 | What                              | Where                                                                                         | Status                                                              |
 | --------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | Template IR, `weft.template-ir/2` | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir`                         | 2.4.0 — derived values, components, contagion                       |
-| Warp frames, `weft.warp/1`        | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                 | 1.0.0, and now exercised end to end                                 |
+| Warp frames, `weft.warp/1`        | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                 | 1.1.0 — `REDIRECT` and `COOKIE` for a sealed response               |
 | Versioning contract               | [`spec/VERSIONING.md`](spec/VERSIONING.md)                                                    | Majors refuse, minors round-trip                                    |
-| What measurement changed          | [`spec/FINDINGS.md`](spec/FINDINGS.md)                                                        | Four claims reversed, two untestable so far                         |
+| What measurement changed          | [`spec/FINDINGS.md`](spec/FINDINGS.md)                                                        | Five reversed, two clarified, one gate that fired on its first run  |
 | Device and engine reality         | [`spec/baseline/devices.md`](spec/baseline/devices.md)                                        | Written before the numbers                                          |
 | Template compiler                 | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler` | TSX to IR, on Oxc, with type-driven escape elision                  |
 | Client runtime                    | [`spec/client/adoption.md`](spec/client/adoption.md), `packages/client`                       | Adoption, surgical deltas, resident templates over Warp             |
 | Signal graph                      | [`spec/client/signals.md`](spec/client/signals.md), `packages/client`                         | Linked edges, bitflag status, push-pull with a lazy check           |
 | Effect inference                  | [`spec/compiler/effects.md`](spec/compiler/effects.md), `packages/compiler`                   | Reads inferred, cache class derived, ambient reads banned           |
 | Route streaming                   | [`spec/kernel/streaming.md`](spec/kernel/streaming.md), `packages/kernel`                     | Slots streamed in order or fastest-first                            |
+| Request lifecycle                 | [`spec/kernel/lifecycle.md`](spec/kernel/lifecycle.md), `packages/kernel`                     | A state machine, two-phase envelope, 103 Early Hints, deferral      |
+| Ports                             | [`spec/kernel/ports.md`](spec/kernel/ports.md), `packages/kernel`, `packages/adapters`        | Thirteen declared, six implemented, the rest refuse by name         |
+| Runtime cache keys                | [`spec/kernel/cache.md`](spec/kernel/cache.md), `packages/kernel`                             | Reads resolved into a key; no setter exists anywhere                |
+| Executors, waves, epochs          | [`spec/kernel/locus.md`](spec/kernel/locus.md), `packages/kernel`, `packages/client`          | DAG scheduling, CPU budgets, staged epochs with atomic commit       |
+| Stateless surgical updates        | [`spec/kernel/surgical.md`](spec/kernel/surgical.md), `packages/kernel`                       | `HELD` recovers a base, the delta is memoized by its transition     |
+| The plan layer                    | [`spec/plan/plan.md`](spec/plan/plan.md), `packages/plan`                                     | Plan DSL, validation against inferred effects, plugins, `weft why`  |
 | Benchmark harness                 | `packages/bench`                                                                              | All six axes measured                                               |
 | What is not built yet             | [`ROADMAP.md`](ROADMAP.md)                                                                    | The runtime, a docs site with a playground, a demo of every feature |
 | React Router 7 candidate          | [`benchmarks/rr7`](benchmarks/rr7)                                                            | The phase-zero gate, tuned and default shapes                       |
@@ -201,26 +207,31 @@ every engine.
 The design states four ceilings and none had ever been measured. Bundled with Rolldown,
 minified, compressed the way it would ship:
 
-| Entry                                   | Raw   | gzip  | brotli    | Budget |
-| --------------------------------------- | ----- | ----- | --------- | ------ |
-| Client runtime, everything              | 7,875 | 3,003 | **2,742** | 6,144  |
-| Content route — adopt and bind          | 6,120 | 2,282 | **2,082** | 5,120  |
-| App route — adopt, bind, patch, persist | 7,844 | 2,988 | **2,727** | 12,288 |
+| Entry                                     | Raw    | gzip   | brotli    | Budget |
+| ----------------------------------------- | ------ | ------ | --------- | ------ |
+| Client runtime, everything                | 8,525  | 3,272  | **2,996** | 6,144  |
+| Content route — adopt and bind            | 6,120  | 2,282  | **2,082** | 5,120  |
+| App route — adopt, bind, patch, epochs    | 8,494  | 3,258  | **2,982** | 12,288 |
+| Server kernel — the document request path | 23,066 | 8,508  | **7,563** | 8,192  |
+| Server kernel — plus the Warp channel     | 30,076 | 11,022 | **9,803** | 12,288 |
 
-Comfortably inside, and a content route still drops by never importing the update path,
-which is the module-level version of paying only for what you use.
+Comfortably inside on the client, and a content route still drops by never importing the
+update path, which is the module-level version of paying only for what you use.
 
-Those figures grew by about 1,050 bytes across the signal graph rewrite, derived values,
-component adoption, and property bindings — a 62% increase in the runtime for four
-features. It is recorded here
-rather than smoothed over, because a byte budget that only ever moves in reports is not a
-gate.
+Those client figures grew by about 1,300 bytes across the signal graph rewrite, derived
+values, component adoption, property bindings, and staged epochs. It is recorded here rather
+than smoothed over, because a byte budget that only ever moves in reports is not a gate.
 
-Read that headroom carefully, though. **This runtime does far less than the design's
-runtime will.** No plan evaluation, no epochs, no navigation, no form negotiation, no
-intent transport. What the numbers establish is a baseline and a gate: about 3.5 KB of
-brotli headroom to spend on all of that, and a test that fails the moment an entry crosses
-its ceiling.
+**The kernel is the tight one.** The design says "target under 8 KB server-side"; the
+document request path is 7,563 B brotli, so the claim holds with 629 bytes of headroom.
+Nothing about routing, intents, or an epoch transport fits in 629 bytes. The first attempt
+measured the whole barrel and came out 29% over — the gross-versus-marginal mistake the
+design warns about in the same paragraph as the byte budget, made immediately.
+
+Read the client headroom carefully too. **This runtime still does less than the design's
+runtime will.** No navigation, no form negotiation, no intent transport. What the numbers
+establish is a baseline and a gate: about 3 KB of brotli headroom on the client, and a test
+that fails the moment an entry crosses its ceiling.
 
 ## Repeat visits, and Warp's first real run
 
@@ -314,19 +325,92 @@ What the test does establish is worth more than the claim it replaces:
   separable on this axis at all. The 1.4–1.96× throughput difference is real and it lives
   in server capacity, not in latency.
 
+## The kernel, the ports, and the plan layer
+
+The design's build order puts kernel and ports at phase 2 and the plan layer at phase 4, and
+this project had built phase 4's front half — effect inference, cache classes, contagion — on
+top of a kernel that did not exist. That is why `requiresTtl` had nothing to contradict. The
+floor is now under it.
+
+**The request is a state machine.** `received → envelope → planned → streaming → settled`,
+with declared transitions and `E_REQUEST_STATE` for anything else. Phase A owns the envelope;
+phase B is a **different context type** with no envelope methods on it, so the mistake every
+other framework documents cannot be written here. `Cache-Control` and `Vary` are written
+before the seal, from the resolved keys, which removes the single most common reason to want a
+late header.
+
+**103 Early Hints decouples discovery from committing.** The links go out at effectively zero
+milliseconds and the envelope stays open. `sendEarlyHints` returns whether they actually went
+out, because 103 is H2/H3 only and an HTTP/1.1 client just waits — a boolean rather than a
+claim.
+
+**An effect that missed its window can wait for the next request on the connection**, and
+eligibility is not the developer's call: `deferrable()` refuses anything non-idempotent by
+name. If there is no next request the effect is dropped, which is stated rather than hidden,
+and is exactly why only idempotent effects qualify.
+
+**Cache keys are resolved from what the code read.** The compiler said which reads taint; the
+kernel resolves their values, sorts them, and hashes them with the fragment's content address.
+There is no key setter — not in the kernel, not in the plan DSL, not on the plugin surface —
+and that absence is the enforcement. A public policy on a private fragment throws
+`E_PRIVATE_AS_PUBLIC` rather than emitting a header.
+
+**Render is a DAG.** `needs` is data dependency only, so the design's own example reproduces:
+nine slots, three waves, a 42.7 ms critical path against a 123.3 ms sequential walk. This is
+safe here for one reason — render is provably read-only, so two fragments cannot observe each
+other's side effects because they cannot have any. The constraint that made the envelope
+design necessary is the constraint that makes concurrent evaluation possible.
+
+**A CPU budget is only enforceable where a render can be preempted.** So `preemptible` is
+declared on the executor, a breach on `inline` is still reported with a message saying it ran
+to completion anyway, and declaring one there is a build warning naming the executors where
+the limit is real.
+
+**Epochs separate data currency from view currency.** Staged frames paint nothing; one
+`COMMIT` flips every slot in an epoch at once. Prefetch cannot disturb the present, and
+rollback is discarding an epoch. 254 bytes on the client.
+
+**The surgical refresh is stateless and its delta is shared.** The client names the base it
+holds, the server recovers it through `StorePort`, diffs, and memoizes under
+`delta:<tpl>:<from>-><to>`. The second client making that transition pays a store read; so
+does the ten-thousandth. LiveView would compute the diff ten thousand times.
+
+**The plan is checked against the compiler, never the reverse.** Ten build errors and five
+warnings, each naming the read or the slot that caused it — including the one the design
+promises in its strongest terms: `.cache('public')` on a fragment that reads identity fails
+the build, naming `identity`.
+
+**Ports replace, plugins extend.** Thirteen ports declared; six implemented; the rest refuse
+with `E_PORT_UNIMPLEMENTED` rather than approximating. A plugin's dependency graph is inferred
+from `reads` and `provides`, so most middleware becomes concurrent without anyone opting in,
+and a plugin that reads state it did not declare throws — the one rule that keeps effect
+tracking honest.
+
+**None of it is asserted against a hand-built IR.** `packages/kernel/fixtures/cart-route.ts`
+assembles a route out of real compiler output and the integration test asserts what falls out —
+the `Vary` union, the private class, the resolved key components, the fastest-first arrival
+order — rather than what was declared. `packages/plan/fixtures/cart.ts` derives its `SlotFacts`
+from the compiled entry, so a fixture asserting a build error has to earn it from real effect
+inference. Change what `private.tsx` reads and those fixtures stop failing.
+
+**And the kernel imports nothing but the WinterTC Minimum Common Web API.** That rule now has
+a test, and the test failed on its first run: `serveRoute` had been sitting in
+`packages/kernel` importing `node:http` for weeks. It lives in `packages/adapters` now.
+
 ## What has to be true next
 
-In the order the design says to disprove things:
-
-1. Type information in the compiler, to recover the escape elision a syntax-only pass
-   has to give up.
-2. Anchors on holes, so a delta can be applied surgically rather than by re-projecting the
-   region — but only alongside the client runtime that would read them.
-3. A bandwidth and loss model in the latency proxy. It delays packets and nothing else,
-   so it understates what a slow link does to an 18% byte difference — which is now one
-   of the few measured advantages, so it deserves a better instrument.
-4. Incremental declarative-shadow-DOM parsing tested on real iOS, Android WebView, and
-   WebKitGTK. If the engines diverge the filler script becomes the primary path, which
-   is survivable and changes what can be claimed.
-5. Component composition in the compiler. Today `<Widget/>` is a refusal, and a fragment
-   is a whole template.
+1. **Routing, and a plan that becomes a route.** `createKernel` takes a hand-assembled
+   `KernelRoute`; `validatePlan` takes hand-assembled `SlotFacts`. Both shapes exist and
+   nothing compiles a `Plan` into one. This is the missing seam between phase 2 and phase 4,
+   and it is why `spec/plan` and `spec/kernel` are still two documents.
+2. **A Warp transport binding.** `HELD`, `REFRESH`, `STALE` and `COMMIT` are produced, parsed
+   and tested as frames, and nothing carries them over a live connection.
+3. **Intents.** `EffectSet.writes` stays empty until there is something that writes, which is
+   also what invalidation and `revalidateTag` wait behind.
+4. **A stampede lease in the request path.** `StorePort.lease` is implemented and the kernel
+   does not take one, so two concurrent misses render twice.
+5. **A bandwidth and loss model in the latency proxy.** It delays packets and nothing else, so
+   it understates what a slow link does to an 18% byte difference.
+6. **Incremental declarative-shadow-DOM parsing on real iOS, Android WebView, and WebKitGTK.**
+   If the engines diverge the filler script becomes the primary path, which is survivable and
+   changes what can be claimed.
