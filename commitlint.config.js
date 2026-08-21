@@ -45,7 +45,7 @@ export default {
     'scope-enum': [
       2,
       'always',
-      ['ir', 'warp', 'compiler', 'client', 'kernel', 'bench', 'spec', 'deps', 'repo'],
+      ['ir', 'warp', 'compiler', 'client', 'kernel', 'plan', 'adapters', 'bench', 'spec', 'deps', 'repo'],
     ],
     'scope-empty': [1, 'never'],
   },
