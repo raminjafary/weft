@@ -91,11 +91,22 @@ export interface Lease {
   release(): void
 }
 
+/**
+ * Who can read this tier. `process` is an isolate-local map nobody outside can address;
+ * `shared` is anything another process, another isolate, or a CDN can read.
+ *
+ * This is not the same question as consistency or coherence, and conflating them is how a
+ * private entry ends up somewhere it can be served to the wrong person. A tiered store refuses
+ * to write a private entry to a shared tier on the strength of exactly this field.
+ */
+export type Scope = 'process' | 'shared'
+
 export interface StorePort {
   readonly name: string
   readonly consistency: Consistency
   readonly maxValueBytes: number
   readonly coherence: Coherence
+  readonly scope: Scope
   get(key: string): Promise<StoreEntry | null>
   set(
     key: string,

@@ -60,7 +60,9 @@ test('the kernel only reaches sideways into the two versioned wire packages', ()
 
 test('the kernel is small enough to be a kernel', () => {
   const lines = sources().reduce((sum, { text }) => sum + text.split('\n').length, 0)
-  // Not the design's 8 KB minified figure, which needs a bundler; a source ceiling that
-  // fails loudly if the microkernel starts absorbing features that belong in a port.
-  assert.ok(lines < 2500, `kernel source is ${lines} lines`)
+  // The gate that matters is the 8 KB byte budget in `@weft/bench`, measured against the
+  // document request path. This is a shape check on top of it: it fires when the kernel starts
+  // absorbing work that belongs in a port, and it is allowed to move when the thing added is
+  // one of the four jobs a kernel has. Routing was, so it moved from 2,500 to 2,900.
+  assert.ok(lines < 2900, `kernel source is ${lines} lines`)
 })

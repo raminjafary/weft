@@ -66,6 +66,7 @@ export function memoryStore(options: MemoryStoreOptions = {}): MemoryStore {
     consistency: 'strong',
     maxValueBytes: maxBytes,
     coherence: 'generation',
+    scope: 'process',
 
     async get(key) {
       const slot = entries.get(key)
