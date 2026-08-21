@@ -39,11 +39,69 @@ without a harness and a wire format cannot be versioned retroactively.
 
 ## Running it
 
-No build step — Node 22.18+ strips the types. One install, for the compiler's parser.
+```sh
+pnpm install
+pnpm build                                                  # ten packages, in dependency order
+
+pnpm demo                                                   # five shapes of page      :4173
+pnpm inspect                                                # every mechanism, running :4180
+```
+
+Both are weft applications. `demo/` depends on `weft` alone; `@weft/inspector` reaches into the
+kernel, the plan layer and the adapters, because taking those apart is what it is for.
+
+## Writing one
+
+A folder is an application. The route table is the file tree, and the plan that places everything
+on a page is generated from it — there is no wiring to write and no config file you have to have.
+
+```
+app/
+  layout.tsx            the document. Its <slot> holes are what a route fills
+  layouts/<name>.tsx    an alternate one, chosen with defineRoute({ layout })
+  routes/index.tsx      /
+  routes/[slug].tsx     /:slug
+  routes/x.data.ts      x.tsx's head, cache policy, loader, guard and slots
+  routes/x.css          linked only by the pages that render x
+  fragments/<name>.tsx  a component, referenced by name from a route's slots
+  slots/<name>.tsx      fills the layout hole of that name on every route
+  intents/**.ts         mutations. The manifest is generated from this directory
+  styles.css            linked on every page, after the framework's own
+  lib/**                anything else your application imports. Not read by the framework
+public/                 served as written, and again at a URL carrying its digest
+weft.config.ts          what this deployment binds
+```
 
 ```sh
-pnpm install                                                # Oxc, for the compiler only
+npm create weft my-app
 
+weft dev            # serve, and rebuild what changes
+weft build          # sealed templates, the generated plan, the intent manifest, revved assets
+weft start          # serve the build. No compiler runs
+weft routes         # the route table, as the file tree produced it
+weft why /          # the plan the framework generated for a route
+```
+
+A route declares placement and data and deliberately cannot declare a cache key: keys come from
+what the compiler saw a fragment read, so `public` on a fragment that reads identity fails the
+build with the read named. `weft build` writes the plan to `routes.json`, which is what makes a
+generated one reviewable.
+
+There is no bundler. Client modules are TypeScript with their types stripped by Node and two bare
+specifiers rewritten, so what runs in the browser is the file on disk. Adoption, intents, the
+channel, control wiring and the runtime's own readouts are reached through attributes —
+`data-weft-control`, `data-weft-apply`, `data-weft-intent`, `data-weft-stat` — so an application
+needs no client code at all, and the demo has none.
+
+Every URL the browser fetches carries a digest of its contents and is immutable for a year. `weft
+dev` serves the same bytes at stable names with `no-store`, because a stylesheet you just edited
+served as immutable is a framework that lies to you for a year.
+
+## The harness
+
+No build step for the packages themselves — Node 22.18+ strips the types.
+
+```sh
 node packages/compiler/src/cli.ts packages/compiler/fixtures/*.tsx --out build/ir
 node packages/compiler/src/cli.ts fixtures/*.tsx --no-types   # syntax-only elision
 node packages/bench/src/cli.ts list                         # axes, scenarios, candidates
@@ -57,7 +115,7 @@ node packages/bench/src/cli.ts run --axes shell-ttfb --scenarios slow-feed \
   --latency 40 --external benchmarks/rr7/candidates.json    # the gate, against RR7
 node packages/bench/src/cli.ts ir cart                       # the compiled, sealed IR
 npm run typecheck                                            # TypeScript 7, clean
-node --test packages/*/test/*.test.ts                        # 125 conformance tests
+node --test packages/*/test/*.test.ts demo/test/*.test.ts    # conformance tests
 node packages/bench/src/cli.ts run --axes client-work         # what each form costs a client
 ```
 
