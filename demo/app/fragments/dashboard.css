@@ -1,0 +1,24 @@
+/*
+ * The dashboard panel's own rules. Linked by `/app/dashboard` and by the stations that render this
+ * fragment — and by nothing else.
+ *
+ * The bar's *length* is not in here, because a stylesheet cannot know it. That is the one thing
+ * `style={barStyle}` in the fragment is for, and the division is the useful one: shape here, data
+ * there.
+ */
+.dash-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  position: relative;
+  overflow: hidden;
+}
+
+.dash-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--bar, 0%);
+  background: var(--acc);
+  border-radius: inherit;
+}

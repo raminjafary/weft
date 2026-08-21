@@ -3,7 +3,25 @@ import { test } from 'node:test'
 import { coverage, missingSpecFiles, specDocuments } from '../src/index-page.ts'
 import { HANDLERS } from '../src/stations/index.ts'
 import { SHOWCASES, STATIONS } from '../src/stations.ts'
+import { fileURLToPath } from 'node:url'
+import { createApp } from 'weft/server'
 import { compileDemo, slotBindings } from '../src/compile.ts'
+
+const ROOT = fileURLToPath(new URL('../', import.meta.url))
+
+/**
+ * The demo, built the way `weft dev` builds it.
+ *
+ * Once, for every test below that needs it. Building it here rather than compiling a hand-written
+ * file list is the point of the migration: if the convention cannot produce this application, these
+ * tests fail — which is a stronger statement than "the fragments compile".
+ */
+let built: Awaited<ReturnType<typeof createApp>> | null = null
+
+async function app(): Promise<NonNullable<typeof built>> {
+  built ??= await createApp(ROOT, { mode: 'dev' })
+  return built
+}
 
 /**
  * The promise this demo makes is that it is **not a subset**: if a capability is in the specs, it
@@ -86,6 +104,7 @@ test('every showcase says what shape of application it stands for', () => {
  * somebody opened that page.
  */
 test('every demo fragment compiles, and the shells leave the boundaries the pages fill', async () => {
+  await app()
   const compiled = await compileDemo()
   assert.deepEqual(slotBindings(compiled.shell), ['panel', 'body', 'readout'])
   assert.deepEqual(slotBindings(compiled['dash-shell'] as never), [
@@ -115,6 +134,92 @@ test('every demo fragment compiles, and the shells leave the boundaries the page
     compiled.interactive.entry.wiring.some((w) => w.op === 'prop'),
     'and a prop binding, which is what the controls station is about',
   )
+})
+
+/**
+ * The route table is the file tree, so this is the assertion that the file tree still means what
+ * the demo says it means. A station whose file was renamed, a showcase that lost its declaration,
+ * or a layout that stopped declaring a hole all fail here rather than at the first request.
+ */
+test('the convention produces a route for every station and every showcase', async () => {
+  const { routes } = await app()
+  const patterns = new Set(routes.map((route) => route.pattern))
+
+  const missing = STATIONS.map((station) => `/s/${station.id}`).filter((path) => !patterns.has(path))
+  assert.deepEqual(missing, [], 'a station with no route file is a station the index links to a 404')
+
+  const showcases = ['/app/ordinary/:category', '/app/feed', '/app/cart', '/app/article', '/app/dashboard']
+  assert.deepEqual(
+    showcases.filter((path) => !patterns.has(path)),
+    [],
+  )
+  assert.ok(patterns.has('/live/race/:order'), 'the streaming race is a route, not a hand-built response')
+
+  // Every station page is the same three regions, which is what makes one document serve all of
+  // them — and the dashboard is the one page that needed a different shape.
+  for (const station of STATIONS) {
+    const route = routes.find((r) => r.pattern === `/s/${station.id}`)
+    assert.deepEqual(
+      route?.plan.slots.map((slot) => slot.name),
+      ['panel', 'body', 'readout'],
+      `/s/${station.id} does not have the three station regions`,
+    )
+  }
+  const dashboard = routes.find((r) => r.pattern === '/app/dashboard')
+  assert.deepEqual(
+    dashboard?.plan.slots.map((slot) => slot.name),
+    ['panel', 'traffic', 'revenue', 'errors', 'slowest', 'readout'],
+  )
+})
+
+test('the plan the framework generated says what the showcases claim', async () => {
+  const { routes } = await app()
+  const bySlot = (pattern: string, name: string) =>
+    routes.find((r) => r.pattern === pattern)?.plan.slots.find((s) => s.name === name)
+
+  // Derived, not declared: no slot on the ordinary page asks to stream, so it is delivered in
+  // order and pays for no fill mechanism.
+  const ordinary = routes.find((r) => r.pattern === '/app/ordinary/:category')
+  assert.equal(
+    ordinary?.plan.slots.every((slot) => slot.delivery === 'buffered'),
+    true,
+    'the ordinary page is the case where nothing streams',
+  )
+
+  // The compiler contradicting the declaration, and the declaration losing: the feed reads the
+  // clock so its policy needs a ttl, and the cart reads identity so it cannot be public.
+  assert.equal(bySlot('/app/feed', 'body')?.cache?.class, 'public')
+  assert.ok((bySlot('/app/feed', 'body')?.cache?.ttlMs ?? 0) > 0, 'a time read forces a ttl')
+  assert.equal(bySlot('/app/cart', 'body')?.cache?.class, 'private')
+
+  // The wave the dashboard station is about.
+  assert.deepEqual(bySlot('/app/dashboard', 'slowest')?.needs, ['traffic'])
+})
+
+test('every intent in app/intents is in the manifest, under an id derived from its module', async () => {
+  const { intents } = await app()
+  const names = intents.entries.map((entry) => entry.name).sort()
+  assert.deepEqual(names, ['cart.add', 'cart.setQty', 'feed.tick'])
+  for (const entry of intents.entries) {
+    assert.match(entry.id, /^[0-9a-f]{6}$/, 'an intent id is six hex characters and nothing else')
+    assert.match(entry.module, /^app\/intents\//)
+  }
+})
+
+/**
+ * The claim that a page links the stylesheets of the components on it and no others. It is
+ * checkable, so it is checked: `product-card.css` belongs to the ordinary page because
+ * `ordinary.tsx` composes that component, and to no other page.
+ */
+test('a component stylesheet reaches the pages that render it and no others', async () => {
+  const { routes } = await app()
+  const css = (pattern: string): string[] =>
+    (routes.find((r) => r.pattern === pattern)?.css ?? []).map((file) => file.split('/').pop() as string)
+
+  assert.ok(css('/app/ordinary/:category').includes('product-card.css'))
+  assert.equal(css('/app/article').includes('product-card.css'), false)
+  assert.ok(css('/app/dashboard').includes('dashboard.css'))
+  assert.equal(css('/app/article').includes('dashboard.css'), false)
 })
 
 test('the spec walk finds the documents it is supposed to', () => {

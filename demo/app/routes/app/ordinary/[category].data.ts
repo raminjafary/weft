@@ -1,0 +1,78 @@
+import { defineRoute } from 'weft'
+import { panel } from '../../../../src/pages.ts'
+import { CATEGORIES, type Item } from '../../../../src/catalogue.ts'
+
+/**
+ * Three instances, flattened into one value set.
+ *
+ * `ordinary.tsx` writes its three cards out rather than mapping them, because a component inside a
+ * list row is `E_COMPONENT_IN_LIST` today — so its props are named `firstName`, `secondName` and so
+ * on, and this is the one place that shape is spelled.
+ */
+const flat = (prefix: string, item: Item): Record<string, string | number | boolean> => ({
+  [`${prefix}Name`]: item.name,
+  [`${prefix}Price`]: item.price,
+  [`${prefix}Unit`]: item.unit,
+  [`${prefix}Badge`]: item.badge,
+  [`${prefix}Available`]: item.available,
+})
+
+/**
+ * An ordinary page. No streaming, no channel, no deltas.
+ *
+ * Every slot buffers, so the plan the framework generated lowers to `in-order` — and in-order
+ * needs no fill mechanism, so the out-of-order filler is not on the wire. Nothing chose that; it
+ * was derived from the fact that no slot asked to stream.
+ */
+export default defineRoute({
+  head: (params) => ({ title: `${params.category ?? 'pantry'} — an ordinary page · weft demo` }),
+  layoutValues: {
+    heading: 'An ordinary page',
+    shows:
+      'No streaming, no channel, no deltas. One route, one component rendered three times, and a page that arrives in one piece.',
+    control: 'Switch category in the panel. The template does not change; only the content does.',
+    status: 'live',
+  },
+  slots: {
+    panel: {
+      fragment: 'markup',
+      stream: false,
+      html: panel(
+        [
+          '<a class="pill" href="/app/ordinary/pantry">pantry</a>',
+          '<a class="pill" href="/app/ordinary/household">household</a>',
+        ].join(''),
+        'Two ordinary links. There is no client-side navigation yet — and the page does not need it to be fast.',
+      ),
+    },
+    body: {
+      fragment: 'ordinary',
+      stream: false,
+      cache: { class: 'public', ttl: '10m' },
+      load: (_ctx, params) => {
+        const key = params.category === 'household' ? 'household' : 'pantry'
+        const category = CATEGORIES[key] as (typeof CATEGORIES)[string]
+        const [a, b, c] = category.items as [Item, Item, Item]
+        return {
+          category: key === 'household' ? 'Household' : 'Pantry',
+          intro: category.intro,
+          ...flat('first', a),
+          ...flat('second', b),
+          ...flat('third', c),
+        }
+      },
+    },
+    readout: {
+      fragment: 'markup',
+      stream: false,
+      html: `<div class="card"><h3>What this page cost</h3>
+        <dl class="prov">
+          <dt>Sealed templates</dt><dd>2 — the page and the card, whatever the card count</dd>
+          <dt>Component instances</dt><dd>3, projected into the card's holes rather than mounted</dd>
+          <dt>Streaming order</dt><dd><code>in-order</code>, derived: no slot asked to stream</dd>
+          <dt>Fill mechanism</dt><dd>none, so the out-of-order filler is not on the wire</dd>
+          <dt>Cache class</dt><dd><code>public</code> — this fragment reads nothing but its route param</dd>
+        </dl></div>`,
+    },
+  },
+})

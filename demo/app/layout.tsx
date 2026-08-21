@@ -8,6 +8,7 @@ interface NavItem {
 
 interface ShellProps {
   title: string
+  description: string
   css: string
   runtime: string
   heading: string
@@ -31,9 +32,26 @@ interface ShellProps {
  * `<slot>` here is a real element, not shadow DOM. Outside a shadow root it renders its children,
  * so in-order streaming needs no fill mechanism at all and out-of-order needs only the filler
  * that moves a node into it.
+ *
+ * `heading`, `shows`, `control` and `status` are not values the framework supplies. Each route
+ * declares them through `defineRoute({ layoutValues })`, and a hole here that no route supplies
+ * fails the build with its own name — which is how this file can grow a hole safely.
  */
 export default fragment(
-  ({ title, css, runtime, heading, shows, control, status, nav, panel, body, readout }: ShellProps) => (
+  ({
+    title,
+    description,
+    css,
+    runtime,
+    heading,
+    shows,
+    control,
+    status,
+    nav,
+    panel,
+    body,
+    readout,
+  }: ShellProps) => (
     <>
       {raw('<!doctype html>')}
       <html lang="en">
@@ -41,6 +59,7 @@ export default fragment(
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width,initial-scale=1" />
           <title>{title}</title>
+          <meta name="description" content={description} />
           <link rel="stylesheet" href={css} />
           <script type="module" src={runtime} />
         </head>

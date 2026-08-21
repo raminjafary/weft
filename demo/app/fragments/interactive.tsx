@@ -1,5 +1,5 @@
 import { fragment, signal } from 'weft'
-import { setQuantity } from './intents.ts'
+import { setQuantity } from '../intents/cart.ts'
 
 interface InteractiveProps {
   sku: string
