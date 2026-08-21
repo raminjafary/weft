@@ -1,6 +1,6 @@
 import { defineRoute } from 'weft'
 import { feedItems, at } from '../../../src/data.ts'
-import { field, panel, pick, press, slider } from '../../../src/pages.ts'
+import { field, panel, press, slider } from '../../../src/pages.ts'
 import { LOG } from '../../../src/showcase.ts'
 import { fragmentIR, listHole } from 'weft'
 
@@ -11,12 +11,13 @@ import { fragmentIR, listHole } from 'weft'
  * There is no `.tsx` here. The body is `app/fragments/feed.tsx`, which the stations also read, so
  * the fragment has one home and the route names it.
  */
-const PANEL =
+/** A function of the request, so the slider renders at the value that is actually in the URL. */
+const PANEL = (ctx: { query(key: string): string | undefined }): string =>
   panel(
     [
-      field('rows', slider('feed-rows', 20, 400, 120, 20)),
-      field('binding', pick('feed-binding', ['stream', 'sse', 'socket'])),
-      press('feed-tick', 'tick once'),
+      field('rows', slider('feed-rows', 20, 400, Number(ctx.query('rows') ?? 120), 20)),
+      press('feed-go', 'render with these'),
+      `<button type="button" id="feed-tick" data-weft-intent="feed.tick">tick once</button>`,
     ].join(''),
     'Every tick invalidates one key on the server. Each open connection is told, asks for a delta, and the first to ask pays for it.',
   ) + `<div class="card">${LOG}</div>`
@@ -31,7 +32,7 @@ export default defineRoute({
     status: 'live',
   },
   slots: {
-    panel: { fragment: 'markup', stream: false, html: PANEL },
+    panel: { fragment: 'markup', stream: false, html: (ctx) => PANEL(ctx) },
     // Reads the clock, so a policy with no ttl is a build error. That is the compiler
     // contradicting the declaration, and the declaration losing.
     body: {

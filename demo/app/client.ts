@@ -107,6 +107,9 @@ function wireControls(): void {
       node.addEventListener('click', rerunRace)
       continue
     }
+    // A button that names an intent is the framework's to wire. Reloading the page underneath it
+    // would throw away the delta the intent is about to produce.
+    if ((node as HTMLElement).dataset.weftIntent) continue
     // Every "go" button on a station page does the same thing, because every control on a
     // server-rendered page is a query parameter.
     if (/-(go|run|reschedule|reload)$/.test(id)) node.addEventListener('click', reloadWithControls)

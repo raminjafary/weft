@@ -1,6 +1,6 @@
 import { defineRoute } from 'weft'
 import { dashPanel } from '../../../src/data.ts'
-import { field, panel, pick, press, slider } from '../../../src/pages.ts'
+import { field, panel, press, slider } from '../../../src/pages.ts'
 
 /**
  * A dashboard with slow panels, and the one route in the demo that needs a different document.
@@ -16,15 +16,32 @@ import { field, panel, pick, press, slider } from '../../../src/pages.ts'
 const slow = (ms: number): Promise<void> =>
   ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve()
 
-const PANEL = panel(
-  [
-    field('slowest panel (ms)', slider('dash-slow', 0, 1500, 600, 50)),
-    field('cpu budget (ms)', slider('dash-budget', 20, 800, 200, 20)),
-    field('on exceed', pick('dash-exceed', ['placeholder', 'stale', 'fallback', 'client', 'fail'])),
-    press('dash-reload', 'reload with these'),
-  ].join(''),
-  'The slowest panel needs the traffic panel, so it cannot start until that one lands.',
-)
+/**
+ * The panel, as a function of the request.
+ *
+ * A slider that does not render at the value in the URL snaps back to its default on every
+ * reload, which makes it look like the control did nothing. The control *is* the query
+ * parameter, so the markup has to read it.
+ *
+ * There is one slider here and there used to be three. The CPU budget and the exceed policy are
+ * plan declarations — they are decided when the plan is generated, not per request — so a slider
+ * for them would have been a control that changes nothing. They are stated below as what they
+ * are.
+ */
+const CPU_BUDGET_MS = 200
+const ON_EXCEED = 'placeholder'
+
+const PANEL = (ctx: { query(key: string): string | undefined }): string =>
+  panel(
+    [
+      field('slowest panel (ms)', slider('dash-slow', 0, 1500, Number(ctx.query('slow') ?? 600), 50)),
+      press('dash-reload', 'reload with these'),
+    ].join(''),
+    `The slowest panel needs the traffic panel, so it cannot start until that one lands. Its budget is ` +
+      `<code>${CPU_BUDGET_MS} ms</code> and its exceed policy is <code>${ON_EXCEED}</code> — both are ` +
+      `plan declarations, so they change the build rather than the request. On <code>inline</code> the ` +
+      `budget is advisory and the runtime says so.`,
+  )
 
 const SKELETON = '<div class="dash-panel"><p class="skeleton"></p></div>'
 
@@ -38,7 +55,7 @@ export default defineRoute({
   head: { title: 'A dashboard with slow panels · weft demo' },
   layoutValues: { heading: 'A dashboard with slow panels' },
   slots: {
-    panel: { fragment: 'markup', stream: false, html: PANEL },
+    panel: { fragment: 'markup', stream: false, html: (ctx) => PANEL(ctx) },
     traffic: {
       fragment: 'dashboard',
       stream: { prio: 3 },
@@ -64,7 +81,7 @@ export default defineRoute({
       fragment: 'dashboard',
       stream: { prio: 1 },
       needs: ['traffic'],
-      budget: { cpu: '200ms', onExceed: 'placeholder' },
+      budget: { cpu: `${CPU_BUDGET_MS}ms`, onExceed: ON_EXCEED },
       placeholder: '<div class="dash-panel"><p class="skeleton">over budget</p></div>',
       load: async (ctx) => {
         const ms = Number(ctx.query('slow') ?? 600)
