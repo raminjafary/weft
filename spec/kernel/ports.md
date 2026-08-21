@@ -129,7 +129,7 @@ budget boundary.
 enforceable where a render can be interrupted. `inline` is not preemptible: a budget there is
 checked between awaits and a tight synchronous loop goes straight through it. The executor
 still **reports** the breach — `E_CPU_BUDGET` with a message saying it ran to completion
-anyway — and the plan warns at build time with `W_CPU_BUDGET_INLINE`, naming the executors
+anyway — and the plan warns at build time with `W_CPU_BUDGET_ADVISORY`, naming the executors
 where the limit is real.
 
 ## SessionPort, and the guarantee it buys

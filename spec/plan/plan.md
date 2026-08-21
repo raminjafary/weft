@@ -65,13 +65,13 @@ E_PLAN_INVALID — /cart
 
 ## What the build warns about
 
-| Code                     | When                                                                           |
-| ------------------------ | ------------------------------------------------------------------------------ |
-| `W_CPU_BUDGET_INLINE`    | a CPU budget on `inline`, naming the executors where it would be real          |
-| `W_WAVE_WIDTH`           | the widest wave exceeds the concurrency ceiling; the extra slots queue         |
-| `W_TTL_UNDECLARED`       | reads the clock and declares no policy, so nothing is cached                   |
-| `W_TTL_ON_STATIC`        | a TTL on a fragment that reads nothing and resolves at build time              |
-| `W_INCREMENTAL_NO_GRAPH` | `.incremental()` with no derived values, so the input hashing is pure overhead |
+| Code                     | When                                                                                                      |
+| ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `W_CPU_BUDGET_ADVISORY`  | a CPU budget on anything that is not a separate crash domain, naming the executors where it would be real |
+| `W_WAVE_WIDTH`           | the widest wave exceeds the concurrency ceiling; the extra slots queue                                    |
+| `W_TTL_UNDECLARED`       | reads the clock and declares no policy, so nothing is cached                                              |
+| `W_TTL_ON_STATIC`        | a TTL on a fragment that reads nothing and resolves at build time                                         |
+| `W_INCREMENTAL_NO_GRAPH` | `.incremental()` with no derived values, so the input hashing is pure overhead                            |
 
 `assertPlan()` reports every error at once. A build that surfaces one problem per run is a
 build people stop running.

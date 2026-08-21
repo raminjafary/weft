@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { isHardLimit } from '../../kernel/src/executor.ts'
 import { collectingTelemetry } from '../src/telemetry.ts'
 import { workerPool } from '../src/worker-pool.ts'
 
@@ -123,9 +124,10 @@ test('more jobs than workers queue rather than spawning threads', async () => {
   }
 })
 
-test('the pool declares itself preemptible, and means it', () => {
+test('the pool is the only executor that claims a hard limit, and it earns it', () => {
   const pool = workerPool({ size: 1 })
-  assert.equal(pool.preemptible, true)
+  assert.equal(pool.preemption, 'always')
+  assert.equal(isHardLimit(pool.preemption), true)
   assert.equal(pool.kind, 'pool')
   void pool.close()
 })

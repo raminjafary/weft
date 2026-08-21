@@ -15,20 +15,38 @@ export interface SlotBudget {
 }
 
 /**
- * A CPU budget is only enforceable where a render can be preempted. JavaScript is
- * single-threaded, so on the request thread a budget can be checked between awaits and
- * nowhere else: a tight synchronous loop goes straight through it. That is a property of
- * the platform, so it is declared on the executor rather than hidden.
+ * How far a render can be interrupted, which is what decides whether a CPU budget is a limit
+ * or a report. JavaScript is single-threaded, so on the request thread a budget can be checked
+ * between awaits and nowhere else: a tight synchronous loop goes straight through it.
+ *
+ * This was a boolean until a real worker pool existed, and a boolean could not tell the truth.
+ * `deferred` reported itself preemptible — accurately, at await points — and declared
+ * `kind: 'pool'`, so a reader had two reasons to believe it enforced a budget it cannot
+ * enforce against a synchronous loop. Three states, because there are three behaviours.
  */
+export type Preemption =
+  /** Same task, no yield. A budget is a report. */
+  | 'never'
+  /** Yields first, so an abort lands at an await. A synchronous render still runs to completion. */
+  | 'at-await'
+  /** A separate crash domain that can be stopped mid-instruction. A budget is a limit. */
+  | 'always'
+
 export interface Preemptible {
-  readonly preemptible: boolean
+  readonly preemption: Preemption
 }
 
 export type KernelExecutor = ExecutorPort & Preemptible
 
-export const W_CPU_BUDGET_INLINE =
-  'W_CPU_BUDGET_INLINE: cpu budgets are only enforceable on preemptible executors; this slot is inline. ' +
-  'Move it to pool:, isolate, binding:, or svc: for a hard limit'
+/** Whether a budget on this executor is a limit. Only a separate crash domain can promise one. */
+export function isHardLimit(preemption: Preemption): boolean {
+  return preemption === 'always'
+}
+
+export const W_CPU_BUDGET_ADVISORY =
+  'W_CPU_BUDGET_ADVISORY: a cpu budget is only a hard limit on a separate crash domain, and this ' +
+  'slot is not on one. The breach will be reported and the render will finish. ' +
+  'Move it to pool:, isolate, binding:, or svc: for a limit that stops the work'
 
 /**
  * The default, and the fastest thing for a cheap fragment. Abort is cooperative: the job
@@ -39,9 +57,9 @@ export function inlineExecutor(telemetry?: TelemetryPort): KernelExecutor {
   return {
     name: 'inline',
     kind: 'inline',
-    preemptible: false,
+    preemption: 'never',
     async run(job) {
-      return runWithBudget(job, telemetry, false)
+      return runWithBudget(job, telemetry, 'never')
     },
   }
 }
@@ -55,11 +73,13 @@ export function inlineExecutor(telemetry?: TelemetryPort): KernelExecutor {
 export function deferredExecutor(telemetry?: TelemetryPort): KernelExecutor {
   return {
     name: 'deferred',
-    kind: 'pool',
-    preemptible: true,
+    // Not `pool`, which it claimed until a real pool existed. It is a macrotask boundary on the
+    // request thread, and the honest kind for that is the one it shares a thread with.
+    kind: 'inline',
+    preemption: 'at-await',
     async run(job) {
       await new Promise<void>((resolve) => setTimeout(resolve, 0))
-      return runWithBudget(job, telemetry, true)
+      return runWithBudget(job, telemetry, 'at-await')
     },
   }
 }
@@ -69,7 +89,8 @@ export function clientExecutor(): KernelExecutor {
   return {
     name: 'client',
     kind: 'client',
-    preemptible: true,
+    // Vacuous: nothing is rendered on the server, so there is nothing to interrupt.
+    preemption: 'always',
     async run(job) {
       return {
         slot: job.slot,
@@ -81,10 +102,24 @@ export function clientExecutor(): KernelExecutor {
   }
 }
 
+/**
+ * What actually happened, for the two executors that run on the request thread. A breach message
+ * that does not say whether the work was stopped is a breach message that reads like a limit was
+ * enforced.
+ *
+ * `always` is deliberately absent: an executor that can stop a render is not running it here, so
+ * it writes its own message, and carrying a string this function cannot reach would be bytes in
+ * the request path for a branch that is not in it.
+ */
+const OVERRUN: Record<'never' | 'at-await', string> = {
+  never: 'on an executor that cannot be interrupted, so it ran to completion anyway',
+  'at-await': 'on an executor interruptible only at an await, so a synchronous render ran to completion',
+}
+
 async function runWithBudget(
   job: RenderJob,
   telemetry: TelemetryPort | undefined,
-  preemptible: boolean,
+  preemption: 'never' | 'at-await',
 ): Promise<RenderOutcome> {
   const controller = new AbortController()
   const started = performance.now()
@@ -107,9 +142,7 @@ async function runWithBudget(
         ms,
         failure: {
           code: 'E_CPU_BUDGET',
-          message: preemptible
-            ? `${job.slot} exceeded ${job.cpuBudgetMs}ms`
-            : `${job.slot} exceeded ${job.cpuBudgetMs}ms on a non-preemptible executor, so it ran to completion anyway`,
+          message: `${job.slot} exceeded ${job.cpuBudgetMs}ms ${OVERRUN[preemption]}`,
         },
       }
     }

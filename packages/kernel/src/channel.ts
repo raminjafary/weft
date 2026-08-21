@@ -25,7 +25,14 @@ import { createEpochs, type Epochs, type Transition } from './epoch.ts'
 import type { EnvelopeContext } from './context.ts'
 import type { IntentDispatch, IntentOutcome } from './intent.ts'
 import type { StorePort, TelemetryPort } from './ports.ts'
-import { createStaleRegistry, parseHeld, surgicalRefresh, type Held, type StaleRegistry } from './refresh.ts'
+import {
+  createStaleRegistry,
+  parseHeld,
+  surgicalRefresh,
+  type Held,
+  type RefreshTtl,
+  type StaleRegistry,
+} from './refresh.ts'
 
 /**
  * The channel: one client, one Warp frame stream, and none of the three bindings.
@@ -50,6 +57,12 @@ export interface ChannelSink {
   readonly binding: ChannelBinding
   /** False once the peer has gone. Sending to a closed sink is dropped and reported, never thrown. */
   readonly open: boolean
+  /**
+   * True when the transport's buffer is above its watermark — the peer is not reading as fast as
+   * the server is writing. A sink that never reports this makes a slow consumer look like a fast
+   * one right up to the point where the process runs out of memory holding frames for it.
+   */
+  readonly saturated?: boolean
   send(frames: readonly Frame[]): void | Promise<void>
   close(reason?: string): void
 }
@@ -104,6 +117,15 @@ export interface HubOptions {
   templates?: (version: string) => TemplateIR | undefined
   server?: ServerCapabilities
   maxEpochs?: number
+  /**
+   * Consecutive saturated sends a channel may accumulate before it is closed as a slow
+   * consumer. A channel is not a queue: frames held for a peer that is not reading are memory
+   * the process cannot reclaim, and every one of them is stale by the time it would arrive.
+   * Closing is the honest answer, and the client reconnects and asks for what it holds.
+   */
+  maxSaturatedSends?: number
+  /** How long recovered base renders and memoized deltas live. Expiry costs a form, never correctness. */
+  ttl?: RefreshTtl
   telemetry?: TelemetryPort
 }
 
@@ -139,6 +161,7 @@ export interface ChannelHub {
 export function createHub(options: HubOptions): ChannelHub {
   const stale = createStaleRegistry()
   const live = new Map<string, ChannelRecord>()
+  const saturationLimit = options.maxSaturatedSends ?? 32
 
   interface ChannelRecord {
     channel: Channel
@@ -149,6 +172,8 @@ export function createHub(options: HubOptions): ChannelHub {
     epochs: Epochs
     resumedAt: string | null
     sent: number
+    /** Consecutive sends that left the transport above its watermark. */
+    saturated: number
   }
 
   const hub: ChannelHub = {
@@ -172,6 +197,7 @@ export function createHub(options: HubOptions): ChannelHub {
         epochs: createEpochs(options.maxEpochs),
         resumedAt: null,
         sent: 0,
+        saturated: 0,
       }
       record.channel = {
         id,
@@ -204,6 +230,15 @@ export function createHub(options: HubOptions): ChannelHub {
           if (!record.sink.open) return 0
           await record.sink.send(frames)
           record.sent += frames.length
+          if (record.sink.saturated) {
+            record.saturated++
+            if (record.saturated >= saturationLimit) {
+              hub.close(id, 'E_SLOW_CONSUMER: the peer stopped reading')
+              return frames.length
+            }
+          } else {
+            record.saturated = 0
+          }
           return frames.length
         },
         close(reason) {
@@ -394,6 +429,7 @@ export function createHub(options: HubOptions): ChannelHub {
         ...(source.prefer ? { prefer: source.prefer } : {}),
         ...(source.fallback ? { fallback: source.fallback } : {}),
         ...(record.hello?.rtt !== undefined ? { rttMs: record.hello.rtt } : {}),
+        ...(options.ttl ? { ttl: options.ttl } : {}),
       })
       record.held.set(slot, { slot, tpl: source.ir.version, base: result.nextBase })
       if (source.key) stale.hold(record.channel.id, slot, source.key)

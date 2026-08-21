@@ -59,22 +59,39 @@ test('the kernel only reaches sideways into the two versioned wire packages', ()
 })
 
 /**
- * The line count is a smell detector for the kernel absorbing work that belongs in a port.
- * It is not the byte budget — that is in `@weft/bench` — and after this session it is not one
- * number over everything either.
+ * The line count is a smell detector for the kernel absorbing work that belongs in a port. It
+ * is not the byte budget — that is in `@weft/bench` — and it has now been re-derived three
+ * times, each time because it was measuring something other than what it claims to.
  *
- * It moved once, from 2,500 to 2,900, when routing landed. That move should not have
- * happened: it was measuring every file in `src/`, which is the same gross-versus-marginal
- * mistake the byte budget already made and already fixed. Measured against the request path
- * it is meant to describe, routing never took it near 2,500. So the ceiling is back where it
- * was, and each entry now has its own — which is the rule `spec/kernel/budgets.md` states for
- * bytes, applied to the detector as well.
+ * First it summed every file in `src/`, so routing appeared to blow it and the ceiling was
+ * moved from 2,500 to 2,900. That was the gross-versus-marginal mistake the byte budget had
+ * already made and fixed, so it became per entry by reachability.
+ *
+ * Then it fired on backpressure and a pair of TTLs — and 30% of what it was counting was
+ * documentation. A detector meant to catch absorbed work that fires when somebody explains
+ * the work is not measuring absorbed work. So it counts **code** lines: comments and blank
+ * lines are stripped before counting.
+ *
+ * The honest position after three of these: the byte budget is the gate and this is a weak
+ * heuristic that has cost more attention than it has earned. It survives because a kernel that
+ * doubles in code with no byte change is still worth being told about. **If it needs a fourth
+ * re-derivation it should be deleted rather than fixed**, and that is a commitment, not a
+ * caveat.
  */
 const LINE_CEILINGS: Record<string, number> = {
-  'entry-request.ts': 2500,
-  'entry-channel.ts': 2900,
-  'entry-intent.ts': 2900,
-  'entry-transport.ts': 3300,
+  'entry-request.ts': 1800,
+  'entry-channel.ts': 2100,
+  'entry-intent.ts': 2100,
+  'entry-transport.ts': 2500,
+}
+
+/** Code only. A comment is not work the kernel absorbed from a port. */
+function codeLines(text: string): number {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('//')).length
 }
 
 /**
@@ -141,7 +158,7 @@ test('each entry is small enough for what it is', () => {
   const over: string[] = []
   for (const [entry, ceiling] of Object.entries(LINE_CEILINGS)) {
     const lines = [...reachableFrom(entry)].reduce(
-      (sum, file) => sum + readFileSync(SRC + file, 'utf8').split('\n').length,
+      (sum, file) => sum + codeLines(readFileSync(SRC + file, 'utf8')),
       0,
     )
     if (lines >= ceiling) over.push(`${entry}: ${lines} lines against ${ceiling}`)

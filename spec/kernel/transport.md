@@ -75,8 +75,11 @@ Nothing is replayed — the client named what it holds, and that is cheaper than
 - **No `permessage-deflate`.** Warp frames are length-prefixed and bodies are already
   compressed by the layer that produced them; negotiating a second compression would be
   paying twice for one property.
-- **No backpressure policy.** A sink that cannot keep up buffers in the host's socket. A slow
-  consumer is a real failure mode and it is not addressed here.
+- **Backpressure is a close, not a queue.** A sink reports `saturated` when the transport's
+  buffer is over its watermark, and a channel that stays saturated for 32 consecutive sends is
+  closed with `E_SLOW_CONSUMER`. Frames held for a peer that is not reading are memory the
+  process cannot reclaim, and every one of them is stale by the time it would arrive — so closing
+  is the honest answer, and the client reconnects and says what it holds.
 - **No browser-side socket.** The client half routes decoded frames and produces frames to
   send — including an `INTENT` with an optimistic epoch staged behind it — but opening the
   connection and feeding it is the application's. That is why `createChannelClient` takes frames

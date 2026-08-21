@@ -142,7 +142,9 @@ and refuses to publish numbers if a single byte differs.
 ## What this does not do yet
 
 - **No `patch` form.** It is in `derivableForms()` and no encoder produces it.
-- **Base renders are stored unbounded.** They are tagged `tpl:<version>` so a template change
-  can clear them, but nothing expires an old base, and a real deployment needs a TTL here.
+- **Base renders and memoized deltas expire after fifteen minutes** by default, configurable per
+  refresh. An expired base costs a form and never correctness: the client names one the server
+  cannot recover, `selectForm` falls to `html`, and the page is right. A shorter ceiling costs
+  only delta hit rate.
 - **The delta is not served from a CDN.** It is cacheable by construction and only ever read
   from `StorePort`.

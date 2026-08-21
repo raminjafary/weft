@@ -133,7 +133,7 @@ test('a cpu budget on an inline slot is a warning that names the fix', () => {
   const r = route([slot('report').budget({ cpu: '120ms' })], { report: facts([]) })
   const { errors, warnings } = validatePlan(r.plan, { facts: r.facts })
   assert.deepEqual(errors, [])
-  assert.equal(warnings[0]?.code, 'W_CPU_BUDGET_INLINE')
+  assert.equal(warnings[0]?.code, 'W_CPU_BUDGET_ADVISORY')
   assert.match(warnings[0]?.message ?? '', /pool:, isolate, binding:, or svc:/)
 })
 

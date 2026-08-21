@@ -206,8 +206,9 @@ export function workerPool(options: WorkerPoolOptions = {}): WorkerPool {
   return {
     name: 'pool',
     kind: 'pool',
-    // Truthfully, and unlike every other executor here: a thread can be stopped.
-    preemptible: true,
+    // The only executor in this codebase that can say this: a thread can be stopped
+    // mid-instruction, so a budget on it is a limit rather than a report.
+    preemption: 'always',
     get replaced() {
       return replaced
     },
