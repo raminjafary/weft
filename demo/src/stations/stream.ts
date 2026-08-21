@@ -1,10 +1,10 @@
 import { render, type Values } from '@weft/ir'
 import { createEpochs, fillerSize, splitAtSlots } from '@weft/kernel'
 import { frame, type Frame } from '@weft/warp'
-import { compileDemo, listBinding } from '../compile.ts'
 import { feedItems } from '../data.ts'
 import { field, panel, pick, pre, press, readout, slider } from '../pages.ts'
 import { numeric, type StationHandler } from './kind.ts'
+import { fragmentIR, listHole } from 'weft'
 
 const n = (v: number): string => v.toLocaleString('en-US')
 
@@ -18,8 +18,7 @@ const n = (v: number): string => v.toLocaleString('en-US')
  */
 export const streaming: StationHandler = async (ctx) => {
   const slow = numeric(ctx, 'slow', 400, 0, 2000)
-  const compiled = await compileDemo()
-  const shell = compiled.shell
+  const shell = fragmentIR('layout')
   const split = splitAtSlots(
     shell.entry,
     {
@@ -213,9 +212,8 @@ export const blockingControl: StationHandler = async (ctx) => {
 
 export const epochs: StationHandler = async (ctx) => {
   const commit = ctx.query('commit') === 'yes'
-  const compiled = await compileDemo()
-  const feed = compiled.feed
-  const binding = listBinding(feed)
+  const feed = fragmentIR('fragment:feed')
+  const binding = listHole(feed)
   const epochs_ = createEpochs()
 
   const staged: Frame[] = [
@@ -303,8 +301,7 @@ export const epochs: StationHandler = async (ctx) => {
 // ── components ───────────────────────────────────────────────────────────────────────
 
 export const components: StationHandler = async () => {
-  const compiled = await compileDemo()
-  const ordinary = compiled.ordinary
+  const ordinary = fragmentIR('fragment:ordinary')
   const instances = ordinary.entry.holes.filter((h) => h.kind === 'component')
   const nested = new Set(instances.map((h) => h.nested).filter(Boolean))
 
@@ -354,6 +351,6 @@ export const components: StationHandler = async () => {
             'Open /app/ordinary/pantry, then /app/ordinary/household. Different content, same two templates.',
         },
       ),
-    readout: pre(compiled['product-card']?.source ?? ''),
+    readout: pre(fragmentIR('fragment:product-card')?.source ?? ''),
   }
 }

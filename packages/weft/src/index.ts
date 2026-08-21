@@ -94,8 +94,9 @@ declare global {
 }
 
 export { defineRoute, type RouteModule, type RouteLoad, type SlotDeclaration } from './route.ts'
-export { allTemplates, asset, fragmentIR } from './current.ts'
-export type { CompiledFragment } from './compile.ts'
+export { allFragments, allTemplates, asset, fragmentIR } from './current.ts'
+export { listHole, slotHoles, type CompiledFragment } from './compile.ts'
+export { adoptScript, type AdoptOptions } from './routes.ts'
 export { defineConfig, type WeftConfig } from './config.ts'
 export { defineIntent } from '@weft/kernel'
 export type { Intent, IntentContext, IntentResult, RenderContext, EnvelopeContext } from '@weft/kernel'

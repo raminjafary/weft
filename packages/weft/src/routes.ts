@@ -1,5 +1,5 @@
 import { pathToFileURL } from 'node:url'
-import { baseRenderId, clientView, type Values } from '@weft/ir'
+import { baseRenderId, clientOwned, clientView, readsOf, type Values } from '@weft/ir'
 import type { KernelSlot, RenderContext, RouteEntry, RouteResolver } from '@weft/kernel'
 import {
   every,
@@ -220,14 +220,31 @@ function valuesOf(
  * table — and produce nothing at all for a slot with no wiring, which is the case that should
  * cost nothing and previously cost an application a hand-written script tag either way.
  */
-function adoptPayload(
+export interface AdoptOptions {
+  /** Extra value names beyond the ones a client-owned derived expression is seen to read. */
+  expose?: readonly string[]
+  /** Refreshable over the channel, which is what tells the client to connect on load. */
+  live?: boolean
+  /** What the client queries to find the region. Defaults to the slot's own wrapper. */
+  selector?: string
+}
+
+/**
+ * The adopt payload: everything the client needs to bind a rendered region, and nothing else.
+ *
+ * Exported because a page whose subject *is* adoption has to be able to show you the real one.
+ * A demo that hand-rolled this would be showing you a payload the runtime does not read, which
+ * is worse than showing nothing — it looks right and does nothing.
+ */
+export function adoptScript(
   slot: string,
   fragment: CompiledFragment,
   values: Values,
-  expose: readonly string[],
-  live: boolean,
+  options: AdoptOptions = {},
 ): string | null {
   const { entry } = fragment
+  const live = options.live ?? false
+  const expose = options.expose ?? []
   const interactive = entry.wiring.length > 0 || entry.signals.length > 0
   // A static slot ships nothing. That is the case a hand-written script tag could never get
   // right, because it had to be written before anyone knew whether the slot needed one.
@@ -239,13 +256,13 @@ function adoptPayload(
   }
   const record = values as unknown as Record<string, unknown>
   const exposed: Record<string, unknown> = {}
-  for (const name of expose) {
+  for (const name of [...neededInBrowser(fragment), ...expose]) {
     if (name in record) exposed[name] = record[name]
   }
 
   const payload = {
     slot,
-    selector: `[data-weft-slot="${slot}"]`,
+    selector: options.selector ?? `[data-weft-slot="${slot}"]`,
     template: clientView(entry),
     base: baseRenderId(entry, values),
     signals: entry.signals.map((declaration) => ({ id: declaration.id, init: declaration.init })),
@@ -260,6 +277,33 @@ function adoptPayload(
 }
 
 /**
+ * Which values the browser needs, derived rather than declared.
+ *
+ * A client-owned derived value is one whose expression reads a signal, and the client recomputes
+ * it — so it needs every *other* binding that expression reads. `qty() * unitPrice` is recomputed
+ * in the browser, so the browser needs `unitPrice`, and nothing else out of the value set.
+ *
+ * This was a declaration on the route until it was obvious it should not be: the answer is in the
+ * IR, and a page that had to list these by hand is a page whose list goes stale the moment
+ * somebody edits the template. What is left of `expose` is an override, for a value the browser
+ * needs for a reason the template cannot show.
+ */
+function neededInBrowser(fragment: CompiledFragment): string[] {
+  const { entry } = fragment
+  if (!entry.derived.length) return []
+  const owned = clientOwned(entry.derived, entry.signals)
+  const known = new Set<string>([...owned, ...entry.signals.map((signal) => signal.id)])
+  const needed = new Set<string>()
+  for (const decl of entry.derived) {
+    if (!owned.has(decl.id)) continue
+    for (const read of readsOf(decl.expr)) {
+      if (!known.has(read)) needed.add(read)
+    }
+  }
+  return [...needed]
+}
+
+/**
  * Every slot's bytes get a wrapper element, and that is not decoration.
  *
  * Adoption addresses nodes by index from a root, so the root has to be an element whose
@@ -270,6 +314,7 @@ function adoptPayload(
 function wrapSlot(
   slot: KernelSlot,
   name: string,
+  pattern: string,
   fragment: CompiledFragment,
   captured: WeakMap<object, Map<string, Values>>,
   expose: readonly string[],
@@ -278,10 +323,25 @@ function wrapSlot(
   const open = utf8.encode(`<div data-weft-slot="${name}">`)
   return {
     ...slot,
+    /**
+     * The cached thing is a slot on a route, not a fragment.
+     *
+     * A cache key is `id@version` plus the reads the compiler saw, and it is resolved *before* the
+     * render — so it cannot contain a hash of values it has not computed yet. That is sound while
+     * a fragment's values are a function of its own reads, which is true when an application binds
+     * one fragment to one slot by hand.
+     *
+     * A generated plan breaks it. Four pages bind the framework's `markup` fragment to four slots
+     * with four different loaders, and `markup` reads nothing — so all four resolve to one key and
+     * the first one to render answers for the rest. Scoping the id to the route and slot is what
+     * makes them four cached things. Two tabs on the same route and slot still share one, which is
+     * the sharing that was ever worth having.
+     */
+    id: `${slot.id}@${pattern}:${name}`,
     render: async (ctx) => {
       const bytes = await slot.render(ctx)
       const values = captured.get(ctx as unknown as object)?.get(name)
-      const script = values ? adoptPayload(name, fragment, values, expose, live) : null
+      const script = values ? adoptScript(name, fragment, values, { expose, live }) : null
       const tail = utf8.encode(script ? `</div>${script}` : '</div>')
       const out = new Uint8Array(open.length + bytes.length + tail.length)
       out.set(open, 0)
@@ -531,11 +591,24 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     const resolved = await resolver(params)
     return {
       ...resolved,
+      /**
+       * The document is a route, not a layout.
+       *
+       * Every page sharing `layout.tsx` shares its id and version, so a document policy would
+       * make all of them one cache entry — and the first page rendered would answer for the rest.
+       * The same reasoning as the slot ids below, one level up.
+       */
+      shell: {
+        id: `${layout.entry.id}@${route.pattern}`,
+        version: layout.entry.version,
+        effects: layout.entry.effects,
+      },
       ...(order ? { order: typeof order === 'function' ? order(params) : order } : {}),
       slots: resolved.slots.map((slot) =>
         wrapSlot(
           slot,
           slot.name,
+          route.pattern,
           (declarations[slot.name] as (typeof declarations)[string]).fragment,
           captured,
           expose,

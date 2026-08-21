@@ -1,5 +1,4 @@
-import { defineRoute, type RouteModule } from 'weft'
-import type { RenderContext } from '@weft/kernel'
+import { defineRoute, type RenderContext, type RouteModule } from 'weft'
 import { BY_ID } from './stations.ts'
 import { HANDLERS } from './stations/index.ts'
 import type { PageParts, SlotContent } from './pages.ts'

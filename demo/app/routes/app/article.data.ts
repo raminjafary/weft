@@ -1,7 +1,7 @@
 import { defineRoute } from 'weft'
 import { ARTICLE } from '../../../src/data.ts'
-import { compileDemo, listBinding } from '../../../src/compile.ts'
 import { panel } from '../../../src/pages.ts'
+import { fragmentIR, listHole } from 'weft'
 
 /**
  * An article: the case where almost nothing should ship.
@@ -29,12 +29,11 @@ export default defineRoute({
       stream: false,
       cache: { class: 'public', ttl: '1h' },
       load: async () => {
-        const compiled = await compileDemo()
         return {
           title: ARTICLE.title,
           standfirst: ARTICLE.standfirst,
           byline: ARTICLE.byline,
-          [listBinding(compiled.article)]: ARTICLE.blocks,
+          [listHole(fragmentIR('fragment:article'))]: ARTICLE.blocks,
         }
       },
     },

@@ -17,10 +17,10 @@ import {
 } from '@weft/kernel'
 import { memoryStore, workerPool } from '@weft/adapters'
 import { encodeStream, frame, negotiate, residentFrame, warpFrame } from '@weft/warp'
-import { compileDemo, listBinding } from '../compile.ts'
 import { feedItems } from '../data.ts'
 import { escapeHtml, field, panel, pick, pre, press, readout, slider } from '../pages.ts'
 import { numeric, type StationHandler } from './kind.ts'
+import { fragmentIR, listHole } from 'weft'
 
 const n = (v: number): string => v.toLocaleString('en-US')
 const utf8 = new TextEncoder()
@@ -318,10 +318,8 @@ export const incremental: StationHandler = async (ctx) => {
   const rows = numeric(ctx, 'rows', 200, 10, 800)
   const changeEvery = numeric(ctx, 'every', 8, 2, 50)
   const reorder = ctx.query('reorder') === 'yes'
-
-  const compiled = await compileDemo()
-  const feed = compiled.feed
-  const binding = listBinding(feed)
+  const feed = fragmentIR('fragment:feed')
+  const binding = listHole(feed)
   const memo = createSegmentMemo()
 
   const before = {
@@ -506,16 +504,15 @@ export const negotiation: StationHandler = async (ctx) => {
 
 export const warp: StationHandler = async (ctx) => {
   const cold = ctx.query('visit') !== 'warm'
-  const compiled = await compileDemo()
   const settled = negotiate(
     { warp: '1.2.0', ir: TEMPLATE_IR_VERSION, forms: ['html', 'delta'], transport: 'stream' },
     serverCapabilities(),
   )
   const frames = [
     warpFrame(settled),
-    frame('SHELL', { route: '/app/feed', tpl: compiled.feed.entry.version }),
+    frame('SHELL', { route: '/app/feed', tpl: fragmentIR('fragment:feed').entry.version }),
     ...(cold
-      ? compiled.feed.templates.map((t) =>
+      ? fragmentIR('fragment:feed').templates.map((t) =>
           frame(
             'TPL',
             { tpl: t.version },
@@ -582,9 +579,8 @@ export const warp: StationHandler = async (ctx) => {
 
 export const escaping: StationHandler = async (ctx) => {
   const value = ctx.query('value') ?? '<img src=x onerror=alert(1)> & "quoted"'
-  const compiled = await compileDemo()
-  const article = compiled.article
-  const blocks = listBinding(article)
+  const article = fragmentIR('fragment:article')
+  const blocks = listHole(article)
   const html = new TextDecoder().decode(
     render(
       article.entry,
@@ -598,7 +594,11 @@ export const escaping: StationHandler = async (ctx) => {
     ),
   )
   const rawHtml = new TextDecoder().decode(
-    render(compiled.markup.entry, { html: value } as unknown as Values, compiled.markup.resolve),
+    render(
+      fragmentIR('fragment:markup').entry,
+      { html: value } as unknown as Values,
+      fragmentIR('fragment:markup').resolve,
+    ),
   )
   const holes = article.entry.holes.map((h) => `${h.binding}: ${h.escape}`)
 

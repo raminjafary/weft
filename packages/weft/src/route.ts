@@ -119,9 +119,13 @@ export interface RouteModule {
    */
   order?: 'in-order' | 'out-of-order' | ((params: Record<string, string>) => 'in-order' | 'out-of-order')
   /**
-   * Value names the browser needs for a client-owned derived value. `qty * unitPrice` is
-   * recomputed in the browser, so the browser needs `unitPrice` — and listing them keeps the
-   * rest of the value set on the server, where a value set with no reason to travel belongs.
+   * Extra value names to send to the browser.
+   *
+   * The framework already works out which values a client-owned derived expression reads and
+   * sends exactly those — `qty * unitPrice` recomputed in the browser means `unitPrice` travels
+   * and nothing else does. This is for a value the browser needs for a reason the template cannot
+   * show, and everything not listed stays on the server, where a value with no reason to travel
+   * belongs.
    */
   expose?: string[]
 }

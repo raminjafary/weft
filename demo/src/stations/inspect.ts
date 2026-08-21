@@ -11,9 +11,9 @@ import {
 } from '@weft/kernel'
 import { cookieSession, memoryStore, staticFlags } from '@weft/adapters'
 import { factsFrom, plan, shell, slot, validatePlan } from '@weft/plan'
-import { compileDemo } from '../compile.ts'
 import { escapeHtml, field, panel, pick, pre, press, readout } from '../pages.ts'
 import type { StationHandler } from './kind.ts'
+import { allFragments, fragmentIR } from 'weft'
 
 /**
  * The introspection stations: what the compiler inferred, what the kernel derived from it, and
@@ -30,9 +30,8 @@ const ports = (): Ports => ({
 const FRAGMENT_CHOICES = ['article', 'feed', 'cart', 'greeting', 'ordinary', 'panels'] as const
 
 export const effects: StationHandler = async (ctx) => {
-  const compiled = await compileDemo()
   const which = (ctx.query('fragment') ?? 'cart') as (typeof FRAGMENT_CHOICES)[number]
-  const target = compiled[which] ?? compiled.cart
+  const target = fragmentIR(`fragment:${which}`)
   const set: EffectSet = target.entry.effects
   const cls = cacheClassOf(set)
   const vary = varyOn(set)
@@ -103,9 +102,8 @@ export const effects: StationHandler = async (ctx) => {
 }
 
 export const contagion: StationHandler = async () => {
-  const compiled = await compileDemo()
-  const shellSet = compiled.shell.entry.effects
-  const child = compiled.greeting.entry.effects
+  const shellSet = fragmentIR('layout').entry.effects
+  const child = fragmentIR('fragment:greeting').entry.effects
   const union: EffectSet = {
     reads: [...new Set([...shellSet.reads, ...child.reads])].sort(),
     writes: [],
@@ -159,7 +157,6 @@ export const contagion: StationHandler = async () => {
 }
 
 export const cacheKeys: StationHandler = async (ctx) => {
-  const compiled = await compileDemo()
   const currency = ctx.query('currency') ?? 'IQD'
   const tier = ctx.query('tier') ?? 'standard'
   const sid = ctx.query('sid') ?? 'demo-1'
@@ -171,18 +168,18 @@ export const cacheKeys: StationHandler = async (ctx) => {
   const p = ports()
   const cart = await resolveKey(
     {
-      id: compiled.cart.entry.id,
-      version: compiled.cart.entry.version,
-      effects: compiled.cart.entry.effects,
+      id: fragmentIR('fragment:cart').entry.id,
+      version: fragmentIR('fragment:cart').entry.version,
+      effects: fragmentIR('fragment:cart').entry.effects,
     },
     facts,
     p,
   )
   const article = await resolveKey(
     {
-      id: compiled.article.entry.id,
-      version: compiled.article.entry.version,
-      effects: compiled.article.entry.effects,
+      id: fragmentIR('fragment:article').entry.id,
+      version: fragmentIR('fragment:article').entry.version,
+      effects: fragmentIR('fragment:article').entry.effects,
     },
     facts,
     p,
@@ -301,8 +298,9 @@ export const routing: StationHandler = async (ctx) => {
 }
 
 export const shellBoundaries: StationHandler = async () => {
-  const compiled = await compileDemo()
-  const facts = factsFrom(Object.values(compiled).map((c) => ({ fragments: [{ entry: c.entry }] })))
+  const facts = factsFrom(
+    Object.values(allFragments()).map((fragment) => ({ fragments: [{ entry: fragment.entry }] })),
+  )
   // The shell is a fragment like any other, so its boundaries reach the validator through the
   // same `facts` map. There is no second channel for shell information, which is why a shell
   // boundary check cannot disagree with the shell's own IR.
@@ -312,10 +310,10 @@ export const shellBoundaries: StationHandler = async () => {
       build: () =>
         validatePlan(
           plan('/x', [
-            shell(compiled.shell.entry.id),
-            slot('panel').fragment(compiled.markup.entry.id),
-            slot('body').fragment(compiled.article.entry.id),
-            slot('readout').fragment(compiled.markup.entry.id),
+            shell(fragmentIR('layout').entry.id),
+            slot('panel').fragment(fragmentIR('fragment:markup').entry.id),
+            slot('body').fragment(fragmentIR('fragment:article').entry.id),
+            slot('readout').fragment(fragmentIR('fragment:markup').entry.id),
           ]),
           { facts },
         ),
@@ -325,11 +323,11 @@ export const shellBoundaries: StationHandler = async () => {
       build: () =>
         validatePlan(
           plan('/x', [
-            shell(compiled.shell.entry.id),
-            slot('panel').fragment(compiled.markup.entry.id),
-            slot('body').fragment(compiled.article.entry.id),
-            slot('readout').fragment(compiled.markup.entry.id),
-            slot('sidebar').fragment(compiled.markup.entry.id),
+            shell(fragmentIR('layout').entry.id),
+            slot('panel').fragment(fragmentIR('fragment:markup').entry.id),
+            slot('body').fragment(fragmentIR('fragment:article').entry.id),
+            slot('readout').fragment(fragmentIR('fragment:markup').entry.id),
+            slot('sidebar').fragment(fragmentIR('fragment:markup').entry.id),
           ]),
           { facts },
         ),
@@ -339,26 +337,27 @@ export const shellBoundaries: StationHandler = async () => {
       build: () =>
         validatePlan(
           plan('/x', [
-            shell(compiled.shell.entry.id),
-            slot('panel').fragment(compiled.markup.entry.id),
-            slot('body').fragment(compiled.article.entry.id),
+            shell(fragmentIR('layout').entry.id),
+            slot('panel').fragment(fragmentIR('fragment:markup').entry.id),
+            slot('body').fragment(fragmentIR('fragment:article').entry.id),
           ]),
           { facts },
         ),
     },
     {
       label: 'no shell at all',
-      build: () => validatePlan(plan('/x', [slot('body').fragment(compiled.article.entry.id)]), { facts }),
+      build: () =>
+        validatePlan(plan('/x', [slot('body').fragment(fragmentIR('fragment:article').entry.id)]), { facts }),
     },
     {
       label: 'public on a fragment that reads identity',
       build: () =>
         validatePlan(
           plan('/x', [
-            shell(compiled.shell.entry.id),
-            slot('panel').fragment(compiled.markup.entry.id),
-            slot('body').fragment(compiled.cart.entry.id).cache('public', { ttl: '60s' }),
-            slot('readout').fragment(compiled.markup.entry.id),
+            shell(fragmentIR('layout').entry.id),
+            slot('panel').fragment(fragmentIR('fragment:markup').entry.id),
+            slot('body').fragment(fragmentIR('fragment:cart').entry.id).cache('public', { ttl: '60s' }),
+            slot('readout').fragment(fragmentIR('fragment:markup').entry.id),
           ]),
           { facts },
         ),
@@ -368,10 +367,10 @@ export const shellBoundaries: StationHandler = async () => {
       build: () =>
         validatePlan(
           plan('/x', [
-            shell(compiled.shell.entry.id),
-            slot('panel').fragment(compiled.markup.entry.id),
-            slot('body').fragment(compiled.feed.entry.id).cache('public'),
-            slot('readout').fragment(compiled.markup.entry.id),
+            shell(fragmentIR('layout').entry.id),
+            slot('panel').fragment(fragmentIR('fragment:markup').entry.id),
+            slot('body').fragment(fragmentIR('fragment:feed').entry.id).cache('public'),
+            slot('readout').fragment(fragmentIR('fragment:markup').entry.id),
           ]),
           { facts },
         ),

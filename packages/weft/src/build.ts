@@ -167,6 +167,16 @@ export async function loadBuild(discovered: Discovered, config: ResolvedConfig):
   }
 
   const fragments: Record<string, CompiledFragment> = {}
+  // A deployment may or may not have shipped `app/`. A station that shows source gets it when it
+  // is there and an empty string when it is not, rather than the build failing over a display
+  // concern.
+  const sourceOf = async (file: string): Promise<string> => {
+    try {
+      return await readFile(join(config.root, file), 'utf8')
+    } catch {
+      return ''
+    }
+  }
   for (const [name, record] of Object.entries(manifest.fragments)) {
     const entry = templates.get(record.entry)
     if (!entry) {
@@ -181,6 +191,7 @@ export async function loadBuild(discovered: Discovered, config: ResolvedConfig):
       templates: owned,
       resolve: (version) => byVersion.get(version),
       file: record.file,
+      source: await sourceOf(record.file),
     }
   }
 

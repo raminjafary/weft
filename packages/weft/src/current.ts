@@ -45,6 +45,18 @@ export function fragmentIR(name: string): CompiledFragment {
   return found
 }
 
+/**
+ * Every compiled fragment, by the name the convention gave it.
+ *
+ * For a page whose subject is the application rather than a part of it — a coverage table, a
+ * count of sealed templates, a validator run over every fragment's facts. Reaching for one
+ * fragment is `fragmentIR`; this is for the questions that are about all of them.
+ */
+export function allFragments(): Record<string, CompiledFragment> {
+  if (!compiled) throw new Error('E_NO_APP: allFragments() was called outside a running application')
+  return compiled.fragments
+}
+
 /** Every sealed template the application has, for a page that wants to count them. */
 export function allTemplates(): CompiledApp['templates'] {
   if (!compiled) throw new Error('E_NO_APP: allTemplates() was called outside a running application')

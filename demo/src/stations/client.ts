@@ -1,7 +1,7 @@
 import { baseRenderId, clientView, deltaPayload, render, type Values } from '@weft/ir'
-import { compileDemo } from '../compile.ts'
 import { explain, field, panel, pick, pre, press, readout, slider } from '../pages.ts'
 import { numeric, type StationHandler } from './kind.ts'
+import { adoptScript, allTemplates, fragmentIR } from 'weft'
 
 const n = (v: number): string => v.toLocaleString('en-US')
 
@@ -16,54 +16,16 @@ const n = (v: number): string => v.toLocaleString('en-US')
  * intent reference, and what the client receives is a wiring table, an expression tree and a
  * six-character id.
  */
-/**
- * What the client needs beside the template.
- *
- * `signals` and `values` are here because a client template deliberately does not carry them: a
- * signal's current value is application state, not template structure, and a prop that a
- * client-owned derived value reads has to be supplied by whoever owns the data. `intents` maps the
- * opaque ids in the wiring table back to names this page knows what to do with — a build step
- * would generate that map, and generating it here from the real wiring is the same thing at a
- * smaller scale.
- */
-interface Region {
-  slot: string
-  selector: string
-  template: unknown
-  base: string
-  signals: { id: string; init: unknown }[]
-  values: Record<string, unknown>
-  intents: Record<string, string>
-}
-
 async function interactive(values: Values): Promise<{ html: string; adopt: string; base: string }> {
-  const compiled = await compileDemo()
-  const fragment = compiled.interactive
+  const fragment = fragmentIR('fragment:interactive')
   const html = new TextDecoder().decode(render(fragment.entry, values, fragment.resolve))
-  const base = baseRenderId(fragment.entry, values)
-  // Every intent id in the wiring, resolved back to the export it came from. The compiler derived
-  // the id from the module and export name, so this is the same derivation read the other way.
-  const intents: Record<string, string> = {}
-  for (const entry of fragment.entry.wiring) {
-    if (entry.op === 'event' && entry.intent) intents[entry.intent] = entry.event ?? 'input'
-  }
-  const regions: Region[] = [
-    {
-      slot: 'interactive',
-      selector: '#region',
-      template: clientView(fragment.entry),
-      base,
-      signals: fragment.entry.signals.map((declaration) => ({ id: declaration.id, init: declaration.init })),
-      // Props a client-owned derived value reads. `qty * unitPrice` is recomputed in the browser,
-      // so the browser needs unitPrice — and nothing else from the value set.
-      values: { unitPrice: (values as unknown as { unitPrice: number }).unitPrice },
-      intents,
-    },
-  ]
   return {
-    html: `<div class="card"><div id="region" data-slot="interactive">${html}</div></div>`,
-    adopt: `<script type="application/json" id="weft-adopt">${JSON.stringify(regions).replace(/</g, '\\u003c')}</script>`,
-    base,
+    html: `<div class="card"><div data-weft-slot="interactive">${html}</div></div>`,
+    // The framework's own payload, not a copy of it. These stations are *about* what the client
+    // receives, so building a second one here would mean showing you a payload the runtime does
+    // not read — which looks right and does nothing.
+    adopt: adoptScript('interactive', fragment, values) ?? '',
+    base: baseRenderId(fragment.entry, values),
   }
 }
 
@@ -72,8 +34,7 @@ const VALUES = (unitPrice: number): Values =>
 
 export const adoption: StationHandler = async (ctx) => {
   const price = numeric(ctx, 'price', 12000, 100, 90000)
-  const compiled = await compileDemo()
-  const fragment = compiled.interactive
+  const fragment = fragmentIR('fragment:interactive')
   const region = await interactive(VALUES(price))
   const view = clientView(fragment.entry)
   const bytes = new TextEncoder().encode(JSON.stringify(view)).length
@@ -132,8 +93,7 @@ export const adoption: StationHandler = async (ctx) => {
 }
 
 export const signals: StationHandler = async () => {
-  const compiled = await compileDemo()
-  const fragment = compiled.interactive
+  const fragment = fragmentIR('fragment:interactive')
   const region = await interactive(VALUES(12000))
   const readers = fragment.entry.wiring.filter((w) => w.binding === 'qty')
 
@@ -186,8 +146,7 @@ export const signals: StationHandler = async () => {
 }
 
 export const derived: StationHandler = async () => {
-  const compiled = await compileDemo()
-  const fragment = compiled.interactive
+  const fragment = fragmentIR('fragment:interactive')
   const region = await interactive(VALUES(12000))
   const rows = fragment.entry.derived.map((d) => ({
     label: d.id,
@@ -233,8 +192,7 @@ export const derived: StationHandler = async () => {
 export const controls: StationHandler = async (ctx) => {
   const attrOnly = ctx.query('mode') === 'attribute'
   const region = await interactive(VALUES(12000))
-  const compiled = await compileDemo()
-  const prop = compiled.interactive.entry.wiring.find((w) => w.op === 'prop')
+  const prop = fragmentIR('fragment:interactive').entry.wiring.find((w) => w.op === 'prop')
 
   return {
     panel: panel(
@@ -281,8 +239,7 @@ export const controls: StationHandler = async (ctx) => {
 
 export const deltas: StationHandler = async (ctx) => {
   const price = numeric(ctx, 'price', 12000, 100, 90000)
-  const compiled = await compileDemo()
-  const fragment = compiled.interactive
+  const fragment = fragmentIR('fragment:interactive')
   const before = VALUES(12000)
   const after = VALUES(price)
   const base = baseRenderId(fragment.entry, before)
@@ -346,8 +303,7 @@ export const deltas: StationHandler = async (ctx) => {
 }
 
 export const residency: StationHandler = async () => {
-  const compiled = await compileDemo()
-  const templates = Object.values(compiled).flatMap((c) => c.templates)
+  const templates = allTemplates()
   const totalBytes = templates.reduce(
     (sum, t) => sum + new TextEncoder().encode(JSON.stringify(clientView(t))).length,
     0,
