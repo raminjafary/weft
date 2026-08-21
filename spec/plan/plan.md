@@ -15,6 +15,7 @@ reads, and a plugin may add an axis (`planAxis()`) but never write a key.
 
 ```ts
 plan('/checkout', [
+  shell('routes/checkout.tsx#default'),
   guard('session.required', { redirect: '/login' }),
 
   slot('feed').stream({ prio: 1 }),
@@ -152,11 +153,10 @@ has to precede anything that adds a script tag, and no read/write relationship c
 
 ## What this does not do yet
 
-- **Nothing consumes a plan.** `createKernel` takes a `KernelRoute` — the same fields, hand
-  assembled. Compiling a `Plan` into a `KernelRoute` is the missing seam, and it is why
-  `spec/plan` and `spec/kernel` are two documents rather than one.
-- **No `SlotFacts` from the compiler.** `validatePlan` takes them as an argument; the compiler
-  produces the effects and forms it needs but does not emit them in this shape.
+- **Nothing generates a plan.** `lowerPlan` turns one into a route (see
+  [routing](../kernel/routing.md)) and `factsFrom` derives its inputs from compiler output, but
+  the plan and its bindings are still written by hand. Generating them from a file convention or
+  a profile is phase 8.
 - **No byte budget enforcement.** `budget({ js, grow })` is parsed and stored. The measurement
   exists in `@weft/bench`; the two are not wired together.
 - **No scoped registration.** Fastify-style per-subtree plugin encapsulation is not

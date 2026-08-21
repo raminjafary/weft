@@ -26,6 +26,7 @@ without a harness and a wire format cannot be versioned retroactively.
 | Signal graph                      | [`spec/client/signals.md`](spec/client/signals.md), `packages/client`                         | Linked edges, bitflag status, push-pull with a lazy check           |
 | Effect inference                  | [`spec/compiler/effects.md`](spec/compiler/effects.md), `packages/compiler`                   | Reads inferred, cache class derived, ambient reads banned           |
 | Route streaming                   | [`spec/kernel/streaming.md`](spec/kernel/streaming.md), `packages/kernel`                     | Slots streamed in order or fastest-first                            |
+| Routing                           | [`spec/kernel/routing.md`](spec/kernel/routing.md), `packages/kernel`, `packages/plan`        | A URL matches a plan; the plan lowers to a route; `serve()` runs it |
 | Request lifecycle                 | [`spec/kernel/lifecycle.md`](spec/kernel/lifecycle.md), `packages/kernel`                     | A state machine, two-phase envelope, 103 Early Hints, deferral      |
 | Ports                             | [`spec/kernel/ports.md`](spec/kernel/ports.md), `packages/kernel`, `packages/adapters`        | Thirteen declared, six implemented, the rest refuse by name         |
 | Runtime cache keys                | [`spec/kernel/cache.md`](spec/kernel/cache.md), `packages/kernel`                             | Reads resolved into a key; no setter exists anywhere                |
@@ -207,13 +208,13 @@ every engine.
 The design states four ceilings and none had ever been measured. Bundled with Rolldown,
 minified, compressed the way it would ship:
 
-| Entry                                     | Raw    | gzip   | brotli    | Budget |
-| ----------------------------------------- | ------ | ------ | --------- | ------ |
-| Client runtime, everything                | 8,525  | 3,272  | **2,996** | 6,144  |
-| Content route — adopt and bind            | 6,120  | 2,282  | **2,082** | 5,120  |
-| App route — adopt, bind, patch, epochs    | 8,494  | 3,258  | **2,982** | 12,288 |
-| Server kernel — the document request path | 23,198 | 8,558  | **7,602** | 8,192  |
-| Server kernel — plus the Warp channel     | 30,208 | 11,071 | **9,846** | 12,288 |
+| Entry                                     | Raw    | gzip   | brotli     | Budget |
+| ----------------------------------------- | ------ | ------ | ---------- | ------ |
+| Client runtime, everything                | 8,525  | 3,272  | **2,996**  | 6,144  |
+| Content route — adopt and bind            | 6,120  | 2,282  | **2,082**  | 5,120  |
+| App route — adopt, bind, patch, epochs    | 8,494  | 3,258  | **2,982**  | 12,288 |
+| Server kernel — the document request path | 23,868 | 8,824  | **7,846**  | 8,192  |
+| Server kernel — plus the Warp channel     | 30,881 | 11,343 | **10,078** | 12,288 |
 
 Comfortably inside on the client, and a content route still drops by never importing the
 update path, which is the module-level version of paying only for what you use.
@@ -223,8 +224,8 @@ values, component adoption, property bindings, and staged epochs. It is recorded
 than smoothed over, because a byte budget that only ever moves in reports is not a gate.
 
 **The kernel is the tight one.** The design says "target under 8 KB server-side"; the
-document request path is 7,602 B brotli, so the claim holds with 590 bytes of headroom.
-Nothing about routing, intents, or an epoch transport fits in 590 bytes. The first attempt
+document request path is 7,846 B brotli, so the claim holds with 346 bytes of headroom — routing
+spent 244 of it. Nothing about intents or an epoch transport fits in what is left. The first attempt
 measured the whole barrel and came out 29% over — the gross-versus-marginal mistake the
 design warns about in the same paragraph as the byte budget, made immediately.
 
@@ -397,20 +398,27 @@ inference. Change what `private.tsx` reads and those fixtures stop failing.
 a test, and the test failed on its first run: `serveRoute` had been sitting in
 `packages/kernel` importing `node:http` for weeks. It lives in `packages/adapters` now.
 
+**The plan is now a route.** `shell(id)` names the document and its boundaries are checked
+against the plan's slots — a slot naming a hole the shell does not leave, or a hole nothing
+fills, is a build error rather than an empty region in production. `lowerPlan` validates before
+it lowers, so an invalid plan cannot become a route at all, and it refuses a slot with no binding
+or a guard with no handler. `createRouter` matches by specificity rather than declaration order.
+`kernel.serve(request)` is the whole entry point.
+
+Two things there are derived rather than declared: the streaming order (`out-of-order` the moment
+any slot asks to stream, `in-order` when none does, because in-order needs no fill mechanism),
+and phase A (guards run before a byte leaves, so a declared redirect is a real 302).
+
 ## What has to be true next
 
-1. **Routing, and a plan that becomes a route.** `createKernel` takes a hand-assembled
-   `KernelRoute`; `validatePlan` takes hand-assembled `SlotFacts`. Both shapes exist and
-   nothing compiles a `Plan` into one. This is the missing seam between phase 2 and phase 4,
-   and it is why `spec/plan` and `spec/kernel` are still two documents.
-2. **A Warp transport binding.** `HELD`, `REFRESH`, `STALE` and `COMMIT` are produced, parsed
+1. **A Warp transport binding.** `HELD`, `REFRESH`, `STALE` and `COMMIT` are produced, parsed
    and tested as frames, and nothing carries them over a live connection.
-3. **Intents.** `EffectSet.writes` stays empty until there is something that writes, which is
+2. **Intents.** `EffectSet.writes` stays empty until there is something that writes, which is
    also what invalidation and `revalidateTag` wait behind.
-4. **A stampede lease in the request path.** `StorePort.lease` is implemented and the kernel
+3. **A stampede lease in the request path.** `StorePort.lease` is implemented and the kernel
    does not take one, so two concurrent misses render twice.
-5. **A bandwidth and loss model in the latency proxy.** It delays packets and nothing else, so
+4. **A bandwidth and loss model in the latency proxy.** It delays packets and nothing else, so
    it understates what a slow link does to an 18% byte difference.
-6. **Incremental declarative-shadow-DOM parsing on real iOS, Android WebView, and WebKitGTK.**
+5. **Incremental declarative-shadow-DOM parsing on real iOS, Android WebView, and WebKitGTK.**
    If the engines diverge the filler script becomes the primary path, which is survivable and
    changes what can be claimed.

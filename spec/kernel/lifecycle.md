@@ -39,6 +39,10 @@ header, and it is a non-issue by construction rather than by discipline.
 `content-type: text/html; charset=utf-8` is set the same way, through `headerIfUnset`, so a
 route that produces something other than a document can say so in phase A and win.
 
+`refuse(code)` is how a request ends in phase A with no body. `status()` only sets a code,
+because a route is entitled to serve a 404 page — if refusing were just a status, a guard and an
+error page would be indistinguishable to the kernel.
+
 ## Phase A and phase B are different types
 
 ```ts
@@ -113,8 +117,8 @@ discovered in production.
 
 ## What this does not do yet
 
-- **No routing.** `handle(request, route)` takes the route it is given. Matching a URL to a
-  plan does not exist.
+- **No method matching.** `serve()` matches a path (see [routing](routing.md)); methods belong
+  with intents, which do not exist.
 - **No intents.** `EffectSet.writes` is still empty, because invalidation happens in intents
   and API routes and neither exists.
 - **No `waitUntil`.** `StorePort.revalidateAfterResponse` collects tasks; the memory adapter
