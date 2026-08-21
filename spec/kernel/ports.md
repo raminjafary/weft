@@ -28,10 +28,10 @@ run.
 
 | Entry                               | brotli   | Ceiling                                     |
 | ----------------------------------- | -------- | ------------------------------------------- |
-| `entry-request.ts` — document path  | 7,846 B  | 8,192 B, from the design's "under 8 KB"     |
-| `entry-channel.ts` — plus Warp path | 10,078 B | 12,288 B, no design figure, measured anyway |
+| `entry-request.ts` — document path  | 7,833 B  | 8,192 B, from the design's "under 8 KB"     |
+| `entry-channel.ts` — plus Warp path | 10,084 B | 12,288 B, no design figure, measured anyway |
 
-346 bytes of headroom on the claim, after routing spent 244 of it. The whole barrel (`index.ts`, including build-time
+359 bytes of headroom on the claim, after routing spent 231 of it. The whole barrel (`index.ts`, including build-time
 validation and serialisation) is 10,686 B and is deliberately **not** the entry the claim is
 measured against — a deployment serving documents does not import the channel path, and
 measuring gross rather than marginal is how byte budgets become meaningless and get switched

@@ -119,11 +119,11 @@ shell's own resolved key.
 
 | Entry                          | Before  | After   | Ceiling |
 | ------------------------------ | ------- | ------- | ------- |
-| Document request path (brotli) | 7,602 B | 7,846 B | 8,192 B |
+| Document request path (brotli) | 7,602 B | 7,833 B | 8,192 B |
 
-244 bytes, leaving 346. The design's "under 8 KB server-side" still holds and the headroom is
+231 bytes, leaving 359. The design's "under 8 KB server-side" still holds and the headroom is
 now small enough to be a real constraint on what else can go in: intents and an epoch transport
-do not fit in 346 bytes.
+do not fit in 359 bytes.
 
 The kernel's source-line check fired at the same time, at 2,770 against a 2,500 ceiling.
 Routing is one of the four jobs the design gives a kernel, so the ceiling moved to 2,900 — and

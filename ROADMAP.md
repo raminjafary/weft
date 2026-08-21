@@ -46,9 +46,9 @@ invalidation, `revalidateTag`, optimistic epochs driven by a real mutation, the 
 `ACK` frames, and method-aware routing — the table is path-only today because a method match
 would have nothing to dispatch to.
 
-### 3. The last 346 bytes of the kernel
+### 3. The last 359 bytes of the kernel
 
-The document request path is 7,846 B brotli against the design's 8,192, and routing spent 244 of
+The document request path is 7,833 B brotli against the design's 8,192, and routing spent 231 of
 the headroom. Intents and an epoch transport do not fit in what is left.
 
 Two honest options, and the choice should be deliberate rather than discovered: accept that the

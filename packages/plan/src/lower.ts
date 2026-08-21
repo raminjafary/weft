@@ -84,6 +84,7 @@ function orderOf(plan: Plan): Order {
 
 function slotOf(spec: SlotSpec, binding: SlotBinding, params: Record<string, string>): KernelSlot {
   const { fragment } = binding
+  const policy = policyOf(spec.cache)
   return {
     name: spec.name,
     id: fragment.entry.id,
@@ -94,7 +95,7 @@ function slotOf(spec: SlotSpec, binding: SlotBinding, params: Record<string, str
     executor: spec.executor,
     ...(spec.budget?.cpuMs !== undefined ? { cpuBudgetMs: spec.budget.cpuMs } : {}),
     ...(spec.budget?.onExceed ? { onExceed: spec.budget.onExceed } : {}),
-    ...(policyOf(spec.cache) ? { policy: policyOf(spec.cache) as CachePolicy } : {}),
+    ...(policy ? { policy } : {}),
     ...(binding.placeholder ? { placeholder: binding.placeholder } : {}),
     render: async (ctx) =>
       renderTemplate(fragment.entry, await binding.values(ctx, params), fragment.resolve),
