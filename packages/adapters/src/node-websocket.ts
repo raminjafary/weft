@@ -27,6 +27,8 @@ const OP = {
 
 export interface WebSocketConnection {
   readonly open: boolean
+  /** True when the socket buffer is above its watermark: the peer is not reading. */
+  readonly saturated: boolean
   send(bytes: Uint8Array): void
   sendText(text: string): void
   onMessage(handler: (bytes: Uint8Array, isText: boolean) => void | Promise<void>): void
@@ -59,6 +61,7 @@ export function acceptWebSocket(
   ;(socket as Duplex & { setNoDelay?(on: boolean): void }).setNoDelay?.(true)
 
   let open = true
+  let saturated = false
   let buffer: Buffer = head.length ? Buffer.from(head) : Buffer.alloc(0)
   let fragments: Buffer[] = []
   let fragmentOpcode: number | null = null
@@ -75,13 +78,16 @@ export function acceptWebSocket(
     get open() {
       return open && !socket.destroyed
     },
+    get saturated() {
+      return saturated
+    },
     send(bytes) {
       if (!open) return
-      socket.write(encodeFrame(OP.binary, Buffer.from(bytes)))
+      if (!socket.write(encodeFrame(OP.binary, Buffer.from(bytes)))) saturated = true
     },
     sendText(text) {
       if (!open) return
-      socket.write(encodeFrame(OP.text, Buffer.from(text, 'utf8')))
+      if (!socket.write(encodeFrame(OP.text, Buffer.from(text, 'utf8')))) saturated = true
     },
     onMessage(handler) {
       messageHandlers.push(handler)
@@ -155,6 +161,9 @@ export function acceptWebSocket(
     }
   })
 
+  socket.on('drain', () => {
+    saturated = false
+  })
   socket.on('close', () => finish(1006, 'socket closed'))
   socket.on('error', () => finish(1006, 'socket error'))
 

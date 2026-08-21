@@ -214,10 +214,10 @@ minified, compressed the way it would ship:
 | Content route — adopt and bind            | 6,120  | 2,282  | **2,082**  | 5,120  |
 | App route — adopt, bind, patch, epochs    | 8,494  | 3,258  | **2,982**  | 12,288 |
 | Channel route — plus routing frames       | 10,979 | 4,216  | **3,852**  | 4,096  |
-| Server kernel — the document request path | 24,247 | 9,121  | **8,110**  | 8,192  |
-| Server kernel — plus intent dispatch      | 28,144 | 10,363 | **9,220**  | 10,240 |
-| Server kernel — plus refresh and epochs   | 31,146 | 11,622 | **10,335** | 12,288 |
-| Server kernel — plus a live Warp channel  | 38,461 | 14,252 | **12,727** | 13,312 |
+| Server kernel — the document request path | 24,355 | 9,173  | **8,169**  | 8,192  |
+| Server kernel — plus intent dispatch      | 28,297 | 10,441 | **9,288**  | 10,240 |
+| Server kernel — plus refresh and epochs   | 31,538 | 11,747 | **10,461** | 12,288 |
+| Server kernel — plus a live Warp channel  | 39,038 | 14,467 | **12,914** | 13,312 |
 
 Comfortably inside on the client, and a content route still drops by never importing the
 update path, which is the module-level version of paying only for what you use.
@@ -228,7 +228,7 @@ than smoothed over, because a byte budget that only ever moves in reports is not
 
 **The kernel is the tight one, and the claim is scoped.** The design says "target under 8 KB
 server-side"; that number covers **the document request path** — lifecycle, envelope, routing,
-key derivation, wave dispatch, the stream. 8,110 B brotli against 8,192, so 82 bytes of
+key derivation, wave dispatch, the stream. 8,169 B brotli against 8,192, so 23 bytes of
 headroom. Every other capability gets its own entry and its own stated ceiling rather than a
 share of that one, which is what [`spec/kernel/budgets.md`](spec/kernel/budgets.md) is for.
 
@@ -374,8 +374,9 @@ safe here for one reason — render is provably read-only, so two fragments cann
 other's side effects because they cannot have any. The constraint that made the envelope
 design necessary is the constraint that makes concurrent evaluation possible.
 
-**A CPU budget is only enforceable where a render can be preempted.** So `preemptible` is
-declared on the executor, a breach on `inline` is still reported with a message saying it ran
+**A CPU budget is only enforceable where a render can be preempted.** So preemption is declared
+on the executor — three states, because `never`, `at-await` and `always` are three behaviours and
+a boolean could not tell them apart, a breach on `inline` is still reported with a message saying it ran
 to completion anyway, and declaring one there is a build warning naming the executors where
 the limit is real. `pool:` is now one of them: a real `worker_threads` pool that terminates a
 render mid-loop, which is the only thing that makes `.budget({ cpu })` a limit rather than a

@@ -92,7 +92,7 @@ test('an inline executor reports a budget breach even though it could not stop i
     },
   })
   assert.equal(outcome.failure?.code, 'E_CPU_BUDGET')
-  assert.match(outcome.failure?.message ?? '', /non-preemptible/)
+  assert.match(outcome.failure?.message ?? '', /cannot be interrupted, so it ran to completion anyway/)
   assert.equal(new TextDecoder().decode(outcome.bytes), 'done')
 })
 

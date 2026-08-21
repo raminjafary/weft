@@ -75,7 +75,7 @@ straight through it. Three consequences, all of them stated rather than papered 
 2. A breach on a non-preemptible executor is still **reported** — `E_CPU_BUDGET`, with a
    message saying it ran to completion anyway — because a budget's job is not only to contain
    damage, it is to tell you the damage happened.
-3. Declaring a CPU budget on an inline slot is `W_CPU_BUDGET_INLINE` at build time, naming
+3. Declaring a CPU budget outside a crash domain is `W_CPU_BUDGET_ADVISORY` at build time, naming
    the executors where the limit is real.
 
 Every degradation goes through `TelemetryPort` as `slot.degraded`. A slot silently dropping

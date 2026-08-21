@@ -1,5 +1,5 @@
 import { cacheClassOf, requiresTtl, type EffectSet, type WireForm } from '../../ir/src/index.ts'
-import { W_CPU_BUDGET_INLINE } from '../../kernel/src/executor.ts'
+import { W_CPU_BUDGET_ADVISORY } from '../../kernel/src/executor.ts'
 import { schedule, PlanGraphError, type DagNode } from '../../kernel/src/waves.ts'
 import type { Consistency } from '../../kernel/src/ports.ts'
 import { PlanError, type Plan, type SlotSpec } from './dsl.ts'
@@ -225,11 +225,30 @@ function checkExecutor(spec: SlotSpec, context: ValidateContext, errors: Issue[]
   })
 }
 
+/**
+ * Which executor targets are a separate crash domain, derived from the target rather than
+ * declared. `isolate`, `pool:`, `binding:` and `svc:` name one by definition; `inline`,
+ * `deferred` and anything else on the request thread do not.
+ */
+function isCrashDomain(target: string): boolean {
+  return target === 'isolate' || CRASH_DOMAIN_PREFIXES.some((p) => target.startsWith(p))
+}
+
+const CRASH_DOMAIN_PREFIXES = ['pool:', 'binding:', 'svc:']
+
+/**
+ * A cpu budget outside a crash domain is advisory, and this used to warn only when the target
+ * was the literal string `inline`. A slot on `deferred` — a macrotask on the request thread —
+ * got a budget, no warning, and a synchronous render that ran to completion anyway.
+ */
 function checkBudget(spec: SlotSpec, warnings: Issue[]): void {
   if (spec.budget?.cpuMs === undefined) return
-  if (spec.executor === 'inline') {
-    warnings.push({ code: 'W_CPU_BUDGET_INLINE', slot: spec.name, message: W_CPU_BUDGET_INLINE })
-  }
+  if (isCrashDomain(spec.executor)) return
+  warnings.push({
+    code: 'W_CPU_BUDGET_ADVISORY',
+    slot: spec.name,
+    message: `${W_CPU_BUDGET_ADVISORY} (this slot is on '${spec.executor}')`,
+  })
 }
 
 function checkCache(

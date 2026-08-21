@@ -3,6 +3,24 @@ import { test } from 'node:test'
 import { TEMPLATE_IR_VERSION } from '../../ir/src/index.ts'
 import { WARP_VERSION, frame, negotiate, residentFrame, str, type Frame } from '../../warp/src/index.ts'
 import { createHub, serverCapabilities, type ChannelSink } from '../src/channel.ts'
+import { baseKey, DEFAULT_REFRESH_TTL, recordBase, selectForm } from '../src/refresh.ts'
+import { assertValidTemplate, draftTemplate, seal, type Hole, type TemplateIR } from '../../ir/src/index.ts'
+
+function hole(index: number, binding: string, extra: Partial<Hole> = {}): Hole {
+  return { index, kind: 'text', escape: 'escape', binding, path: [index], ...extra }
+}
+
+async function priceList(): Promise<TemplateIR> {
+  return assertValidTemplate(
+    await seal(
+      draftTemplate({
+        id: 'fragment/prices',
+        segments: ['<ul><li>', '</li><li>', '</li></ul>'],
+        holes: [hole(0, 'first'), hole(1, 'second', { path: [1] })],
+      }),
+    ),
+  )
+}
 import { memoryStore } from '../../adapters/src/memory-store.ts'
 
 /**
@@ -87,4 +105,73 @@ test('closing a channel releases its stale holds, so an invalidation cannot addr
   hub.close('c1')
   assert.equal(hub.stale.connections, 0)
   assert.equal(hub.channels, 0)
+})
+
+test('base renders and memoized deltas expire, so a shared store does not grow forever', async () => {
+  // Both were written with no ttl. `memoryStore` is byte-bounded and evicts, so it looked
+  // harmless; a Redis or KV adapter would have accumulated every value set ever rendered.
+  const store = memoryStore()
+  const ir = await priceList()
+  const id = await recordBase(store, ir, { first: '1', second: '2' } as never)
+  const entry = await store.get(baseKey(ir.version, id))
+  assert.equal(entry?.meta.ttlMs, DEFAULT_REFRESH_TTL.baseMs)
+
+  // An expired base is not a correctness problem: it costs a form. The client names a base the
+  // server cannot recover and `selectForm` falls to html.
+  const short = await recordBase(store, ir, { first: '9', second: '2' } as never, { baseMs: 1 })
+  assert.equal((await store.get(baseKey(ir.version, short)))?.meta.ttlMs, 1)
+  assert.equal(
+    selectForm({
+      available: ir.forms,
+      accepted: ['html', 'delta'],
+      resident: true,
+      baseRecovered: false,
+    }).form,
+    'html',
+  )
+})
+
+test('a peer that stops reading is closed rather than buffered for', async () => {
+  // A channel is not a queue. Frames held for a peer that is not reading are memory the process
+  // cannot reclaim, and every one of them is stale by the time it would arrive.
+  const hub = createHub({ store: memoryStore(), source: () => null, maxSaturatedSends: 3 })
+  let closed: string | undefined
+  const stuck: ChannelSink = {
+    binding: 'stream',
+    open: true,
+    saturated: true,
+    send() {},
+    close(reason) {
+      closed = reason
+    },
+  }
+  const channel = hub.open(stuck, 'slow')
+  for (let i = 0; i < 3; i++) await channel.send([frame('STALE', { s: 'x' })])
+  assert.match(closed ?? '', /E_SLOW_CONSUMER/)
+  assert.equal(hub.channels, 0, 'and the channel is gone rather than accumulating frames')
+})
+
+test('a peer that keeps up is never closed for it', async () => {
+  const hub = createHub({ store: memoryStore(), source: () => null, maxSaturatedSends: 2 })
+  let saturated = false
+  let closed = false
+  const keepingUp: ChannelSink = {
+    binding: 'stream',
+    open: true,
+    get saturated() {
+      return saturated
+    },
+    send() {},
+    close() {
+      closed = true
+    },
+  }
+  const channel = hub.open(keepingUp, 'ok')
+  // One saturated send followed by a drain is a burst, not a slow consumer.
+  saturated = true
+  await channel.send([frame('STALE', { s: 'x' })])
+  saturated = false
+  for (let i = 0; i < 10; i++) await channel.send([frame('STALE', { s: 'x' })])
+  assert.equal(closed, false)
+  assert.equal(hub.channels, 1)
 })

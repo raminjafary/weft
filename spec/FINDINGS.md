@@ -308,6 +308,73 @@ design says the plan is data specifically so `SchedulerPort` can reorder slots a
 the pipe fastest-first, so freezing the waves at build time gives up a declared capability. It is
 the one candidate where bytes cost a design property, and it is not being given up by accident.
 
+## Four defects, found by looking rather than by a test failing
+
+None of these broke a test. Each one was a statement the code made that was not true.
+
+### `deferred` declared `kind: 'pool'`
+
+It is a fresh macrotask on the request thread. It said `kind: 'pool'` and `preemptible: true`, so
+a reader had two reasons to believe it enforced a CPU budget against a synchronous loop, which it
+cannot. It only became a lie when a **real** pool existed to be confused with.
+
+`preemptible` was a boolean and a boolean could not tell the truth here. There are three
+behaviours: `never` (same task, no yield), `at-await` (yields, so an abort lands at an await, but a
+synchronous render still finishes), `always` (a separate crash domain that can be stopped
+mid-instruction). The breach message now says which one happened, because a breach message that
+does not say whether the work was stopped reads like a limit was enforced.
+
+### A CPU budget on `deferred` warned about nothing
+
+`checkBudget` warned when `spec.executor === 'inline'` — the literal string. A slot on `deferred`
+got a budget, no warning, and a render that ran to completion anyway. The condition was never
+about the name: it is about whether the target is a separate crash domain, which is derivable
+from the target itself (`isolate`, `pool:`, `binding:`, `svc:`). `W_CPU_BUDGET_INLINE` is
+`W_CPU_BUDGET_ADVISORY` now, and it names the executor it fired for.
+
+**A check written against one example of a condition tests the example.**
+
+### Base renders and memoized deltas never expired
+
+Both were stored with no `ttlMs`, so on a shared store every distinct value set ever rendered
+accumulates forever. It looked harmless because `memoryStore` is byte-bounded and evicts — the
+only store there was.
+
+A TTL here is safe in a way a TTL on a cache entry is not: an expired base costs a **form**, never
+correctness. The client names a base the server cannot recover, `selectForm` falls to `html`, and
+the page is right. Fifteen minutes by default, and the only thing a shorter one costs is delta hit
+rate.
+
+### A channel buffered without limit for a peer that stopped reading
+
+`res.write()` returns false when the socket buffer is over its watermark. Every sink ignored it.
+A slow consumer therefore looked exactly like a fast one, until the process was holding frames it
+could not reclaim — every one of them stale by the time it would have arrived.
+
+Sinks report `saturated` now, and a channel that stays saturated for 32 consecutive sends is
+closed with `E_SLOW_CONSUMER`. **A channel is not a queue.** Closing is the honest answer and the
+client reconnects and says what it holds, which is the one thing this architecture is good at.
+
+## The line-count gate, re-derived a third time, with a commitment attached
+
+It fired on the backpressure fix. Investigating: **30% of what it was counting was
+documentation.** A detector meant to catch the kernel absorbing port-shaped work, firing because
+somebody explained the work.
+
+That is the third time this check has needed re-deriving and the third time it was measuring
+something other than what it claims to. First the wrong file set — every file in `src/`, which is
+the gross-versus-marginal mistake the byte budget had already fixed. Then, twice, the wrong lines.
+
+It counts code lines now, per entry, and the ceilings are re-derived on that basis. The honest
+position is that the byte budget is the gate and this is a weak heuristic that has cost more
+attention than it has earned; it survives only because a kernel that doubles in code with no byte
+change is still worth being told about. **If it needs a fourth re-derivation it should be deleted
+rather than fixed.** That is a commitment with a falsifiable consequence, which is the only kind
+worth writing down.
+
+The request path is 8,169 B against 8,192 after all four fixes — **23 bytes.** The next thing that
+wants to be in it has a very short argument to make.
+
 ## Measured at last: shared deltas against per-connection diffing
 
 Phase 6 exists to make one claim — that keeping render state on the client lets one delta

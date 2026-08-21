@@ -7,7 +7,7 @@ import { createKernel, type Ports } from '../../kernel/src/index.ts'
 import { compileFixture, LINES, SHELL } from '../../kernel/fixtures/cart-route.ts'
 import { cart, facts, KEYED_ID, LINES_ID, PRIVATE_ID, SHELL_ID } from '../fixtures/cart.ts'
 import { cartBindings, guards, productBindings, routes } from '../fixtures/bindings.ts'
-import { lowerPlan, plan, shell, slot } from '../src/index.ts'
+import { lowerPlan, plan, shell, slot, validatePlan } from '../src/index.ts'
 
 /**
  * A plan becoming a route, and a request finding it.
@@ -272,4 +272,42 @@ test('the same slot with an address lowers, and the route carries it to the exec
   const cartLines = route.slots.find((s) => s.name === 'cartLines')
   assert.deepEqual(cartLines?.address, { module: './lines.ts', export: 'render' })
   assert.equal(cartLines?.executor, 'pool:render')
+})
+
+/**
+ * A cpu budget outside a crash domain is advisory, and this used to warn only when the executor
+ * was the literal string `inline`. A slot on `deferred` — a macrotask on the request thread —
+ * got a budget, no warning, and a synchronous render that ran to completion anyway.
+ */
+test('a cpu budget warns on every executor that is not a crash domain, not only inline', async () => {
+  const slotFacts = await facts()
+  const advisory = ['inline', 'deferred', 'worker']
+  for (const executor of advisory) {
+    const built = plan('/cart', [
+      shell(SHELL_ID),
+      slot('cartLines').fragment(KEYED_ID).executor(executor).budget({ cpu: 50 }),
+      slot('recs').fragment(PRIVATE_ID).cache('private'),
+    ])
+    const { warnings } = validatePlan(built, { facts: slotFacts, executors: [executor] })
+    const found = warnings.find((w) => w.code === 'W_CPU_BUDGET_ADVISORY')
+    assert.ok(found, `${executor} should warn: it cannot stop a synchronous render`)
+    assert.match(found.message, new RegExp(`'${executor}'`))
+  }
+})
+
+test('a cpu budget on a real crash domain does not warn', async () => {
+  const slotFacts = await facts()
+  for (const executor of ['pool:render', 'isolate', 'binding:heavy', 'svc:renderer']) {
+    const built = plan('/cart', [
+      shell(SHELL_ID),
+      slot('cartLines').fragment(KEYED_ID).executor(executor).budget({ cpu: 50 }),
+      slot('recs').fragment(PRIVATE_ID).cache('private'),
+    ])
+    const { warnings } = validatePlan(built, { facts: slotFacts, executors: [executor] })
+    assert.equal(
+      warnings.some((w) => w.code === 'W_CPU_BUDGET_ADVISORY'),
+      false,
+      `${executor} is a separate crash domain, so the budget is a limit`,
+    )
+  }
 })

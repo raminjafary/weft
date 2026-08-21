@@ -34,6 +34,7 @@ import { acceptWebSocket, type WebSocketConnection } from './node-websocket.ts'
  */
 export function streamSink(res: ServerResponse): ChannelSink {
   let open = true
+  let saturated = false
   res.writeHead(200, {
     'content-type': 'application/warp',
     'cache-control': 'no-store',
@@ -45,16 +46,26 @@ export function streamSink(res: ServerResponse): ChannelSink {
   res.on('close', () => {
     open = false
   })
+  // `write` returning false means the socket buffer is above its watermark: the peer is not
+  // reading. Recording it is what lets the hub close a slow consumer instead of buffering for it.
+  res.on('drain', () => {
+    saturated = false
+  })
   return {
     binding: 'stream',
     get open() {
       return open && !res.writableEnded
     },
+    get saturated() {
+      return saturated
+    },
     send(frames) {
       if (!open) return
       // No preamble per frame: it went out with the headers, and this is one stream for the
       // channel's whole life.
-      for (const f of frames) res.write(encodeBinaryFrame(f))
+      for (const f of frames) {
+        if (!res.write(encodeBinaryFrame(f))) saturated = true
+      }
     },
     close() {
       if (!open) return
@@ -66,6 +77,7 @@ export function streamSink(res: ServerResponse): ChannelSink {
 
 export function sseSink(res: ServerResponse): ChannelSink {
   let open = true
+  let saturated = false
   res.writeHead(200, {
     'content-type': 'text/event-stream',
     'cache-control': 'no-store',
@@ -77,16 +89,24 @@ export function sseSink(res: ServerResponse): ChannelSink {
   res.on('close', () => {
     open = false
   })
+  res.on('drain', () => {
+    saturated = false
+  })
   return {
     binding: 'sse',
     get open() {
       return open && !res.writableEnded
     },
+    get saturated() {
+      return saturated
+    },
     send(frames) {
       if (!open) return
       // One frame per event. The text framing already guarantees no interior newline, which
       // is what makes an SSE `data:` line able to carry a frame at all.
-      for (const f of frames) res.write(`data: ${encodeTextFrame(f)}\n\n`)
+      for (const f of frames) {
+        if (!res.write(`data: ${encodeTextFrame(f)}\n\n`)) saturated = true
+      }
     },
     close() {
       if (!open) return
@@ -104,6 +124,9 @@ export function socketSink(connection: WebSocketConnection): ChannelSink {
     binding: 'socket',
     get open() {
       return connection.open
+    },
+    get saturated() {
+      return connection.saturated
     },
     send(frames) {
       if (!connection.open) return

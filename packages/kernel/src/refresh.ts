@@ -116,10 +116,39 @@ export function deltaKey(tpl: string, from: string, to: string): string {
   return `delta:${tpl}:${from}->${to}`
 }
 
-export async function recordBase(store: StorePort, ir: TemplateIR, values: Values): Promise<string> {
+/**
+ * How long a recovered base render and a memoized delta live.
+ *
+ * Both were written with no expiry, which for a shared store means every distinct value set ever
+ * rendered accumulates forever. It looked harmless because `memoryStore` is byte-bounded and
+ * evicts; a Redis or KV adapter would not.
+ *
+ * A TTL here is safe in a way a TTL on a cache entry is not: an expired base costs a **form**,
+ * never correctness. The client names a base the server can no longer recover, `selectForm`
+ * falls to `html`, and the page is right. So the ceiling can be short, and the only thing a
+ * short one costs is delta hit rate.
+ */
+export interface RefreshTtl {
+  /** Default fifteen minutes: long enough for an idle tab, short enough to bound the store. */
+  baseMs?: number
+  deltaMs?: number
+}
+
+export const DEFAULT_REFRESH_TTL: Required<RefreshTtl> = {
+  baseMs: 15 * 60_000,
+  deltaMs: 15 * 60_000,
+}
+
+export async function recordBase(
+  store: StorePort,
+  ir: TemplateIR,
+  values: Values,
+  ttl: RefreshTtl = {},
+): Promise<string> {
   const id = baseRenderId(ir, values)
   await store.set(baseKey(ir.version, id), utf8.encode(JSON.stringify(values)), {
     class: 'shared',
+    ttlMs: ttl.baseMs ?? DEFAULT_REFRESH_TTL.baseMs,
     tags: [`tpl:${ir.version}`],
   })
   return id
@@ -147,6 +176,8 @@ export interface SurgicalInput {
   prefer?: WireForm
   fallback?: WireForm
   rttMs?: number
+  /** How long a base render and a memoized delta live. Expiry costs a form, never correctness. */
+  ttl?: RefreshTtl
 }
 
 export interface SurgicalResult {
@@ -179,7 +210,7 @@ export async function surgicalRefresh(input: SurgicalInput): Promise<SurgicalRes
     ...(input.rttMs !== undefined ? { rttMs: input.rttMs } : {}),
   })
 
-  const nextBase = await recordBase(input.store, input.ir, input.next)
+  const nextBase = await recordBase(input.store, input.ir, input.next, input.ttl ?? {})
 
   if (choice.form !== 'delta' || !prev || !held) {
     return {
@@ -205,6 +236,7 @@ export async function surgicalRefresh(input: SurgicalInput): Promise<SurgicalRes
   const delta = deltaPayload(input.ir, held.base, prev, input.next, input.resolve)
   await input.store.set(key, utf8.encode(JSON.stringify(delta)), {
     class: 'shared',
+    ttlMs: input.ttl?.deltaMs ?? DEFAULT_REFRESH_TTL.deltaMs,
     tags: [`tpl:${input.ir.version}`],
   })
   return { choice, memoized: false, nextBase, delta, frame: deltaFrame(input.slot, delta, nextBase, choice) }
