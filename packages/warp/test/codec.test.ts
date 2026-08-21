@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   FRAMES,
+  RETIRED,
   createBinaryDecoder,
   createTextDecoder,
   decodeTextFrame,
@@ -130,4 +131,38 @@ test('the text decoder emits frames as lines complete', () => {
   const rest = decoder.push(bytes.subarray(10))
   assert.equal(rest.length, 2)
   assert.equal(rest[1]?.kind, 'NAV')
+})
+
+/**
+ * `every frame code declares its direction by range`, above, passed for the whole time `ACK`
+ * was declared at 0x06 in the up range and used for the result of an intent, which travels
+ * down. The gate was checking the table against itself: the code and the declared direction
+ * agreed, and neither of them agreed with what the frame was for.
+ *
+ * Nothing static could have caught it. What caught it was a real socket, where the decoder
+ * rejected the server's own answer as a wrong-direction frame. So what is added here is the
+ * one thing a table can still be checked for — that a code retired for meaning the wrong
+ * thing is never quietly reused for something else.
+ */
+test('no two frames share a code, and no retired code is reused', () => {
+  const byCode = new Map<number, string>()
+  for (const [kind, def] of Object.entries(FRAMES)) {
+    const existing = byCode.get(def.code)
+    assert.equal(existing, undefined, `0x${def.code.toString(16)}: ${kind} and ${existing}`)
+    byCode.set(def.code, kind)
+  }
+  for (const retired of RETIRED) {
+    assert.equal(
+      byCode.get(retired.code),
+      undefined,
+      `0x${retired.code.toString(16)} was ${retired.was} and is reused by ${byCode.get(retired.code)}. A reused code is the one version mistake a length prefix cannot protect a reader from`,
+    )
+  }
+})
+
+test('a decoder expecting one direction refuses the other by name', () => {
+  assert.throws(
+    () => drain(createBinaryDecoder({ expect: 'down' }), encodeStream([frame('REFRESH', { s: 'x' })]), 64),
+    /E_WRONG_DIRECTION/,
+  )
 })

@@ -11,7 +11,6 @@ export const FRAMES = {
   REFRESH: { code: 0x03, dir: 'up' },
   WARM: { code: 0x04, dir: 'up' },
   INTENT: { code: 0x05, dir: 'up' },
-  ACK: { code: 0x06, dir: 'up' },
   RESUME: { code: 0x07, dir: 'up' },
 
   WARP: { code: 0x10, dir: 'down' },
@@ -40,7 +39,28 @@ export const FRAMES = {
    */
   REDIRECT: { code: 0x20, dir: 'down' },
   COOKIE: { code: 0x21, dir: 'down' },
+
+  /**
+   * The result of an intent, and it travels *down*. It sat at 0x06 in the up range until the
+   * first real intent went over a socket, at which point the decoder rejected the server's own
+   * answer as a wrong-direction frame — the direction had been decided by where the name sat in
+   * the table, next to INTENT, rather than by which way the bytes go.
+   *
+   * The design pairs INTENT with ACK, so the name stays and the code moves. A client-to-server
+   * acknowledgement had no stated meaning and nothing had ever emitted 0x06, so no reader can
+   * be holding one. 0x06 is retired rather than reused: see `RETIRED`.
+   */
+  ACK: { code: 0x22, dir: 'down' },
 } as const satisfies Record<string, { code: number; dir: Direction }>
+
+/**
+ * Codes that meant something once and are not to be reused. A code reused for a second purpose
+ * is the one version mistake a length prefix cannot protect a reader from, because the frame
+ * parses and means something else.
+ */
+export const RETIRED: readonly { code: number; was: string; until: string }[] = [
+  { code: 0x06, was: 'ACK, in the up direction', until: 'warp 1.2.0' },
+]
 
 export type FrameKind = keyof typeof FRAMES
 

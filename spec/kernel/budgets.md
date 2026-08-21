@@ -11,12 +11,13 @@ the gate is the test that calls it. Rolldown, minified, brotli at quality 11 —
 
 ## The entries
 
-| Entry                | Covers                                                                            | Measured | Ceiling  | Where the ceiling comes from                                               |
-| -------------------- | --------------------------------------------------------------------------------- | -------- | -------- | -------------------------------------------------------------------------- |
-| `entry-request.ts`   | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream | 7,999 B  | 8,192 B  | The design's "target under 8 KB server-side"                               |
-| `entry-channel.ts`   | The above, plus surgical refresh, form selection, epochs, the stale registry      | 10,221 B | 12,288 B | No design figure. A watermark                                              |
-| `entry-transport.ts` | The above, plus a live channel: negotiation, held state, push invalidation        | 12,343 B | 13,312 B | No design figure. ~970 B of room, which is what intents have to fit inside |
-| `index.ts`           | Everything, including build-time validation and serialisation                     | 11,601 B | —        | Not a claim. Reported so the marginal split is checkable                   |
+| Entry                | Covers                                                                            | Measured | Ceiling  | Where the ceiling comes from                             |
+| -------------------- | --------------------------------------------------------------------------------- | -------- | -------- | -------------------------------------------------------- |
+| `entry-request.ts`   | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream | 8,040 B  | 8,192 B  | The design's "target under 8 KB server-side"             |
+| `entry-channel.ts`   | The above, plus surgical refresh, form selection, epochs, the stale registry      | 10,255 B | 12,288 B | No design figure. A watermark                            |
+| `entry-intent.ts`    | The request path, plus intent dispatch, capability checks, method-aware routing   | 9,147 B  | 10,240 B | No design figure. A watermark                            |
+| `entry-transport.ts` | The channel path, plus a live channel: negotiation, held state, push invalidation | 12,645 B | 13,312 B | No design figure. A watermark                            |
+| `index.ts`           | Everything, including build-time validation and serialisation                     | 11,601 B | —        | Not a claim. Reported so the marginal split is checkable |
 
 On the client, same rule:
 
@@ -24,8 +25,8 @@ On the client, same rule:
 | ------------------ | ---------------------------------------------------- | -------- | -------- |
 | `entry-content.ts` | Adopt and bind                                       | 2,082 B  | 5,120 B  |
 | `entry-app.ts`     | Plus deltas, epochs, residency                       | 2,982 B  | 12,288 B |
-| `entry-channel.ts` | Plus routing arriving frames into regions and epochs | 3,626 B  | 4,096 B  |
-| `index.ts`         | Everything                                           | 3,641 B  | 6,144 B  |
+| `entry-channel.ts` | Plus routing arriving frames into regions and epochs | 3,721 B  | 4,096 B  |
+| `index.ts`         | Everything                                           | 3,735 B  | 6,144 B  |
 
 **The 8 KB is the document request path, and it now includes the route matcher.** It did not
 at first: `createRouter` was never exported from the entry, so the figure described a kernel
@@ -40,6 +41,12 @@ what made this concrete: charged to `entry-channel.ts` it went 53 bytes over a c
 before it existed, and the fix is a third entry rather than a bigger second one. There is a
 real deployment behind the split — surgical refresh over plain request/response, with no
 long-lived connection, is how every phase 6 test worked before a channel existed.
+
+Intents were the first capability to arrive under this rule rather than into it, and it held.
+The request path grew 41 bytes, for the delegation that answers a non-GET with a 405 and an
+`Allow` header instead of routing it to a document — a kernel that serves a page in answer to a
+POST is a kernel where a write can look like it succeeded, so those 41 bytes are not optional.
+The other 9 KB is `entry-intent.ts`, and a read-only deployment never imports it.
 
 **Where there is no design figure, the ceiling is a watermark and says so.** Its only job is
 to make a regression visible. Two of them state how much room is left and what it is for,
@@ -78,16 +85,17 @@ kernel absorbing port-shaped work, not the budget.
 It moved once, from 2,500 to 2,900, when routing landed — and **that move should not have
 happened.** It was summing every file in `src/`, which is the same gross-versus-marginal
 mistake the byte budget had already made and already fixed. Measured against the request path
-it is meant to describe, routing never took it near 2,500: the request path is 2,285 lines.
+it is meant to describe, routing never took it near 2,500: the request path is 2,316 lines.
 
 So the ceiling is back at 2,500 and each entry has its own, by the same reachability walk the
 byte budget uses:
 
 | Entry                | Lines | Ceiling |
 | -------------------- | ----- | ------- |
-| `entry-request.ts`   | 2,285 | 2,500   |
-| `entry-channel.ts`   | 2,663 | 2,900   |
-| `entry-transport.ts` | 3,059 | 3,300   |
+| `entry-request.ts`   | 2,316 | 2,500   |
+| `entry-channel.ts`   | 2,694 | 2,900   |
+| `entry-intent.ts`    | 2,710 | 2,900   |
+| `entry-transport.ts` | 3,171 | 3,300   |
 
 A companion gate asserts every source file is reachable from some entry or named as off the
 request path, because a module that no ceiling applies to is a module that is invisible to

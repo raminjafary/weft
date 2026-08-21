@@ -73,6 +73,7 @@ test('the kernel only reaches sideways into the two versioned wire packages', ()
 const LINE_CEILINGS: Record<string, number> = {
   'entry-request.ts': 2500,
   'entry-channel.ts': 2900,
+  'entry-intent.ts': 2900,
   'entry-transport.ts': 3300,
 }
 

@@ -17,7 +17,7 @@ without a harness and a wire format cannot be versioned retroactively.
 | What                              | Where                                                                                         | Status                                                              |
 | --------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | Template IR, `weft.template-ir/2` | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir`                         | 2.4.0 — derived values, components, contagion                       |
-| Warp frames, `weft.warp/1`        | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                 | 1.1.0 — `REDIRECT` and `COOKIE` for a sealed response               |
+| Warp frames, `weft.warp/1`        | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                 | 1.2.0 — `ACK` moved to the down range, where its bytes actually go  |
 | Versioning contract               | [`spec/VERSIONING.md`](spec/VERSIONING.md)                                                    | Majors refuse, minors round-trip                                    |
 | What measurement changed          | [`spec/FINDINGS.md`](spec/FINDINGS.md)                                                        | Five reversed, two clarified, one gate that fired on its first run  |
 | Device and engine reality         | [`spec/baseline/devices.md`](spec/baseline/devices.md)                                        | Written before the numbers                                          |
@@ -210,13 +210,14 @@ minified, compressed the way it would ship:
 
 | Entry                                     | Raw    | gzip   | brotli     | Budget |
 | ----------------------------------------- | ------ | ------ | ---------- | ------ |
-| Client runtime, everything                | 10,377 | 4,003  | **3,641**  | 6,144  |
+| Client runtime, everything                | 10,655 | 4,100  | **3,735**  | 6,144  |
 | Content route — adopt and bind            | 6,120  | 2,282  | **2,082**  | 5,120  |
 | App route — adopt, bind, patch, epochs    | 8,494  | 3,258  | **2,982**  | 12,288 |
-| Channel route — plus routing frames       | 10,346 | 3,988  | **3,626**  | 4,096  |
-| Server kernel — the document request path | 23,880 | 8,989  | **7,999**  | 8,192  |
-| Server kernel — plus refresh and epochs   | 30,894 | 11,494 | **10,221** | 12,288 |
-| Server kernel — plus a live Warp channel  | 37,402 | 13,862 | **12,343** | 13,312 |
+| Channel route — plus routing frames       | 10,624 | 4,084  | **3,721**  | 4,096  |
+| Server kernel — the document request path | 23,880 | 9,034  | **8,040**  | 8,192  |
+| Server kernel — plus intent dispatch      | 27,969 | 10,283 | **9,147**  | 10,240 |
+| Server kernel — plus refresh and epochs   | 30,894 | 11,540 | **10,255** | 12,288 |
+| Server kernel — plus a live Warp channel  | 38,214 | 14,175 | **12,645** | 13,312 |
 
 Comfortably inside on the client, and a content route still drops by never importing the
 update path, which is the module-level version of paying only for what you use.
@@ -227,7 +228,7 @@ than smoothed over, because a byte budget that only ever moves in reports is not
 
 **The kernel is the tight one, and the claim is scoped.** The design says "target under 8 KB
 server-side"; that number covers **the document request path** — lifecycle, envelope, routing,
-key derivation, wave dispatch, the stream. 7,999 B brotli against 8,192, so 193 bytes of
+key derivation, wave dispatch, the stream. 8,040 B brotli against 8,192, so 152 bytes of
 headroom. Every other capability gets its own entry and its own stated ceiling rather than a
 share of that one, which is what [`spec/kernel/budgets.md`](spec/kernel/budgets.md) is for.
 

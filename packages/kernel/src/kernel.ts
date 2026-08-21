@@ -97,6 +97,14 @@ export interface KernelOptions {
   routes?: Router<RouteResolver>
   /** What an unmatched path returns. A 404 with no body by default. */
   notFound?(request: Request): Response | Promise<Response>
+  /**
+   * What answers a request that is not a GET or a HEAD. A document is a GET; a mutation is
+   * not, and dispatching one is a separate capability with its own entry and its own byte
+   * ceiling — see `entry-intent.ts`. Without one, a non-safe method is a 405 with an `Allow`
+   * header rather than being routed to a document, because serving a page in answer to a POST
+   * is how a write ends up looking like it succeeded.
+   */
+  intents?(request: Request): Response | Promise<Response>
 }
 
 export interface KernelTrace {
@@ -304,6 +312,12 @@ export function createKernel(options: KernelOptions): Kernel {
     handle,
 
     async serve(request) {
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        if (!options.intents) {
+          return new Response(null, { status: 405, headers: { allow: 'GET, HEAD' } })
+        }
+        return options.intents(request)
+      }
       if (!options.routes) {
         throw new Error('E_NO_ROUTES: serve() needs a route table; pass `routes` to createKernel')
       }
