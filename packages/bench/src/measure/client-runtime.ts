@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { stripTypeScriptTypes } from 'node:module'
 import { fileURLToPath } from 'node:url'
-import { baseRenderId, deltaPayload, render, type TemplateIR, type Values } from '../../../ir/src/index.ts'
+import { baseRenderId, clientView, deltaPayload, render, type Values } from '../../../ir/src/index.ts'
 import { compileScenario, withRows } from '../compiled.ts'
 import type { Scenario } from '../workloads/index.ts'
 import { loadPlaywright, type EngineName } from './browser.ts'
@@ -23,11 +23,6 @@ export interface ClientRuntimeRun {
   timings: Record<string, number[]>
 }
 
-/** The client's view of a template: everything except the bytes it already holds. */
-function clientTemplate(ir: TemplateIR): Record<string, unknown> {
-  return { version: ir.version, holes: ir.holes, wiring: ir.wiring, derived: ir.derived }
-}
-
 async function serveModule(path: string): Promise<string> {
   const source = await readFile(path, 'utf8')
   return stripTypeScriptTypes(source, { mode: 'strip' })
@@ -43,13 +38,13 @@ async function page(scenario: Scenario): Promise<string> {
   const after: Values = withRows(compiled, scenario.transitionValues?.(values) ?? values, next)
 
   const config = {
-    template: clientTemplate(compiled.root),
+    template: clientView(compiled.root),
     // Every template but the root: a client holds the ones it is asked to project
     // through, whether that is a row or a component instance.
     resident: Object.fromEntries(
       Object.values(compiled.templates)
         .filter((t) => t.version !== compiled.root.version)
-        .map((t) => [t.version, clientTemplate(t)]),
+        .map((t) => [t.version, clientView(t)]),
     ),
     html: decoder.decode(render(compiled.root, before, compiled.resolve)),
     expected: decoder.decode(render(compiled.root, after, compiled.resolve)),

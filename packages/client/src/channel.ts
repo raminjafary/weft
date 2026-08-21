@@ -1,0 +1,194 @@
+import type { Adopted } from './adopt.ts'
+import { applyDelta, baseMatches, type DeltaPayload } from './delta.ts'
+import type { Epochs } from './epoch.ts'
+import type { ClientTemplate, Json } from './template.ts'
+
+/**
+ * The client half of the channel. A frame arrives, and it lands somewhere specific: a delta
+ * becomes one DOM write per changed value, a COMMIT flips a staged epoch, a STALE is handed
+ * to the application to decide about, and a TPL joins the resident set.
+ *
+ * The decision worth naming is that nothing here paints on arrival unless the frame says to.
+ * A frame carrying an epoch is staged and invisible; only COMMIT paints. That is what makes
+ * a background revalidation unable to disturb a half-typed form, and it is a property of
+ * where the frames are routed rather than of anything the application remembers to do.
+ *
+ * Deliberately not a transport. This takes decoded frames and returns what it did with them,
+ * so the same code path is exercised by a socket, by an SSE stream, and by a test — and the
+ * ~700 bytes of socket plumbing is not paid for by a page that only reads.
+ */
+export type FrameKindText = string
+
+export interface ChannelFrame {
+  kind: FrameKindText
+  header: Record<string, string | number | boolean>
+  body?: Uint8Array
+}
+
+export interface Region {
+  slot: string
+  adopted: Adopted
+  /** The base render this region is currently showing. A delta whose base disagrees is refused. */
+  base: string
+}
+
+export interface ChannelClientOptions {
+  epochs: Epochs
+  /** Regions this client is holding, by slot name. */
+  regions(): Region[]
+  /** A template arrived. Returning is enough; persistence is the resident store's job. */
+  onTemplate?(template: ClientTemplate): void | Promise<void>
+  /** A region the server says is stale. The client decides: now, on focus, or never. */
+  onStale?(slot: string, reason: string): void
+  /** Markup for a slot the server could not send a delta for. */
+  onHtml?(slot: string, html: string, base: string): void
+  onError?(code: string, detail: string): void
+  onRedirect?(to: string, replace: boolean): void
+  onCookie?(name: string, value: string): void
+  /** What the client tells the server it holds. Rebuilt on demand, never cached stale. */
+  onCommit?(epoch: string, slots: string[]): void
+}
+
+export interface Applied {
+  /** DOM writes actually performed. A staged frame performs none, which is the point. */
+  writes: number
+  staged: string[]
+  committed: string[]
+  stale: string[]
+  templates: string[]
+  refused: { slot: string; reason: string }[]
+  errors: { code: string; detail: string }[]
+}
+
+const decoder = new TextDecoder()
+
+function text(frame: ChannelFrame, key: string): string | undefined {
+  const value = frame.header[key]
+  return value === undefined ? undefined : String(value)
+}
+
+export function createChannelClient(options: ChannelClientOptions): {
+  apply(frames: readonly ChannelFrame[]): Promise<Applied>
+  /** The HELD header the server needs: what this client is showing, per slot. */
+  held(): Record<string, string>
+} {
+  const byName = (): Map<string, Region> => new Map(options.regions().map((r) => [r.slot, r]))
+
+  return {
+    held() {
+      const out: Record<string, string> = {}
+      for (const region of options.regions()) {
+        out[region.slot] = `${region.adopted.template.version}-${region.base}`
+      }
+      return out
+    },
+
+    async apply(frames) {
+      const result: Applied = {
+        writes: 0,
+        staged: [],
+        committed: [],
+        stale: [],
+        templates: [],
+        refused: [],
+        errors: [],
+      }
+      const regions = byName()
+
+      for (const frame of frames) {
+        switch (frame.kind) {
+          case 'DELTA': {
+            const slot = text(frame, 's') ?? ''
+            const region = regions.get(slot)
+            if (!region) {
+              result.refused.push({ slot, reason: 'no such region on this client' })
+              break
+            }
+            const delta: DeltaPayload = {
+              tpl: text(frame, 'tpl') ?? region.adopted.template.version,
+              base: text(frame, 'base') ?? '',
+              changed: (frame.body ? JSON.parse(decoder.decode(frame.body)) : {}) as Record<string, Json>,
+            }
+            // A delta is a function of two specific states. Applied against a third it would
+            // write plausible values into the wrong render, so a base mismatch is refused
+            // rather than best-efforted.
+            if (!baseMatches(region.base, delta)) {
+              result.refused.push({ slot, reason: `holds ${region.base}, delta is from ${delta.base}` })
+              break
+            }
+            const epoch = text(frame, 'epoch')
+            const next = text(frame, 'next') ?? region.base
+            if (epoch) {
+              options.epochs.stage(epoch, { slot, adopted: region.adopted, delta })
+              result.staged.push(slot)
+              break
+            }
+            result.writes += applyDelta(region.adopted, delta)
+            region.base = next
+            break
+          }
+
+          case 'HTML': {
+            const slot = text(frame, 's') ?? ''
+            const base = text(frame, 'base') ?? ''
+            options.onHtml?.(slot, frame.body ? decoder.decode(frame.body) : '', base)
+            const region = regions.get(slot)
+            if (region) region.base = base
+            break
+          }
+
+          case 'COMMIT': {
+            const epoch = text(frame, 'epoch') ?? ''
+            const transition = text(frame, 'transition') === 'view'
+            const committed = await options.epochs.commit(epoch, { transition })
+            result.writes += committed.writes
+            result.committed.push(epoch)
+            // The bases the staged deltas moved to are only true once they are painted.
+            for (const slot of committed.slots) {
+              const region = regions.get(slot)
+              const next = frames.find((f) => f.kind === 'DELTA' && text(f, 's') === slot)
+              if (region && next) region.base = text(next, 'next') ?? region.base
+            }
+            options.onCommit?.(epoch, committed.slots)
+            break
+          }
+
+          case 'STALE': {
+            const slot = text(frame, 's') ?? ''
+            result.stale.push(slot)
+            options.onStale?.(slot, text(frame, 'reason') ?? 'stale')
+            break
+          }
+
+          case 'TPL': {
+            if (!frame.body) break
+            const template = JSON.parse(decoder.decode(frame.body)) as ClientTemplate
+            result.templates.push(template.version)
+            await options.onTemplate?.(template)
+            break
+          }
+
+          case 'REDIRECT':
+            options.onRedirect?.(text(frame, 'to') ?? '/', text(frame, 'replace') === 'true')
+            break
+
+          case 'COOKIE':
+            options.onCookie?.(text(frame, 'name') ?? '', text(frame, 'value') ?? '')
+            break
+
+          case 'ERROR':
+            result.errors.push({
+              code: text(frame, 'code') ?? 'E_UNKNOWN',
+              detail: text(frame, 'detail') ?? '',
+            })
+            options.onError?.(text(frame, 'code') ?? 'E_UNKNOWN', text(frame, 'detail') ?? '')
+            break
+
+          default:
+            break
+        }
+      }
+      return result
+    },
+  }
+}

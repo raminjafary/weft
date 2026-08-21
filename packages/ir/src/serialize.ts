@@ -1,4 +1,5 @@
-import type { Json, TemplateIR } from './template-ir.ts'
+import type { DerivedDecl } from './derived.ts'
+import type { Hole, Json, TemplateIR, WiringEntry } from './template-ir.ts'
 import { TEMPLATE_IR_SPEC, TEMPLATE_IR_VERSION, accepts, migrate } from './version.ts'
 import { validateTemplate } from './validate.ts'
 
@@ -134,4 +135,25 @@ export function stringify(ir: TemplateIR, forward?: Record<string, Json>): strin
 
 export function parse(text: string): ParseResult {
   return fromJSON(JSON.parse(text))
+}
+
+/**
+ * What a TPL frame carries: addressing and wiring, and deliberately not the segments or the
+ * effect set. The segments are markup the client already holds in its DOM, and the effects
+ * are a server concern — a client that received them would be paying bytes for a read set
+ * it cannot act on.
+ *
+ * This is the shape three places had each written for themselves. One of them is now the
+ * definition, because a projection copied three times is a projection that will disagree
+ * with itself the first time a hole grows a field.
+ */
+export interface ClientView {
+  version: string
+  holes: Hole[]
+  wiring: WiringEntry[]
+  derived: DerivedDecl[]
+}
+
+export function clientView(ir: TemplateIR): ClientView {
+  return { version: ir.version, holes: ir.holes, wiring: ir.wiring, derived: ir.derived }
 }
