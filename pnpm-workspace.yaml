@@ -1,6 +1,7 @@
 packages:
   - 'packages/*'
   - 'benchmarks/*'
+  - 'demo'
 
 # Nothing younger than a day is installed. A compromised or broken publish then has a
 # window in which to be found before it reaches this repository. Mirrors renovate.json,

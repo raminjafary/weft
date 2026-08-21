@@ -34,6 +34,8 @@ export async function serveRoute(route: Route, options: ServeOptions, path = '/'
       order: options.order,
       ...(options.prelude ? { prelude: options.prelude } : {}),
       ...(options.postlude ? { postlude: options.postlude } : {}),
+      // The filler is the default now, because a fill that references an undefined function is
+      // not a degradation. Left here only to show that it can be replaced.
       ...(options.order === 'out-of-order' ? { filler: fillerBytes() } : {}),
     })
     Readable.fromWeb(stream as never).pipe(res)

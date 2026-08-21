@@ -1,0 +1,10 @@
+{
+  "name": "@weft/demo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Every capability this framework has, running, with a control that lets you feel the mechanism",
+  "scripts": {
+    "start": "node src/cli.ts"
+  }
+}

@@ -35,7 +35,46 @@ The nine phases are from [the architecture proposal](docs/weft-and-warp.html).
 
 ## Near term — closing the seams that were opened
 
-### 1. Instant navigation, and what is already prepared for it
+### 1. A CLI somebody outside this repository could use
+
+Nothing in this file, until now, described a tool for a person using the framework rather than
+building it. Every CLI that exists is a repo-development tool: `packages/compiler/src/cli.ts`
+compiles fixtures, `packages/bench/src/cli.ts` runs the harness, `demo/src/cli.ts` starts the
+demo. `weft why` is the one exception and it is an introspection command, not a way in.
+
+**What a user would have to hand-write today.** A plan, a bindings object, `createKernel` with a
+ports record, a router, a Node adapter mount, and module serving. `demo/src/server.ts` is roughly
+two hundred lines of exactly that wiring and it is the only worked example in the repository. That
+is not a missing convenience; it is the difference between a framework and a set of packages.
+
+**What it has to be.** The shape is not novel and there is no reason to invent one — Nuxt, Remix
+and SvelteKit have all converged on the same answer, and a user arriving here should not have to
+learn a third vocabulary for it:
+
+- `npm create weft` — a scaffold with a folder convention that means something, not an empty
+  directory with a config file in it.
+- A **folder convention** that the plan layer reads. Routes from the file tree, fragments beside
+  them, intents in a directory the manifest is generated from. Today a plan is hand-written and
+  the roadmap already calls generated plans phase 8 — a convention is what generates them from.
+- `weft dev` — a watch mode that recompiles a fragment and reloads. The demo has `--watch` on the
+  Node process, which restarts the whole server, which is not the same thing.
+- `weft build` — the artifacts a deployment needs: sealed templates, the plan, the intent
+  manifest, the chunk set, and the byte report the budgets are measured from.
+- `weft start` — serve the build.
+- `weft.config.ts` — ports, adapters, executors, cache tiers, byte ceilings. The one file where a
+  deployment states what it binds, which is what `KernelOptions` is today with no front door.
+
+**Why it is first.** Everything below it is a capability. This is the thing that decides whether
+any of them can be used by somebody who did not write them, and its absence is currently hidden by
+the fact that the only application in the repository is the demo, whose author knows where the
+internals are.
+
+**What it depends on.** Two of the pieces a scaffold would have to hide are already named as
+missing: generated plans and an intent manifest are phase 8, and there is no second-runtime adapter
+yet, so `weft build`'s deployment target is not settled either. A scaffold written before those
+would be a scaffold that generates the wiring it exists to hide.
+
+### 2. Instant navigation, and what is already prepared for it
 
 The hard primitive exists and is tested. The thing that would compose it into "navigate and
 it is already there" does not.
@@ -82,29 +121,33 @@ semantics exist; what is missing is a route-scoped staging model and something t
 route's slot set before arrival. So: real, and blocked on phase 7's discovery rather than on
 the transport.
 
-### 2. L0: fragments that read nothing
+### 3. L0: fragments that read nothing
 
 A fragment classified `static` could be resolved at build time and served by a CDN with the
 kernel never invoked — the fastest tier by a wide margin, and free. Today it renders and caches
 like anything else, which means the cheapest thing in the design is not implemented.
 
-### 3. Generated plans, and plans from a convention
+### 4. Generated plans, and plans from a convention
 
 `lowerPlan` takes a plan, some `SlotFacts` derived from compiler output, and a bindings object.
 The first is derived; the other two are written by hand. A file convention or a profile that
 emits both is phase 8, and it is what makes a plan diffable in review rather than authored.
 
-### 4. Slots inside components
+This is also the thing item 1 is blocked on. A scaffold whose generated project still contains a
+hand-written plan and a hand-written bindings object has not hidden anything — so the convention
+comes first and the CLI is the front door to it, not a template that writes the wiring out.
+
+### 5. Slots inside components
 
 `<Widget>content</Widget>` is `E_COMPONENT_CHILDREN_UNSUPPORTED`. A component takes props only.
 Children need a slot mechanism inside a nested template, which is a different problem from the
 streaming `slot` hole and should not reuse it by accident.
 
-### 5. Components inside list rows
+### 6. Components inside list rows
 
 `E_COMPONENT_IN_LIST`. A row is its own template and cannot carry an instance today.
 
-### 6. iOS WebKit on a real device
+### 7. iOS WebKit on a real device
 
 Playwright's WebKit is a desktop proxy and is labelled as one everywhere it appears. A
 WKWebView on a device has app-bound-domain rules, host-app request interception, and OS
