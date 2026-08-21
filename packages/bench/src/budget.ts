@@ -61,14 +61,14 @@ export const BUDGETS: ByteBudget[] = [
     label: 'Server kernel plus intent dispatch',
     entry: kernelSrc('entry-intent.ts'),
     limit: 10 * 1024,
-    limitNote: 'no design figure; its own entry because the request path has 193 B of headroom',
+    limitNote: 'no design figure; its own entry, because the request path has no room for a new capability',
   },
   {
     id: 'kernel-transport',
     label: 'Server kernel plus a live Warp channel',
     entry: kernelSrc('entry-transport.ts'),
     limit: 13 * 1024,
-    limitNote: 'no design figure; ~970 B of room, which is what intents have to fit inside',
+    limitNote: 'no design figure; a watermark, so the next addition argues with a number',
   },
   {
     id: 'channel-route',

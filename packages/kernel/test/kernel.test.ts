@@ -364,3 +364,34 @@ test('two concurrent requests for one cacheable slot render it once', async () =
   assert.equal(a, b, 'and both got the same bytes')
   assert.deepEqual(kernel.trace?.coalesced, ['lines'], 'the trace says a stampede was avoided')
 })
+
+test('an out-of-order response carries the fill mechanism it depends on', async () => {
+  // Found by opening the demo in a browser: `fillFor` emits `__w(...)`, `streamRoute` only sent
+  // the filler when a caller passed one, and `kernel.handle` did not. Every out-of-order response
+  // the kernel produced threw `__w is not defined` — and no test caught it, because every test
+  // read the body as bytes and never as a page.
+  const kernel = createKernel({ ports: ports() })
+  const body = await text(
+    await kernel.handle(
+      new Request('https://example.test/cart'),
+      await route([slot('lines', []), slot('greeting', [])], { order: 'out-of-order' }),
+    ),
+  )
+  const filler = body.indexOf('window.__w=')
+  const firstFill = body.indexOf('__w(')
+  assert.ok(filler >= 0, 'the filler script is in the response')
+  assert.ok(firstFill > filler, 'and it arrives before the first call to it')
+  assert.equal(body.includes('<!--w:lines-->'), true, 'each slot left an anchor for the fill to find')
+})
+
+test('an in-order response does not carry the filler, because it needs no fill mechanism', async () => {
+  const kernel = createKernel({ ports: ports() })
+  const body = await text(
+    await kernel.handle(
+      new Request('https://example.test/cart'),
+      await route([slot('lines', []), slot('greeting', [])], { order: 'in-order' }),
+    ),
+  )
+  assert.equal(body.includes('window.__w='), false, 'nothing to fill, so nothing is paid for')
+  assert.equal(body.includes('<!--w:'), false)
+})

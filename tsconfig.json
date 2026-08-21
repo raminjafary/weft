@@ -24,6 +24,9 @@
     "packages/*/test/**/*.ts",
     "packages/*/fixtures/**/*.ts",
     "packages/compiler/types/*.d.ts",
-    "packages/compiler/fixtures/**/*.tsx"
+    "packages/compiler/fixtures/**/*.tsx",
+    "demo/src/**/*.ts",
+    "demo/src/**/*.tsx",
+    "demo/test/**/*.ts"
   ]
 }

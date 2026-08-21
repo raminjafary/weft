@@ -70,7 +70,9 @@ export function streamSink(res: ServerResponse): ChannelSink {
     close() {
       if (!open) return
       open = false
-      res.end()
+      // A response the peer already abandoned is destroyed, and ending it again is what produces
+      // ERR_INCOMPLETE_CHUNKED_ENCODING in the console of the tab that navigated away.
+      if (!res.writableEnded && !res.destroyed) res.end()
     },
   }
 }
@@ -111,7 +113,7 @@ export function sseSink(res: ServerResponse): ChannelSink {
     close() {
       if (!open) return
       open = false
-      res.end()
+      if (!res.writableEnded && !res.destroyed) res.end()
     },
   }
 }
@@ -148,8 +150,41 @@ export interface ChannelRouteOptions {
 
 const CHANNEL_QUERY = 'c'
 
+function requestUrl(req: IncomingMessage): URL {
+  return new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`)
+}
+
 function channelId(url: URL): string | null {
   return url.searchParams.get(CHANNEL_QUERY)
+}
+
+/**
+ * The three bindings as a pair of handlers rather than a server, so an application can mount them
+ * beside its own routes on one port. `mountChannel` is this plus a `createServer` call — a
+ * deployment that already has a server should not have to run a second one to have a channel.
+ */
+export interface ChannelHandlers {
+  /** True when the request was a channel request and has been answered. */
+  http(req: IncomingMessage, res: ServerResponse): boolean
+  /** True when the upgrade was a channel upgrade and has been taken. */
+  upgrade(req: IncomingMessage, socket: Duplex, head: Buffer): boolean
+}
+
+export function channelHandlers(options: ChannelRouteOptions): ChannelHandlers {
+  const path = options.path ?? '/channel'
+  return {
+    http(req, res) {
+      const url = requestUrl(req)
+      if (url.pathname !== path && url.pathname !== `${path}/sse`) return false
+      void handle(req, res, path, options)
+      return true
+    },
+    upgrade(req, socket, head) {
+      if (requestUrl(req).pathname !== path) return false
+      void upgrade(req, socket, head, path, options)
+      return true
+    },
+  }
 }
 
 /**
@@ -163,11 +198,12 @@ export async function mountChannel(options: ChannelRouteOptions): Promise<{
   close(): Promise<void>
 }> {
   const path = options.path ?? '/channel'
+  const handlers = channelHandlers(options)
   const server: Server = createServer((req, res) => {
-    void handle(req, res, path, options)
+    if (!handlers.http(req, res)) res.writeHead(404).end()
   })
   server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
-    void upgrade(req, socket, head, path, options)
+    if (!handlers.upgrade(req, socket, head)) socket.end('HTTP/1.1 404 Not Found\r\n\r\n')
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()

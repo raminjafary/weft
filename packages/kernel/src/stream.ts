@@ -1,4 +1,5 @@
 import type { Resolver, TemplateIR, Values } from '../../ir/src/index.ts'
+import { fillerBytes } from './filler.ts'
 import { anchorFor, splitAtSlots } from './split.ts'
 
 const utf8 = new TextEncoder()
@@ -19,7 +20,16 @@ export interface StreamOptions {
   order: Order
   prelude?: SlotContent
   postlude?: SlotContent
-  /** Emitted once before the first fill, only when a fill mechanism is needed. */
+  /**
+   * Emitted once before the first fill. Defaults to the built-in filler, and that default is not
+   * a convenience: `fillFor` emits a call to `__w`, so an out-of-order stream without a fill
+   * mechanism produces markup that references a function nobody defined.
+   *
+   * It was optional, and `kernel.handle` did not pass it — so every out-of-order response the
+   * kernel produced threw `__w is not defined` in the browser, six times on a four-slot page.
+   * Nothing caught it because every test read the body as bytes. Supplying your own means
+   * supplying something that defines `__w`.
+   */
   filler?: SlotContent
 }
 
@@ -59,7 +69,7 @@ export function streamRoute(route: Route, options: StreamOptions): ReadableStrea
           const slot = slots[i]
           if (slot) send(anchorFor(slot))
         }
-        if (slots.length && options.filler) send(options.filler)
+        if (slots.length) send(options.filler ?? fillerBytes())
 
         // Fastest first: the pipe is filled with whatever is ready, not with whatever
         // comes next in the document.
