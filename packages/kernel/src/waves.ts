@@ -85,6 +85,14 @@ export interface CriticalPath {
   sequentialMs: number
 }
 
+/**
+ * Ties break on depth, so an unmeasured plan still names its longest chain rather than
+ * reporting no critical path at all. `weft why` has to be useful before anything is measured.
+ */
+function deeper(a: { ms: number; path: string[] }, b: { ms: number; path: string[] }): boolean {
+  return a.ms > b.ms || (a.ms === b.ms && a.path.length > b.path.length)
+}
+
 export function criticalPath(nodes: readonly DagNode[]): CriticalPath {
   const byName = new Map(nodes.map((n) => [n.name, n]))
   const best = new Map<string, { ms: number; path: string[] }>()
@@ -99,7 +107,7 @@ export function criticalPath(nodes: readonly DagNode[]): CriticalPath {
     let deepest: { ms: number; path: string[] } = { ms: 0, path: [] }
     for (const need of node.needs ?? []) {
       const upstream = cost(need)
-      if (upstream.ms > deepest.ms) deepest = upstream
+      if (deeper(upstream, deepest)) deepest = upstream
     }
     const result = { ms: deepest.ms + (node.ms ?? 0), path: [...deepest.path, name] }
     best.set(name, result)
@@ -110,7 +118,7 @@ export function criticalPath(nodes: readonly DagNode[]): CriticalPath {
   for (const node of nodes) {
     const result = cost(node.name)
     if (node.optional) continue
-    if (result.ms > winner.ms) winner = result
+    if (deeper(result, winner)) winner = result
   }
   const sequentialMs = nodes.reduce((sum, n) => sum + (n.ms ?? 0), 0)
   return { path: winner.path, ms: winner.ms, sequentialMs }
