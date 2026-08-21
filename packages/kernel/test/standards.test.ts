@@ -78,15 +78,20 @@ const LINE_CEILINGS: Record<string, number> = {
 }
 
 /**
- * The request path is what the 8 KB claim is measured against, so what may enter it is a
- * rule and not a preference. Two kinds of module are excluded by name: work that has no
- * request to do it for — a plugin ordering graph, resolved once at build — and checks the
- * design specifies as dev-time, which a production request should not pay for.
+ * The request path is what the 8 KB claim is measured against, so what may enter it is a rule
+ * and not a preference. Three kinds of module are excluded, each with its reason recorded next
+ * to it: work that has no request to do it for, checks the design specifies as dev-time, and
+ * policy the kernel deliberately does not have an opinion about.
  *
  * Reachability, not a grep. A module three imports deep is in the request path exactly as
  * much as one imported directly, and that is the mistake this catches.
  */
-const OFF_THE_REQUEST_PATH = ['plugin-graph.ts', 'plugin-guard.ts']
+const OFF_THE_REQUEST_PATH: Record<string, string> = {
+  'plugin-graph.ts': 'build-time: plugin ordering is inferred from static declarations',
+  'plugin-guard.ts': 'dev-time: the design specifies declared-read enforcement as a dev check',
+  'coalesce.ts':
+    'opt-in: the kernel names the stampede seam, and the good version of the policy is store-specific',
+}
 
 function localImports(text: string): string[] {
   const out: string[] = []
@@ -114,20 +119,20 @@ function reachableFrom(entry: string): Set<string> {
 
 test('the document request path reaches no build-time or dev-only module', () => {
   const reached = reachableFrom('entry-request.ts')
-  const offenders = OFF_THE_REQUEST_PATH.filter((file) => reached.has(file))
+  const offenders = Object.keys(OFF_THE_REQUEST_PATH).filter((file) => reached.has(file))
   assert.deepEqual(offenders, [], 'reachable from entry-request.ts, so a production request pays for it')
 })
 
 test('the excluded modules exist, so the gate above is checking something', () => {
   const names = new Set(sources().map(({ file }) => file))
-  for (const file of OFF_THE_REQUEST_PATH) {
+  for (const file of Object.keys(OFF_THE_REQUEST_PATH)) {
     assert.ok(names.has(file), `${file} is named as off the request path but does not exist`)
   }
 })
 
 test('the barrel does reach them, so the walk is finding real edges', () => {
   const reached = reachableFrom('index.ts')
-  for (const file of OFF_THE_REQUEST_PATH) {
+  for (const file of Object.keys(OFF_THE_REQUEST_PATH)) {
     assert.ok(reached.has(file), `the walk did not find ${file} from the barrel, which exports it`)
   }
 })
@@ -151,6 +156,6 @@ test('every source file is reachable from an entry or named as off the request p
   for (const entry of Object.keys(LINE_CEILINGS)) for (const file of reachableFrom(entry)) reached.add(file)
   const orphans = sources()
     .map(({ file }) => file)
-    .filter((file) => file !== 'index.ts' && !reached.has(file) && !OFF_THE_REQUEST_PATH.includes(file))
+    .filter((file) => file !== 'index.ts' && !reached.has(file) && !(file in OFF_THE_REQUEST_PATH))
   assert.deepEqual(orphans, [], 'reachable from no entry, so no ceiling applies to it')
 })

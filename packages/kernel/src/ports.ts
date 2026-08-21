@@ -162,10 +162,35 @@ export interface SetCookie {
 
 export type ExecutorKind = 'inline' | 'pool' | 'isolate' | 'binding' | 'svc' | 'client'
 
+/**
+ * Where a render lives, as an address rather than as a function.
+ *
+ * This exists because of a problem the executor interface had from the start and that only
+ * showed up when something tried to implement `pool`: `run` takes a closure, and **a closure
+ * cannot cross a crash domain**. A worker thread, a separate isolate, a service binding and
+ * another pod all need a name they can resolve on their own side. The four unimplemented
+ * executor kinds were not unimplemented because they are hard; they were unimplemented because
+ * the interface as written could only express same-thread execution.
+ *
+ * `props` is whatever the export needs, and it has to survive structured clone — which is a
+ * real constraint on what a poolable fragment may take, and is why this is opt-in per slot
+ * rather than the only way to describe a render.
+ */
+export interface JobAddress {
+  module: string
+  export: string
+  props?: unknown
+}
+
 export interface RenderJob {
   slot: string
   /** Milliseconds of CPU this slot is allowed before it is killed and degraded. */
   cpuBudgetMs?: number
+  /**
+   * Set when the slot can be named rather than only called. An executor that runs somewhere
+   * else requires it and refuses by name without it — `E_JOB_NOT_ADDRESSABLE`.
+   */
+  address?: JobAddress
   run(signal: AbortSignal): Promise<Uint8Array>
 }
 
@@ -242,6 +267,21 @@ export interface TransportPort {
    */
   earlyHints?(links: PreloadLink[]): Promise<boolean> | boolean
 }
+
+// ── coalescing ───────────────────────────────────────────────────────────────────────
+
+/**
+ * What runs a render that might be duplicated. The kernel supplies the key and the render and
+ * knows nothing else: whether to take a lease, how long to wait for the holder, and whether
+ * waiting means polling or a subscription are all properties of the store behind it.
+ *
+ * `waited` distinguishes "this render happened" from "somebody else's render was handed to me",
+ * which is the difference the trace and every dashboard actually care about.
+ */
+export type Coalescer = (
+  key: string,
+  render: () => Promise<Uint8Array>,
+) => Promise<{ bytes: Uint8Array; waited: boolean }>
 
 // ── registry ─────────────────────────────────────────────────────────────────────────
 

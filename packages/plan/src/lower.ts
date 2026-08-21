@@ -3,7 +3,7 @@ import type { EnvelopeContext, RenderContext } from '../../kernel/src/context.ts
 import type { CachePolicy } from '../../kernel/src/cache.ts'
 import type { KernelRoute, KernelSlot, RouteResolver } from '../../kernel/src/kernel.ts'
 import type { Order } from '../../kernel/src/stream.ts'
-import type { PreloadLink } from '../../kernel/src/ports.ts'
+import type { JobAddress, PreloadLink } from '../../kernel/src/ports.ts'
 import { PlanError, type CacheSpec, type Plan, type SlotSpec } from './dsl.ts'
 import { assertPlan, type ValidateContext } from './validate.ts'
 
@@ -35,6 +35,15 @@ export interface SlotBinding {
   values: SlotValues
   /** Rendered when the slot degrades. Without one a degraded slot is empty, which is honest. */
   placeholder?: Uint8Array
+  /**
+   * Where this slot's render can be reached by name, for an executor that runs it somewhere a
+   * closure cannot go — a worker thread, an isolate, a service binding, another pod.
+   *
+   * A slot that names such an executor and has no address is a build error rather than a
+   * request-time refusal, because the alternative is a CPU budget that looks enforced right up
+   * until the first slot that needed it.
+   */
+  address?: JobAddress
 }
 
 /**
@@ -97,19 +106,36 @@ function slotOf(spec: SlotSpec, binding: SlotBinding, params: Record<string, str
     ...(spec.budget?.onExceed ? { onExceed: spec.budget.onExceed } : {}),
     ...(policy ? { policy } : {}),
     ...(binding.placeholder ? { placeholder: binding.placeholder } : {}),
+    ...(binding.address ? { address: binding.address } : {}),
     render: async (ctx) =>
       renderTemplate(fragment.entry, await binding.values(ctx, params), fragment.resolve),
   }
+}
+
+/**
+ * Which executors need a name rather than a function. `inline` runs on the request thread and
+ * `client` does not run on the server at all; everything else is another crash domain, and a
+ * closure does not cross one.
+ */
+function needsAddress(executor: string): boolean {
+  return executor !== 'inline' && executor !== 'client'
 }
 
 export function lowerPlan(plan: Plan, context: ValidateContext, bindings: RouteBindings): RouteResolver {
   assertPlan(plan, context)
 
   for (const spec of plan.slots) {
-    if (!bindings.slots[spec.name]) {
+    const binding = bindings.slots[spec.name]
+    if (!binding) {
       throw new PlanError(
         'E_SLOT_UNBOUND',
         `${plan.route}: slot '${spec.name}' has no binding, so there is nothing to render it with`,
+      )
+    }
+    if (needsAddress(spec.executor) && !binding.address) {
+      throw new PlanError(
+        'E_SLOT_NOT_ADDRESSABLE',
+        `${plan.route}: slot '${spec.name}' runs on '${spec.executor}', which cannot receive a closure. Give its binding an address: { module, export }`,
       )
     }
   }

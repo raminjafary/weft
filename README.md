@@ -214,10 +214,10 @@ minified, compressed the way it would ship:
 | Content route — adopt and bind            | 6,120  | 2,282  | **2,082**  | 5,120  |
 | App route — adopt, bind, patch, epochs    | 8,494  | 3,258  | **2,982**  | 12,288 |
 | Channel route — plus routing frames       | 10,624 | 4,084  | **3,721**  | 4,096  |
-| Server kernel — the document request path | 23,880 | 9,034  | **8,040**  | 8,192  |
-| Server kernel — plus intent dispatch      | 27,969 | 10,283 | **9,147**  | 10,240 |
-| Server kernel — plus refresh and epochs   | 30,894 | 11,540 | **10,255** | 12,288 |
-| Server kernel — plus a live Warp channel  | 38,214 | 14,175 | **12,645** | 13,312 |
+| Server kernel — the document request path | 24,247 | 9,121  | **8,110**  | 8,192  |
+| Server kernel — plus intent dispatch      | 28,144 | 10,363 | **9,220**  | 10,240 |
+| Server kernel — plus refresh and epochs   | 31,146 | 11,622 | **10,335** | 12,288 |
+| Server kernel — plus a live Warp channel  | 38,461 | 14,252 | **12,727** | 13,312 |
 
 Comfortably inside on the client, and a content route still drops by never importing the
 update path, which is the module-level version of paying only for what you use.
@@ -228,7 +228,7 @@ than smoothed over, because a byte budget that only ever moves in reports is not
 
 **The kernel is the tight one, and the claim is scoped.** The design says "target under 8 KB
 server-side"; that number covers **the document request path** — lifecycle, envelope, routing,
-key derivation, wave dispatch, the stream. 8,040 B brotli against 8,192, so 152 bytes of
+key derivation, wave dispatch, the stream. 8,110 B brotli against 8,192, so 82 bytes of
 headroom. Every other capability gets its own entry and its own stated ceiling rather than a
 share of that one, which is what [`spec/kernel/budgets.md`](spec/kernel/budgets.md) is for.
 

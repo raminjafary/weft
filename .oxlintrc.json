@@ -26,6 +26,12 @@
       "rules": {
         "no-console": "off"
       }
+    },
+    {
+      "files": ["packages/adapters/src/worker-pool.ts", "packages/adapters/src/worker-entry.ts"],
+      "rules": {
+        "unicorn/require-post-message-target-origin": "off"
+      }
     }
   ]
 }

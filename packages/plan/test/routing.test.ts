@@ -5,7 +5,7 @@ import { cookieSession } from '../../adapters/src/session.ts'
 import { staticFlags } from '../../adapters/src/flags.ts'
 import { createKernel, type Ports } from '../../kernel/src/index.ts'
 import { compileFixture, LINES, SHELL } from '../../kernel/fixtures/cart-route.ts'
-import { cart, facts, LINES_ID, SHELL_ID } from '../fixtures/cart.ts'
+import { cart, facts, KEYED_ID, LINES_ID, PRIVATE_ID, SHELL_ID } from '../fixtures/cart.ts'
 import { cartBindings, guards, productBindings, routes } from '../fixtures/bindings.ts'
 import { lowerPlan, plan, shell, slot } from '../src/index.ts'
 
@@ -65,7 +65,23 @@ test('a budget and an executor cross the seam intact', async () => {
     slot('recs').fragment(LINES_ID).needs('cartLines').stream({ prio: 3 }),
   ])
   const bindings = await productBindings()
-  const route = await (await lowerPlan(p, { facts: await facts() }, bindings))({})
+  const cartLines = bindings.slots.cartLines
+  assert.ok(cartLines)
+  // `pool:heavy` is another thread, so the slot has to be reachable by name. This test used to
+  // pass without one, which meant it was asserting a route the pool would have refused.
+  const route = await (
+    await lowerPlan(
+      p,
+      { facts: await facts() },
+      {
+        ...bindings,
+        slots: {
+          ...bindings.slots,
+          cartLines: { ...cartLines, address: { module: './heavy.ts', export: 'render' } },
+        },
+      },
+    )
+  )({})
   const heavy = route.slots[0]
   assert.equal(heavy?.executor, 'pool:heavy')
   assert.equal(heavy?.cpuBudgetMs, 120)
@@ -216,4 +232,44 @@ test('a different param is a different key, so it renders again', async () => {
 test('the route table can be asked what it holds', async () => {
   const router = await routes()
   assert.deepEqual([...router.patterns].sort(), ['/cart', '/product/:sku', '/quiet'])
+})
+
+/**
+ * A closure cannot cross a crash domain, so a slot that names an executor living in one has to
+ * be reachable by name. Refusing at lowering time rather than at request time is the whole
+ * point: the alternative is a CPU budget that looks enforced right up until the first slot that
+ * needed it.
+ */
+const pooled = plan('/cart', [
+  shell(SHELL_ID),
+  slot('cartLines').fragment(KEYED_ID).executor('pool:render').budget({ cpu: 50 }),
+  slot('recs').fragment(PRIVATE_ID).cache('private'),
+])
+
+test('a slot on a pool executor with no address fails the build, not the request', async () => {
+  await assert.rejects(
+    async () => lowerPlan(pooled, { facts: await facts(), executors: ['pool:render'] }, await cartBindings()),
+    /E_SLOT_NOT_ADDRESSABLE.*cartLines.*module, export/s,
+  )
+})
+
+test('the same slot with an address lowers, and the route carries it to the executor', async () => {
+  const bindings = await cartBindings()
+  const lines = bindings.slots.cartLines
+  assert.ok(lines)
+  const resolve = lowerPlan(
+    pooled,
+    { facts: await facts(), executors: ['pool:render'] },
+    {
+      ...bindings,
+      slots: {
+        ...bindings.slots,
+        cartLines: { ...lines, address: { module: './lines.ts', export: 'render' } },
+      },
+    },
+  )
+  const route = await resolve({})
+  const cartLines = route.slots.find((s) => s.name === 'cartLines')
+  assert.deepEqual(cartLines?.address, { module: './lines.ts', export: 'render' })
+  assert.equal(cartLines?.executor, 'pool:render')
 })
