@@ -1,0 +1,464 @@
+/*
+ * The framework's stylesheet. An application that writes no CSS gets this, and it is meant to
+ * be enough: type, spacing, colour in both schemes, and the handful of components a
+ * server-rendered page actually needs.
+ *
+ * Two rules govern what is in here. Every class is prefixed `weft-` or is a bare element, so
+ * an application's own CSS cannot be ambushed by a name collision. And nothing here depends on
+ * JavaScript: a page whose script never loads looks exactly the same.
+ */
+
+:root {
+  --weft-bg: #fbfbfa;
+  --weft-surface: #ffffff;
+  --weft-surface-2: #f4f4f2;
+  --weft-line: #e3e2de;
+  --weft-line-strong: #cfcec8;
+  --weft-text: #1c1b19;
+  --weft-muted: #6b6a65;
+  --weft-accent: #8a4b2a;
+  --weft-accent-soft: #f4ece7;
+  --weft-good: #2f6b47;
+  --weft-warn: #8a6a1f;
+  --weft-bad: #8f2f2f;
+  --weft-radius: 10px;
+  --weft-gap: 1.25rem;
+  --weft-measure: 68ch;
+  --weft-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --weft-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --weft-bg: #16161a;
+    --weft-surface: #1d1d22;
+    --weft-surface-2: #24242b;
+    --weft-line: #2f2f37;
+    --weft-line-strong: #414150;
+    --weft-text: #ecebe6;
+    --weft-muted: #9d9c98;
+    --weft-accent: #d99a6c;
+    --weft-accent-soft: #2b2320;
+    --weft-good: #7fbf95;
+    --weft-warn: #d9bd72;
+    --weft-bad: #e08b8b;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--weft-bg);
+  color: var(--weft-text);
+  font-family: var(--weft-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── chrome ──────────────────────────────────────────────────────────────────────── */
+
+.weft-top {
+  display: flex;
+  align-items: baseline;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding: 1rem clamp(1rem, 4vw, 3rem);
+  border-bottom: 1px solid var(--weft-line);
+  background: color-mix(in srgb, var(--weft-surface) 70%, transparent);
+  position: sticky;
+  top: 0;
+  backdrop-filter: blur(8px);
+  z-index: 10;
+}
+
+.weft-brand {
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  font-size: 1.0625rem;
+  color: var(--weft-text);
+  text-decoration: none;
+}
+
+.weft-nav {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.9375rem;
+}
+
+.weft-nav a {
+  color: var(--weft-muted);
+  text-decoration: none;
+  padding-bottom: 2px;
+  border-bottom: 1.5px solid transparent;
+}
+
+.weft-nav a:hover {
+  color: var(--weft-text);
+}
+
+.weft-nav a[data-current='yes'] {
+  color: var(--weft-text);
+  border-bottom-color: var(--weft-accent);
+}
+
+.weft-main {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 4vw, 3rem) 5rem;
+}
+
+.weft-foot {
+  border-top: 1px solid var(--weft-line);
+  padding: 1.5rem clamp(1rem, 4vw, 3rem);
+  color: var(--weft-muted);
+  font-size: 0.875rem;
+}
+
+/* ── type ────────────────────────────────────────────────────────────────────────── */
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: 1.2;
+  letter-spacing: -0.018em;
+  margin: 0 0 0.5em;
+  font-weight: 640;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: clamp(1.75rem, 1.1rem + 2.4vw, 2.75rem);
+}
+
+h2 {
+  font-size: 1.5rem;
+  margin-top: 2rem;
+}
+
+h3 {
+  font-size: 1.125rem;
+}
+
+p,
+ul,
+ol,
+dl {
+  margin: 0 0 1rem;
+  max-width: var(--weft-measure);
+}
+
+a {
+  color: var(--weft-accent);
+  text-underline-offset: 2px;
+}
+
+small,
+.weft-hint {
+  color: var(--weft-muted);
+  font-size: 0.875rem;
+}
+
+.weft-lede {
+  font-size: 1.125rem;
+  color: var(--weft-muted);
+  max-width: var(--weft-measure);
+}
+
+code,
+kbd,
+pre,
+.weft-mono {
+  font-family: var(--weft-mono);
+  font-size: 0.875em;
+}
+
+code {
+  background: var(--weft-surface-2);
+  border: 1px solid var(--weft-line);
+  border-radius: 5px;
+  padding: 0.1em 0.35em;
+}
+
+pre {
+  background: var(--weft-surface-2);
+  border: 1px solid var(--weft-line);
+  border-radius: var(--weft-radius);
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 0 0 1rem;
+}
+
+pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+/* ── components ──────────────────────────────────────────────────────────────────── */
+
+.weft-card {
+  background: var(--weft-surface);
+  border: 1px solid var(--weft-line);
+  border-radius: var(--weft-radius);
+  padding: 1.25rem 1.375rem;
+  margin: 0 0 var(--weft-gap);
+}
+
+.weft-card > :last-child {
+  margin-bottom: 0;
+}
+
+.weft-grid {
+  display: grid;
+  gap: var(--weft-gap);
+  grid-template-columns: repeat(auto-fit, minmax(min(17rem, 100%), 1fr));
+  margin-bottom: var(--weft-gap);
+}
+
+.weft-grid .weft-card {
+  margin: 0;
+}
+
+.weft-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.weft-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--weft-line-strong);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.8125rem;
+  color: var(--weft-muted);
+  text-decoration: none;
+  background: var(--weft-surface);
+}
+
+.weft-pill[data-state='good'] {
+  color: var(--weft-good);
+  border-color: color-mix(in srgb, var(--weft-good) 45%, var(--weft-line));
+}
+
+.weft-pill[data-state='warn'] {
+  color: var(--weft-warn);
+  border-color: color-mix(in srgb, var(--weft-warn) 45%, var(--weft-line));
+}
+
+.weft-pill[data-state='bad'] {
+  color: var(--weft-bad);
+  border-color: color-mix(in srgb, var(--weft-bad) 45%, var(--weft-line));
+}
+
+button,
+.weft-button {
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 520;
+  color: var(--weft-text);
+  background: var(--weft-surface);
+  border: 1px solid var(--weft-line-strong);
+  border-radius: 8px;
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+button:hover,
+.weft-button:hover {
+  border-color: var(--weft-accent);
+  color: var(--weft-accent);
+}
+
+button[data-variant='primary'],
+.weft-button[data-variant='primary'] {
+  background: var(--weft-accent);
+  border-color: var(--weft-accent);
+  color: var(--weft-bg);
+}
+
+button[data-variant='primary']:hover,
+.weft-button[data-variant='primary']:hover {
+  color: var(--weft-bg);
+  filter: brightness(1.08);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+label {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.875rem;
+  color: var(--weft-muted);
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  font-size: 0.9375rem;
+  color: var(--weft-text);
+  background: var(--weft-surface);
+  border: 1px solid var(--weft-line-strong);
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+}
+
+input[type='range'] {
+  padding: 0;
+  accent-color: var(--weft-accent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--weft-accent);
+  outline-offset: 2px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  margin: 0 0 1rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--weft-line);
+  vertical-align: top;
+}
+
+th {
+  color: var(--weft-muted);
+  font-weight: 560;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* A readout: a label, a measured value, and what the value does not cover. */
+.weft-readout {
+  display: grid;
+  grid-template-columns: minmax(8rem, auto) auto 1fr;
+  gap: 0.4rem 1rem;
+  font-size: 0.9375rem;
+  max-width: none;
+}
+
+.weft-readout dt {
+  color: var(--weft-muted);
+}
+
+.weft-readout .weft-value {
+  font-family: var(--weft-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.weft-readout .weft-note {
+  color: var(--weft-muted);
+  font-size: 0.8125rem;
+}
+
+/* A slot that has not arrived. In-order streaming never shows one; out-of-order does. */
+.weft-skeleton {
+  display: block;
+  height: 1rem;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--weft-surface-2), var(--weft-line), var(--weft-surface-2));
+  background-size: 200% 100%;
+  animation: weft-shimmer 1.4s linear infinite;
+}
+
+@keyframes weft-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .weft-skeleton {
+    animation: none;
+  }
+}
+
+.weft-slot-markup > :last-child {
+  margin-bottom: 0;
+}
+
+/* ── the welcome page ────────────────────────────────────────────────────────────── */
+
+.weft-hero {
+  padding: clamp(2rem, 6vw, 5rem) 0 2.5rem;
+  border-bottom: 1px solid var(--weft-line);
+  margin-bottom: 2.5rem;
+}
+
+.weft-hero h1 {
+  margin-bottom: 0.75rem;
+}
+
+.weft-hero .weft-lede {
+  font-size: clamp(1.0625rem, 1rem + 0.4vw, 1.25rem);
+}
+
+.weft-eyebrow {
+  display: inline-block;
+  font-family: var(--weft-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--weft-accent);
+  background: var(--weft-accent-soft);
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  margin-bottom: 1rem;
+}
+
+.weft-next {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+  max-width: none;
+}
+
+.weft-next li {
+  display: grid;
+  grid-template-columns: 1.5rem 1fr;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.weft-next .weft-step {
+  font-family: var(--weft-mono);
+  font-size: 0.8125rem;
+  color: var(--weft-muted);
+  padding-top: 0.15rem;
+}

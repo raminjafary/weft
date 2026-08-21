@@ -1,0 +1,17 @@
+.card {
+  background: var(--weft-surface);
+  border: 1px solid var(--weft-line);
+  border-left: 3px solid var(--weft-accent);
+  border-radius: var(--weft-radius);
+  padding: 1rem 1.125rem;
+}
+
+.card h3 {
+  font-family: var(--weft-mono);
+  font-size: 0.9375rem;
+  margin-bottom: 0.35rem;
+}
+
+.card > :last-child {
+  margin-bottom: 0;
+}

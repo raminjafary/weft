@@ -1,0 +1,16 @@
+/*
+ * This page's own stylesheet, and the whole of the convention: a `.css` beside a `.tsx` is
+ * linked by the pages that render that fragment and by no others. Nothing configured it.
+ */
+.hero {
+  position: relative;
+}
+
+.hero-mark {
+  display: block;
+  margin-bottom: 1.25rem;
+}
+
+.hero .weft-row {
+  margin-top: 1.75rem;
+}
