@@ -1,0 +1,21 @@
+{
+  "name": "__NAME__",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "weft dev",
+    "build": "weft build",
+    "start": "weft start"
+  },
+  "dependencies": {
+    "weft": "__WEFT_VERSION__"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "typescript": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

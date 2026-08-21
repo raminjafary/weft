@@ -1,0 +1,4 @@
+/* The layout's own stylesheet. Linked on every page, because every page uses the layout. */
+.weft-top {
+  border-bottom-color: color-mix(in srgb, var(--weft-accent) 25%, var(--weft-line));
+}

@@ -1,0 +1,17 @@
+.counter {
+  display: grid;
+  gap: 1rem;
+  justify-items: start;
+}
+
+.counter-value {
+  font-family: var(--weft-mono);
+  font-size: clamp(3rem, 10vw, 6rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.counter-value[data-parity='odd'] {
+  color: var(--weft-accent);
+}

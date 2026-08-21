@@ -1,0 +1,13 @@
+/*
+ * Your application's stylesheet, linked on every page after the framework's own. Anything here
+ * overrides it, and the tokens it defines are yours to change:
+ *
+ *   --weft-accent, --weft-bg, --weft-surface, --weft-text, --weft-muted, --weft-line,
+ *   --weft-radius, --weft-sans, --weft-mono
+ *
+ * Per-page and per-component CSS goes in a `.css` beside the `.tsx`, and only the pages that
+ * render it will link it.
+ */
+:root {
+  --weft-accent: #8a4b2a;
+}

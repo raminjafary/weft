@@ -1,0 +1,55 @@
+{
+  "name": "weft",
+  "version": "0.1.0",
+  "description": "The framework. A folder is an application: routes from the file tree, a plan generated from it, and one command that serves it.",
+  "license": "MIT",
+  "author": "raminjafary",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raminjafary/weft.git",
+    "directory": "packages/weft"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    },
+    "./client": {
+      "types": "./dist/client/boot.d.ts",
+      "default": "./dist/client/boot.js"
+    },
+    "./styles.css": "./dist/assets/styles.css"
+  },
+  "bin": {
+    "weft": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "src",
+    "templates",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node ../../scripts/copy-assets.mjs"
+  },
+  "dependencies": {
+    "@weft/adapters": "workspace:*",
+    "@weft/client": "workspace:*",
+    "@weft/compiler": "workspace:*",
+    "@weft/ir": "workspace:*",
+    "@weft/kernel": "workspace:*",
+    "@weft/plan": "workspace:*",
+    "@weft/warp": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "name": "create-weft",
+  "version": "0.1.0",
+  "description": "npm create weft — a weft application, with a page you can open.",
+  "license": "MIT",
+  "author": "raminjafary",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raminjafary/weft.git",
+    "directory": "packages/create-weft"
+  },
+  "type": "module",
+  "bin": {
+    "create-weft": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/cli.d.ts",
+      "default": "./dist/cli.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "weft": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

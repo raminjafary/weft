@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="44" height="44" role="img" aria-label="weft">
+  <rect width="44" height="44" rx="10" fill="#8a4b2a" />
+  <g stroke="#fbfbfa" stroke-width="2.4" stroke-linecap="round">
+    <path d="M11 14h22M11 22h22M11 30h22" opacity=".55" />
+    <path d="M16 9v26M28 9v26" />
+  </g>
+</svg>
