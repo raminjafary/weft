@@ -13,6 +13,11 @@ each one states what it covers — see [`spec/kernel/budgets.md`](spec/kernel/bu
 capability on the server gets its own measured entry and its own stated ceiling; it does not
 draw on the document request path's headroom.
 
+A fourth applies to the applications in this repository. `demo/` may import `weft` and nothing
+else, and its `package.json` depends on `weft` alone so it cannot do otherwise by accident. When a
+page there needs something the front door does not offer, that is a gap in the front door — which
+is the only reason to keep a demo at all.
+
 ---
 
 ## Where the design's own build order stands
@@ -24,55 +29,48 @@ The nine phases are from [the architecture proposal](docs/weft-and-warp.html).
 | 1 · Prove the physics, version the IR | Done. RR7 gate measured, IR versioned from commit one, harness gates every claim                                                                                           |
 | 2 · Kernel and ports                  | Request state machine, two-phase envelope, 103 Early Hints, deferral, routing, intents, a stampede lease, thirteen ports declared and seven implemented                    |
 | 3 · Client runtime                    | Signals, wiring, adoption, deltas, residency, epochs, budget, a frame router, optimistic intents with rollback. Missing: navigation, which is blocked on phase 7 discovery |
-| 4 · The plan layer                    | Plan DSL, effect inference, runtime keys, plugin DAG, `weft why`, a plan that lowers to a served route, `.incremental()`. Missing: generated plans, which are phase 8      |
+| 4 · The plan layer                    | Done. Plan DSL, effect inference, runtime keys, plugin DAG, `weft why`, `.incremental()`, and plans generated from a folder convention rather than authored                |
 | 5 · Negotiation and locus             | Done. Resident digests, form selection, `STALE`, epochs with atomic commit, executors, per-slot budgets, all three transport bindings, a real worker pool                  |
 | 6 · Stateless surgical updates        | Done. `HELD` flow, base recovery, memoized deltas over a live channel, three levels of incremental recompute, and the shared-delta comparison measured                     |
 | 7 · Discovery and authority           | Intents dispatch and declare their writes; `CapabilityCheck` is the seam a capability model plugs into. Missing: lazy plan extension, an implemented model, signed intents |
-| 8 · Profile-guided planning           | Not started. No `weft profile`, generated plans, chunk packing, V8 compile hints                                                                                           |
+| 8 · Profile-guided planning           | Generated plans are done, from a convention rather than a profile. Missing: `weft profile`, chunk packing, V8 compile hints                                                |
 | 9 · Composition and topology          | Composition is in-process. `remote` is a declared wire form with no implementation                                                                                         |
 
 ---
 
 ## Near term — closing the seams that were opened
 
-### 1. A CLI somebody outside this repository could use
+### 1. Devtools: the inspector, pointed at your application
 
-Nothing in this file, until now, described a tool for a person using the framework rather than
-building it. Every CLI that exists is a repo-development tool: `packages/compiler/src/cli.ts`
-compiles fixtures, `packages/bench/src/cli.ts` runs the harness, `demo/src/cli.ts` starts the
-demo. `weft why` is the one exception and it is an introspection command, not a way in.
+`@weft/inspector` is thirty-four stations demonstrating what the framework does, and it does that
+with fixtures of its own — a fragment that reads nothing, one that reads the clock, one that reads
+identity. That is documentation which runs, and it is the right shape for it. It is not devtools.
 
-**What a user would have to hand-write today.** A plan, a bindings object, `createKernel` with a
-ports record, a router, a Node adapter mount, and module serving. `demo/src/server.ts` is roughly
-two hundred lines of exactly that wiring and it is the only worked example in the repository. That
-is not a missing convenience; it is the difference between a framework and a set of packages.
+Devtools is the other thing: show me _my_ routes, _my_ effect sets, why _my_ fragment resolved to
+`private`, _my_ byte report. Nothing about that needs a second application in the process, which is
+why mounting the inspector inside an app was the wrong way to get it — the payoff would have been a
+URL prefix on somebody else's fixtures, and the cost was namespaced fragment tables, prefixed
+patterns and two merged intent manifests.
 
-**What it has to be.** The shape is not novel and there is no reason to invent one — Nuxt, Remix
-and SvelteKit have all converged on the same answer, and a user arriving here should not have to
-learn a third vocabulary for it:
+**What it reads.** Everything, already in memory, by the time a request is served:
 
-- `npm create weft` — a scaffold with a folder convention that means something, not an empty
-  directory with a config file in it.
-- A **folder convention** that the plan layer reads. Routes from the file tree, fragments beside
-  them, intents in a directory the manifest is generated from. Today a plan is hand-written and
-  the roadmap already calls generated plans phase 8 — a convention is what generates them from.
-- `weft dev` — a watch mode that recompiles a fragment and reloads. The demo has `--watch` on the
-  Node process, which restarts the whole server, which is not the same thing.
-- `weft build` — the artifacts a deployment needs: sealed templates, the plan, the intent
-  manifest, the chunk set, and the byte report the budgets are measured from.
-- `weft start` — serve the build.
-- `weft.config.ts` — ports, adapters, executors, cache tiers, byte ceilings. The one file where a
-  deployment states what it binds, which is what `KernelOptions` is today with no front door.
+| What it shows                                               | Where it already is                           |
+| ----------------------------------------------------------- | --------------------------------------------- |
+| Every route, its slots, delivery, cache class, live regions | `app.routes[].plan`                           |
+| Every fragment's reads, holes, wire forms, sealed version   | `app.compiled.fragments`                      |
+| Why this key — which read put `identity` in it              | `resolveKey().reason`, written for `weft why` |
+| The intent manifest, id to module and export                | `app.intents.entries`                         |
+| Every revved asset and its bytes                            | `app.assets.manifest`                         |
+| Which stylesheet each page links                            | `app.routes[].css`                            |
 
-**Why it is first.** Everything below it is a capability. This is the thing that decides whether
-any of them can be used by somebody who did not write them, and its absence is currently hidden by
-the fact that the only application in the repository is the demo, whose author knows where the
-internals are.
+**What it is.** `weft routes` and `weft why` as pages, plus the byte report, behind
+`defineConfig({ devtools: true })` and dev-only. One framework-owned route reading `App`. No
+second compile, no namespacing, no merged manifests.
 
-**What it depends on.** Two of the pieces a scaffold would have to hide are already named as
-missing: generated plans and an intent manifest are phase 8, and there is no second-runtime adapter
-yet, so `weft build`'s deployment target is not settled either. A scaffold written before those
-would be a scaffold that generates the wiring it exists to hide.
+**Why it is not the inspector.** A framework that bundled its own demo could not be byte-measured
+without it, and this repository has a budget gate that would then be measuring the wrong thing.
+The inspector stays a separate package you install and run; devtools ships with the framework
+because it is about the framework rather than about a demonstration of it.
 
 ### 2. Instant navigation, and what is already prepared for it
 
@@ -127,15 +125,17 @@ A fragment classified `static` could be resolved at build time and served by a C
 kernel never invoked — the fastest tier by a wide margin, and free. Today it renders and caches
 like anything else, which means the cheapest thing in the design is not implemented.
 
-### 4. Generated plans, and plans from a convention
+### 4. Plans from a profile
 
-`lowerPlan` takes a plan, some `SlotFacts` derived from compiler output, and a bindings object.
-The first is derived; the other two are written by hand. A file convention or a profile that
-emits both is phase 8, and it is what makes a plan diffable in review rather than authored.
+Plans are generated now — from a folder convention, which is what `weft build` writes to
+`routes.json` and what makes placement diffable in review rather than authored. What is still
+missing is the other half of phase 8: a plan generated from _measurement_. `weft profile` does
+not exist, so nothing observes which slots are worth speculating, which chunks belong together, or
+which templates deserve a V8 compile hint.
 
-This is also the thing item 1 is blocked on. A scaffold whose generated project still contains a
-hand-written plan and a hand-written bindings object has not hidden anything — so the convention
-comes first and the CLI is the front door to it, not a template that writes the wiring out.
+The convention was the harder half and it came first for the reason item 1 used to give: a
+scaffold whose generated project still contained a hand-written plan and a hand-written bindings
+object would have hidden nothing.
 
 ### 5. Slots inside components
 
@@ -212,6 +212,19 @@ An editor pane, and tabs over the result: **HTML**, **IR**, **wire bytes**, **ef
 feel the mechanism rather than read about it. Explicitly: **not a subset**. If a feature is
 in the specs, it has a station here.
 
+**Where it is.** Built, as `@weft/inspector` — thirty-four stations, each a route file under
+`app/routes/s/`, served by `pnpm inspect`. It is a weft application, which was the point: if the
+convention could not express the framework's own inspector, that would be worth knowing.
+
+It is a separate package from `demo/` because it is a separate thing. The demo is five shapes of
+page and depends on `weft` alone, so it cannot reach past the front door even by accident — which
+is what makes it useful, since a page there needing something means the front door is missing it.
+The inspector imports `@weft/kernel`, `@weft/plan`, `@weft/adapters` and `@weft/warp` directly,
+because taking those apart is its job.
+
+What remains is on the list above as item 1: the inspector demonstrates mechanisms with fixtures of
+its own, and it is not devtools pointed at your application.
+
 **Why it is separate from the docs site.** Documentation explains; a demo convinces. The
 demo is allowed to be dramatic — injected latency, artificial slowness, side-by-side races
 against a control — in ways a guide should not be.
@@ -265,10 +278,9 @@ cost.
 
 ### Sequencing
 
-Every station is a route, and routes now exist, so the demo is unblocked. Its caching and
-negotiation stations still want a Warp transport binding. The docs site and its playground depend
-on none of that and can start immediately — the compiler already has no Node dependency in its
-hot path, and only `compileFiles` needs a virtual file system.
+The stations are built and the showcases are built. The docs site and its playground depend on
+neither and can start now — the compiler already has no Node dependency in its hot path, and only
+`compileFiles` needs a virtual file system.
 
 ---
 
