@@ -376,7 +376,7 @@ holds, the server recovers it through `StorePort`, diffs, and memoizes under
 `delta:<tpl>:<from>-><to>`. The second client making that transition pays a store read; so
 does the ten-thousandth. LiveView would compute the diff ten thousand times.
 
-**The plan is checked against the compiler, never the reverse.** Ten build errors and five
+**The plan is checked against the compiler, never the reverse.** A refusal per rule and five
 warnings, each naming the read or the slot that caused it — including the one the design
 promises in its strongest terms: `.cache('public')` on a fragment that reads identity fails
 the build, naming `identity`.
