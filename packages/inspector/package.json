@@ -1,0 +1,28 @@
+{
+  "name": "@weft/inspector",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The framework inspecting itself: a station per mechanism, each one a page you can drive.",
+  "license": "MIT",
+  "author": "raminjafary",
+  "type": "module",
+  "scripts": {
+    "dev": "weft dev",
+    "build": "weft build",
+    "start": "weft start",
+    "routes": "weft routes"
+  },
+  "dependencies": {
+    "weft": "workspace:*",
+    "@weft/adapters": "workspace:*",
+    "@weft/bench": "workspace:*",
+    "@weft/compiler": "workspace:*",
+    "@weft/ir": "workspace:*",
+    "@weft/kernel": "workspace:*",
+    "@weft/plan": "workspace:*",
+    "@weft/warp": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

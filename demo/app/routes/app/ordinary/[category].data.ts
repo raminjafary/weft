@@ -1,6 +1,6 @@
 import { defineRoute } from 'weft'
-import { panel } from '../../../../src/pages.ts'
-import { CATEGORIES, type Item } from '../../../../src/catalogue.ts'
+import { panel } from '../../../lib/controls.ts'
+import { CATEGORIES, type Item } from '../../../lib/catalogue.ts'
 
 /**
  * Three instances, flattened into one value set.

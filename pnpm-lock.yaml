@@ -62,30 +62,6 @@ importers:
 
   demo:
     dependencies:
-      '@weft/adapters':
-        specifier: workspace:*
-        version: link:../packages/adapters
-      '@weft/bench':
-        specifier: workspace:*
-        version: link:../packages/bench
-      '@weft/client':
-        specifier: workspace:*
-        version: link:../packages/client
-      '@weft/compiler':
-        specifier: workspace:*
-        version: link:../packages/compiler
-      '@weft/ir':
-        specifier: workspace:*
-        version: link:../packages/ir
-      '@weft/kernel':
-        specifier: workspace:*
-        version: link:../packages/kernel
-      '@weft/plan':
-        specifier: workspace:*
-        version: link:../packages/plan
-      '@weft/warp':
-        specifier: workspace:*
-        version: link:../packages/warp
       weft:
         specifier: workspace:*
         version: link:../packages/weft
@@ -157,6 +133,33 @@ importers:
 
   packages/create-weft:
     dependencies:
+      weft:
+        specifier: workspace:*
+        version: link:../weft
+
+  packages/inspector:
+    dependencies:
+      '@weft/adapters':
+        specifier: workspace:*
+        version: link:../adapters
+      '@weft/bench':
+        specifier: workspace:*
+        version: link:../bench
+      '@weft/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@weft/ir':
+        specifier: workspace:*
+        version: link:../ir
+      '@weft/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@weft/plan':
+        specifier: workspace:*
+        version: link:../plan
+      '@weft/warp':
+        specifier: workspace:*
+        version: link:../warp
       weft:
         specifier: workspace:*
         version: link:../weft

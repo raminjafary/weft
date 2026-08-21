@@ -1,7 +1,7 @@
 import { defineRoute } from 'weft'
-import { cartValues } from '../../../src/data.ts'
-import { field, panel, pick } from '../../../src/pages.ts'
-import { LOG } from '../../../src/showcase.ts'
+import { cartValues } from '../../lib/data.ts'
+import { field, panel, pick } from '../../lib/controls.ts'
+import { LOG } from '../../lib/showcase.ts'
 
 /**
  * A cart, which is the hard case: one private fragment inside a shared document.
