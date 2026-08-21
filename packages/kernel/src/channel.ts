@@ -22,6 +22,8 @@ import {
   type ServerCapabilities,
 } from '../../warp/src/index.ts'
 import { createEpochs, type Epochs, type Transition } from './epoch.ts'
+import type { EnvelopeContext } from './context.ts'
+import type { IntentDispatch, IntentOutcome } from './intent.ts'
 import type { StorePort, TelemetryPort } from './ports.ts'
 import { createStaleRegistry, parseHeld, surgicalRefresh, type Held, type StaleRegistry } from './refresh.ts'
 
@@ -91,6 +93,13 @@ export interface Channel {
 export interface HubOptions {
   store: StorePort
   source: SlotSource
+  /**
+   * What answers an INTENT frame. Optional, and its absence is `E_NO_INTENTS` rather than a
+   * silent drop — an intent that vanishes looks to the client exactly like one that worked.
+   */
+  intents?: IntentDispatch
+  /** The envelope context an intent runs against. A channel has no request, so the caller supplies one. */
+  intentContext?(channel: Channel): EnvelopeContext | Promise<EnvelopeContext>
   /** Templates a WARM frame may ask for. Without one, WARM is refused by name. */
   templates?: (version: string) => TemplateIR | undefined
   server?: ServerCapabilities
@@ -114,6 +123,14 @@ export interface ChannelHub {
    * this push invalidation of server-rendered regions rather than a realtime application.
    */
   invalidate(tags: string[], reason?: string): Promise<{ keys: string[]; notified: number }>
+  /**
+   * Tell connections about keys something else already dropped. An intent invalidates through
+   * its own declared-write guard, so by the time the channel sees the outcome the store is
+   * already cold — and the connections holding those keys still have to be told. Without this
+   * an invalidation that came from a mutation would notify nobody, which is the same bug as not
+   * having push invalidation at all.
+   */
+  notify(keys: readonly string[], reason: string, options?: { except?: string }): Promise<number>
   close(id: string, reason?: string): void
   readonly channels: number
   readonly stale: StaleRegistry
@@ -229,15 +246,20 @@ export function createHub(options: HubOptions): ChannelHub {
 
     async invalidate(tags, reason = 'invalidated') {
       const keys = await options.store.invalidate(tags)
-      const byConnection = stale.staleFor(keys, reason)
+      const notified = await hub.notify(keys, reason)
+      options.telemetry?.measure('channel.stale', notified, { tags: tags.join(',') })
+      return { keys, notified }
+    },
+
+    async notify(keys, reason, opts = {}) {
       let notified = 0
-      for (const [connection, frames] of byConnection) {
+      for (const [connection, frames] of stale.staleFor([...keys], reason)) {
+        if (connection === opts.except) continue
         const record = live.get(connection)
         if (!record) continue
         notified += await record.channel.send(frames)
       }
-      options.telemetry?.measure('channel.stale', notified, { tags: tags.join(',') })
-      return { keys, notified }
+      return notified
     },
   }
 
@@ -281,14 +303,60 @@ export function createHub(options: HubOptions): ChannelHub {
         return refresh(record, f)
 
       case 'INTENT':
-      case 'ACK':
-        return [
-          errorFrame('E_NO_INTENTS', 'intents are declared as frames and not yet dispatched; see ROADMAP.md'),
-        ]
+        return intent(record, f)
 
       default:
         return [errorFrame('E_UNEXPECTED_FRAME', `${f.kind} is not something a channel acts on`)]
     }
+  }
+
+  /**
+   * One INTENT: dispatch it, tell the client what happened, and refresh what the mutation
+   * says it changed.
+   *
+   * The epoch is the whole reason this is worth doing over a channel rather than over a POST.
+   * A client that staged an optimistic update under `o-3` sends `epoch=o-3`; on success the
+   * refreshed slots are staged into that same epoch and one COMMIT replaces the optimistic
+   * values with the real ones in a single paint. On failure the ACK carries `ok=false` and the
+   * client discards the epoch — which is why rollback needs no frame of its own and no
+   * reconstruction of prior state.
+   */
+  async function intent(record: ChannelRecord, f: AnyFrame): Promise<Frame[]> {
+    const id = str(f, 'i')
+    if (!id) return [errorFrame('E_INTENT_UNNAMED', 'an INTENT frame must carry i=<id>')]
+    if (!options.intents || !options.intentContext) {
+      return [errorFrame('E_NO_INTENTS', 'this hub was given no intent dispatch')]
+    }
+    const epoch = str(f, 'epoch')
+    const raw = f.body ? (JSON.parse(new TextDecoder().decode(f.body)) as unknown) : {}
+    const ctx = await options.intentContext(record.channel)
+    const outcome = await options.intents.run(id, raw, ctx)
+    const out: Frame[] = [ackFrame(outcome, epoch)]
+
+    if (!outcome.ok) {
+      // Nothing is refreshed and nothing is committed. The client discards the epoch it staged.
+      return out
+    }
+    // The intent invalidated through its own declared-write guard, so the store is already
+    // cold. Everyone holding one of those keys is told; the connection that ran the intent is
+    // not, because it is about to be handed the new values instead of a note about old ones.
+    if (outcome.dropped.length) {
+      await hub.notify(outcome.dropped, `${outcome.name ?? outcome.id} invalidated it`, {
+        except: record.channel.id,
+      })
+    }
+    if (outcome.refresh.length) {
+      out.push(
+        ...(await refresh(
+          record,
+          frame('REFRESH', {
+            s: outcome.refresh.join(','),
+            ...(epoch ? { epoch, commit: 'true' } : {}),
+          }),
+        )),
+      )
+    }
+    return out
   }
 
   /**
@@ -372,4 +440,24 @@ const utf8 = new TextEncoder()
 
 export function errorFrame(code: string, detail: string): Frame {
   return frame('ERROR', { code, detail })
+}
+
+/**
+ * The ACK. Carries the outcome rather than only the fact of arrival, because a client that
+ * staged an optimistic epoch needs to know whether to commit it or throw it away — and
+ * "discard this epoch" is that answer, not a frame of its own.
+ *
+ * Here rather than beside the dispatcher, so a channel takes `IntentDispatch` as a type and
+ * never imports the intent module at runtime. An ACK is a frame; framing is this file's job.
+ */
+export function ackFrame(outcome: IntentOutcome, epoch?: string): Frame {
+  return frame('ACK', {
+    i: outcome.id,
+    ok: outcome.ok,
+    ...(epoch ? { epoch } : {}),
+    ...(outcome.code ? { code: outcome.code } : {}),
+    ...(outcome.detail ? { detail: outcome.detail } : {}),
+    ...(outcome.invalidated.length ? { tags: outcome.invalidated.join(',') } : {}),
+    ...(outcome.refresh.length ? { s: outcome.refresh.join(',') } : {}),
+  })
 }

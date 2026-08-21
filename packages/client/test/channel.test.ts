@@ -129,3 +129,26 @@ test('a TPL frame joins the resident set through the callback that owns persiste
   assert.deepEqual(applied.templates, [template.version])
   assert.deepEqual(seen, [template.version])
 })
+
+test('a failed intent discards the epoch its optimistic update was staged in', async () => {
+  const s = setup()
+  const staged = await s.client.apply([deltaFrame('prices', 'b1', { first: '9.99' }, { epoch: 'o-1' })])
+  assert.deepEqual(staged.staged, ['prices'])
+  assert.deepEqual(s.adopted.written, [], 'the guess painted nothing, which is what makes it undoable')
+
+  const acked = await s.client.apply([
+    { kind: 'ACK', header: { i: 'p1', ok: 'false', epoch: 'o-1', code: 'E_INTENT_FAILED' } },
+  ])
+  assert.deepEqual(acked.discarded, ['o-1'])
+  assert.deepEqual(s.epochs.open, [], 'nothing is left staged')
+  assert.deepEqual(s.adopted.written, [], 'and nothing had to be un-painted')
+  assert.equal(acked.acked[0]?.code, 'E_INTENT_FAILED')
+})
+
+test('a successful ACK leaves the epoch alone, because the COMMIT is what paints it', async () => {
+  const s = setup()
+  await s.client.apply([deltaFrame('prices', 'b1', { first: '9.99' }, { epoch: 'o-2' })])
+  const acked = await s.client.apply([{ kind: 'ACK', header: { i: 'p1', ok: 'true', epoch: 'o-2' } }])
+  assert.deepEqual(acked.discarded, [])
+  assert.deepEqual(s.epochs.open, ['o-2'])
+})

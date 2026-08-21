@@ -9,4 +9,4 @@
  * streamed response, an SSE stream or a socket.
  */
 export * from './entry-channel.ts'
-export { createHub, serverCapabilities, ChannelError, errorFrame } from './channel.ts'
+export { createHub, serverCapabilities, ackFrame, ChannelError, errorFrame } from './channel.ts'

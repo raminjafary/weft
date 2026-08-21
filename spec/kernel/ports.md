@@ -28,11 +28,12 @@ run.
 
 | Entry                                      | brotli   | Ceiling                                 |
 | ------------------------------------------ | -------- | --------------------------------------- |
-| `entry-request.ts` — document path         | 7,999 B  | 8,192 B, from the design's "under 8 KB" |
-| `entry-channel.ts` — plus refresh, epochs  | 10,221 B | 12,288 B, no design figure, a watermark |
-| `entry-transport.ts` — plus a live channel | 12,343 B | 13,312 B, no design figure, a watermark |
+| `entry-request.ts` — document path         | 8,040 B  | 8,192 B, from the design's "under 8 KB" |
+| `entry-channel.ts` — plus refresh, epochs  | 10,255 B | 12,288 B, no design figure, a watermark |
+| `entry-intent.ts` — plus intent dispatch   | 9,147 B  | 10,240 B, no design figure, a watermark |
+| `entry-transport.ts` — plus a live channel | 12,645 B | 13,312 B, no design figure, a watermark |
 
-193 bytes of headroom on the claim, now that the route matcher is in the figure. The whole
+152 bytes of headroom on the claim, now that the route matcher is in the figure. The whole
 barrel (`index.ts`, including build-time validation and serialisation) is 11,601 B and is
 deliberately **not** the entry the claim is measured against — a deployment serving documents does not import the channel path, and
 measuring gross rather than marginal is how byte budgets become meaningless and get switched
@@ -57,7 +58,7 @@ enforcement as a dev-time check.
 | `scheduler`  | Interface only      | The kernel uses `maxConcurrency`; ordering inside a wave is by priority |
 | `assets`     | Interface only      | `route.critical` is passed in directly today                            |
 | `render`     | Interface only      | Slots carry their own `render`                                          |
-| `registry`   | Declared only       | `unimplemented('registry')` → `E_PORT_UNIMPLEMENTED`                    |
+| `registry`   | Interface + 1 impl  | `manifestRegistry`; resolves an opaque intent id to its implementation  |
 | `config`     | Declared only       | as above                                                                |
 | `db`         | Declared only       | as above                                                                |
 | `deployment` | Declared only       | as above                                                                |

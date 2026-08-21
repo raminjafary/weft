@@ -1,4 +1,5 @@
 import type { CacheClass } from '../../ir/src/index.ts'
+import type { Intent } from './intent.ts'
 
 /**
  * The ports. One active implementation each, and the kernel knows nothing else about the
@@ -242,6 +243,21 @@ export interface TransportPort {
   earlyHints?(links: PreloadLink[]): Promise<boolean> | boolean
 }
 
+// ── registry ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * An opaque id to the thing it names. The client never carries the name of server code, so
+ * something has to hold the mapping — and it is a port rather than a module-level map because
+ * a build-time manifest, a live module graph and a remote service are all legitimate answers
+ * and they have different failure modes.
+ */
+export interface Registry {
+  readonly name: string
+  intent(id: string): Promise<Intent | undefined> | Intent | undefined
+  /** Every registered id. For `weft why`, and for refusing a build whose wiring names nothing. */
+  intents(): readonly string[]
+}
+
 // ── render ───────────────────────────────────────────────────────────────────────────
 
 export interface RenderPort {
@@ -269,6 +285,7 @@ export interface Ports {
   telemetry?: TelemetryPort
   transport?: TransportPort
   render?: RenderPort
+  registry?: Registry
 }
 
 export function requestFacts(request: Request, params: Record<string, string> = {}): RequestFacts {

@@ -308,6 +308,73 @@ design says the plan is data specifically so `SchedulerPort` can reorder slots a
 the pipe fastest-first, so freezing the waves at build time gives up a declared capability. It is
 the one candidate where bytes cost a design property, and it is not being given up by accident.
 
+## Found by the first intent over a socket: ACK was pointing the wrong way
+
+`ACK` was declared at `0x06`, in the up range, and used for the result of an intent — which
+travels from the server to the client. The decoder rejected the server's own answer as
+`E_WRONG_DIRECTION`. The direction had been decided by where the name sat in the table, next to
+`INTENT`, rather than by which way the bytes go.
+
+The part worth recording is that **there was already a gate for this and it passed.**
+`codec.test.ts` asserts that every frame's declared direction agrees with its code range, and
+`0x06` with `dir: 'up'` agreed perfectly. The gate was checking the table against itself. The
+code and the direction agreed with each other and neither of them agreed with what the frame
+was for, and no static check can close that gap — only using it can.
+
+So what was added is not a better version of the same gate. It is the one thing a table can
+still be checked for: `RETIRED` records `0x06`, and a test refuses to let any future frame take
+the code. A code reused for a second purpose is the version mistake a length prefix cannot
+protect a reader from, because the frame parses cleanly and means something else.
+
+Warp 1.2.0. `ACK` keeps its name — the design pairs it with `INTENT` — and moves to `0x22`.
+
+## Hidden for an afternoon by a test harness that swallowed the error
+
+The reason the wrong-direction frame took as long as it did to find: the test harness read the
+down stream in an async IIFE ending in `.catch(() => {})`. When the decoder threw on the second
+frame the reader died silently, and every assertion after that timed out waiting for frames.
+
+**A reader that died on frame two looks exactly like a server that never sent frame two.** The
+harness now keeps the failure and `settle()` reports it instead of timing out, so the next
+version of this reads `the reader died waiting for an ACK: E_WRONG_DIRECTION` rather than
+`timed out`.
+
+Two bugs in one afternoon were made harder to see by error handling that was too broad, in
+different files. Both were written to keep a shutdown path quiet.
+
+## Caught by a test asserting a second connection: an intent's invalidation reached nobody
+
+An intent invalidates through its own declared-write guard, which calls `StorePort.invalidate`
+directly. So by the time the channel saw the outcome the store was already cold — and the
+`StaleRegistry` had never been consulted, so no connection was told.
+
+Push invalidation worked, and it worked only for invalidations that came through
+`hub.invalidate`. Every invalidation that came from a _mutation_ — which is the only place
+invalidations actually come from — notified nobody. The hub has a `notify(keys, reason)` path
+now, and the connection that ran the intent is deliberately excluded: it is about to be handed
+the new values rather than a note about the old ones.
+
+Found by a test with two connections in it. A test with one connection would have passed
+forever, because the one connection got its delta.
+
+## Paid for, honestly: intents
+
+| Entry                 | Before  | After   | Ceiling  |
+| --------------------- | ------- | ------- | -------- |
+| Document request path | 7,999 B | 8,040 B | 8,192 B  |
+| Plus intent dispatch  | —       | 9,147 B | 10,240 B |
+
+41 bytes in the request path, for the delegation that answers a non-GET with a 405 and an
+`Allow` header rather than routing it to a document. Those are not optional: a kernel that
+serves a page in answer to a POST is a kernel where a write can look like it succeeded. The
+dispatch itself is 1.1 KB in an entry a read-only deployment never imports.
+
+`entry-transport.ts` briefly went over its ceiling because `channel.ts` imported `ackFrame` from
+the intent module and dragged the HTTP form path in behind it. `ackFrame` moved to `channel.ts`,
+where framing belongs, and the channel now takes `IntentDispatch` as a type it never imports at
+runtime. The byte gate found a layering mistake, which is the second time this session it has
+done that rather than merely reported a number.
+
 ## Caught by the first client that actually negotiated: the server advertised an IR it stopped emitting
 
 `SERVER_DEFAULTS.ir` in `@weft/warp` said `1.0.0`. The emitter has been on `2.4.0` since IR

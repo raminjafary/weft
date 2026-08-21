@@ -8,7 +8,7 @@ later means every client already in the field is unversioned.
 | ---------------- | -------------------- | ------- | ------------------------ |
 | Template IR      | `weft.template-ir/2` | 2.4.0   | `packages/ir`            |
 | Payloads (delta) | `weft.payload/2`     | 2.4.0   | `packages/ir`            |
-| Warp frames      | `weft.warp/1`        | 1.1.0   | `packages/warp`          |
+| Warp frames      | `weft.warp/1`        | 1.2.0   | `packages/warp`          |
 
 ## What each version component means
 
@@ -45,6 +45,26 @@ requires nothing resident on the client, which is why it is the fallback wheneve
 versions disagree: a version mismatch costs a form, never the page.
 
 ## Changelog
+
+### Warp 1.2.0 — ACK travels down
+
+`ACK` was declared at `0x06`, in the up range, and used for the result of an intent — which
+travels from the server to the client. The direction had been decided by where the name sat in
+the table, next to `INTENT`, rather than by which way the bytes go.
+
+Nothing static caught it. `codec.test.ts` had a gate asserting every frame's declared direction
+agrees with its code range, and that gate passed: the code and the direction agreed with each
+other, and neither agreed with what the frame was for. What caught it was the first intent over
+a real socket, where the decoder rejected the server's own answer as `E_WRONG_DIRECTION`.
+
+The design pairs `INTENT` with `ACK`, so the name stays and the code moves to `0x22`, down. A
+client-to-server acknowledgement had no stated meaning, and nothing had ever emitted `0x06`, so
+no reader can be holding one — which is what makes this a minor rather than a break.
+
+**`0x06` is retired, not freed.** `RETIRED` in `frames.ts` records it and a test refuses to let
+any future frame take the code. A code reused for a second purpose is the one version mistake a
+length prefix cannot protect a reader from, because the frame parses cleanly and means
+something else.
 
 ### Warp 1.1.0 — REDIRECT and COOKIE
 

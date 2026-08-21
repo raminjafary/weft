@@ -43,10 +43,20 @@ export interface ChannelClientOptions {
   /** Markup for a slot the server could not send a delta for. */
   onHtml?(slot: string, html: string, base: string): void
   onError?(code: string, detail: string): void
+  /** An intent came back. Called for both outcomes, because a failure is news too. */
+  onAck?(ack: Acked): void
   onRedirect?(to: string, replace: boolean): void
   onCookie?(name: string, value: string): void
   /** What the client tells the server it holds. Rebuilt on demand, never cached stale. */
   onCommit?(epoch: string, slots: string[]): void
+}
+
+export interface Acked {
+  intent: string
+  ok: boolean
+  epoch?: string
+  code?: string
+  detail?: string
 }
 
 export interface Applied {
@@ -58,6 +68,9 @@ export interface Applied {
   templates: string[]
   refused: { slot: string; reason: string }[]
   errors: { code: string; detail: string }[]
+  /** Intent outcomes. A failed one names the epoch that was discarded because of it. */
+  acked: Acked[]
+  discarded: string[]
 }
 
 const decoder = new TextDecoder()
@@ -92,6 +105,8 @@ export function createChannelClient(options: ChannelClientOptions): {
         templates: [],
         refused: [],
         errors: [],
+        acked: [],
+        discarded: [],
       }
       const regions = byName()
 
@@ -150,6 +165,26 @@ export function createChannelClient(options: ChannelClientOptions): {
               if (region && next) region.base = text(next, 'next') ?? region.base
             }
             options.onCommit?.(epoch, committed.slots)
+            break
+          }
+
+          case 'ACK': {
+            const ack: Acked = {
+              intent: text(frame, 'i') ?? '',
+              ok: text(frame, 'ok') === 'true',
+              ...(text(frame, 'epoch') ? { epoch: text(frame, 'epoch') as string } : {}),
+              ...(text(frame, 'code') ? { code: text(frame, 'code') as string } : {}),
+              ...(text(frame, 'detail') ? { detail: text(frame, 'detail') as string } : {}),
+            }
+            result.acked.push(ack)
+            // The whole of the rollback. An optimistic update is a staged epoch, so undoing it
+            // is discarding that epoch rather than reconstructing what was there before — and
+            // nothing painted, so there is nothing to un-paint.
+            if (!ack.ok && ack.epoch) {
+              options.epochs.discard(ack.epoch)
+              result.discarded.push(ack.epoch)
+            }
+            options.onAck?.(ack)
             break
           }
 

@@ -9,12 +9,20 @@ import {
   type Values,
 } from '../../ir/src/index.ts'
 import { createHub, type Channel, type ChannelHub, type SlotRender } from '../../kernel/src/channel.ts'
+import { createIntentDispatch, defineIntent } from '../../kernel/src/intent.ts'
+import { createEnvelope } from '../../kernel/src/envelope.ts'
+import { createReads, envelopeContext } from '../../kernel/src/context.ts'
+import { requestFacts } from '../../kernel/src/ports.ts'
+import { lifecycle } from '../../kernel/src/request.ts'
+import { cookieSession } from '../src/session.ts'
+import { staticFlags } from '../src/flags.ts'
 import {
   createTextDecoder,
   createBinaryDecoder,
   frame,
   residentFrame,
   str,
+  WARP_VERSION,
   type AnyFrame,
   type Frame,
 } from '../../warp/src/index.ts'
@@ -61,11 +69,36 @@ interface Harness {
   store: ReturnType<typeof memoryStore>
 }
 
-async function harness(): Promise<Harness> {
+async function harness(options: { intents?: boolean } = {}): Promise<Harness> {
   const ir = await priceList()
   const store = memoryStore()
   const telemetry = collectingTelemetry()
   let current: Values = { first: '10.00', second: '20.00' }
+
+  const markUp = defineIntent<{ to: string }>({
+    name: 'prices.set',
+    writes: ['prices'],
+    input: (raw) => {
+      const to = (raw as { to?: unknown }).to
+      if (typeof to !== 'string') throw new Error('to is required')
+      return { to }
+    },
+    async run(ctx, input) {
+      if (input.to === 'boom') throw new Error('the pricing service is down')
+      current = { first: current.first as string, second: input.to }
+      await ctx.revalidate('prices')
+      return { refresh: ['prices'] }
+    },
+  })
+
+  const dispatch = createIntentDispatch({
+    store,
+    registry: {
+      name: 'test',
+      intent: (id) => (id === 'p1' ? (markUp as never) : undefined),
+      intents: () => ['p1'],
+    },
+  })
 
   const hub = createHub({
     store,
@@ -73,6 +106,26 @@ async function harness(): Promise<Harness> {
     templates: (version) => (version === ir.version ? ir : undefined),
     source: ({ slot }): SlotRender | null =>
       slot === 'prices' ? { ir, values: current, key: 'prices:v1' } : null,
+    ...(options.intents
+      ? {
+          intents: dispatch,
+          intentContext: () => {
+            const life = lifecycle()
+            const envelope = createEnvelope(life)
+            life.to('envelope')
+            const facts = requestFacts(new Request('https://example.test/'))
+            return envelopeContext(
+              createReads(facts, {
+                store,
+                session: cookieSession(),
+                flags: staticFlags({ axes: {} }),
+                executors: {},
+              }),
+              envelope,
+            )
+          },
+        }
+      : {}),
   })
 
   const mounted = await mountChannel({ hub })
@@ -89,25 +142,40 @@ async function harness(): Promise<Harness> {
   }
 }
 
+interface Down {
+  frames: AnyFrame[]
+  done: Promise<void>
+  /**
+   * A decode failure, kept rather than swallowed. Swallowing it is how a reader that died on
+   * the second frame looked exactly like a server that never sent one — which is what hid a
+   * wrong-direction frame for the length of an afternoon.
+   */
+  failure: Error | null
+}
+
 /** Reads the binary down stream of the `stream` binding and hands back frames as they land. */
-function readBinary(url: string, signal: AbortSignal): { frames: AnyFrame[]; done: Promise<void> } {
-  const frames: AnyFrame[] = []
-  const done = (async () => {
+function readBinary(url: string, signal: AbortSignal): Down {
+  const out: Down = { frames: [], done: Promise.resolve(), failure: null }
+  out.done = (async () => {
     const response = await fetch(url, { signal })
     const decoder = createBinaryDecoder({ expect: 'down' })
     const reader = (response.body as ReadableStream<Uint8Array>).getReader()
     for (;;) {
       const { done: end, value } = await reader.read()
       if (end) break
-      if (value) frames.push(...decoder.push(value))
+      if (value) out.frames.push(...decoder.push(value))
     }
-  })().catch(() => {})
-  return { frames, done }
+  })().catch((error: unknown) => {
+    if (signal.aborted) return
+    out.failure = error instanceof Error ? error : new Error(String(error))
+  })
+  return out
 }
 
-function readSse(url: string, signal: AbortSignal): { frames: AnyFrame[]; done: Promise<void> } {
-  const frames: AnyFrame[] = []
-  const done = (async () => {
+function readSse(url: string, signal: AbortSignal): Down {
+  const out: Down = { frames: [], done: Promise.resolve(), failure: null }
+  const frames = out.frames
+  out.done = (async () => {
     const response = await fetch(url, { signal })
     const decoder = createTextDecoder({ expect: 'down' })
     const reader = (response.body as ReadableStream<Uint8Array>).getReader()
@@ -125,8 +193,11 @@ function readSse(url: string, signal: AbortSignal): { frames: AnyFrame[]; done: 
         frames.push(...decoder.push(new TextEncoder().encode(line.slice(6) + '\n')))
       }
     }
-  })().catch(() => {})
-  return { frames, done }
+  })().catch((error: unknown) => {
+    if (signal.aborted) return
+    out.failure = error instanceof Error ? error : new Error(String(error))
+  })
+  return out
 }
 
 async function post(url: string, frames: Frame[]): Promise<Response> {
@@ -137,17 +208,24 @@ async function post(url: string, frames: Frame[]): Promise<Response> {
   })
 }
 
-async function settle(check: () => boolean, label: string, ms = 2000): Promise<void> {
+/** A POST that was refused is a failure to report, not a frame that never arrives. */
+async function send(url: string, frames: Frame[]): Promise<void> {
+  const response = await post(url, frames)
+  assert.equal(response.status, 202, await response.text())
+}
+
+async function settle(check: () => boolean, label: string, ms = 2000, down?: Down): Promise<void> {
   const deadline = Date.now() + ms
   while (Date.now() < deadline) {
+    if (down?.failure) assert.fail(`the reader died waiting for ${label}: ${down.failure.message}`)
     if (check()) return
     await new Promise((resolve) => setTimeout(resolve, 5))
   }
-  assert.fail(`timed out waiting for ${label}`)
+  assert.fail(`timed out waiting for ${label}${down?.failure ? `: ${down.failure.message}` : ''}`)
 }
 
 const hello = () =>
-  residentFrame({ warp: '1.1.0', ir: '2.0.0', forms: ['html', 'delta', 'patch'], transport: 'stream' })
+  residentFrame({ warp: WARP_VERSION, ir: '2.0.0', forms: ['html', 'delta', 'patch'], transport: 'stream' })
 
 test('the streamed binding: negotiate, render, then a delta over one open connection', async () => {
   const h = await harness()
@@ -156,14 +234,14 @@ test('the streamed binding: negotiate, render, then a delta over one open connec
   await settle(() => h.hub.channels === 1, 'the channel to open')
 
   await post(h.url('c1'), [hello()])
-  await settle(() => down.frames.length >= 1, 'the WARP frame')
+  await settle(() => down.frames.length >= 1, 'the WARP frame', 2000, down)
   const warp = down.frames[0] as Frame
   assert.equal(warp.kind, 'WARP')
   assert.equal(str(warp, 'strategy'), 'stream')
 
   // First refresh: the client holds nothing, so the floor form serves markup.
   await post(h.url('c1'), [frame('REFRESH', { s: 'prices' })])
-  await settle(() => down.frames.length >= 2, 'the first render')
+  await settle(() => down.frames.length >= 2, 'the first render', 2000, down)
   const first = down.frames[1] as Frame
   assert.equal(first.kind, 'HTML')
   assert.match(new TextDecoder().decode(first.body), /10\.00/)
@@ -173,7 +251,7 @@ test('the streamed binding: negotiate, render, then a delta over one open connec
   // only the changed value travels.
   h.set({ first: '10.00', second: '21.50' })
   await post(h.url('c1'), [frame('REFRESH', { s: 'prices' })])
-  await settle(() => down.frames.length >= 3, 'the delta')
+  await settle(() => down.frames.length >= 3, 'the delta', 2000, down)
   const delta = down.frames[2] as Frame
   assert.equal(delta.kind, 'DELTA')
   assert.equal(str(delta, 'base'), base, 'the delta names the base the client actually holds')
@@ -191,7 +269,7 @@ test('the SSE binding carries the same frames, in text framing, and says what th
   await settle(() => h.hub.channels === 1, 'the channel to open')
 
   await post(h.url('c1'), [hello(), frame('REFRESH', { s: 'prices' })])
-  await settle(() => down.frames.length >= 2, 'WARP and the first render')
+  await settle(() => down.frames.length >= 2, 'WARP and the first render', 2000, down)
   assert.equal((down.frames[0] as Frame).kind, 'WARP')
   const html = down.frames[1] as Frame
   assert.equal(html.kind, 'HTML')
@@ -199,7 +277,7 @@ test('the SSE binding carries the same frames, in text framing, and says what th
 
   h.set({ first: '11.00', second: '20.00' })
   await post(h.url('c1'), [frame('REFRESH', { s: 'prices' })])
-  await settle(() => down.frames.length >= 3, 'the delta')
+  await settle(() => down.frames.length >= 3, 'the delta', 2000, down)
   const delta = down.frames[2] as Frame
   assert.equal(delta.kind, 'DELTA')
   assert.deepEqual(JSON.parse(new TextDecoder().decode(delta.body)), { first: '11.00' })
@@ -286,14 +364,14 @@ test('invalidating a tag pushes STALE to exactly the connections holding the dro
 
   await post(h.url('holder'), [hello(), frame('REFRESH', { s: 'prices' })])
   await post(h.url('idle'), [hello()])
-  await settle(() => watching.frames.length >= 2, 'the holder to be served')
+  await settle(() => watching.frames.length >= 2, 'the holder to be served', 2000, watching)
 
   await h.store.set('prices:v1', new TextEncoder().encode('x'), { class: 'shared', tags: ['prices'] })
   const result = await h.hub.invalidate(['prices'], 'price change')
   assert.deepEqual(result.keys, ['prices:v1'])
   assert.equal(result.notified, 1, 'only the connection holding the key hears about it')
 
-  await settle(() => watching.frames.length >= 3, 'the STALE frame')
+  await settle(() => watching.frames.length >= 3, 'the STALE frame', 2000, watching)
   const stale = watching.frames[2] as Frame
   assert.equal(stale.kind, 'STALE')
   assert.equal(str(stale, 's'), 'prices')
@@ -312,7 +390,7 @@ test('a staged epoch paints nothing until a commit, and the commit is one frame 
   await settle(() => h.hub.channels === 1, 'the channel')
 
   await post(h.url('e1'), [hello(), frame('REFRESH', { s: 'prices' })])
-  await settle(() => down.frames.length >= 2, 'the first render')
+  await settle(() => down.frames.length >= 2, 'the first render', 2000, down)
   const before = down.frames.length
 
   h.set({ first: '10.00', second: '77.00' })
@@ -322,7 +400,7 @@ test('a staged epoch paints nothing until a commit, and the commit is one frame 
   assert.deepEqual(h.hub.get('e1')?.epochs.slots('e-1'), ['prices'])
 
   await post(h.url('e1'), [frame('REFRESH', { epoch: 'e-1', commit: 'true', s: '' })])
-  await settle(() => down.frames.length >= before + 2, 'the staged frame and its commit')
+  await settle(() => down.frames.length >= before + 2, 'the staged frame and its commit', 2000, down)
   const staged = down.frames[before] as Frame
   const commit = down.frames[before + 1] as Frame
   assert.equal(str(staged, 'epoch'), 'e-1')
@@ -370,11 +448,14 @@ test('an intent is refused by name rather than silently ignored', async () => {
   const down = readBinary(h.url('c1'), controller.signal)
   await settle(() => h.hub.channels === 1, 'the channel')
 
-  await post(h.url('c1'), [hello(), frame('INTENT', { name: 'cart.add' })])
-  await settle(() => down.frames.length >= 2, 'the refusal')
-  const error = down.frames[1] as Frame
-  assert.equal(error.kind, 'ERROR')
-  assert.equal(str(error, 'code'), 'E_NO_INTENTS')
+  await post(h.url('c1'), [hello(), frame('INTENT', { i: 'a1' }), frame('INTENT', {})])
+  await settle(() => down.frames.length >= 3, 'both refusals', 2000, down)
+  assert.equal(str(down.frames[1] as Frame, 'code'), 'E_NO_INTENTS', 'this hub has no dispatch')
+  assert.equal(
+    str(down.frames[2] as Frame, 'code'),
+    'E_INTENT_UNNAMED',
+    'and a frame with no id is malformed',
+  )
 
   controller.abort()
   await down.done
@@ -388,7 +469,7 @@ test('WARM sends the client the template it asked for, and nothing it did not', 
   await settle(() => h.hub.channels === 1, 'the channel')
 
   await post(h.url('c1'), [hello(), frame('WARM', { tpl: `${h.ir.version},nope` })])
-  await settle(() => down.frames.length >= 3, 'a TPL and a refusal')
+  await settle(() => down.frames.length >= 3, 'a TPL and a refusal', 2000, down)
   const tpl = down.frames[1] as Frame
   assert.equal(tpl.kind, 'TPL')
   const view = JSON.parse(new TextDecoder().decode(tpl.body)) as Record<string, unknown>
@@ -409,7 +490,7 @@ test('reconnecting under the same id keeps what the client is known to hold', as
   await settle(() => h.hub.channels === 1, 'the channel')
 
   await post(h.url('resume-1'), [hello(), frame('REFRESH', { s: 'prices' })])
-  await settle(() => a.frames.length >= 2, 'the first render')
+  await settle(() => a.frames.length >= 2, 'the first render', 2000, a)
   const held = (h.hub.get('resume-1') as Channel).held.get('prices')
   assert.ok(held, 'the server knows what this client holds')
 
@@ -422,7 +503,7 @@ test('reconnecting under the same id keeps what the client is known to hold', as
   await post(h.url('resume-1'), [frame('RESUME', { epoch: 'live' })])
   h.set({ first: '10.00', second: '31.00' })
   await post(h.url('resume-1'), [frame('REFRESH', { s: 'prices' })])
-  await settle(() => b.frames.some((f) => f.kind === 'DELTA'), 'a delta rather than a first render')
+  await settle(() => b.frames.some((f) => f.kind === 'DELTA'), 'a delta rather than a first render', 2000, b)
   const delta = b.frames.find((f) => f.kind === 'DELTA') as Frame
   assert.equal(str(delta, 'base'), held.base, 'the resumed channel continued from the base it held')
 
@@ -484,5 +565,124 @@ test('end to end: a refresh over a socket becomes one DOM write on a real client
   )
 
   socket.close()
+  await h.close()
+})
+
+test('an intent over the channel acknowledges, invalidates, and refreshes what it changed', async () => {
+  const h = await harness({ intents: true })
+  const controller = new AbortController()
+  const down = readBinary(h.url('i1'), controller.signal)
+  await settle(() => h.hub.channels === 1, 'the channel')
+
+  await send(h.url('i1'), [hello(), frame('REFRESH', { s: 'prices' })])
+  await settle(() => down.frames.length >= 2, 'the first render', 2000, down)
+  const at = down.frames.length
+
+  await send(h.url('i1'), [
+    { ...frame('INTENT', { i: 'p1' }), body: new TextEncoder().encode('{"to":"55.00"}'), bodyIsText: true },
+  ])
+  await settle(() => down.frames.length >= at + 2, 'an ACK and a delta', 2000, down)
+  const ack = down.frames[at] as Frame
+  assert.equal(ack.kind, 'ACK')
+  assert.equal(str(ack, 'ok'), 'true')
+  assert.equal(str(ack, 'tags'), 'prices')
+  const delta = down.frames[at + 1] as Frame
+  assert.equal(delta.kind, 'DELTA')
+  assert.deepEqual(JSON.parse(new TextDecoder().decode(delta.body)), { second: '55.00' })
+
+  controller.abort()
+  await down.done
+  await h.close()
+})
+
+/**
+ * The optimistic case, which is the reason to run an intent over a channel rather than a
+ * POST. The client stages its own guess under an epoch; the server stages the real result
+ * into the same epoch and commits, so the guess is replaced in one paint. A failure sends
+ * `ok=false` and no commit, and discarding an epoch is the whole of the rollback.
+ */
+test('an intent under an epoch commits the real values in one paint', async () => {
+  const h = await harness({ intents: true })
+  const controller = new AbortController()
+  const down = readBinary(h.url('i2'), controller.signal)
+  await settle(() => h.hub.channels === 1, 'the channel')
+  await send(h.url('i2'), [hello(), frame('REFRESH', { s: 'prices' })])
+  await settle(() => down.frames.length >= 2, 'the first render', 2000, down)
+  const at = down.frames.length
+
+  await send(h.url('i2'), [
+    {
+      ...frame('INTENT', { i: 'p1', epoch: 'o-3' }),
+      body: new TextEncoder().encode('{"to":"61.00"}'),
+      bodyIsText: true,
+    },
+  ])
+  await settle(() => down.frames.length >= at + 3, 'an ACK, the staged delta, and a COMMIT', 2000, down)
+  assert.equal(str(down.frames[at] as Frame, 'epoch'), 'o-3', 'the ACK names the epoch it belongs to')
+  const staged = down.frames[at + 1] as Frame
+  assert.equal(staged.kind, 'DELTA')
+  assert.equal(str(staged, 'epoch'), 'o-3', 'staged, so it paints nothing on arrival')
+  const commit = down.frames[at + 2] as Frame
+  assert.equal(commit.kind, 'COMMIT')
+  assert.equal(str(commit, 'epoch'), 'o-3')
+  assert.equal(str(commit, 'slots'), 'prices')
+
+  controller.abort()
+  await down.done
+  await h.close()
+})
+
+test('a failed intent sends no commit, so the client discards its optimistic epoch', async () => {
+  const h = await harness({ intents: true })
+  const controller = new AbortController()
+  const down = readBinary(h.url('i3'), controller.signal)
+  await settle(() => h.hub.channels === 1, 'the channel')
+  await send(h.url('i3'), [hello(), frame('REFRESH', { s: 'prices' })])
+  await settle(() => down.frames.length >= 2, 'the first render', 2000, down)
+  const at = down.frames.length
+
+  await send(h.url('i3'), [
+    {
+      ...frame('INTENT', { i: 'p1', epoch: 'o-4' }),
+      body: new TextEncoder().encode('{"to":"boom"}'),
+      bodyIsText: true,
+    },
+  ])
+  await settle(() => down.frames.length >= at + 1, 'the ACK', 2000, down)
+  await new Promise((resolve) => setTimeout(resolve, 60))
+  assert.equal(down.frames.length, at + 1, 'one frame: no delta, and above all no COMMIT')
+  const ack = down.frames[at] as Frame
+  assert.equal(str(ack, 'ok'), 'false')
+  assert.equal(str(ack, 'code'), 'E_INTENT_FAILED')
+  assert.match(str(ack, 'detail') ?? '', /pricing service is down/)
+
+  controller.abort()
+  await down.done
+  await h.close()
+})
+
+test('an intent that invalidates a key another connection holds makes that one stale', async () => {
+  const h = await harness({ intents: true })
+  const controller = new AbortController()
+  const actor = readBinary(h.url('actor'), controller.signal)
+  const watcher = readBinary(h.url('watcher'), controller.signal)
+  await settle(() => h.hub.channels === 2, 'two channels')
+  await send(h.url('actor'), [hello(), frame('REFRESH', { s: 'prices' })])
+  await send(h.url('watcher'), [hello(), frame('REFRESH', { s: 'prices' })])
+  await settle(() => watcher.frames.length >= 2, 'both served', 2000, watcher)
+
+  // The store has to be holding the key for an invalidation to drop anything.
+  await h.store.set('prices:v1', new TextEncoder().encode('x'), { class: 'shared', tags: ['prices'] })
+  const at = watcher.frames.length
+  await send(h.url('actor'), [
+    { ...frame('INTENT', { i: 'p1' }), body: new TextEncoder().encode('{"to":"70.00"}'), bodyIsText: true },
+  ])
+  await settle(() => watcher.frames.length > at, 'the watcher to hear about it', 2000, watcher)
+  const stale = watcher.frames.slice(at).find((f) => f.kind === 'STALE') as Frame
+  assert.ok(stale, 'a connection holding the invalidated key is told')
+  assert.equal(str(stale, 's'), 'prices')
+
+  controller.abort()
+  await Promise.all([actor.done, watcher.done])
   await h.close()
 })
