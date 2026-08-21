@@ -22,6 +22,7 @@
   "include": [
     "packages/*/src/**/*.ts",
     "packages/*/test/**/*.ts",
+    "packages/*/fixtures/**/*.ts",
     "packages/compiler/types/*.d.ts",
     "packages/compiler/fixtures/**/*.tsx"
   ]
