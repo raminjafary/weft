@@ -1,4 +1,11 @@
-import { render as renderTemplate, type TemplateIR, type Values } from '../../ir/src/index.ts'
+import {
+  createSegmentMemo,
+  render as renderTemplate,
+  renderIncremental,
+  type SegmentMemo,
+  type TemplateIR,
+  type Values,
+} from '../../ir/src/index.ts'
 import type { EnvelopeContext, RenderContext } from '../../kernel/src/context.ts'
 import type { CachePolicy } from '../../kernel/src/cache.ts'
 import type { KernelRoute, KernelSlot, RouteResolver } from '../../kernel/src/kernel.ts'
@@ -91,9 +98,35 @@ function orderOf(plan: Plan): Order {
   return plan.slots.some((s) => s.delivery === 'stream') ? 'out-of-order' : 'in-order'
 }
 
+/**
+ * `.incremental()`, which had been recorded and read by nothing.
+ *
+ * One memo per slot per lowered route, and content-addressed inside it, so it is shared across
+ * every request this isolate serves for that slot. A row that appears in two users' lists is
+ * rendered once — the same argument the delta memo makes, one level down.
+ *
+ * The `previous` value set is deliberately not carried across requests. Two consecutive
+ * requests are usually two different users, so a "previous" from the wrong one would make every
+ * derived value look dirty and cost a comparison for nothing. Level two pays inside a refresh
+ * loop, which is where the caller supplies it; level three pays here, and does not need it.
+ */
+function incrementalRender(fragment: FragmentSource, memo: SegmentMemo): (values: Values) => Uint8Array {
+  return (values) =>
+    renderIncremental({
+      ir: fragment.entry,
+      values,
+      memo,
+      ...(fragment.resolve ? { resolve: fragment.resolve } : {}),
+    }).bytes
+}
+
 function slotOf(spec: SlotSpec, binding: SlotBinding, params: Record<string, string>): KernelSlot {
   const { fragment } = binding
   const policy = policyOf(spec.cache)
+  const memo = spec.incremental ? createSegmentMemo() : null
+  const paint = memo
+    ? incrementalRender(fragment, memo)
+    : (values: Values) => renderTemplate(fragment.entry, values, fragment.resolve)
   return {
     name: spec.name,
     id: fragment.entry.id,
@@ -107,8 +140,7 @@ function slotOf(spec: SlotSpec, binding: SlotBinding, params: Record<string, str
     ...(policy ? { policy } : {}),
     ...(binding.placeholder ? { placeholder: binding.placeholder } : {}),
     ...(binding.address ? { address: binding.address } : {}),
-    render: async (ctx) =>
-      renderTemplate(fragment.entry, await binding.values(ctx, params), fragment.resolve),
+    render: async (ctx) => paint(await binding.values(ctx, params)),
   }
 }
 

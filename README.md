@@ -377,16 +377,35 @@ design necessary is the constraint that makes concurrent evaluation possible.
 **A CPU budget is only enforceable where a render can be preempted.** So `preemptible` is
 declared on the executor, a breach on `inline` is still reported with a message saying it ran
 to completion anyway, and declaring one there is a build warning naming the executors where
-the limit is real.
+the limit is real. `pool:` is now one of them: a real `worker_threads` pool that terminates a
+render mid-loop, which is the only thing that makes `.budget({ cpu })` a limit rather than a
+report. It also surfaced why the other three off-thread kinds were unimplemented —
+`ExecutorPort.run` takes a closure, and a closure cannot cross a crash domain, so a job that
+runs elsewhere needs an address and a slot without one fails the build.
 
 **Epochs separate data currency from view currency.** Staged frames paint nothing; one
 `COMMIT` flips every slot in an epoch at once. Prefetch cannot disturb the present, and
 rollback is discarding an epoch. 254 bytes on the client.
 
-**The surgical refresh is stateless and its delta is shared.** The client names the base it
-holds, the server recovers it through `StorePort`, diffs, and memoizes under
-`delta:<tpl>:<from>-><to>`. The second client making that transition pays a store read; so
-does the ten-thousandth. LiveView would compute the diff ten thousand times.
+**The surgical refresh is stateless and its delta is shared, and that is now measured.** The
+client names the base it holds, the server recovers it through `StorePort`, diffs, and memoizes
+under `delta:<tpl>:<from>-><to>`. A thousand clients on one base render cost **one** diff
+computation against a per-connection differ's thousand — 0.3 ms against 8.2. A thousand clients
+each on a _different_ base share nothing, and the shared path then costs 17.3 ms against 9.2,
+because it does the same thousand diffs plus a store round trip for each. Both numbers are in
+the report, because the second one is where a deployment gets surprised. Phoenix is not running
+here: the per-connection figure is a real per-connection differ over the same templates and the
+same transition, so what is compared is the architecture and not any constant factor of
+LiveView.
+
+**All three of the design's memoisation levels are real.** The fragment, keyed by its effect
+signature. Derived values, where the dependency graph is already on the wire so the set a change
+can reach is computable. And template segments, content-addressed — a 500-row list with three
+changed rows costs three row renders, and a _reordered_ list costs none. Two lines are drawn
+deliberately: only nested templates are memoised, because hashing a text hole costs more than
+rendering it, and the memo is process-local because `render` is synchronous and a shared tier
+could not answer it. The gate is byte identity with a full render, checked over every scenario
+cold and warm.
 
 **The plan is checked against the compiler, never the reverse.** A refusal per rule and five
 warnings, each naming the read or the slot that caused it — including the one the design
@@ -421,14 +440,30 @@ Two things there are derived rather than declared: the streaming order (`out-of-
 any slot asks to stream, `in-order` when none does, because in-order needs no fill mechanism),
 and phase A (guards run before a byte leaves, so a declared redirect is a real 302).
 
+**Frames leave the process now, in all three bindings the design names.** A streamed response
+with discrete POSTs up, an SSE stream, and a WebSocket, over one binding-agnostic channel. What
+each one costs is stated where it bites: SSE cannot carry binary so it pays base64 on every
+body, and the two half-duplex bindings answer on the other connection, so an upstream POST whose
+downstream has dropped is `E_NO_DOWNSTREAM` rather than a silent 200.
+
+**Intents are the only thing allowed to write**, and they declare what they invalidate. An
+undeclared tag throws — not in dev only, because an undeclared read is a missed optimisation and
+an undeclared write is a cache invalidation nobody can predict from the code. A form posts and
+gets a 303 back where it came from, which is the whole no-JavaScript path; the same dispatch
+answers a `fetch` with the outcome. Over a channel the epoch does the interesting work: a client
+stages its guess, the server stages the truth into the same epoch and commits, and on failure
+the ACK says so and the client discards the epoch — nothing painted, so nothing has to be
+un-painted.
+
 ## What has to be true next
 
-1. **A Warp transport binding.** `HELD`, `REFRESH`, `STALE` and `COMMIT` are produced, parsed
-   and tested as frames, and nothing carries them over a live connection.
-2. **Intents.** `EffectSet.writes` stays empty until there is something that writes, which is
-   also what invalidation and `revalidateTag` wait behind.
-3. **A stampede lease in the request path.** `StorePort.lease` is implemented and the kernel
-   does not take one, so two concurrent misses render twice.
+1. **Instant navigation.** Bytes, templates and unpainted data are all prepared for; nothing
+   intercepts a link. It is blocked on knowing a route's slot set before arriving there, which
+   is phase 7 discovery rather than transport.
+2. **A capability model behind `CapabilityCheck`.** Intents declare capabilities and an
+   unchecked one is refused rather than allowed, which is honest and is not an implementation.
+3. **L0 static resolution.** A fragment that reads nothing could be built once and served by a
+   CDN with the kernel never invoked. The cheapest tier in the design is the unimplemented one.
 4. **A bandwidth and loss model in the latency proxy.** It delays packets and nothing else, so
    it understates what a slow link does to an 18% byte difference.
 5. **Incremental declarative-shadow-DOM parsing on real iOS, Android WebView, and WebKitGTK.**

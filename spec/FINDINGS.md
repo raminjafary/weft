@@ -308,6 +308,57 @@ design says the plan is data specifically so `SchedulerPort` can reorder slots a
 the pipe fastest-first, so freezing the waves at build time gives up a declared capability. It is
 the one candidate where bytes cost a design property, and it is not being given up by accident.
 
+## Measured at last: shared deltas against per-connection diffing
+
+Phase 6 exists to make one claim — that keeping render state on the client lets one delta
+computation serve every client making the same transition, where LiveView's architecture cannot
+share one at all. The mechanism had been built and tested for two sessions and the comparison
+had never been run.
+
+1,000 clients, the 50-row feed, 6 rows changed:
+
+| Arrival                     | Strategy       | Diffs | Store reads | ms   |
+| --------------------------- | -------------- | ----- | ----------- | ---- |
+| all on one base render      | per-connection | 1,000 | 0           | 8.2  |
+| all on one base render      | shared         | **1** | 1,001       | 0.3  |
+| each on its own base render | per-connection | 1,000 | 0           | 9.2  |
+| each on its own base render | shared         | 1,000 | 2,000       | 17.3 |
+
+The second block is the finding. **When clients hold different bases there is nothing to share**,
+and the shared path does the same N diffs _plus_ a store read and a write for each — 17.3 ms
+against 9.2, so measurably worse. The win is proportional to how many clients share a base, and
+the shape it is for is a broadcast. A benchmark that reported only the first block would be
+advocacy, and this one reports both because the second one is where a deployment gets surprised.
+
+On what is and is not being compared: both figures come from the same differ over the same
+templates and the same transition, so the only variable is where the previous state lives. That
+is the architectural difference and it is the whole of what is measured. Phoenix is not running
+here — the per-connection number is a real per-connection differ in this harness, not a model of
+one, but no constant factor of a LiveView deployment is measured or claimed. Elixir on the
+machine would be a different and better test, and until it runs the claim stays structural.
+
+## Incremental recompute, and the two lines it is drawn at
+
+The design's three memoisation levels are all real now. Two of the decisions are worth
+recording because both are places where the obvious version loses.
+
+**Only nested templates are memoised.** A text hole is one escape scan and one encode; hashing
+its value to look it up costs more than rendering it. Memoising everything would have been
+easier to describe and slower to run.
+
+**The memo is process-local, and that is forced rather than chosen.** `render` is synchronous —
+it writes into a caller-owned buffer and returns a byte count — so a memo it consults has to
+answer synchronously, which rules out a shared tier. Sharing row bytes across isolates would
+mean making rendering async, and that cost lands on every render to benefit the ones that hit.
+So the content-addressed sharing that works so well one level up, for whole deltas, stops at the
+isolate boundary one level down. Same argument, different answer, because of a property of the
+renderer rather than of the idea.
+
+The gate is byte identity, in `weft-bench verify` alongside the wire-form checks: every scenario
+rendered both ways, cold memo and warm, refusing to publish numbers if one byte differs. A
+faster render that produces different bytes is a correctness bug with a performance
+justification, which is the worst kind to ship.
+
 ## Found by the first intent over a socket: ACK was pointing the wrong way
 
 `ACK` was declared at `0x06`, in the up range, and used for the result of an intent — which

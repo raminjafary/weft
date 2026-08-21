@@ -1,4 +1,11 @@
-import { type DeltaPayload, type Values, applyDelta, render } from '../../ir/src/index.ts'
+import {
+  createSegmentMemo,
+  renderIncremental,
+  type DeltaPayload,
+  type Values,
+  applyDelta,
+  render,
+} from '../../ir/src/index.ts'
 import type { Candidate } from './candidate.ts'
 import { segmentsCandidate } from './candidates/segments.ts'
 import { compileScenario, withRows } from './compiled.ts'
@@ -77,7 +84,49 @@ export async function checkScenario(scenario: Scenario, candidates: Candidate[])
     })
   }
 
+  /**
+   * The one property that makes `.incremental()` safe to turn on. A memoised render reuses row
+   * bytes and skips derived values a change cannot reach, and if it produced anything other
+   * than what a full render produces it would be a correctness bug with a performance
+   * justification — the worst kind. So it is checked the same way the wire forms are.
+   */
+  if (compiled.rowBinding) {
+    const memo = createSegmentMemo()
+    const cold = renderIncremental({ ir: compiled.root, values: rooted, memo, resolve: compiled.resolve })
+    const full = render(compiled.root, rooted, compiled.resolve)
+    checks.push({
+      name: 'incremental render, cold memo: byte-identical to a full render',
+      ok: same(cold.bytes, full),
+      ...(same(cold.bytes, full) ? {} : { detail: firstDifference(full, cold.bytes) }),
+    })
+
+    const nextRows = scenario.transition(rows)
+    const nextValues: Values = withRows(compiled, values, nextRows)
+    const warm = renderIncremental({
+      ir: compiled.root,
+      values: nextValues,
+      memo,
+      resolve: compiled.resolve,
+      previous: { resolved: cold.resolved, supplied: rooted },
+    })
+    const expectedNext = render(compiled.root, nextValues, compiled.resolve)
+    checks.push({
+      name: 'incremental render, warm memo: byte-identical to a full render',
+      ok: same(warm.bytes, expectedNext),
+      ...(same(warm.bytes, expectedNext) ? {} : { detail: firstDifference(expectedNext, warm.bytes) }),
+    })
+    checks.push({
+      name: 'the warm render reused more rows than it rendered',
+      ok: warm.stats.segments.reused > warm.stats.segments.rendered,
+      detail: `${warm.stats.segments.reused} reused, ${warm.stats.segments.rendered} rendered`,
+    })
+  }
+
   return { scenario: scenario.id, ok: checks.every((c) => c.ok), checks }
+}
+
+function same(a: Uint8Array, b: Uint8Array): boolean {
+  return a.length === b.length && a.every((byte, i) => byte === b[i])
 }
 
 /**
