@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream'
 import { createServer, type Server } from 'node:http'
-import { fillerBytes } from './filler.ts'
-import { streamRoute, type Order, type Route, type SlotContent } from './stream.ts'
+import { fillerBytes } from '../../kernel/src/filler.ts'
+import { streamRoute, type Order, type Route, type SlotContent } from '../../kernel/src/stream.ts'
 
 export interface ServeOptions {
   order: Order
@@ -44,6 +44,12 @@ export async function serveRoute(route: Route, options: ServeOptions, path = '/'
   if (typeof address === 'string' || address === null) throw new Error('E_NO_ADDRESS')
   return {
     url: `http://127.0.0.1:${address.port}${path}`,
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    close: () =>
+      new Promise<void>((resolve) => {
+        // A keep-alive socket keeps `close` pending forever, so idle connections are dropped
+        // first. A close that does not close is not a close.
+        server.closeAllConnections()
+        server.close(() => resolve())
+      }),
   }
 }
