@@ -212,8 +212,8 @@ minified, compressed the way it would ship:
 | Client runtime, everything                | 8,525  | 3,272  | **2,996** | 6,144  |
 | Content route — adopt and bind            | 6,120  | 2,282  | **2,082** | 5,120  |
 | App route — adopt, bind, patch, epochs    | 8,494  | 3,258  | **2,982** | 12,288 |
-| Server kernel — the document request path | 23,066 | 8,508  | **7,563** | 8,192  |
-| Server kernel — plus the Warp channel     | 30,076 | 11,022 | **9,803** | 12,288 |
+| Server kernel — the document request path | 23,198 | 8,558  | **7,602** | 8,192  |
+| Server kernel — plus the Warp channel     | 30,208 | 11,071 | **9,846** | 12,288 |
 
 Comfortably inside on the client, and a content route still drops by never importing the
 update path, which is the module-level version of paying only for what you use.
@@ -223,8 +223,8 @@ values, component adoption, property bindings, and staged epochs. It is recorded
 than smoothed over, because a byte budget that only ever moves in reports is not a gate.
 
 **The kernel is the tight one.** The design says "target under 8 KB server-side"; the
-document request path is 7,563 B brotli, so the claim holds with 629 bytes of headroom.
-Nothing about routing, intents, or an epoch transport fits in 629 bytes. The first attempt
+document request path is 7,602 B brotli, so the claim holds with 590 bytes of headroom.
+Nothing about routing, intents, or an epoch transport fits in 590 bytes. The first attempt
 measured the whole barrel and came out 29% over — the gross-versus-marginal mistake the
 design warns about in the same paragraph as the byte budget, made immediately.
 

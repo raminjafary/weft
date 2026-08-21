@@ -195,18 +195,18 @@ it. Bundled with Rolldown, minified, brotli:
 
 | Entry                                           | brotli   | Ceiling  |
 | ----------------------------------------------- | -------- | -------- |
-| Document request path (`entry-request.ts`)      | 7,563 B  | 8,192 B  |
-| Plus the Warp channel path (`entry-channel.ts`) | 9,803 B  | 12,288 B |
-| The whole barrel (`index.ts`)                   | 10,599 B | —        |
+| Document request path (`entry-request.ts`)      | 7,602 B  | 8,192 B  |
+| Plus the Warp channel path (`entry-channel.ts`) | 9,846 B  | 12,288 B |
+| The whole barrel (`index.ts`)                   | 10,686 B | —        |
 
-The claim holds, with **629 bytes of headroom**, and only for the entry the claim is about.
+The claim holds, with **590 bytes of headroom**, and only for the entry the claim is about.
 The first attempt measured the barrel and came out 29% over — which is the marginal-versus-gross
 mistake the design warns about in the same paragraph as the byte budget, made immediately and
 in the obvious place. The split into two entries is not bookkeeping: a deployment serving
 documents does not import surgical refresh or epochs, and measuring it as though it did is how
 budgets become meaningless and get switched off.
 
-There is no headroom for routing, intents, or an epoch transport in the 629 bytes. That is a
+There is no headroom for routing, intents, or an epoch transport in the 590 bytes. That is a
 statement about the next phase, not this one.
 
 ## Caught by a gate on its first run: the kernel imported `node:http`
