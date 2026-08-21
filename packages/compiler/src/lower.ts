@@ -27,8 +27,19 @@ import { intentId } from './intents.ts'
 import { cannotBeMarkup, type TypeOracle } from './types.ts'
 
 export interface ImportRef {
+  /** The specifier exactly as written, which is what resolving a sibling module needs. */
   module: string
   exported: string
+  /**
+   * The module id: project-relative and slash-separated, the same form a template id uses.
+   *
+   * An intent id is derived from where the intent lives, and a relative specifier is not where
+   * it lives — it is where the *importer* is standing. Two fragments at different depths
+   * importing one intent wrote `../intents/cart.ts` and `../../intents/cart.ts` and got two
+   * different ids for one export, neither of which a build's manifest could match. This is the
+   * answer to "which module", asked once, at the only place that knows both paths.
+   */
+  id: string
 }
 
 export interface Scope {
@@ -646,7 +657,7 @@ function lowerEvent(attr: string, expression: Node, path: number[], em: Emitter,
     op: 'event',
     binding: '',
     event,
-    intent: intentId(imported.module, imported.exported),
+    intent: intentId(imported.id, imported.exported),
   })
 }
 

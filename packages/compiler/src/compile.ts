@@ -68,11 +68,13 @@ function moduleId(file: string, root?: string): string {
   return normalized.startsWith('..') ? normalized : normalized.replace(/^\.\//, '')
 }
 
-function readImports(program: Node): Map<string, ImportRef> {
+function readImports(program: Node, file: string, root?: string): Map<string, ImportRef> {
   const imports = new Map<string, ImportRef>()
   for (const statement of nodes(program.body)) {
     if (statement.type !== 'ImportDeclaration') continue
     const module = String(node(statement.source).value ?? '')
+    // A relative specifier resolves to the module it names; a bare one is already a name.
+    const id = module.startsWith('.') ? moduleId(resolve(dirname(file), module), root) : module
     for (const specifier of nodes(statement.specifiers)) {
       const local = name(node(specifier.local))
       const exported =
@@ -81,7 +83,7 @@ function readImports(program: Node): Map<string, ImportRef> {
           : specifier.type === 'ImportDefaultSpecifier'
             ? 'default'
             : '*'
-      imports.set(local, { module, exported })
+      imports.set(local, { module, exported, id })
     }
   }
   return imports
@@ -307,7 +309,7 @@ export async function compileSource(
   }
 
   const program = node(parsed.program)
-  const imports = readImports(program)
+  const imports = readImports(program, file, options?.root)
   const fragments: CompiledFragment[] = []
   const declarations = discover(program, imports)
 
@@ -477,7 +479,7 @@ interface ModuleFacts {
   renders: Set<string>
 }
 
-async function readFacts(file: string): Promise<ModuleFacts> {
+async function readFacts(file: string, root?: string): Promise<ModuleFacts> {
   const source = await readFile(file, 'utf8')
   const parsed = parseSync(file, source, { sourceType: 'module', preserveParens: false })
   if (parsed.errors.length) {
@@ -485,7 +487,7 @@ async function readFacts(file: string): Promise<ModuleFacts> {
     throw new CompileError('E_PARSE', first?.message ?? 'parse failed', locate(file, source, 0))
   }
   const program = node(parsed.program)
-  const imports = readImports(program)
+  const imports = readImports(program, file, root)
   const declarations = discover(program, imports)
   const exports = new Map<string, Set<string>>()
   for (const found of declarations) {
@@ -580,7 +582,7 @@ export async function compileFiles(
   try {
     const absolute = files.map((f) => (isAbsolute(f) ? f : resolve(process.cwd(), f)))
     const facts = new Map<string, ModuleFacts>()
-    for (const file of absolute) facts.set(file, await readFacts(file))
+    for (const file of absolute) facts.set(file, await readFacts(file, options?.root))
 
     const known = new Set(absolute)
     // Which exports are rendered from another module, so those modules wire their props.

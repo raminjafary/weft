@@ -27,6 +27,11 @@ function versions(templates: TemplateIR[]) {
   return (version: string) => byVersion.get(version)
 }
 
+/** The intent id the first fragment's first wiring entry names. */
+function firstIntent(out: { fragments: CompiledFragment[] }): string | undefined {
+  return out.fragments[0]?.entry.wiring[0]?.intent
+}
+
 async function rejects(source: string, code: string): Promise<void> {
   await assert.rejects(
     () => compile(PRELUDE + source),
@@ -135,10 +140,34 @@ test('a handler compiles to an intent id, never to server code', async () => {
   const event = ir.wiring[0]
   assert.equal(event?.op, 'event')
   assert.equal(event?.event, 'submit')
-  assert.equal(event?.intent, intentId('./intents.ts', 'save'))
+  // The id names where the intent lives, not where the importer is standing: `./intents.ts` from
+  // `test.tsx` is the module `intents.ts`.
+  assert.equal(event?.intent, intentId('intents.ts', 'save'))
   assert.equal(event?.binding, '')
   await rejects('export default fragment(() => <form onSubmit={() => 1}>x</form>)', 'E_HANDLER_NOT_AN_INTENT')
   await rejects('export default fragment(() => <form onSubmit={local}>x</form>)', 'E_HANDLER_NOT_IMPORTED')
+})
+
+/**
+ * One intent, one id, however deep the importer is.
+ *
+ * A relative specifier describes the importer's position, so hashing it gave two fragments at
+ * two depths two ids for one export — and a build's manifest, which knows only where the intent
+ * lives, could match neither. This is the property that was broken.
+ */
+test('an intent id does not depend on where it was imported from', async () => {
+  const shallow = await compileSource(
+    "import { fragment } from 'weft'\nimport { save } from './lib/intents.ts'\n" +
+      'export default fragment(() => <form onSubmit={save}>x</form>)',
+    'app/page.tsx',
+  )
+  const deep = await compileSource(
+    "import { fragment } from 'weft'\nimport { save } from '../lib/intents.ts'\n" +
+      'export default fragment(() => <form onSubmit={save}>x</form>)',
+    'app/nested/page.tsx',
+  )
+  assert.equal(firstIntent(shallow), intentId('app/lib/intents.ts', 'save'))
+  assert.equal(firstIntent(deep), firstIntent(shallow))
 })
 
 test('a list becomes a nested template the parent names by version', async () => {

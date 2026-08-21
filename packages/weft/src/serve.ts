@@ -61,16 +61,25 @@ export interface App {
   store: StorePort
   hub: ChannelHub
   /**
-   * Which page each open channel belongs to. A channel has no request, so the client says where
-   * it is when it opens one, and a refresh re-runs that route rather than a slot source somebody
-   * had to register by hand.
+   * What each open channel is: which page, and whose session.
+   *
+   * A channel has no request, so the client says where it is when it opens one and a refresh
+   * re-runs that route. The cookie header comes from the channel's own connection, because an
+   * intent that ran without the session the page has is an intent writing somebody else's cart.
    */
-  at: Map<string, string>
+  at: Map<string, Connection>
   assets: AssetTable
   diagnostics: string[]
   mode: Mode
   /** The live-slot keys a set of write tags reaches, for a notify that has to name keys. */
   keysFor(tags: readonly string[]): string[]
+}
+
+export interface Connection {
+  /** The path the client was on when it opened the channel, params and query included. */
+  path: string
+  /** The channel connection's own cookie header, verbatim. */
+  cookie: string
 }
 
 export interface Serving {
@@ -187,7 +196,7 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   })
   setAssets(assets)
 
-  const at = new Map<string, string>()
+  const at = new Map<string, Connection>()
   // Which live slots carry which tag. A connection is recorded as holding the key its slot
   // source returned, so an invalidation can only reach it if something names that key — and the
   // store's tag index cannot, because a live slot's key is the framework's, not an entry it wrote.
@@ -231,12 +240,22 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
         return { ...outcome, dropped: [...new Set([...outcome.dropped, ...extra])] }
       },
     },
-    intentContext: () => {
+    /**
+     * The context an intent runs against, built from the channel's own connection.
+     *
+     * A channel is not a request, so this has to be supplied — and what it has to carry is the
+     * session, or an intent dispatched over the channel writes as nobody. The cookie header is
+     * the connection's, recorded when it opened.
+     */
+    intentContext: (channel) => {
       const life = lifecycle()
       const envelope = createEnvelope(life)
       life.to('envelope')
-      const facts = requestFacts(new Request(`http://weft.local${config.channelPath}`))
-      return envelopeContext(createReads(facts, ports), envelope)
+      const connection = at.get(channel.id)
+      const headers = new Headers()
+      if (connection?.cookie) headers.set('cookie', connection.cookie)
+      const url = new URL(connection?.path ?? config.channelPath, 'http://weft.local')
+      return envelopeContext(createReads(requestFacts(new Request(url, { headers })), ports), envelope)
     },
     templates: (version) => compiled.templates.find((t) => t.version === version),
   })
@@ -273,19 +292,20 @@ async function ownTree(): Promise<ModuleTree> {
  */
 function liveSource(
   routes: GeneratedRoute[],
-  at: Map<string, string>,
+  at: Map<string, Connection>,
   ports: Ports,
 ): (request: { slot: string; channel: { id: string } }) => Promise<SlotRender | null> {
   const router = createRouter(routes.map((route) => ({ pattern: route.pattern, value: route })))
   return async ({ slot, channel }) => {
-    const path = at.get(channel.id)
-    if (!path) return null
-    const url = new URL(path, 'http://weft.local')
+    const connection = at.get(channel.id)
+    if (!connection) return null
+    const url = new URL(connection.path, 'http://weft.local')
     const matched = router.match(url)
     if (!matched) return null
     const live = matched.value.live[slot]
     if (!live) return null
-    const values = await live.load(channelContext(url, matched.params, ports), matched.params)
+    const ctx = channelContext(url, matched.params, connection.cookie, ports)
+    const values = await live.load(ctx, matched.params)
     return { ir: live.fragment.entry, values, resolve: live.fragment.resolve, key: live.key, prefer: 'delta' }
   }
 }
@@ -296,8 +316,15 @@ function liveSource(
  * There is no envelope, because a refresh has no response to write to — so a deferred effect has
  * nowhere to go and is dropped rather than queued against a request that ended long ago.
  */
-function channelContext(url: URL, params: Record<string, string>, ports: Ports): RenderContext {
-  const reads = createReads(requestFacts(new Request(url), params), ports)
+function channelContext(
+  url: URL,
+  params: Record<string, string>,
+  cookie: string,
+  ports: Ports,
+): RenderContext {
+  const headers = new Headers()
+  if (cookie) headers.set('cookie', cookie)
+  const reads = createReads(requestFacts(new Request(url, { headers }), params), ports)
   return { ...reads, phase: 'render', defer: () => {} }
 }
 
@@ -387,10 +414,9 @@ export async function serveApp(app: App): Promise<Serving> {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? config.host}`)
     const path = url.pathname
 
-    // A channel open carries the page it belongs to, so a refresh can re-run that route.
-    const id = url.searchParams.get('c')
-    const atParam = url.searchParams.get('at')
-    if (id && atParam) at.set(id, atParam)
+    // A channel open carries the page it belongs to and, on its own connection, the session it
+    // belongs to. Both are needed later, when there is no request to ask.
+    remember(url, req.headers.cookie)
     if (channel.http(req, res)) return
 
     const file = assets.files.get(path)
@@ -448,11 +474,20 @@ export async function serveApp(app: App): Promise<Serving> {
     Readable.fromWeb(response.body as never).pipe(res)
   }
 
+  function remember(url: URL, cookie: string | undefined): void {
+    const id = url.searchParams.get('c')
+    const path = url.searchParams.get('at')
+    if (!id) return
+    const existing = at.get(id)
+    at.set(id, {
+      path: path ?? existing?.path ?? '/',
+      cookie: cookie ?? existing?.cookie ?? '',
+    })
+  }
+
   server.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? config.host}`)
-    const id = url.searchParams.get('c')
-    const atParam = url.searchParams.get('at')
-    if (id && atParam) at.set(id, atParam)
+    remember(url, req.headers.cookie)
     if (!channel.upgrade(req, socket as never, head)) socket.end('HTTP/1.1 404 Not Found\r\n\r\n')
   })
 
