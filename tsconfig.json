@@ -8,7 +8,9 @@
     "allowImportingTsExtensions": true,
     "paths": {
       "/runtime/*": ["./packages/client/src/*"],
-      "/warp/*": ["./packages/warp/src/*"]
+      "/warp/*": ["./packages/warp/src/*"],
+      "weft": ["./packages/weft/src/index.ts"],
+      "weft/server": ["./packages/weft/src/server.ts"]
     },
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
@@ -23,10 +25,12 @@
     "packages/*/src/**/*.ts",
     "packages/*/test/**/*.ts",
     "packages/*/fixtures/**/*.ts",
-    "packages/compiler/types/*.d.ts",
     "packages/compiler/fixtures/**/*.tsx",
+    "packages/weft/src/assets/**/*.tsx",
     "demo/src/**/*.ts",
-    "demo/src/**/*.tsx",
-    "demo/test/**/*.ts"
+    "demo/app/**/*.ts",
+    "demo/app/**/*.tsx",
+    "demo/test/**/*.ts",
+    "demo/weft.config.ts"
   ]
 }

@@ -1,6 +1,5 @@
-import type { Values } from '../../ir/src/index.ts'
-import { createRouter, type Router } from '../../kernel/src/router.ts'
-import type { RouteResolver } from '../../kernel/src/kernel.ts'
+import type { Values } from '@weft/ir'
+import { createRouter, type Router, type RouteResolver } from '@weft/kernel'
 import {
   compileFixture,
   CRITICAL,

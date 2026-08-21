@@ -1,4 +1,4 @@
-import type { Hole, TemplateIR } from '../../ir/src/index.ts'
+import type { Hole, TemplateIR } from '@weft/ir'
 import type { SlotFacts } from './validate.ts'
 
 /**

@@ -1,9 +1,42 @@
 {
   "name": "@weft/adapters",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Port implementations: Node HTTP, channels, stores, sessions, flags, a worker pool.",
+  "license": "MIT",
+  "author": "raminjafary",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raminjafary/weft.git",
+    "directory": "packages/adapters"
+  },
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@weft/compiler": "workspace:*",
+    "@weft/kernel": "workspace:*",
+    "@weft/warp": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@weft/ir": "workspace:*",
+    "@weft/client": "workspace:*"
   }
 }

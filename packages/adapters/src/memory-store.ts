@@ -1,4 +1,4 @@
-import type { EntryMeta, Lease, StoreEntry, StorePort } from '../../kernel/src/ports.ts'
+import type { EntryMeta, Lease, StoreEntry, StorePort } from '@weft/kernel'
 
 /**
  * L1: isolate-local memory. Byte-bounded and LRU-evicted, never an unbounded Map — inside a

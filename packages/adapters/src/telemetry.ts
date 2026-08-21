@@ -1,4 +1,4 @@
-import type { TelemetryPort } from '../../kernel/src/ports.ts'
+import type { TelemetryPort } from '@weft/kernel'
 
 /**
  * Every budget outcome is an event class of its own, because the failure mode of graceful

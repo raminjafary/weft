@@ -1,15 +1,16 @@
-import type {
-  BinaryOp,
-  DerivedDecl,
-  DerivedExpr,
-  EscapeClass,
-  Hole,
-  SignalDecl,
-  UnaryOp,
-  WiringEntry,
-} from '../../ir/src/index.ts'
-import type { TemplateIR } from '../../ir/src/index.ts'
-import { BINARY_OPS, UNARY_OPS } from '../../ir/src/index.ts'
+import {
+  BINARY_OPS,
+  type BinaryOp,
+  type DerivedDecl,
+  type DerivedExpr,
+  type EscapeClass,
+  type Hole,
+  type SignalDecl,
+  type TemplateIR,
+  UNARY_OPS,
+  type UnaryOp,
+  type WiringEntry,
+} from '@weft/ir'
 import {
   BOOLEAN_ATTRIBUTES,
   bindsToProperty,

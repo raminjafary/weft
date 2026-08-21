@@ -1,6 +1,5 @@
-import { explain } from '../../ir/src/index.ts'
-import { criticalPath, schedule, type DagNode } from '../../kernel/src/waves.ts'
-import type { ResolvedKey } from '../../kernel/src/cache.ts'
+import { explain } from '@weft/ir'
+import { criticalPath, type DagNode, type ResolvedKey, schedule } from '@weft/kernel'
 import type { Plan } from './dsl.ts'
 import { validatePlan, type SlotFacts } from './validate.ts'
 

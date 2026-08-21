@@ -1,4 +1,4 @@
-import type { EffectSet } from '../../ir/src/index.ts'
+import type { EffectSet } from '@weft/ir'
 import { name, node, nodes, type Node } from './ast.ts'
 import { CompileError, locate } from './errors.ts'
 

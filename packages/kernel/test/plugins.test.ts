@@ -13,9 +13,7 @@ import {
   type EnvelopeContext,
   type Ports,
 } from '../src/index.ts'
-import { cookieSession } from '../../adapters/src/session.ts'
-import { staticFlags } from '../../adapters/src/flags.ts'
-import { memoryStore } from '../../adapters/src/memory-store.ts'
+import { cookieSession, memoryStore, staticFlags } from '@weft/adapters'
 
 function context(cookie = 'locale=ar'): EnvelopeContext {
   const ports: Ports = {

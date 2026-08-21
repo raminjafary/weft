@@ -1,5 +1,5 @@
-import { intentId } from '../../compiler/src/intents.ts'
-import type { Intent, Registry } from '../../kernel/src/index.ts'
+import { intentId } from '@weft/compiler'
+import type { Intent, Registry } from '@weft/kernel'
 
 /**
  * A registry built from a manifest, which is the deployment shape a bundler produces: every

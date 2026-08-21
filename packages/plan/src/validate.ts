@@ -1,7 +1,5 @@
-import { cacheClassOf, requiresTtl, type EffectSet, type WireForm } from '../../ir/src/index.ts'
-import { W_CPU_BUDGET_ADVISORY } from '../../kernel/src/executor.ts'
-import { schedule, PlanGraphError, type DagNode } from '../../kernel/src/waves.ts'
-import type { Consistency } from '../../kernel/src/ports.ts'
+import { cacheClassOf, requiresTtl, type EffectSet, type WireForm } from '@weft/ir'
+import { type Consistency, type DagNode, PlanGraphError, schedule, W_CPU_BUDGET_ADVISORY } from '@weft/kernel'
 import { PlanError, type Plan, type SlotSpec } from './dsl.ts'
 
 /**

@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { memoryStore, tieredStore } from '../src/index.ts'
 import { permutations, staticFlags } from '../src/flags.ts'
 import { cookieSession } from '../src/session.ts'
-import { requestFacts } from '../../kernel/src/ports.ts'
+import { requestFacts } from '@weft/kernel'
 
 const utf8 = new TextEncoder()
 const shared = { class: 'shared' } as const

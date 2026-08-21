@@ -5,7 +5,7 @@ import {
   type TemplateIR,
   type Values,
   type WireForm,
-} from '../../ir/src/index.ts'
+} from '@weft/ir'
 import {
   frame,
   list,
@@ -20,7 +20,7 @@ import {
   WARP_VERSION,
   type Negotiation,
   type ServerCapabilities,
-} from '../../warp/src/index.ts'
+} from '@weft/warp'
 import { createEpochs, type Epochs, type Transition } from './epoch.ts'
 import type { EnvelopeContext } from './context.ts'
 import type { IntentDispatch, IntentOutcome } from './intent.ts'

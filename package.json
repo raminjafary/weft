@@ -13,8 +13,7 @@
     "bench": "node packages/bench/src/cli.ts run",
     "bench:list": "node packages/bench/src/cli.ts list",
     "bench:verify": "node packages/bench/src/cli.ts verify",
-    "demo": "node demo/src/cli.ts",
-    "demo:dev": "node --watch demo/src/cli.ts",
+    "demo": "weft dev demo",
     "test": "node --test packages/*/test/*.test.ts demo/test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepare": "husky",
@@ -25,7 +24,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "commit": "cz",
-    "release": "commit-and-tag-version"
+    "release": "commit-and-tag-version",
+    "demo:build": "weft build demo",
+    "demo:start": "weft start demo",
+    "build": "node scripts/build-packages.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.2",

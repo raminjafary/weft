@@ -1,4 +1,4 @@
-import { frame, type Frame } from '../../warp/src/index.ts'
+import { frame, type Frame } from '@weft/warp'
 
 /**
  * Fresh data without a changed view.

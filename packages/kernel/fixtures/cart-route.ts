@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url'
-import { compileFiles } from '../../compiler/src/index.ts'
-import { render, type TemplateIR, type Values } from '../../ir/src/index.ts'
+import { compileFiles } from '@weft/compiler'
+import { render, type TemplateIR, type Values } from '@weft/ir'
 import type { KernelRoute, KernelSlot } from '../src/kernel.ts'
 import type { PreloadLink } from '../src/ports.ts'
 

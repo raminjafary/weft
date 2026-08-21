@@ -3,17 +3,18 @@ import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { parseSync } from 'oxc-parser'
 import {
   assertValidTemplate,
+  cacheClassOf,
   draftTemplate,
-  seal,
   type EffectSet,
   type Json,
+  seal,
   type SignalDecl,
   type TemplateIR,
-} from '../../ir/src/index.ts'
+  unionEffects,
+} from '@weft/ir'
 import { name, node, nodes, type Node } from './ast.ts'
 import { CompileError, locate } from './errors.ts'
 import { inferEffects } from './effects.ts'
-import { cacheClassOf, unionEffects } from '../../ir/src/effects.ts'
 import { lower, returnedJsx, type ComponentRef, type ImportRef, type Lowered, type Scope } from './lower.ts'
 import { createTypeOracle, type TypeOracle } from './types.ts'
 

@@ -1,13 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import {
-  assertValidTemplate,
-  draftTemplate,
-  render,
-  seal,
-  type Hole,
-  type TemplateIR,
-} from '../../ir/src/index.ts'
+import { assertValidTemplate, draftTemplate, render, seal, type Hole, type TemplateIR } from '@weft/ir'
 import { fillFor, splitAtSlots, streamRoute, type Route } from '../src/index.ts'
 
 const decoder = new TextDecoder()

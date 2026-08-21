@@ -54,6 +54,8 @@ export default {
         'plan',
         'adapters',
         'bench',
+        'weft',
+        'create',
         'demo',
         'spec',
         'deps',

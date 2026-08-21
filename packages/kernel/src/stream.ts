@@ -1,4 +1,4 @@
-import type { Resolver, TemplateIR, Values } from '../../ir/src/index.ts'
+import type { Resolver, TemplateIR, Values } from '@weft/ir'
 import { fillerBytes } from './filler.ts'
 import { anchorFor, splitAtSlots } from './split.ts'
 

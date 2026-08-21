@@ -1,9 +1,33 @@
 {
   "name": "@weft/warp",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Warp/1: the binary frame codec the channel speaks.",
+  "license": "MIT",
+  "author": "raminjafary",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raminjafary/weft.git",
+    "directory": "packages/warp"
+  },
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

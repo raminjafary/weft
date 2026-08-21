@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { memoryStore } from '../../adapters/src/memory-store.ts'
-import { cookieSession } from '../../adapters/src/session.ts'
-import { staticFlags } from '../../adapters/src/flags.ts'
+import { cookieSession, memoryStore, staticFlags } from '@weft/adapters'
 import { gated, misbehaving, rejected, stack } from '../fixtures/plugins.ts'
 import { cartRoute } from '../fixtures/cart-route.ts'
 import {
