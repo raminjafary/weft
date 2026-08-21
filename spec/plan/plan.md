@@ -163,4 +163,6 @@ has to precede anything that adds a script tag, and no read/write relationship c
   implemented; plugins are global to a kernel.
 - **No client plugins, no capability grants, no residency checking.** `residency`,
   `capabilities` and `budget` are declared on the plugin type and read by nothing.
-- **`refresh`, `speculate` and `incremental` are recorded and unread.**
+- **`refresh` and `speculate` are recorded and unread.** `.incremental()` is read now: it puts a
+  content-addressed segment memo on the slot, and `W_INCREMENTAL_NO_GRAPH` fires only when there
+  is neither a derived value nor a nested template for it to reuse.

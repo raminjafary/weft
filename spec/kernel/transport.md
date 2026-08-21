@@ -77,6 +77,9 @@ Nothing is replayed — the client named what it holds, and that is cheaper than
   paying twice for one property.
 - **No backpressure policy.** A sink that cannot keep up buffers in the host's socket. A slow
   consumer is a real failure mode and it is not addressed here.
-- **No browser-side transport.** The client half routes decoded frames; opening the socket and
-  feeding it is the application's, which is why `createChannelClient` takes frames rather
-  than a URL. Navigation and an intent transport are the phase 3 gap.
+- **No browser-side socket.** The client half routes decoded frames and produces frames to
+  send — including an `INTENT` with an optimistic epoch staged behind it — but opening the
+  connection and feeding it is the application's. That is why `createChannelClient` takes frames
+  rather than a URL: the same code path then serves a socket, an SSE stream with POSTs up, and a
+  test. Navigation is the remaining phase 3 gap, and it is blocked on phase 7 discovery rather
+  than on transport.

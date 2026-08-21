@@ -27,7 +27,7 @@ export type PortName =
   | 'db'
   | 'deployment'
 
-/** Thirteen ports are declared. Six are load-bearing today; the rest refuse rather than pretend. */
+/** Thirteen ports are declared. Seven are load-bearing today; the rest refuse rather than pretend. */
 export const PORTS: readonly PortName[] = [
   'render',
   'store',

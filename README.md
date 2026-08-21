@@ -28,7 +28,7 @@ without a harness and a wire format cannot be versioned retroactively.
 | Route streaming                   | [`spec/kernel/streaming.md`](spec/kernel/streaming.md), `packages/kernel`                     | Slots streamed in order or fastest-first                            |
 | Routing                           | [`spec/kernel/routing.md`](spec/kernel/routing.md), `packages/kernel`, `packages/plan`        | A URL matches a plan; the plan lowers to a route; `serve()` runs it |
 | Request lifecycle                 | [`spec/kernel/lifecycle.md`](spec/kernel/lifecycle.md), `packages/kernel`                     | A state machine, two-phase envelope, 103 Early Hints, deferral      |
-| Ports                             | [`spec/kernel/ports.md`](spec/kernel/ports.md), `packages/kernel`, `packages/adapters`        | Thirteen declared, six implemented, the rest refuse by name         |
+| Ports                             | [`spec/kernel/ports.md`](spec/kernel/ports.md), `packages/kernel`, `packages/adapters`        | Thirteen declared, seven implemented, the rest refuse by name       |
 | Runtime cache keys                | [`spec/kernel/cache.md`](spec/kernel/cache.md), `packages/kernel`                             | Reads resolved into a key; no setter exists anywhere                |
 | Executors, waves, epochs          | [`spec/kernel/locus.md`](spec/kernel/locus.md), `packages/kernel`, `packages/client`          | DAG scheduling, CPU budgets, staged epochs with atomic commit       |
 | Stateless surgical updates        | [`spec/kernel/surgical.md`](spec/kernel/surgical.md), `packages/kernel`                       | `HELD` recovers a base, the delta is memoized by its transition     |
@@ -210,10 +210,10 @@ minified, compressed the way it would ship:
 
 | Entry                                     | Raw    | gzip   | brotli     | Budget |
 | ----------------------------------------- | ------ | ------ | ---------- | ------ |
-| Client runtime, everything                | 10,655 | 4,100  | **3,735**  | 6,144  |
+| Client runtime, everything                | 11,010 | 4,231  | **3,865**  | 6,144  |
 | Content route — adopt and bind            | 6,120  | 2,282  | **2,082**  | 5,120  |
 | App route — adopt, bind, patch, epochs    | 8,494  | 3,258  | **2,982**  | 12,288 |
-| Channel route — plus routing frames       | 10,624 | 4,084  | **3,721**  | 4,096  |
+| Channel route — plus routing frames       | 10,979 | 4,216  | **3,852**  | 4,096  |
 | Server kernel — the document request path | 24,247 | 9,121  | **8,110**  | 8,192  |
 | Server kernel — plus intent dispatch      | 28,144 | 10,363 | **9,220**  | 10,240 |
 | Server kernel — plus refresh and epochs   | 31,146 | 11,622 | **10,335** | 12,288 |
@@ -412,7 +412,7 @@ warnings, each naming the read or the slot that caused it — including the one 
 promises in its strongest terms: `.cache('public')` on a fragment that reads identity fails
 the build, naming `identity`.
 
-**Ports replace, plugins extend.** Thirteen ports declared; six implemented; the rest refuse
+**Ports replace, plugins extend.** Thirteen ports declared; seven implemented; the rest refuse
 with `E_PORT_UNIMPLEMENTED` rather than approximating. A plugin's dependency graph is inferred
 from `reads` and `provides`, so most middleware becomes concurrent without anyone opting in,
 and a plugin that reads state it did not declare throws — the one rule that keeps effect

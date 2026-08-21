@@ -74,20 +74,68 @@ export interface Applied {
 }
 
 const decoder = new TextDecoder()
+const encoder = new TextEncoder()
 
 function text(frame: ChannelFrame, key: string): string | undefined {
   const value = frame.header[key]
   return value === undefined ? undefined : String(value)
 }
 
-export function createChannelClient(options: ChannelClientOptions): {
+export interface ChannelClient {
   apply(frames: readonly ChannelFrame[]): Promise<Applied>
   /** The HELD header the server needs: what this client is showing, per slot. */
   held(): Record<string, string>
-} {
+  /**
+   * The INTENT frame to send, and — when `epoch` is given — the client's own guess staged into
+   * that epoch first.
+   *
+   * The order matters and is the whole mechanism. The guess is staged, so it paints nothing and
+   * the page is undisturbed. If the server agrees it stages the real values into the same epoch
+   * and commits, and the guess is replaced by the truth in one paint. If it refuses, the ACK
+   * says so and `apply` discards the epoch — nothing painted, so nothing has to be un-painted.
+   *
+   * Sending the frame is the application's: this module takes decoded frames and returns frames
+   * to send, so the same code path serves a socket, an SSE stream with POSTs up, and a test.
+   */
+  intent(id: string, input: unknown, options?: OptimisticOptions): ChannelFrame
+  /** Stage a locally-computed change without an intent. A guess with nothing to confirm it. */
+  stage(epoch: string, slot: string, changed: Record<string, Json>): void
+}
+
+export interface OptimisticOptions {
+  epoch?: string
+  /** The client's guess, per slot: the values it expects the mutation to produce. */
+  optimistic?: Record<string, Record<string, Json>>
+}
+
+export function createChannelClient(options: ChannelClientOptions): ChannelClient {
   const byName = (): Map<string, Region> => new Map(options.regions().map((r) => [r.slot, r]))
 
   return {
+    stage(epoch, slot, changed) {
+      const region = byName().get(slot)
+      if (!region) return
+      options.epochs.stage(epoch, {
+        slot,
+        adopted: region.adopted,
+        delta: { tpl: region.adopted.template.version, base: region.base, changed },
+      })
+    },
+
+    intent(id, input, opts = {}) {
+      const epoch = opts.epoch
+      if (epoch && opts.optimistic) {
+        for (const [slot, changed] of Object.entries(opts.optimistic)) {
+          this.stage(epoch, slot, changed)
+        }
+      }
+      return {
+        kind: 'INTENT',
+        header: { i: id, ...(epoch ? { epoch } : {}) },
+        body: encoder.encode(JSON.stringify(input)),
+      }
+    },
+
     held() {
       const out: Record<string, string> = {}
       for (const region of options.regions()) {

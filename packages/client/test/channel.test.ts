@@ -152,3 +152,57 @@ test('a successful ACK leaves the epoch alone, because the COMMIT is what paints
   assert.deepEqual(acked.discarded, [])
   assert.deepEqual(s.epochs.open, ['o-2'])
 })
+
+/**
+ * The optimistic round trip, from the client's side. What makes it worth having is that the
+ * failure path does nothing rather than undoing something: the guess was never painted.
+ */
+test('an optimistic intent stages a guess that paints nothing, and names it on the frame', () => {
+  const s = setup()
+  const frame = s.client.intent(
+    'p1',
+    { to: '55.00' },
+    {
+      epoch: 'o-9',
+      optimistic: { prices: { second: '55.00' } },
+    },
+  )
+  assert.equal(frame.kind, 'INTENT')
+  assert.equal(frame.header.i, 'p1')
+  assert.equal(frame.header.epoch, 'o-9')
+  assert.deepEqual(JSON.parse(new TextDecoder().decode(frame.body)), { to: '55.00' })
+  assert.deepEqual(s.adopted.written, [], 'the guess is staged, so the page is undisturbed')
+  assert.deepEqual(s.epochs.staged('o-9'), ['prices'])
+})
+
+test('the server refusing it leaves nothing to undo', async () => {
+  const s = setup()
+  s.client.intent('p1', { to: 'boom' }, { epoch: 'o-9', optimistic: { prices: { second: 'boom' } } })
+  const applied = await s.client.apply([
+    { kind: 'ACK', header: { i: 'p1', ok: 'false', epoch: 'o-9', code: 'E_INTENT_FAILED' } },
+  ])
+  assert.deepEqual(applied.discarded, ['o-9'])
+  assert.deepEqual(s.adopted.written, [], 'the rollback is a discarded epoch, not a reconstruction')
+  assert.equal(s.region.base, 'b1', 'and the base never moved')
+})
+
+test('the server agreeing replaces the guess with the truth in one paint', async () => {
+  const s = setup()
+  s.client.intent('p1', { to: '55.00' }, { epoch: 'o-9', optimistic: { prices: { second: '55.00' } } })
+  // The server stages the real values into the same epoch and commits. One slot, one staged
+  // value per epoch, so the server's frame supersedes the guess rather than queueing behind it.
+  const applied = await s.client.apply([
+    { kind: 'ACK', header: { i: 'p1', ok: 'true', epoch: 'o-9' } },
+    deltaFrame('prices', 'b1', { second: '55.10' }, { epoch: 'o-9' }),
+    { kind: 'COMMIT', header: { epoch: 'o-9', transition: 'instant', slots: 'prices' } },
+  ])
+  assert.equal(applied.writes, 1, 'one paint, not two')
+  assert.deepEqual(s.adopted.written, [['second', '55.10']], 'the truth, not the guess')
+  assert.equal(s.region.base, 'next-base')
+})
+
+test('a staged guess for a region this client does not hold is dropped, not thrown', () => {
+  const s = setup()
+  s.client.stage('o-1', 'nowhere', { x: 1 })
+  assert.deepEqual(s.epochs.open, [])
+})
