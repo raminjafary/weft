@@ -78,13 +78,69 @@ STALE  s12 reason=tag:cart:42
 The client then decides: refresh now, on next focus, or never. That is push invalidation of
 server-rendered regions without turning the application into a realtime app.
 
+## Measured: one transition, a thousand clients
+
+The claim this whole flow exists to make. A per-connection differ — which is what LiveView's
+architecture is, by construction rather than by choice — keeps the previous render in a process
+per connection, so N connections making one transition produce N diffs. Keeping the state on
+the client makes a delta a pure function of two content-addressed states, so one computation
+serves all of them.
+
+`node packages/bench/src/cli.ts deltas`, 1,000 clients, the 50-row feed with 6 rows changed:
+
+| Arrival                     | Strategy       | Diffs | Memoized | Store reads | ms   |
+| --------------------------- | -------------- | ----- | -------- | ----------- | ---- |
+| all on one base render      | per-connection | 1,000 | 0        | 0           | 8.2  |
+| all on one base render      | shared         | **1** | 999      | 1,001       | 0.3  |
+| each on its own base render | per-connection | 1,000 | 0        | 0           | 9.2  |
+| each on its own base render | shared         | 1,000 | 0        | 2,000       | 17.3 |
+
+Both rows of the second block are the honest part. **When clients hold different bases there is
+nothing to share**, and the shared path then does the same N diffs plus a store read and a write
+for each — measurably worse, 17.3 ms against 9.2. Reporting only the first block would be
+advocacy. The win is proportional to how many clients share a base, and the shape it is for is
+a broadcast: a price list, a feed, a scoreboard.
+
+Both figures come from the same differ over the same templates and the same transition, so the
+only variable is where the previous state lives. Phoenix is not running: the per-connection
+number is a real per-connection differ in this harness, and the claim it supports is
+architectural. No constant factor of a LiveView deployment is measured or claimed.
+
+## Incremental recompute
+
+The design's three memoisation levels, all of them now real.
+
+**Level one, the fragment**, keyed by its effect signature. That is `StorePort` and it has
+existed since the plan layer.
+
+**Level two, derived values.** `derivedPlan()` computes, once per template, which derived ids a
+change can reach — transitively, since one derived value may read another. `resolveDerivedFrom`
+carries the rest over from the previous resolved set.
+
+**Level three, template segments.** A rendered nested template is a pure function of its
+version and its values, so it is content-addressed: `segmentKey(tpl, values)`. A list of 500
+rows where three changed costs three row renders. A _reordered_ list costs none, because the
+key is the content and not the index.
+
+Three scoping decisions, stated rather than discovered:
+
+- **Only nested templates are memoised** — list rows and component instances. A text hole is one
+  escape scan and one encode, and hashing its value costs more than rendering it. A memo that
+  loses is worse than no memo.
+- **The memo is process-local**, because `render` is synchronous: it writes into a buffer and
+  returns a byte count, so a memo it consults must answer synchronously. Sharing row bytes
+  between isolates would mean making rendering async, which would cost every render more than it
+  saves any. The sharing stops at the isolate boundary, and that is the honest statement.
+- **Structural change is reported, not hidden.** A hole whose shape changed — a list that is
+  suddenly not an array — is named in `stats.structural`. A slot reporting structural change
+  every time is a slot for which `.incremental()` costs rather than saves.
+
+The property that makes it safe to turn on is byte identity with a full render, and it is a gate
+rather than a claim: `weft-bench verify` renders every scenario both ways, cold memo and warm,
+and refuses to publish numbers if a single byte differs.
+
 ## What this does not do yet
 
-- **No transport.** `HELD`, `REFRESH` and `STALE` are parsed, produced and tested as frames.
-  Nothing carries them over a live connection, because there is no Warp transport binding.
-- **No incremental recompute.** Step 2 re-runs the whole fragment. The design's three
-  memoisation levels — fragment, derived value, template segment — exist only at the fragment
-  level, which is `StorePort` and was already there.
 - **No `patch` form.** It is in `derivableForms()` and no encoder produces it.
 - **Base renders are stored unbounded.** They are tagged `tpl:<version>` so a template change
   can clear them, but nothing expires an old base, and a real deployment needs a TTL here.

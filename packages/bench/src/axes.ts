@@ -50,6 +50,18 @@ export const AXES: Axis[] = [
       'Single-threaded, one process, no I/O. It measures the render path only, which is the part the compiler owns.',
   },
   {
+    id: 'shared-delta',
+    label: 'Delta computations for N clients making one transition',
+    unit: 'computations',
+    direction: 'lower-better',
+    needs: 'in-process',
+    sota: 'LiveView keeps the previous render in a process per connection and diffs per connection, so N connections making one transition produce N diffs. That is architectural, not a tuning choice.',
+    gap: 'The client names the base render it holds, so a delta is a pure function of two content-addressed states and is memoized by the transition it encodes. One computation serves every client making the same transition.',
+    expectation: 'beat',
+    caveat:
+      'Phoenix is not running: the per-connection figure is a real per-connection differ in this harness, over the same templates and the same transition, so what is measured is the architectural difference and not BEAM scheduling, Phoenix wire encoding, or its tracked comprehensions. Both arrival patterns are reported because only one favours us — clients each holding a different base share nothing, and the shared path then pays a store read and write per client on top of the same diffs.',
+  },
+  {
     id: 'update-bytes',
     label: 'Bytes per server-driven update',
     unit: 'bytes',

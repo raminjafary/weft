@@ -13,6 +13,7 @@ import { fillerSize } from '../../kernel/src/index.ts'
 import { DELAYS, measureSlots, probeIncrementalDsd } from './measure/slots.ts'
 import { checkAll } from './equivalence.ts'
 import { measureClientRuntime } from './measure/client-runtime.ts'
+import { formatSharedDelta, measureSharedDelta } from './measure/shared-delta.ts'
 import { compileScenario } from './compiled.ts'
 import { renderMarkdown, comparison } from './report.ts'
 import { run } from './runner.ts'
@@ -87,6 +88,7 @@ const HELP = `weft-bench — phase-zero benchmark harness
   client    run the client runtime's own conformance checks in every engine
   budget    bundle each entry and measure it against its byte budget
   slots     stream a route in both orders, and probe incremental shadow DOM
+  deltas    shared vs per-connection delta computation, the phase 6 claim
   list      list axes, scenarios, and candidates
   ir        print the sealed, versioned IR for a scenario
 
@@ -102,6 +104,7 @@ run flags
   --latency N       injected round-trip time in ms; required for any shell-TTFB claim
   --batches N       in-process timing batches (default 25)
   --ops N           renders per batch (default 200)
+  --clients N       clients in the deltas comparison (default 1000)
   --engines         chromium,firefox,webkit (browser axes; requires playwright)
                     webkit is the closest proxy for an iOS webview and is never an iOS number
   --out DIR         where to write the report (default results/)
@@ -190,6 +193,21 @@ async function main(): Promise<number> {
       )
     }
     return over ? 1 : 0
+  }
+
+  if (command === 'deltas') {
+    const clients = Number(flags.clients ?? 1_000)
+    const scenarios = (csv(flags.scenarios) ?? ['cart', 'feed']).map(scenarioById)
+    for (const s of scenarios) {
+      const report = await measureSharedDelta(s, clients)
+      process.stdout.write(`${formatSharedDelta(report)}\n`)
+    }
+    process.stdout.write(
+      '\nPhoenix is not running here. The per-connection figure is a real per-connection differ\n' +
+        'over the same templates and the same transition, so what is measured is the architectural\n' +
+        'difference and not any constant factor of a LiveView deployment.\n',
+    )
+    return 0
   }
 
   if (command === 'client') {

@@ -25,8 +25,13 @@ export interface SlotFacts {
    * is why they are one list rather than two.
    */
   fillable?: readonly string[]
-  /** Whether the fragment has anything a memoized recompute could skip. */
+  /** Derived values a memoized recompute could skip. The design's second memoisation level. */
   derivedCount?: number
+  /**
+   * Nested templates — list rows and component instances — that a content-addressed memo could
+   * reuse. The design's third level, and the one that actually pays on a long list.
+   */
+  nestedCount?: number
 }
 
 export interface Issue {
@@ -299,12 +304,14 @@ function checkForms(spec: SlotSpec, facts: SlotFacts, errors: Issue[]): void {
 
 function checkIncremental(spec: SlotSpec, facts: SlotFacts, warnings: Issue[]): void {
   if (!spec.incremental) return
-  if ((facts.derivedCount ?? 0) === 0) {
+  // Two levels can pay: derived values a change cannot reach, and nested templates a memo can
+  // return. A fragment with neither is hashing its inputs for nothing.
+  if ((facts.derivedCount ?? 0) === 0 && (facts.nestedCount ?? 0) === 0) {
     warnings.push({
       code: 'W_INCREMENTAL_NO_GRAPH',
       slot: spec.name,
       message:
-        'declares .incremental() but has no derived values to memoize, so the input hashing is pure overhead',
+        'declares .incremental() but has neither derived values nor nested templates to memoize, so the input hashing is pure overhead',
     })
   }
 }

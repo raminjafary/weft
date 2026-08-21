@@ -22,6 +22,11 @@ export function fillableHoles(holes: readonly Hole[]): string[] {
   return out
 }
 
+/** Holes a content-addressed segment memo could serve: a nested list row, or a component instance. */
+export function nestedHoles(holes: readonly Hole[]): number {
+  return holes.filter((hole) => Boolean(hole.nested) && !hole.isolated).length
+}
+
 export function factsOf(entry: TemplateIR): SlotFacts {
   return {
     id: entry.id,
@@ -29,6 +34,7 @@ export function factsOf(entry: TemplateIR): SlotFacts {
     effects: entry.effects,
     forms: entry.forms,
     derivedCount: entry.derived.length,
+    nestedCount: nestedHoles(entry.holes),
     fillable: fillableHoles(entry.holes),
   }
 }

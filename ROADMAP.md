@@ -19,17 +19,17 @@ draw on the document request path's headroom.
 
 The nine phases are from [the architecture proposal](docs/weft-and-warp.html).
 
-| Phase                                 | State                                                                                                                                                 |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 · Prove the physics, version the IR | Done. RR7 gate measured, IR versioned from commit one, harness gates every claim                                                                      |
-| 2 · Kernel and ports                  | Request state machine, two-phase envelope, 103 Early Hints, deferral, routing, thirteen ports declared and six implemented                            |
-| 3 · Client runtime                    | Signals, wiring, adoption, deltas, residency, epochs, budget, a frame router. Missing: navigation, intent transport                                   |
-| 4 · The plan layer                    | Plan DSL, effect inference, runtime keys, plugin DAG, `weft why`, and a plan that lowers to a served route. Missing: generated plans                  |
-| 5 · Negotiation and locus             | Resident digests, form selection, `STALE`, epochs with atomic commit, executors, per-slot budgets, all three transport bindings. Missing: a real pool |
-| 6 · Stateless surgical updates        | `HELD` flow, base recovery through the store, memoized deltas, served over a live channel. Missing: incremental recompute, a LiveView benchmark       |
-| 7 · Discovery and authority           | Not started. No lazy plan extension, render intents, capability checks, signed intents                                                                |
-| 8 · Profile-guided planning           | Not started. No `weft profile`, generated plans, chunk packing, V8 compile hints                                                                      |
-| 9 · Composition and topology          | Composition is in-process. `remote` is a declared wire form with no implementation                                                                    |
+| Phase                                 | State                                                                                                                                                                      |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 · Prove the physics, version the IR | Done. RR7 gate measured, IR versioned from commit one, harness gates every claim                                                                                           |
+| 2 · Kernel and ports                  | Request state machine, two-phase envelope, 103 Early Hints, deferral, routing, intents, a stampede lease, thirteen ports declared and seven implemented                    |
+| 3 · Client runtime                    | Signals, wiring, adoption, deltas, residency, epochs, budget, a frame router, optimistic rollback. Missing: navigation, sending intents                                    |
+| 4 · The plan layer                    | Plan DSL, effect inference, runtime keys, plugin DAG, `weft why`, a plan that lowers to a served route, `.incremental()`. Missing: generated plans, which are phase 8      |
+| 5 · Negotiation and locus             | Done. Resident digests, form selection, `STALE`, epochs with atomic commit, executors, per-slot budgets, all three transport bindings, a real worker pool                  |
+| 6 · Stateless surgical updates        | Done. `HELD` flow, base recovery, memoized deltas over a live channel, three levels of incremental recompute, and the shared-delta comparison measured                     |
+| 7 · Discovery and authority           | Intents dispatch and declare their writes; `CapabilityCheck` is the seam a capability model plugs into. Missing: lazy plan extension, an implemented model, signed intents |
+| 8 · Profile-guided planning           | Not started. No `weft profile`, generated plans, chunk packing, V8 compile hints                                                                                           |
+| 9 · Composition and topology          | Composition is in-process. `remote` is a declared wire form with no implementation                                                                                         |
 
 ---
 
@@ -82,54 +82,29 @@ semantics exist; what is missing is a route-scoped staging model and something t
 route's slot set before arrival. So: real, and blocked on phase 7's discovery rather than on
 the transport.
 
-### 2. A stampede lease in the request path
-
-`StorePort.lease` is implemented and tested and the kernel never takes one, so two concurrent
-misses render twice. This is a small change with a large effect under load, and it is the
-difference between a cache and a cache that helps during an incident.
-
-### 3. L0: fragments that read nothing
+### 2. L0: fragments that read nothing
 
 A fragment classified `static` could be resolved at build time and served by a CDN with the
 kernel never invoked — the fastest tier by a wide margin, and free. Today it renders and caches
 like anything else, which means the cheapest thing in the design is not implemented.
 
-### 4. Generated plans, and plans from a convention
+### 3. Generated plans, and plans from a convention
 
 `lowerPlan` takes a plan, some `SlotFacts` derived from compiler output, and a bindings object.
 The first is derived; the other two are written by hand. A file convention or a profile that
 emits both is phase 8, and it is what makes a plan diffable in review rather than authored.
 
-### 5. A real worker pool
-
-`deferred` is preemptible at await points and is not a worker thread; it says so. A CPU budget
-is only a hard limit on a genuinely separate crash domain, so `pool:` is what makes
-`.budget({ cpu })` mean anything.
-
-### 6. Slots inside components
+### 4. Slots inside components
 
 `<Widget>content</Widget>` is `E_COMPONENT_CHILDREN_UNSUPPORTED`. A component takes props only.
 Children need a slot mechanism inside a nested template, which is a different problem from the
 streaming `slot` hole and should not reuse it by accident.
 
-### 7. Components inside list rows
+### 5. Components inside list rows
 
 `E_COMPONENT_IN_LIST`. A row is its own template and cannot carry an instance today.
 
-### 8. Incremental recompute
-
-`.incremental()` is recorded in a plan, warns when there is nothing to memoize, and is read by
-nothing. The design's three memoisation levels exist only at the coarsest — fragment, keyed by
-effect signature, which is `StorePort`. Derived-value and template-segment memoisation are the
-opt-in part, and the literature is explicit that structural change to the computation graph is
-the hard case, which is why it stays per-slot rather than becoming a mode.
-
-### 9. A LiveView benchmark
-
-Beating LiveView on shared-delta efficiency is the specific claim phase 6 exists to make, and
-it has not been measured against LiveView. The mechanism is built and the comparison is not.
-
-### 10. iOS WebKit on a real device
+### 6. iOS WebKit on a real device
 
 Playwright's WebKit is a desktop proxy and is labelled as one everywhere it appears. A
 WKWebView on a device has app-bound-domain rules, host-app request interception, and OS
