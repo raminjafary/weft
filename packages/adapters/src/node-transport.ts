@@ -1,0 +1,103 @@
+import { Readable } from 'node:stream'
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import { linkValue } from '../../kernel/src/hints.ts'
+import type { PreloadLink, TransportPort } from '../../kernel/src/ports.ts'
+import type { Kernel, KernelRoute } from '../../kernel/src/kernel.ts'
+
+/**
+ * The kernel takes a Request and returns a Response, and nothing more. This is the whole of
+ * what it takes to run one on Node — which is the point of the rule that the kernel imports
+ * nothing outside the Minimum Common Web API. A Workers deployment is a different file of
+ * about the same size.
+ *
+ * 103 Early Hints is the one piece that cannot be expressed in the Response object, because
+ * it is an informational response that precedes the real one. It goes through the transport
+ * port, and `writeEarlyHints` reports whether it actually went out: an HTTP/1.1 client
+ * simply waits for the final response, and pretending otherwise would make the measurement
+ * a lie.
+ */
+export function nodeTransport(res: ServerResponse): TransportPort {
+  return {
+    name: 'node-http',
+    earlyHints(links: PreloadLink[]) {
+      if (!links.length) return false
+      // Node exposes this on HTTP/1.1 too, where a client is entitled to ignore it.
+      const writer = (res as ServerResponse & { writeEarlyHints?: (hints: { link: string[] }) => void })
+        .writeEarlyHints
+      if (typeof writer !== 'function') return false
+      // An array, not a comma-joined string: Node validates each value and rejects the joined
+      // form outright. A single-link page would never have caught this.
+      writer.call(res, { link: links.map(linkValue) })
+      return true
+    },
+  }
+}
+
+export interface MountOptions {
+  path?: string
+  /** Built per request, so the transport can hold the response object it must write 103 to. */
+  kernel(transport: TransportPort): Kernel
+  route(): KernelRoute
+}
+
+export interface Mounted {
+  url: string
+  close(): Promise<void>
+}
+
+export async function mountKernel(options: MountOptions): Promise<Mounted> {
+  const path = options.path ?? '/'
+  const server: Server = createServer((req, res) => {
+    void serve(req, res, path, options)
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (typeof address === 'string' || address === null) throw new Error('E_NO_ADDRESS')
+  return {
+    url: `http://127.0.0.1:${address.port}${path}`,
+    close: () =>
+      new Promise<void>((resolve) => {
+        // A keep-alive socket keeps `close` pending forever, so idle connections are dropped
+        // first. A close that does not close is not a close.
+        server.closeAllConnections()
+        server.close(() => resolve())
+      }),
+  }
+}
+
+async function serve(
+  req: IncomingMessage,
+  res: ServerResponse,
+  path: string,
+  options: MountOptions,
+): Promise<void> {
+  if ((req.url ?? '/').split('?')[0] !== path) {
+    res.writeHead(404)
+    res.end()
+    return
+  }
+  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`)
+  const headers = new Headers()
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (typeof value === 'string') headers.set(key, value)
+    else if (Array.isArray(value)) for (const v of value) headers.append(key, v)
+  }
+
+  const kernel = options.kernel(nodeTransport(res))
+  const response = await kernel.handle(
+    new Request(url, { method: req.method ?? 'GET', headers }),
+    options.route(),
+  )
+
+  const out: Record<string, string | string[]> = {}
+  for (const [key, value] of response.headers) {
+    // set-cookie is the one header that legitimately repeats.
+    out[key] = key === 'set-cookie' ? response.headers.getSetCookie() : value
+  }
+  res.writeHead(response.status, out)
+  if (!response.body) {
+    res.end()
+    return
+  }
+  Readable.fromWeb(response.body as never).pipe(res)
+}
