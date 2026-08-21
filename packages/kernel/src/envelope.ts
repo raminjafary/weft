@@ -42,6 +42,12 @@ export interface DeferredEffect {
 export interface Envelope {
   status(code: number): void
   redirect(location: string, code?: number): void
+  /**
+   * Ends the request in phase A with no body. `status()` only sets a code — a route is
+   * entitled to serve a 404 page — so refusing has to be a separate act, or a guard and an
+   * error page would be indistinguishable to the kernel.
+   */
+  refuse(code: number): void
   header(name: string, value: string): void
   /** Sets a default without overwriting what phase A already decided. */
   headerIfUnset(name: string, value: string): void
@@ -61,6 +67,7 @@ export interface Envelope {
   readonly sealed: boolean
   readonly deferred: readonly DeferredEffect[]
   readonly redirected: string | null
+  readonly refused: boolean
 }
 
 const NON_IDEMPOTENT = /consent|purchase|order|payment|csrf|nonce/i
@@ -72,6 +79,7 @@ export function createEnvelope(life: Lifecycle): Envelope {
   const vary = new Set<string>()
   let status = 200
   let redirected: string | null = null
+  let refused = false
   let sealed = false
 
   const openOnly = (what: string): void => {
@@ -89,6 +97,9 @@ export function createEnvelope(life: Lifecycle): Envelope {
     get redirected() {
       return redirected
     },
+    get refused() {
+      return refused
+    },
     status(code) {
       openOnly('status()')
       status = code
@@ -98,6 +109,11 @@ export function createEnvelope(life: Lifecycle): Envelope {
       status = code
       redirected = location
       headers.set('location', location)
+    },
+    refuse(code) {
+      openOnly('refuse()')
+      status = code
+      refused = true
     },
     header(name, value) {
       openOnly(`header(${name})`)

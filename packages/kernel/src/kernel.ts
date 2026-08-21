@@ -11,6 +11,7 @@ import { applyDeferred, createEnvelope, createMailbox, type DeferredMailbox } fr
 import { degrade, inlineExecutor, type ExceedPolicy, type KernelExecutor } from './executor.ts'
 import { sendEarlyHints, type HintResult } from './hints.ts'
 import { requestFacts, type PreloadLink, type Ports, type RequestFacts } from './ports.ts'
+import type { Router } from './router.ts'
 import { lifecycle, type Lifecycle } from './request.ts'
 import { resolvePlugins, runPlugins, type Plugin } from './plugins.ts'
 import { streamRoute, type Order } from './stream.ts'
@@ -50,6 +51,13 @@ export interface KernelRoute {
   template: TemplateIR
   values: Values
   resolve?: Resolver
+  /**
+   * The shell's own identity and inferred reads. A shell that reads a cookie contributes to
+   * the document's `Vary` and to its class exactly as a slot does — it is a fragment, and
+   * leaving it out of the union would advertise a document as shareable on the strength of
+   * its slots alone.
+   */
+  shell?: { id: string; version: string; effects: EffectSet }
   order?: Order
   maxConcurrency?: number
   /** Phase A. The envelope is open here and nowhere else. */
@@ -58,6 +66,12 @@ export interface KernelRoute {
   critical?: PreloadLink[]
   slots: KernelSlot[]
 }
+
+/**
+ * What a matched route resolves to. The params come from the router, so a plan can be lowered
+ * once and produce a route per request without the kernel knowing what a plan is.
+ */
+export type RouteResolver = (params: Record<string, string>) => KernelRoute | Promise<KernelRoute>
 
 export interface KernelOptions {
   ports: Ports
@@ -69,18 +83,31 @@ export interface KernelOptions {
    * a deferrable effect has nowhere to wait and is dropped — which is stated, not hidden.
    */
   connectionOf?(request: Request): string | null
+  /** The route table. Without one, `serve()` has nothing to match and says so. */
+  routes?: Router<RouteResolver>
+  /** What an unmatched path returns. A 404 with no body by default. */
+  notFound?(request: Request): Response | Promise<Response>
 }
 
 export interface KernelTrace {
   states: readonly string[]
   hints: HintResult
   keys: Record<string, ResolvedKey>
+  /** The shell's own key, when the route declared its identity. */
+  document: ResolvedKey | null
   hits: string[]
   degraded: { slot: string; code: string; message: string }[]
   deferred: number
+  /** Which pattern matched and with what params. Null when `handle` was called directly. */
+  matched: { pattern: string; params: Record<string, string> } | null
 }
 
 export interface Kernel {
+  /**
+   * Match a request against the route table and serve it. This is the whole entry point: a
+   * Request in, a Response out, and nothing else to mount.
+   */
+  serve(request: Request): Promise<Response>
   handle(request: Request, route: KernelRoute, params?: Record<string, string>): Promise<Response>
   /** The trace of the last request. Kept separate from the Response so nothing leaks into bytes. */
   readonly trace: KernelTrace | null
@@ -105,6 +132,21 @@ export function createKernel(options: KernelOptions): Kernel {
       return trace
     },
     mailbox,
+
+    async serve(request) {
+      if (!options.routes) {
+        throw new Error('E_NO_ROUTES: serve() needs a route table; pass `routes` to createKernel')
+      }
+      const matched = options.routes.match(new URL(request.url))
+      if (!matched) {
+        trace = emptyTrace()
+        return options.notFound ? options.notFound(request) : new Response(null, { status: 404 })
+      }
+      const route = await matched.value(matched.params)
+      const response = await this.handle(request, route, matched.params)
+      if (trace) trace.matched = { pattern: matched.pattern, params: matched.params }
+      return response
+    },
 
     async handle(request, route, params = {}) {
       const life: Lifecycle = lifecycle()
@@ -133,7 +175,7 @@ export function createKernel(options: KernelOptions): Kernel {
       const pluginResult = await runPlugins(plugins, phaseA)
       if (pluginResult.response) {
         life.to('settled')
-        trace = { states: life.log, hints, keys: {}, hits: [], degraded: [], deferred: 0 }
+        trace = { ...emptyTrace(), states: life.log, hints }
         return pluginResult.response
       }
 
@@ -144,7 +186,14 @@ export function createKernel(options: KernelOptions): Kernel {
       // envelope is open, because `Cache-Control` and `Vary` come from the same effect
       // signature that produced the keys and there is no later moment they could be added.
       const keys = await resolveAll(route, facts, options.ports)
-      const headers = routeHeaders(route, keys)
+      const document = route.shell
+        ? await resolveKey(
+            { id: route.shell.id, version: route.shell.version, effects: route.shell.effects },
+            facts,
+            options.ports,
+          )
+        : null
+      const headers = routeHeaders(route, keys, document)
       for (const [name, value] of Object.entries(headers)) envelope.header(name, value)
       // Set last and only if phase A did not, so a route that produces something other than a
       // document can say so while the envelope is still open.
@@ -153,9 +202,9 @@ export function createKernel(options: KernelOptions): Kernel {
       life.to('planned')
       const init = envelope.seal()
 
-      if (envelope.redirected) {
+      if (envelope.redirected || envelope.refused) {
         life.to('settled')
-        trace = { states: life.log, hints, keys, hits: [], degraded: [], deferred: 0 }
+        trace = { ...emptyTrace(), states: life.log, hints, keys, document }
         return new Response(null, init)
       }
 
@@ -246,9 +295,22 @@ export function createKernel(options: KernelOptions): Kernel {
       })
       void settled.catch(() => {})
 
-      trace = { states: life.log, hints, keys, hits, degraded, deferred: owed }
+      trace = { states: life.log, hints, keys, document, hits, degraded, deferred: owed, matched: null }
       return new Response(stream, init)
     },
+  }
+}
+
+function emptyTrace(): KernelTrace {
+  return {
+    states: [],
+    hints: { sent: false, links: [] },
+    keys: {},
+    document: null,
+    hits: [],
+    degraded: [],
+    deferred: 0,
+    matched: null,
   }
 }
 
@@ -286,10 +348,14 @@ async function resolveAll(
  * contains all of them; `Cache-Control` is the route's declared policy checked against the
  * strictest class among its slots, so one private region cannot be advertised as public.
  */
-function routeHeaders(route: KernelRoute, keys: Record<string, ResolvedKey>): Record<string, string> {
+function routeHeaders(
+  route: KernelRoute,
+  keys: Record<string, ResolvedKey>,
+  shell: ResolvedKey | null,
+): Record<string, string> {
   const vary = new Set<string>()
   let strictest: ResolvedKey['class'] = 'static'
-  for (const resolved of Object.values(keys)) {
+  for (const resolved of [...Object.values(keys), ...(shell ? [shell] : [])]) {
     for (const header of resolved.vary) vary.add(header)
     if (resolved.class === 'private') strictest = 'private'
     else if (resolved.class === 'shared' && strictest !== 'private') strictest = 'shared'

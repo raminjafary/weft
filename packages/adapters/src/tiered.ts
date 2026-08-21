@@ -5,13 +5,14 @@ import type { StorePort } from '../../kernel/src/ports.ts'
  * should not be a fork in the codebase, so a tiered store is one `StorePort` composed of
  * others rather than a different mechanism.
  *
- * The composite's consistency is the weakest of its tiers, and its coherence is the weakest
- * too. Reporting the strongest would be the comfortable lie: an L1 that cannot be
+ * The composite's consistency is the weakest of its tiers, its coherence is the weakest too,
+ * and its scope is the most reachable — a stack containing one shared tier is a shared stack. Reporting the strongest would be the comfortable lie: an L1 that cannot be
  * invalidated from outside puts a ceiling on what the whole stack can promise, and the plan
  * refuses a strong-consistency policy against an eventual store at build time on the
  * strength of exactly this number.
  */
 const CONSISTENCY_ORDER = { eventual: 0, strong: 1 } as const
+const SCOPE_ORDER = { shared: 0, process: 1 } as const
 const COHERENCE_ORDER = { ttl: 0, generation: 1, warp: 2, pubsub: 3, tracking: 4 } as const
 
 function weakest<T extends string>(values: T[], order: Record<T, number>): T {
@@ -32,6 +33,11 @@ export function tieredStore(tiers: readonly StorePort[], name = 'tiered'): Store
       ordered.map((t) => t.coherence),
       COHERENCE_ORDER,
     ),
+    // Shared if any tier is: the composite is as reachable as its most reachable member.
+    scope: weakest(
+      ordered.map((t) => t.scope),
+      SCOPE_ORDER,
+    ),
     maxValueBytes: Math.min(...ordered.map((t) => t.maxValueBytes)),
 
     async get(key) {
@@ -51,7 +57,11 @@ export function tieredStore(tiers: readonly StorePort[], name = 'tiered'): Store
 
     async set(key, value, meta) {
       const bytes = value instanceof Uint8Array ? value : await new Response(value).bytes()
-      await Promise.all(ordered.map((tier) => tier.set(key, bytes, meta)))
+      // A private entry is keyed by identity and is still one person's bytes. It may live in a
+      // tier nobody else can address and nowhere else, so the filter is on the write rather
+      // than on the read — an entry that never left cannot be served to the wrong person.
+      const targets = meta.class === 'private' ? ordered.filter((t) => t.scope === 'process') : ordered
+      await Promise.all(targets.map((tier) => tier.set(key, bytes, meta)))
     },
 
     async invalidate(tags) {

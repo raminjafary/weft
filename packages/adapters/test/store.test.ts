@@ -12,6 +12,7 @@ test('the store names its own coherence, because an L1 cannot be invalidated fro
   const store = memoryStore()
   assert.equal(store.coherence, 'generation')
   assert.equal(store.consistency, 'strong')
+  assert.equal(store.scope, 'process')
 })
 
 test('a value round-trips', async () => {
@@ -102,10 +103,29 @@ test('revalidation after the response has to be drained by somebody, and is', as
 
 test('a tiered store reports the weakest tier, not the most comfortable one', () => {
   const l1 = memoryStore({ name: 'l1' })
-  const l2: typeof l1 = { ...memoryStore({ name: 'l2' }), consistency: 'eventual', coherence: 'ttl' }
+  const l2: typeof l1 = {
+    ...memoryStore({ name: 'l2' }),
+    consistency: 'eventual',
+    coherence: 'ttl',
+    scope: 'shared',
+  }
   const tiered = tieredStore([l1, l2])
   assert.equal(tiered.consistency, 'eventual')
   assert.equal(tiered.coherence, 'ttl')
+  assert.equal(tiered.scope, 'shared', 'one shared tier makes the whole stack shared')
+})
+
+test('a private entry never reaches a tier somebody else can read', async () => {
+  const l1 = memoryStore({ name: 'l1' })
+  const l2: typeof l1 = { ...memoryStore({ name: 'l2' }), scope: 'shared' }
+  const tiered = tieredStore([l1, l2])
+
+  await tiered.set('private-key', utf8.encode('one user'), { class: 'private' })
+  assert.notEqual(await l1.get('private-key'), null, 'a process-local tier may hold it')
+  assert.equal(await l2.get('private-key'), null, 'a shared tier may not')
+
+  await tiered.set('shared-key', utf8.encode('everyone'), { class: 'shared' })
+  assert.notEqual(await l2.get('shared-key'), null)
 })
 
 test('a hit deep in the stack fills the tiers above it', async () => {

@@ -108,6 +108,8 @@ export interface EnvelopeContext extends Reads {
   setCookie(cookie: SetCookie): void
   status(code: number): void
   redirect(location: string, code?: number): void
+  /** Ends the request here, with no body. What a guard does when it says no. */
+  refuse(code: number): void
   setHeader(name: string, value: string): void
 }
 
@@ -128,6 +130,7 @@ export function envelopeContext(reads: Reads, envelope: Envelope): EnvelopeConte
     setCookie: (cookie) => envelope.setCookie(cookie),
     status: (code) => envelope.status(code),
     redirect: (location, code) => envelope.redirect(location, code),
+    refuse: (code) => envelope.refuse(code),
     setHeader: (name, value) => envelope.header(name, value),
   }
 }
