@@ -12,6 +12,7 @@ import {
   envelopeContext,
   lifecycle,
   requestFacts,
+  guardReads,
   resolvePlugins,
   runPlugins,
   type EnvelopeContext,
@@ -97,7 +98,7 @@ test('every rejected fixture is refused at registration, by the code it exists f
 
 test('a plugin reading undeclared state throws rather than tainting nothing', async () => {
   await assert.rejects(
-    () => runPlugins(resolvePlugins([misbehaving.undeclaredRead]), context('sid=u42')),
+    () => runPlugins(resolvePlugins([misbehaving.undeclaredRead]), context('sid=u42'), guardReads),
     /E_PLUGIN_UNDECLARED_READ.*identity/s,
   )
 })
@@ -125,7 +126,7 @@ test('a slow or failing third-party plugin is skipped and reported, never fatal'
 })
 
 test('the stack mounted on a real route redirects an anonymous request before rendering', async () => {
-  const kernel = createKernel({ ports: ports(), plugins: gated })
+  const kernel = createKernel({ ports: ports(), plugins: resolvePlugins(gated), guard: guardReads })
   const response = await kernel.handle(new Request('https://example.test/cart'), await cartRoute())
   assert.equal(response.status, 302)
   assert.equal(response.headers.get('location'), '/login')
@@ -134,7 +135,7 @@ test('the stack mounted on a real route redirects an anonymous request before re
 })
 
 test('the same stack lets an authenticated request through to the compiled route', async () => {
-  const kernel = createKernel({ ports: ports(), plugins: gated })
+  const kernel = createKernel({ ports: ports(), plugins: resolvePlugins(gated), guard: guardReads })
   const response = await kernel.handle(
     new Request('https://example.test/cart', { headers: { cookie: 'sid=u42; currency=IQD' } }),
     await cartRoute(),

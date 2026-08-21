@@ -10,6 +10,10 @@ import type { EnvelopeContext } from './context.ts'
  * is precisely how caching dies in real codebases. And a plugin may add a cache axis but
  * may never write a key: the moment a key can be hand-set it can drift from what the code
  * reads.
+ *
+ * What is in this module is what a request pays for. The ordering graph is in
+ * `plugin-graph.ts` because it is build-time work, and the read enforcement is in
+ * `plugin-guard.ts` because the design specifies it as a dev-time check.
  */
 export type PluginResidency = 'server' | 'client' | 'both' | 'build'
 
@@ -61,133 +65,15 @@ export interface PluginSchedule {
   filters: Plugin[]
   /** Enrichers, in waves. Disjoint reads and provides run at once. */
   waves: Plugin[][]
+  /** Every contributed cache axis, collected once. `planAxis()` takes no request, so it is not per-request work. */
+  axes: Record<string, string[]>
 }
 
 /**
- * The dependency graph is inferred rather than declared. `reads` and `provides` give the
- * kernel everything it needs: B reads what A provides, so the edge exists without anybody
- * writing `after: ['A']`. Hand-declared edges stay for the cases data flow cannot express —
- * a CSP nonce must be injected before analytics adds a script tag, and no read/write
- * relationship captures that.
+ * Wraps a context so a plugin's undeclared reads throw. Dev-only by design, so it is passed
+ * in rather than imported: see `plugin-guard.ts`.
  */
-export function resolvePlugins(plugins: readonly Plugin[]): PluginSchedule {
-  const byName = new Map<string, Plugin>()
-  for (const plugin of plugins) {
-    if (byName.has(plugin.name)) {
-      throw new PluginError('E_PLUGIN_DUPLICATE', plugin.name, 'registered twice')
-    }
-    byName.set(plugin.name, plugin)
-  }
-
-  const providers = new Map<string, string>()
-  for (const plugin of plugins) {
-    for (const key of plugin.provides ?? []) {
-      const existing = providers.get(key)
-      if (existing) {
-        throw new PluginError(
-          'E_PLUGIN_AMBIGUOUS',
-          plugin.name,
-          `${key} is already provided by ${existing}; ambiguity is caught rather than resolved by load order`,
-        )
-      }
-      providers.set(key, plugin.name)
-    }
-  }
-
-  const edges = new Map<string, Set<string>>()
-  for (const plugin of plugins) edges.set(plugin.name, new Set())
-  const edge = (from: string, to: string): void => {
-    if (!byName.has(from) || !byName.has(to)) return
-    edges.get(to)?.add(from)
-  }
-
-  for (const plugin of plugins) {
-    for (const read of plugin.reads ?? []) {
-      const provider = providers.get(read)
-      if (provider && provider !== plugin.name) edge(provider, plugin.name)
-    }
-    for (const name of plugin.after ?? []) edge(name, plugin.name)
-    for (const name of plugin.before ?? []) edge(plugin.name, name)
-  }
-
-  const order = topological(plugins, edges)
-  const filters = order.filter((p) => p.role === 'filter')
-  const enrichers = order.filter((p) => p.role === 'enricher')
-  return { filters, waves: waveify(enrichers, edges) }
-}
-
-function topological(plugins: readonly Plugin[], edges: Map<string, Set<string>>): Plugin[] {
-  const out: Plugin[] = []
-  const placed = new Set<string>()
-  let remaining = [...plugins]
-  while (remaining.length) {
-    const ready = remaining.filter((p) => [...(edges.get(p.name) ?? [])].every((d) => placed.has(d)))
-    if (!ready.length) {
-      const stuck = remaining
-        .map((p) => p.name)
-        .sort()
-        .join(' -> ')
-      throw new PluginError('E_PLUGIN_CYCLE', remaining[0]?.name ?? '?', `ordering is circular: ${stuck}`)
-    }
-    ready.sort((a, b) => a.name.localeCompare(b.name))
-    for (const plugin of ready) {
-      placed.add(plugin.name)
-      out.push(plugin)
-    }
-    const done = new Set(ready.map((p) => p.name))
-    remaining = remaining.filter((p) => !done.has(p.name))
-  }
-  return out
-}
-
-function waveify(plugins: readonly Plugin[], edges: Map<string, Set<string>>): Plugin[][] {
-  const names = new Set(plugins.map((p) => p.name))
-  const waves: Plugin[][] = []
-  const placed = new Set<string>()
-  let remaining = [...plugins]
-  while (remaining.length) {
-    const ready = remaining.filter((p) =>
-      [...(edges.get(p.name) ?? [])].filter((d) => names.has(d)).every((d) => placed.has(d)),
-    )
-    if (!ready.length) {
-      throw new PluginError('E_PLUGIN_CYCLE', remaining[0]?.name ?? '?', 'enricher ordering is circular')
-    }
-    for (const plugin of ready) placed.add(plugin.name)
-    waves.push(ready)
-    const done = new Set(ready.map((p) => p.name))
-    remaining = remaining.filter((p) => !done.has(p.name))
-  }
-  return waves
-}
-
-/**
- * Declared reads, enforced reads. A plugin that touches request state it did not declare
- * throws rather than quietly tainting nothing, because the effect graph has to stay honest.
- */
-export function guardReads(plugin: Plugin, ctx: EnvelopeContext): EnvelopeContext {
-  const declared = new Set(plugin.reads ?? [])
-  const check = (read: string): void => {
-    if (!declared.has(read)) {
-      throw new PluginError(
-        'E_PLUGIN_UNDECLARED_READ',
-        plugin.name,
-        `read ${read} without declaring it. Add it to reads: [...]`,
-      )
-    }
-  }
-  return {
-    ...ctx,
-    flag: (name) => (check(`flag:${name}`), ctx.flag(name)),
-    cookie: (key) => (check(`cookie:${key}`), ctx.cookie(key)),
-    header: (key) => (check(`header:${key}`), ctx.header(key)),
-    param: (key) => (check(`route:${key}`), ctx.param(key)),
-    query: (key) => (check(`route:${key}`), ctx.query(key)),
-    locale: () => (check('locale'), ctx.locale()),
-    device: () => (check('device'), ctx.device()),
-    user: () => (check('identity'), ctx.user()),
-    now: () => (check('time'), ctx.now()),
-  }
-}
+export type ReadGuard = (plugin: Plugin, ctx: EnvelopeContext) => EnvelopeContext
 
 export interface PluginRunResult {
   provided: Record<string, unknown>
@@ -198,20 +84,20 @@ export interface PluginRunResult {
   axes: Record<string, string[]>
 }
 
-export async function runPlugins(schedule: PluginSchedule, ctx: EnvelopeContext): Promise<PluginRunResult> {
+export async function runPlugins(
+  schedule: PluginSchedule,
+  ctx: EnvelopeContext,
+  guard?: ReadGuard,
+): Promise<PluginRunResult> {
   const provided: Record<string, unknown> = {}
   const skipped: { plugin: string; reason: string }[] = []
-  const axes: Record<string, string[]> = {}
-
-  for (const plugin of [...schedule.filters, ...schedule.waves.flat()]) {
-    for (const [axis, values] of Object.entries(plugin.planAxis?.() ?? {})) axes[axis] = values
-  }
+  const axes = schedule.axes
 
   const invoke = async (plugin: Plugin): Promise<PluginResult | void> => {
     if (!plugin.onRequest) return
-    const guarded = guardReads(plugin, ctx)
+    const seen = guard ? guard(plugin, ctx) : ctx
     try {
-      return await withTimeout(plugin, () => Promise.resolve(plugin.onRequest?.(guarded, provided)))
+      return await withTimeout(plugin, () => Promise.resolve(plugin.onRequest?.(seen, provided)))
     } catch (error) {
       if (plugin.critical) throw error
       skipped.push({ plugin: plugin.name, reason: error instanceof Error ? error.message : String(error) })

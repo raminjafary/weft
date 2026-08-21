@@ -13,7 +13,7 @@ import { sendEarlyHints, type HintResult } from './hints.ts'
 import { requestFacts, type PreloadLink, type Ports, type RequestFacts } from './ports.ts'
 import type { Router } from './router.ts'
 import { lifecycle, type Lifecycle } from './request.ts'
-import { resolvePlugins, runPlugins, type Plugin } from './plugins.ts'
+import { runPlugins, type PluginSchedule, type ReadGuard } from './plugins.ts'
 import { streamRoute, type Order } from './stream.ts'
 import { dispatch, type DagNode } from './waves.ts'
 
@@ -75,7 +75,17 @@ export type RouteResolver = (params: Record<string, string>) => KernelRoute | Pr
 
 export interface KernelOptions {
   ports: Ports
-  plugins?: readonly Plugin[]
+  /**
+   * A schedule, not a list. Ordering, the cycle check and the ambiguity check are inferred
+   * from static declarations, so they belong to the build: call `resolvePlugins` once and
+   * hand the result here. It also keeps the graph out of the request path's bytes.
+   */
+  plugins?: PluginSchedule
+  /**
+   * Dev-only enforcement of a plugin's declared reads. Pass `guardReads`; omit it in
+   * production, where the check has already had every chance to fire.
+   */
+  guard?: ReadGuard
   mailbox?: DeferredMailbox
   clock?: () => number
   /**
@@ -116,7 +126,7 @@ export interface Kernel {
 
 export function createKernel(options: KernelOptions): Kernel {
   const mailbox = options.mailbox ?? createMailbox()
-  const plugins = resolvePlugins(options.plugins ?? [])
+  const plugins = options.plugins ?? { filters: [], waves: [], axes: {} }
   const defaultExecutor = inlineExecutor(options.ports.telemetry)
   let trace: KernelTrace | null = null
 
@@ -159,7 +169,7 @@ export function createKernel(options: KernelOptions): Kernel {
       envelope.setCookie(cookie)
     }
 
-    const pluginResult = await runPlugins(plugins, phaseA)
+    const pluginResult = await runPlugins(plugins, phaseA, options.guard)
     if (pluginResult.response) {
       life.to('settled')
       trace = { ...emptyTrace(), states: life.log, hints }

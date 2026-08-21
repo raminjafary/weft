@@ -7,6 +7,7 @@ import {
   envelopeContext,
   lifecycle,
   requestFacts,
+  guardReads,
   resolvePlugins,
   runPlugins,
   type EnvelopeContext,
@@ -83,7 +84,7 @@ test('a plugin reading state it did not declare throws rather than tainting noth
     },
   })
   await assert.rejects(
-    () => runPlugins(resolvePlugins([sneaky]), context()),
+    () => runPlugins(resolvePlugins([sneaky]), context(), guardReads),
     /E_PLUGIN_UNDECLARED_READ.*cookie:session/s,
   )
 })
