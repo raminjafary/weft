@@ -59,6 +59,14 @@ without knowing what the frame means.
 |                  |                                                | `STALE` 0x1c             | push invalidation, client decides   |
 |                  |                                                | `NAV` 0x1d / `PLAN` 0x1e | navigation and lazy plan extension  |
 |                  |                                                | `ERROR` 0x1f             | a named failure                     |
+|                  |                                                | `REDIRECT` 0x20          | in-band redirect, after the seal    |
+|                  |                                                | `COOKIE` 0x21            | non-HttpOnly cookie, after the seal |
+
+`REDIRECT` and `COOKIE` arrived in 1.1.0 and are layer three of the envelope design: what a
+sealed response can still carry in its body. Neither is a substitute for the real thing. A
+crawler will not follow a `REDIRECT` frame, and `HttpOnly` is exactly the property a body
+cannot grant — see [the lifecycle](../kernel/lifecycle.md) for what is irreducibly lost once
+the envelope is sealed.
 
 The frame sketch in the design notes uses positional shorthand (`SLOT s12 open prio=1`).
 The canonical encoding is all `key=value`; the shorthand is for prose.

@@ -30,6 +30,16 @@ export const FRAMES = {
   NAV: { code: 0x1d, dir: 'down' },
   PLAN: { code: 0x1e, dir: 'down' },
   ERROR: { code: 0x1f, dir: 'down' },
+
+  /**
+   * Layer three of the envelope design: what a sealed response can still carry in-band.
+   * Neither is a substitute for the real thing. A REDIRECT frame is acted on by the client
+   * and degrades to a meta refresh with no JavaScript, but a crawler will not follow it and
+   * it is not a status code. A COOKIE frame can only carry non-HttpOnly values, because
+   * HttpOnly is exactly the property a body cannot grant.
+   */
+  REDIRECT: { code: 0x20, dir: 'down' },
+  COOKIE: { code: 0x21, dir: 'down' },
 } as const satisfies Record<string, { code: number; dir: Direction }>
 
 export type FrameKind = keyof typeof FRAMES

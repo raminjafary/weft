@@ -1,9 +1,18 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { negotiate, readResident, residentFrame, warpFrame, type ClientHello } from '../src/index.ts'
+import {
+  negotiate,
+  readResident,
+  residentFrame,
+  warpFrame,
+  WARP_VERSION,
+  type ClientHello,
+} from '../src/index.ts'
 
 const modern: ClientHello = {
-  warp: '1.0.0',
+  // A client on the server's own minor. An older minor is a downgrade, and there is a test
+  // for that below rather than it being folded silently into every other case.
+  warp: WARP_VERSION,
   ir: '1.0.0',
   forms: ['html', 'bundle', 'split', 'patch', 'delta'],
   transport: 'stream',
@@ -21,6 +30,13 @@ test('a modern client gets every form and the streaming strategy', () => {
   assert.equal(n.commit, 'view-transition')
   assert.equal(n.residency, 'service-worker')
   assert.deepEqual(n.downgrades, [])
+})
+
+test('an older Warp minor is met at the older minor, and it is reported', () => {
+  const n = negotiate({ ...modern, warp: '1.0.0' })
+  assert.equal(n.ok, true)
+  assert.equal(n.warp, '1.0.0')
+  assert.deepEqual(n.downgrades, [`warp ${WARP_VERSION} -> 1.0.0`])
 })
 
 test('an IR major mismatch costs every form except html, which needs nothing resident', () => {
@@ -84,6 +100,6 @@ test('the WARP frame states the versions and the strategy it settled on', () => 
   const f = warpFrame(negotiate({ ...modern, dsd: false }))
   assert.equal(f.kind, 'WARP')
   assert.equal(f.header.fill, 'script')
-  assert.equal(f.header.v, '1.0.0')
+  assert.equal(f.header.v, WARP_VERSION)
   assert.match(String(f.header.downgrade), /filler script/)
 })
