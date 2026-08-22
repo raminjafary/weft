@@ -24,6 +24,7 @@ import {
 import { composedIn, slotHoles, type CompiledApp, type CompiledFragment } from './compile.ts'
 import type { Discovered, DiscoveredRoute } from './convention.ts'
 import type { CacheDeclaration, RouteModule, SlotDeclaration } from './route.ts'
+import { staticVerdict, type StaticVerdict } from './static.ts'
 import type { ExceedPolicy } from './types.ts'
 import type { ResolvedConfig } from './config.ts'
 
@@ -48,6 +49,13 @@ export interface GeneratedRoute {
   module: RouteModule
   /** Slots this route can refresh over the channel, by slot name. */
   live: Record<string, LiveSlot>
+  /**
+   * Whether every byte of this document is decided before a request exists, and if not, why not.
+   *
+   * Structural only: it is what the compiler and the plan already know, which is everything
+   * except what the route's own loader does. `prerender` settles that half by measurement.
+   */
+  static: StaticVerdict
   /**
    * Stylesheets this route links, in cascade order: the page's own, and the one belonging to
    * every fragment it actually renders. A page links the CSS of the components on it and no
@@ -684,5 +692,16 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     module: module_,
     live,
     css,
+    static: staticVerdict({
+      pattern: route.pattern,
+      module: module_,
+      shell: layout,
+      slots: holes.map((name) => ({
+        name,
+        fragment: (declarations[name] as (typeof declarations)[string]).fragment,
+        declaration: (declarations[name] as (typeof declarations)[string]).declaration,
+        streams: plan.slots.find((slot) => slot.name === name)?.delivery === 'stream',
+      })),
+    }),
   }
 }

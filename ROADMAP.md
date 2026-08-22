@@ -27,7 +27,7 @@ The nine phases are from [the architecture proposal](docs/weft-and-warp.html).
 | Phase                                 | State                                                                                                                                                                      |
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1 · Prove the physics, version the IR | Done. RR7 gate measured, IR versioned from commit one, harness gates every claim                                                                                           |
-| 2 · Kernel and ports                  | Request state machine, two-phase envelope, 103 Early Hints, deferral, routing, intents, a stampede lease, thirteen ports declared and seven implemented                    |
+| 2 · Kernel and ports                  | Request state machine, two-phase envelope, 103 Early Hints, deferral, routing, intents, a stampede lease, L0 documents, thirteen ports declared and seven implemented      |
 | 3 · Client runtime                    | Signals, wiring, adoption, deltas, residency, epochs, budget, a frame router, optimistic intents with rollback. Missing: navigation, which is blocked on phase 7 discovery |
 | 4 · The plan layer                    | Done. Plan DSL, effect inference, runtime keys, plugin DAG, `weft why`, `.incremental()`, and plans generated from a folder convention rather than authored                |
 | 5 · Negotiation and locus             | Done. Resident digests, form selection, `STALE`, epochs with atomic commit, executors, per-slot budgets, all three transport bindings, a real worker pool                  |
@@ -40,39 +40,7 @@ The nine phases are from [the architecture proposal](docs/weft-and-warp.html).
 
 ## Near term — closing the seams that were opened
 
-### 1. Devtools: the inspector, pointed at your application
-
-`@weft/inspector` is thirty-four stations demonstrating what the framework does, and it does that
-with fixtures of its own — a fragment that reads nothing, one that reads the clock, one that reads
-identity. That is documentation which runs, and it is the right shape for it. It is not devtools.
-
-Devtools is the other thing: show me _my_ routes, _my_ effect sets, why _my_ fragment resolved to
-`private`, _my_ byte report. Nothing about that needs a second application in the process, which is
-why mounting the inspector inside an app was the wrong way to get it — the payoff would have been a
-URL prefix on somebody else's fixtures, and the cost was namespaced fragment tables, prefixed
-patterns and two merged intent manifests.
-
-**What it reads.** Everything, already in memory, by the time a request is served:
-
-| What it shows                                               | Where it already is                           |
-| ----------------------------------------------------------- | --------------------------------------------- |
-| Every route, its slots, delivery, cache class, live regions | `app.routes[].plan`                           |
-| Every fragment's reads, holes, wire forms, sealed version   | `app.compiled.fragments`                      |
-| Why this key — which read put `identity` in it              | `resolveKey().reason`, written for `weft why` |
-| The intent manifest, id to module and export                | `app.intents.entries`                         |
-| Every revved asset and its bytes                            | `app.assets.manifest`                         |
-| Which stylesheet each page links                            | `app.routes[].css`                            |
-
-**What it is.** `weft routes` and `weft why` as pages, plus the byte report, behind
-`defineConfig({ devtools: true })` and dev-only. One framework-owned route reading `App`. No
-second compile, no namespacing, no merged manifests.
-
-**Why it is not the inspector.** A framework that bundled its own demo could not be byte-measured
-without it, and this repository has a budget gate that would then be measuring the wrong thing.
-The inspector stays a separate package you install and run; devtools ships with the framework
-because it is about the framework rather than about a demonstration of it.
-
-### 2. Instant navigation, and what is already prepared for it
+### 1. Instant navigation, and what is already prepared for it
 
 The hard primitive exists and is tested. The thing that would compose it into "navigate and
 it is already there" does not.
@@ -119,13 +87,7 @@ semantics exist; what is missing is a route-scoped staging model and something t
 route's slot set before arrival. So: real, and blocked on phase 7's discovery rather than on
 the transport.
 
-### 3. L0: fragments that read nothing
-
-A fragment classified `static` could be resolved at build time and served by a CDN with the
-kernel never invoked — the fastest tier by a wide margin, and free. Today it renders and caches
-like anything else, which means the cheapest thing in the design is not implemented.
-
-### 4. Plans from a profile
+### 2. Plans from a profile
 
 Plans are generated now — from a folder convention, which is what `weft build` writes to
 `routes.json` and what makes placement diffable in review rather than authored. What is still
@@ -133,21 +95,21 @@ missing is the other half of phase 8: a plan generated from _measurement_. `weft
 not exist, so nothing observes which slots are worth speculating, which chunks belong together, or
 which templates deserve a V8 compile hint.
 
-The convention was the harder half and it came first for the reason item 1 used to give: a
-scaffold whose generated project still contained a hand-written plan and a hand-written bindings
-object would have hidden nothing.
+The convention was the harder half and it came first for the reason the scaffold used to give: a
+generated project that still contained a hand-written plan and a hand-written bindings object
+would have hidden nothing.
 
-### 5. Slots inside components
+### 3. Slots inside components
 
 `<Widget>content</Widget>` is `E_COMPONENT_CHILDREN_UNSUPPORTED`. A component takes props only.
 Children need a slot mechanism inside a nested template, which is a different problem from the
 streaming `slot` hole and should not reuse it by accident.
 
-### 6. Components inside list rows
+### 4. Components inside list rows
 
 `E_COMPONENT_IN_LIST`. A row is its own template and cannot carry an instance today.
 
-### 7. iOS WebKit on a real device
+### 5. iOS WebKit on a real device
 
 Playwright's WebKit is a desktop proxy and is labelled as one everywhere it appears. A
 WKWebView on a device has app-bound-domain rules, host-app request interception, and OS
@@ -222,8 +184,9 @@ is what makes it useful, since a page there needing something means the front do
 The inspector imports `@weft/kernel`, `@weft/plan`, `@weft/adapters` and `@weft/warp` directly,
 because taking those apart is its job.
 
-What remains is on the list above as item 1: the inspector demonstrates mechanisms with fixtures of
-its own, and it is not devtools pointed at your application.
+The inspector demonstrates mechanisms with fixtures of its own; devtools — `weft dev --devtools` —
+is the other thing, and it ships with the framework because it is about your application rather
+than about a demonstration of one. Both exist now, which is why neither is on the list above.
 
 **Why it is separate from the docs site.** Documentation explains; a demo convinces. The
 demo is allowed to be dramatic — injected latency, artificial slowness, side-by-side races

@@ -2,6 +2,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import { parse, stringify, type TemplateIR } from '@weft/ir'
 import { createApp } from './serve.ts'
+import { prerender, STATIC_DIR, type StaticManifest, type StaticRefusal } from './static.ts'
 import type { CompiledApp, CompiledFragment } from './compile.ts'
 import type { Discovered } from './convention.ts'
 import type { ResolvedConfig, WeftConfig } from './config.ts'
@@ -26,6 +27,10 @@ export interface BuildReport {
   routes: { pattern: string; slots: number; markupBytes: number; styles: string[]; live: string[] }[]
   intents: { id: string; name: string; module: string }[]
   assets: { href: string; bytes: number; immutable: boolean }[]
+  /** L0: the documents that were resolved here rather than per request, and what each one costs. */
+  static: { pattern: string; file: string; bytes: number }[]
+  /** Every route that is not one of them, with the reason. A tier nobody can see is a tier nobody uses. */
+  refused: { pattern: string; code: StaticRefusal; reason: string }[]
   diagnostics: string[]
 }
 
@@ -46,7 +51,7 @@ export interface IrManifest {
 export async function build(root: string, overrides: WeftConfig = {}): Promise<BuildReport> {
   const app = await createApp(root, { ...overrides, mode: 'build' })
   const out = join(root, app.config.outDir)
-  for (const dir of ['ir', 'assets']) await rm(join(out, dir), { recursive: true, force: true })
+  for (const dir of ['ir', 'assets', STATIC_DIR]) await rm(join(out, dir), { recursive: true, force: true })
   await mkdir(join(out, 'ir'), { recursive: true })
 
   const manifest: IrManifest = {
@@ -98,6 +103,27 @@ export async function build(root: string, overrides: WeftConfig = {}): Promise<B
   }
   await writeFile(join(out, 'assets', 'manifest.json'), `${JSON.stringify(app.assets.manifest, null, 2)}\n`)
 
+  /**
+   * L0, and the only tier that produces files rather than behaviour.
+   *
+   * Every document here was rendered by the real kernel and then proved not to depend on the
+   * request, so the directory can be handed to a CDN and the kernel is never invoked for those
+   * paths again. What is refused is written down beside it, because a page that *nearly* made it
+   * is the one its author most wants to hear about.
+   */
+  const prerendered = await prerender(app)
+  for (const document of prerendered.documents) {
+    const target = join(out, STATIC_DIR, document.file)
+    await mkdir(dirname(target), { recursive: true })
+    await writeFile(target, Buffer.from(document.body))
+  }
+  const staticManifest: StaticManifest = {
+    documents: prerendered.documents.map(({ body: _body, ...rest }) => rest),
+    refused: prerendered.refused,
+  }
+  await mkdir(join(out, STATIC_DIR), { recursive: true })
+  await writeFile(join(out, STATIC_DIR, 'manifest.json'), `${JSON.stringify(staticManifest, null, 2)}\n`)
+
   const report: BuildReport = {
     outDir: app.config.outDir,
     templates: app.compiled.templates.length,
@@ -113,6 +139,8 @@ export async function build(root: string, overrides: WeftConfig = {}): Promise<B
     })),
     intents: app.intents.entries.map((e) => ({ id: e.id, name: e.name, module: e.module })),
     assets,
+    static: prerendered.documents.map((d) => ({ pattern: d.pattern, file: d.file, bytes: d.bytes })),
+    refused: prerendered.refused,
     diagnostics: app.diagnostics,
   }
   await writeFile(join(out, 'report.json'), `${JSON.stringify(report, null, 2)}\n`)
@@ -230,6 +258,18 @@ export function formatReport(report: BuildReport): string {
   for (const asset of immutable) {
     lines.push(`  ${asset.href.padEnd(56)} ${String(asset.bytes).padStart(7)} B  immutable`)
   }
+  if (report.static.length || report.refused.length) {
+    lines.push('')
+    lines.push(`  L0 — resolved at build time, served without the kernel:`)
+    for (const document of report.static) {
+      lines.push(
+        `    ${document.pattern.padEnd(26)} ${String(document.bytes).padStart(7)} B  ${STATIC_DIR}/${document.file}`,
+      )
+    }
+    for (const refusal of report.refused) {
+      lines.push(`    ${refusal.pattern.padEnd(26)} ${refusal.code} — ${refusal.reason}`)
+    }
+  }
   if (report.intents.length) {
     lines.push('')
     for (const intent of report.intents) {
@@ -242,7 +282,9 @@ export function formatReport(report: BuildReport): string {
     for (const line of report.diagnostics.slice(0, 10)) lines.push(`    ${line}`)
   }
   lines.push('')
-  lines.push(`  wrote ${report.outDir}/ — ir, routes.json, intents.json, assets/, report.json`)
+  lines.push(
+    `  wrote ${report.outDir}/ — ir, routes.json, intents.json, assets/, ${STATIC_DIR}/, report.json`,
+  )
   lines.push('')
   return lines.join('\n')
 }

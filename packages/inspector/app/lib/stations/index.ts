@@ -11,6 +11,7 @@ import {
   transport,
 } from './client.ts'
 import { byteBudgets, devices, sharedDeltas, wireForms } from './measure.ts'
+import { staticDocuments } from './static.ts'
 import { blockingControl, components, epochs, streaming, streamingOrder } from './stream.ts'
 import {
   budgets,
@@ -40,6 +41,7 @@ export const HANDLERS: Record<string, StationHandler> = {
   effects,
   contagion,
   'cache-keys': cacheKeys,
+  'static-documents': staticDocuments,
   routing,
   'shell-boundaries': shellBoundaries,
   ports: portsStation,

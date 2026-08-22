@@ -30,6 +30,7 @@ without a harness and a wire format cannot be versioned retroactively.
 | Request lifecycle                 | [`spec/kernel/lifecycle.md`](spec/kernel/lifecycle.md), `packages/kernel`                     | A state machine, two-phase envelope, 103 Early Hints, deferral      |
 | Ports                             | [`spec/kernel/ports.md`](spec/kernel/ports.md), `packages/kernel`, `packages/adapters`        | Thirteen declared, seven implemented, the rest refuse by name       |
 | Runtime cache keys                | [`spec/kernel/cache.md`](spec/kernel/cache.md), `packages/kernel`                             | Reads resolved into a key; no setter exists anywhere                |
+| Static documents, L0              | [`spec/kernel/static.md`](spec/kernel/static.md), `packages/weft`                             | A page that reads nothing is a file, proved by rendering it twice   |
 | Executors, waves, epochs          | [`spec/kernel/locus.md`](spec/kernel/locus.md), `packages/kernel`, `packages/client`          | DAG scheduling, CPU budgets, staged epochs with atomic commit       |
 | Stateless surgical updates        | [`spec/kernel/surgical.md`](spec/kernel/surgical.md), `packages/kernel`                       | `HELD` recovers a base, the delta is memoized by its transition     |
 | The plan layer                    | [`spec/plan/plan.md`](spec/plan/plan.md), `packages/plan`                                     | Plan DSL, validation against inferred effects, plugins, `weft why`  |
@@ -76,6 +77,7 @@ weft.config.ts          what this deployment binds
 npm create weft my-app
 
 weft dev            # serve, and rebuild what changes
+weft dev --devtools # the same, plus this application's routes, keys and bytes as pages
 weft build          # sealed templates, the generated plan, the intent manifest, revved assets
 weft start          # serve the build. No compiler runs
 weft routes         # the route table, as the file tree produced it
@@ -86,6 +88,16 @@ A route declares placement and data and deliberately cannot declare a cache key:
 what the compiler saw a fragment read, so `public` on a fragment that reads identity fails the
 build with the read named. `weft build` writes the plan to `routes.json`, which is what makes a
 generated one reviewable.
+
+**A page that reads nothing is a file.** `weft build` renders every route through the real kernel
+twice — under two requests differing in cookies, locale, device, headers, query, flags and a clock
+ten years apart — and writes the ones whose bytes came out identical to `.weft/static/`, which is a
+directory you can hand to a CDN. `weft start` answers those paths from the table before the kernel
+is reached, with an ETag and a 304 on a conditional request. The build prints what it wrote and,
+for every other page, the reason: a parameter, a read, a live region, a streaming slot. Both halves
+of that decision are needed, because a route's loader lives in a `.data.ts` and nothing compiles
+it — a page whose fragments read nothing and whose loader reads a cookie is classified static and
+is not. See [`spec/kernel/static.md`](spec/kernel/static.md).
 
 There is no bundler. Client modules are TypeScript with their types stripped by Node and two bare
 specifiers rewritten, so what runs in the browser is the file on disk. Adoption, intents, the
@@ -109,6 +121,7 @@ node packages/bench/src/cli.ts verify                       # every wire form mu
 node packages/bench/src/cli.ts client                      # adopt and patch, in three engines
 node packages/bench/src/cli.ts budget                      # bundle each entry against its byte budget
 node packages/bench/src/cli.ts slots                       # both stream orders, and the shadow-DOM probe
+node packages/bench/src/cli.ts l0                          # a document served from the build against the same one rendered
 node packages/bench/src/cli.ts run                          # measure and write a report
 node packages/bench/src/cli.ts run --transport buffered      # the intercepted-webview path
 node packages/bench/src/cli.ts run --axes shell-ttfb --scenarios slow-feed \
@@ -521,10 +534,8 @@ un-painted.
    is phase 7 discovery rather than transport.
 2. **A capability model behind `CapabilityCheck`.** Intents declare capabilities and an
    unchecked one is refused rather than allowed, which is honest and is not an implementation.
-3. **L0 static resolution.** A fragment that reads nothing could be built once and served by a
-   CDN with the kernel never invoked. The cheapest tier in the design is the unimplemented one.
-4. **A bandwidth and loss model in the latency proxy.** It delays packets and nothing else, so
+3. **A bandwidth and loss model in the latency proxy.** It delays packets and nothing else, so
    it understates what a slow link does to an 18% byte difference.
-5. **Incremental declarative-shadow-DOM parsing on real iOS, Android WebView, and WebKitGTK.**
+4. **Incremental declarative-shadow-DOM parsing on real iOS, Android WebView, and WebKitGTK.**
    If the engines diverge the filler script becomes the primary path, which is survivable and
    changes what can be claimed.

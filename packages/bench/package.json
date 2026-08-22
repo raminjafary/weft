@@ -37,7 +37,8 @@
     "@weft/adapters": "workspace:*",
     "@weft/plan": "workspace:*",
     "@weft/client": "workspace:*",
-    "@weft/warp": "workspace:*"
+    "@weft/warp": "workspace:*",
+    "weft": "workspace:*"
   },
   "engines": {
     "node": ">=22.18.0"

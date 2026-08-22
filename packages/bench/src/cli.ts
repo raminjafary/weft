@@ -14,6 +14,7 @@ import { DELAYS, measureSlots, probeIncrementalDsd } from './measure/slots.ts'
 import { checkAll } from './equivalence.ts'
 import { measureClientRuntime } from './measure/client-runtime.ts'
 import { formatSharedDelta, measureSharedDelta } from './measure/shared-delta.ts'
+import { formatL0, measureL0 } from './measure/l0.ts'
 import { compileScenario } from './compiled.ts'
 import { renderMarkdown, comparison } from './report.ts'
 import { run } from './runner.ts'
@@ -89,6 +90,7 @@ const HELP = `weft-bench — phase-zero benchmark harness
   budget    bundle each entry and measure it against its byte budget
   slots     stream a route in both orders, and probe incremental shadow DOM
   deltas    shared vs per-connection delta computation, the phase 6 claim
+  l0        a document served from the build against the same document rendered
   list      list axes, scenarios, and candidates
   ir        print the sealed, versioned IR for a scenario
 
@@ -105,6 +107,8 @@ run flags
   --batches N       in-process timing batches (default 25)
   --ops N           renders per batch (default 200)
   --clients N       clients in the deltas comparison (default 1000)
+  --app DIR         the application l0 measures (default demo)
+  --route PATTERN   which document l0 measures (default the largest one)
   --engines         chromium,firefox,webkit (browser axes; requires playwright)
                     webkit is the closest proxy for an iOS webview and is never an iOS number
   --out DIR         where to write the report (default results/)
@@ -210,6 +214,17 @@ async function main(): Promise<number> {
     return 0
   }
 
+  if (command === 'l0') {
+    const report = await measureL0({
+      root: flags.app ?? positional[0] ?? 'demo',
+      iterations: Number(flags.iterations ?? 200),
+      warmup: Number(flags.warmup ?? 30),
+      ...(flags.route ? { path: flags.route } : {}),
+    })
+    process.stdout.write(formatL0(report))
+    return 0
+  }
+
   if (command === 'client') {
     const engines = (csv(flags.engines) ?? ['chromium', 'firefox', 'webkit']) as EngineName[]
     // `derived` is in the default set because the client-owned half of a derived value
@@ -293,7 +308,7 @@ async function main(): Promise<number> {
 main().then(
   (code) => process.exit(code),
   (error: unknown) => {
-    process.stderr.write(`${(error as Error).message}\n`)
+    process.stderr.write(`${(error as Error).stack ?? (error as Error).message}\n`)
     process.exit(1)
   },
 )
