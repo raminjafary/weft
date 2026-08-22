@@ -76,6 +76,7 @@ const CATALOGUE: readonly { sku: string; name: string; price: number }[] = [
   { sku: 'OIL-2L', name: 'Sunflower oil, 2 L', price: 6_250 },
   { sku: 'TEA-500', name: 'Ceylon tea, 500 g', price: 4_100 },
   { sku: 'SUGAR-2K', name: 'Cane sugar, 2 kg', price: 2_900 },
+  { sku: 'SOAP-6', name: 'Olive soap, 6 bars', price: 5_400 },
 ]
 
 export const CATALOGUE_SKUS = CATALOGUE.map((item) => item.sku)

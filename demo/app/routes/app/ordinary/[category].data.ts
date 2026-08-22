@@ -1,6 +1,7 @@
 import { defineRoute } from 'weft'
 import { panel } from '../../../lib/controls.ts'
 import { CATEGORIES, type Item } from '../../../lib/catalogue.ts'
+import { cartOf } from '../../../lib/data.ts'
 
 /**
  * Three instances, flattened into one value set.
@@ -9,13 +10,22 @@ import { CATEGORIES, type Item } from '../../../lib/catalogue.ts'
  * list row is `E_COMPONENT_IN_LIST` today — so its props are named `firstName`, `secondName` and so
  * on, and this is the one place that shape is spelled.
  */
-const flat = (prefix: string, item: Item): Record<string, string | number | boolean> => ({
-  [`${prefix}Name`]: item.name,
-  [`${prefix}Price`]: item.price,
-  [`${prefix}Unit`]: item.unit,
-  [`${prefix}Badge`]: item.badge,
-  [`${prefix}Available`]: item.available,
-})
+const flat = (prefix: string, item: Item): Record<string, string | number | boolean> => {
+  // The demo's shared cart, deliberately, and not the one belonging to whoever is asking. This
+  // slot is a `public` entry: a per-visitor count in it would be one visitor's cart served to the
+  // next from the store, and nothing in the read set would have said so — the loader is a `.ts`
+  // file and the compiler never sees it. The cart page is where a private region is demonstrated.
+  const held = cartOf('demo-shared').get(item.sku) ?? 0
+  return {
+    [`${prefix}Sku`]: item.sku,
+    [`${prefix}Name`]: item.name,
+    [`${prefix}Price`]: item.price,
+    [`${prefix}Unit`]: item.unit,
+    [`${prefix}Badge`]: item.badge,
+    [`${prefix}Available`]: item.available,
+    [`${prefix}Cart`]: held ? `${held} in the shared cart` : '',
+  }
+}
 
 /**
  * An ordinary page. No streaming, no channel, no deltas.
@@ -30,7 +40,8 @@ export default defineRoute({
     heading: 'An ordinary page',
     shows:
       'No streaming, no channel, no deltas. One route, one component rendered three times, and a page that arrives in one piece.',
-    control: 'Switch category in the panel. The template does not change; only the content does.',
+    control:
+      'Add one to the cart. It is a form post to the same intent the cart page dispatches over a socket, so it works with JavaScript turned off — and switching category changes the content without changing the template.',
     status: 'live',
   },
   slots: {
@@ -48,7 +59,10 @@ export default defineRoute({
     body: {
       fragment: 'ordinary',
       stream: false,
-      cache: { class: 'public', ttl: '10m' },
+      // Tagged, because the cart counts are in these bytes and `cart.add` declares that it writes
+      // `cart`. Without the tag the page would keep showing the count from before your click for
+      // ten minutes, which is a cache doing exactly what it was told and exactly the wrong thing.
+      cache: { class: 'public', ttl: '10m', tags: ['cart'] },
       load: (_ctx, params) => {
         const key = params.category === 'household' ? 'household' : 'pantry'
         const category = CATEGORIES[key] as (typeof CATEGORIES)[string]
@@ -72,6 +86,8 @@ export default defineRoute({
           <dt>Streaming order</dt><dd><code>in-order</code>, derived: no slot asked to stream</dd>
           <dt>Fill mechanism</dt><dd>none, so the out-of-order filler is not on the wire</dd>
           <dt>Cache class</dt><dd><code>public</code> — this fragment reads nothing but its route param</dd>
+          <dt>Writes</dt><dd>a form post to <code>/_weft/i/cart.add</code>, answered with a 303 back here</dd>
+          <dt>JavaScript needed</dt><dd>none. Turn it off and the button still works</dd>
         </dl></div>`,
     },
   },
