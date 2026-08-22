@@ -8,6 +8,7 @@ import { loadConfig } from './config.ts'
 import { discover } from './convention.ts'
 import { dev, RESTART_CODE } from './dev.ts'
 import { createApp, serveApp } from './serve.ts'
+import { DEVTOOLS_PATH } from './devtools.ts'
 import { scaffold, type Template } from './scaffold.ts'
 
 const HELP = `weft — a folder is an application
@@ -22,6 +23,7 @@ const HELP = `weft — a folder is an application
 Options
   --port <n>              default 3000, or PORT
   --host <name>           default localhost
+  --devtools              dev only: this application's routes, effect sets, keys and bytes
   --template <name>       create only: minimal | app   (default app)
   --no-types              skip the type checker. Escape elision falls back to escaping
 `
@@ -52,12 +54,20 @@ function parseArgv(argv: readonly string[]): Argv {
   return { command: positional.shift() ?? '', positional, flags }
 }
 
-function overridesFrom(flags: Argv['flags']): { port?: number; host?: string; types?: boolean } {
+function overridesFrom(flags: Argv['flags']): {
+  port?: number
+  host?: string
+  types?: boolean
+  devtools?: boolean
+} {
   const port = flags.port ?? process.env.PORT
   return {
     ...(port ? { port: Number(port) } : {}),
     ...(typeof flags.host === 'string' ? { host: flags.host } : {}),
     ...(flags.types === false || flags['no-types'] ? { types: false } : {}),
+    // Only when asked. A flag on the command line is the right place for something that must
+    // never be deployed, and a config that carries it is a config `weft start` has to refuse.
+    ...(flags.devtools === true ? { devtools: true } : {}),
   }
 }
 
@@ -101,7 +111,8 @@ async function main(): Promise<number> {
       else if (kind === 'restart') out(`  ${file} — restarting\n`)
       else out(`  ${file} — rebuilt in ${ms} ms\n`)
     })
-    out(banner('dev', server.url, await routeList(root, overrides)))
+    const listed = await routeList(root, overrides)
+    out(banner('dev', server.url, listed.patterns, listed.devtools ? DEVTOOLS_PATH : undefined))
     hold(() => server.close())
     return 0
   }
@@ -159,15 +170,20 @@ async function main(): Promise<number> {
   return 2
 }
 
-async function routeList(root: string, overrides: Record<string, unknown>): Promise<string[]> {
+async function routeList(
+  root: string,
+  overrides: Record<string, unknown>,
+): Promise<{ patterns: string[]; devtools: boolean }> {
   const config = await loadConfig(root, overrides)
   const discovered = await discover(root, config.srcDir)
-  return discovered.routes.map((route) => route.pattern)
+  return { patterns: discovered.routes.map((route) => route.pattern), devtools: config.devtools }
 }
 
-function banner(command: string, url: string, patterns: readonly string[]): string {
+function banner(command: string, url: string, patterns: readonly string[], devtools?: string): string {
   const lines = ['', `  weft ${command} · ${url}`, '']
   for (const pattern of patterns) lines.push(`  ${pattern}`)
+  // Printed rather than left to be discovered: a page nobody can find is a page nobody has.
+  if (devtools) lines.push('', `  devtools · ${new URL(devtools, url).href}`)
   lines.push('')
   return lines.join('\n')
 }

@@ -16,3 +16,4 @@ export { loadIntents, moduleIdOf, type IntentManifest, type ManifestEntry } from
 export { loadConfig, type ResolvedConfig } from './config.ts'
 export { buildAssets, browserModule, cacheControlFor, type Asset, type AssetTable } from './assets.ts'
 export { scaffold, type Scaffolded, type ScaffoldOptions, type Template } from './scaffold.ts'
+export { devtoolsFor, DEVTOOLS_PATH, type DevtoolsHandler } from './devtools.ts'

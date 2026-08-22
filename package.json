@@ -13,7 +13,7 @@
     "bench": "node packages/bench/src/cli.ts run",
     "bench:list": "node packages/bench/src/cli.ts list",
     "bench:verify": "node packages/bench/src/cli.ts verify",
-    "demo": "weft dev demo",
+    "demo": "weft dev demo --devtools",
     "test": "node --test packages/*/test/*.test.ts demo/test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepare": "husky",
@@ -28,7 +28,7 @@
     "demo:build": "weft build demo",
     "demo:start": "weft start demo",
     "build": "node scripts/build-packages.mjs",
-    "inspect": "weft dev packages/inspector",
+    "inspect": "weft dev packages/inspector --devtools",
     "inspect:build": "weft build packages/inspector"
   },
   "devDependencies": {
