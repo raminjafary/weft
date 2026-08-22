@@ -31,9 +31,20 @@ export default defineRoute({
   layout: 'race',
   order: (params) => laneName(params.order),
   head: (params) => ({ title: `${laneName(params.order)} · weft` }),
-  layoutValues: (params) => ({
-    order: laneName(params.order),
-    note: NOTE[laneName(params.order)],
-  }),
+  layoutValues: (params) => {
+    const here = laneName(params.order)
+    return {
+      order: here,
+      note: NOTE[here],
+      // Both orders, always, with this one marked. The page exists to compare them, and it has its
+      // own layout so it can be watched in a frame — which is also how it became a page you could
+      // arrive at and not leave.
+      modes: (['out-of-order', 'in-order'] as const).map((mode) => ({
+        href: `/live/race/${mode}`,
+        label: mode,
+        current: mode === here ? 'yes' : 'no',
+      })),
+    }
+  },
   slots: { slow: slot('slow'), fast: slot('fast'), medium: slot('medium') },
 })

@@ -15,16 +15,18 @@ export default defineConfig({
    * The nav, stated rather than derived.
    *
    * Without this the framework links every parameterless route, which is right for a small
-   * application. This one has forty pages and thirty-four of them are stations reachable from the
-   * index — so which six belong in the chrome is an editorial decision, and it is made here.
+   * application and wrong here for two reasons: three of these pages take a parameter, so the
+   * framework cannot know which instance belongs in the chrome, and the demo's own index is the
+   * page that introduces them. So the list is stated, and a test asserts that every route in the
+   * file tree is reachable from it or from the index.
    */
   nav: [
-    { href: '/', label: 'Stations' },
+    { href: '/', label: 'The five' },
     { href: '/app/ordinary/pantry', label: 'Ordinary page' },
     { href: '/app/feed', label: 'Feed' },
     { href: '/app/cart', label: 'Cart' },
     { href: '/app/dashboard', label: 'Dashboard' },
     { href: '/app/article', label: 'Article' },
-    { href: '/spec', label: 'Coverage' },
+    { href: '/live/race/out-of-order', label: 'Streaming race' },
   ],
 })

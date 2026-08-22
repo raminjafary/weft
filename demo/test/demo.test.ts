@@ -54,13 +54,36 @@ test('the documents leave the boundaries the pages fill, and the fragments read 
   )
 })
 
-test('every showcase the index links to is a route', async () => {
-  const { routes } = await app()
-  const patterns = new Set(routes.map((route) => route.pattern))
-  const missing = SHOWCASES.map((s) => s.href).filter(
-    (href) => !patterns.has(href) && !patterns.has('/app/ordinary/:category'),
+/** A concrete URL against a route pattern. `:name` takes a segment, `*` takes the rest. */
+function matches(pattern: string, href: string): boolean {
+  const source = pattern
+    .split('/')
+    .map((segment) => (segment.startsWith(':') ? '[^/]+' : segment === '*' ? '.*' : segment))
+    .join('/')
+  return new RegExp(`^${source}$`).test(href)
+}
+
+/**
+ * Both directions, because each one catches a different way a demo goes wrong.
+ *
+ * A link to a page that does not exist is a 404 somebody hits; a page nothing links to is work
+ * nobody sees. The nav had both at once: it pointed at `/spec`, which is a page in the *inspector*,
+ * and nothing anywhere linked the streaming race.
+ */
+test('every link is a route, and every route is linked', async () => {
+  const { routes, config } = await app()
+  const links = [...(config.nav ?? []).map((item) => item.href), ...SHOWCASES.map((s) => s.href)]
+
+  assert.deepEqual(
+    links.filter((href) => !routes.some((route) => matches(route.pattern, href))),
+    [],
+    'a link in the nav or on the index points at a page this application does not have',
   )
-  assert.deepEqual(missing, [], 'the index links to a page that does not exist')
+  assert.deepEqual(
+    routes.map((route) => route.pattern).filter((pattern) => !links.some((href) => matches(pattern, href))),
+    [],
+    'a route nothing links to. Put it in the nav, or introduce it on the index',
+  )
 })
 test('the plan the framework generated says what the showcases claim', async () => {
   const { routes } = await app()

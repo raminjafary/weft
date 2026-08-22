@@ -61,4 +61,15 @@ export const SHOWCASES: readonly Showcase[] = [
       'A page that is identical with JavaScript disabled',
     ],
   },
+  {
+    href: '/live/race/out-of-order',
+    title: 'The streaming race',
+    standsFor:
+      'The same three regions and the same three latencies, served in both orders, so the difference is something you watch rather than read.',
+    leansOn: [
+      'Out-of-order streaming: the shell goes out with an anchor per slot and the fastest region fills first',
+      'In-order streaming on the other URL, where the fast region waits behind the slow one above it',
+      'The order as a route param, so the plan is resolved for it rather than smuggled past the router',
+    ],
+  },
 ]

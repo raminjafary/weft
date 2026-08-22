@@ -496,6 +496,24 @@ body.race {
   padding: 0.7rem 0.9rem;
   font-size: 0.85rem;
 }
+/* This document has no chrome of its own; two links are all it needs to stop being a dead end. */
+.race-top {
+  display: flex;
+  gap: 0.9rem;
+  margin: 0 0 0.6rem;
+  font-size: 0.76rem;
+}
+.race-top a {
+  color: var(--dim);
+  text-decoration: none;
+}
+.race-top a:hover {
+  color: var(--acc);
+}
+.race-top a[data-current='yes'] {
+  color: var(--acc);
+  border-bottom: 1px solid currentColor;
+}
 .race-order {
   margin: 0;
   font: 600 0.72rem/1 var(--mono);
