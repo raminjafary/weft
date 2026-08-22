@@ -9,16 +9,29 @@ import type { CompiledApp, CompiledFragment } from './compile.ts'
  * it has no other way to reach that table. It is set once, when the app is created, and read
  * only from inside a render — which is why a missing app here is a bug in the framework rather
  * than something an application can cause.
+ *
+ * It hangs off `globalThis` rather than off this module, because "the process" and "this module"
+ * are not the same thing. A repository that runs the framework from source while the application
+ * it serves imports the built package has two copies of this file, and a module-scoped variable
+ * would then be set on one and read from the other: every `fragmentIR()` in a loader throws
+ * `E_NO_APP`, the slot degrades, and the page renders a placeholder where its content should be.
+ * That failure is invisible in a build artifact, which is the worst place for it to be.
  */
-let assets: AssetTable | null = null
-let compiled: CompiledApp | null = null
+interface CurrentApp {
+  assets: AssetTable | null
+  compiled: CompiledApp | null
+}
+
+const CURRENT = Symbol.for('weft.current')
+const container = globalThis as unknown as Record<symbol, CurrentApp | undefined>
+const current: CurrentApp = (container[CURRENT] ??= { assets: null, compiled: null })
 
 export function setAssets(table: AssetTable): void {
-  assets = table
+  current.assets = table
 }
 
 export function setCompiled(app: CompiledApp): void {
-  compiled = app
+  current.compiled = app
 }
 
 /**
@@ -30,6 +43,7 @@ export function setCompiled(app: CompiledApp): void {
  * renderer beside it used, so the two cannot disagree.
  */
 export function fragmentIR(name: string): CompiledFragment {
+  const { compiled } = current
   if (!compiled) throw new Error(`E_NO_APP: fragmentIR(${name}) was called outside a running application`)
   const found =
     compiled.fragments[name] ??
@@ -53,12 +67,14 @@ export function fragmentIR(name: string): CompiledFragment {
  * fragment is `fragmentIR`; this is for the questions that are about all of them.
  */
 export function allFragments(): Record<string, CompiledFragment> {
+  const { compiled } = current
   if (!compiled) throw new Error('E_NO_APP: allFragments() was called outside a running application')
   return compiled.fragments
 }
 
 /** Every sealed template the application has, for a page that wants to count them. */
 export function allTemplates(): CompiledApp['templates'] {
+  const { compiled } = current
   if (!compiled) throw new Error('E_NO_APP: allTemplates() was called outside a running application')
   return compiled.templates
 }
@@ -72,6 +88,7 @@ export function allTemplates(): CompiledApp['templates'] {
  * until it is in production.
  */
 export function asset(path: string): string {
+  const { assets } = current
   if (!assets) throw new Error(`E_NO_APP: asset(${path}) was called outside a running application`)
   return assets.asset(path)
 }
