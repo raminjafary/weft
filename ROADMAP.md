@@ -66,7 +66,11 @@ it is already there" does not.
 **What is missing.**
 
 - **Navigation itself.** Phase 3's stated gap. Nothing intercepts a link, requests the target
-  route's slots under an epoch, and commits on click. `NAV` (0x1d) is a declared frame code
+  route's slots under an epoch, and commits on click. What does exist is the same move for the
+  page you are already on: a control that changes the query and a form that posts an intent both
+  fetch the answer and swap the layout's holes in place rather than navigating, so neither costs
+  a repaint or a scroll position. That is one route with new values; a _different_ route is the
+  part below. `NAV` (0x1d) is a declared frame code
   with no implementation. Regions are keyed by slot on the current page, so there is no notion
   of a staged _route_: tomorrow's prices can be staged into today's page, a different page
   cannot.
@@ -99,17 +103,7 @@ The convention was the harder half and it came first for the reason the scaffold
 generated project that still contained a hand-written plan and a hand-written bindings object
 would have hidden nothing.
 
-### 3. Slots inside components
-
-`<Widget>content</Widget>` is `E_COMPONENT_CHILDREN_UNSUPPORTED`. A component takes props only.
-Children need a slot mechanism inside a nested template, which is a different problem from the
-streaming `slot` hole and should not reuse it by accident.
-
-### 4. Components inside list rows
-
-`E_COMPONENT_IN_LIST`. A row is its own template and cannot carry an instance today.
-
-### 5. iOS WebKit on a real device
+### 3. iOS WebKit on a real device
 
 Playwright's WebKit is a desktop proxy and is labelled as one everywhere it appears. A
 WKWebView on a device has app-bound-domain rules, host-app request interception, and OS
@@ -244,6 +238,25 @@ cost.
 The stations are built and the showcases are built. The docs site and its playground depend on
 neither and can start now — the compiler already has no Node dependency in its hot path, and only
 `compileFiles` needs a virtual file system.
+
+---
+
+## Still refused, and why the refusal is still true
+
+The component limits are gone — `<Widget>content</Widget>`, an instance inside a list row and an
+intent on an instance all work, and `E_COMPONENT_CHILDREN_UNSUPPORTED`, `E_COMPONENT_IN_LIST` and
+`E_COMPONENT_EVENT_UNSUPPORTED` are retired. What is left is refused for reasons that are still
+true rather than for reasons nobody has got to yet.
+
+- **`E_CHILDREN_NOT_SOLE_CHILD`.** Content occupies element positions inside a template compiled
+  without seeing it, which is the same rule a list lives under. Wrap it in an element.
+- **`E_PRIVATE_COMPONENT_NESTED`.** Isolation is a cut in a template's segment stream, made once
+  per hole; a row repeats its holes and children live inside somebody else's instance. Inlining
+  instead would make a shared route private, which is the thing effect contagion exists to prevent.
+- **`E_COMPONENT_NOT_SINGLE_ROOT`.** An instance is addressed from one root element.
+- **`E_DELTA_NOT_INVERTIBLE`.** A value a child computes from its props has no name in the
+  caller's value set, so apply-and-re-render cannot be compared for it. It refuses rather than
+  reconstructing a plausible wrong render.
 
 ---
 
