@@ -121,11 +121,57 @@ const composed: Scenario = {
   transition: (rows) => rows,
 }
 
+/**
+ * A wrapper whose content the call site wrote. What it proves is that children are markup and
+ * not a value: `note` is read nowhere but inside them, and it still has to reach the page and
+ * still has to be escaped.
+ */
+const children: Scenario = {
+  id: 'children',
+  label: 'A wrapper component filled with markup its call site wrote',
+  route: '/children',
+  fixture: fixture('children.tsx'),
+  values: () => ({ heading: 'Your cart', note: 'Two items & one <gift>', total: 12000 }),
+  // Both values live inside the children markup, and one of them needs escaping: a value the
+  // caller owns has to reach a node inside somebody else's template.
+  transitionValues: (values) => ({
+    ...values,
+    note: 'One item & no <gift>',
+    total: Number(values.total) + 400,
+  }),
+  rows: () => [],
+  transition: (rows) => rows,
+}
+
+/**
+ * Fifty rows, each carrying an instance. The row stays content-addressed — that is what keeps a
+ * reordered list free — and the instance inside it has to be addressed through the row.
+ */
+const tagged: Scenario = {
+  id: 'tagged-rows',
+  label: 'Fifty rows, each carrying a component instance',
+  route: '/tagged',
+  fixture: fixture('rows-of-components.tsx'),
+  values: () => ({ epoch: 'e7' }),
+  rows: () => {
+    const rand = lcg(4517)
+    return Array.from({ length: 50 }, (_, i) => ({
+      sku: 1000 + i,
+      name: PRODUCTS[i % PRODUCTS.length] as string,
+      tone: rand() > 0.5 ? 'ok' : 'warn',
+      label: rand() > 0.5 ? 'in stock' : 'low',
+    }))
+  },
+  transition: (rows) => rows.map((r, i) => (i % 8 === 3 ? { ...r, tone: 'warn', label: 'last one' } : r)),
+}
+
 export const SCENARIOS: Scenario[] = [
   shell,
   quantity,
   derived,
   composed,
+  children,
+  tagged,
   lines('cart', 'Cart lines, 12 rows', '/cart', 12),
   lines('feed', 'Product feed, 50 rows', '/feed', 50),
   lines('slow-feed', 'Product feed, 50 rows behind a 40 ms query', '/feed', 50, 40),

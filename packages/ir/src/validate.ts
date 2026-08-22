@@ -68,6 +68,18 @@ export function validateTemplate(ir: TemplateIR): ValidationResult {
     } else if (h.props !== undefined) {
       fail('E_PROPS_KIND', `holes[${i}]`, 'only a component hole projects props')
     }
+    if (h.children !== undefined) {
+      if (h.kind !== 'component') {
+        fail('E_CHILDREN_KIND', `holes[${i}]`, 'only a component hole carries the children a call site wrote')
+      }
+      if (!HEX128.test(h.children)) {
+        fail(
+          'E_CHILDREN_SHAPE',
+          `holes[${i}].children`,
+          `children must be a sealed template version, got ${h.children}`,
+        )
+      }
+    }
     if (h.isolated && h.kind !== 'component') {
       fail('E_ISOLATED_KIND', `holes[${i}]`, 'only a component hole can be its own cache unit')
     }

@@ -70,7 +70,10 @@ export async function checkScenario(scenario: Scenario, candidates: Candidate[])
     const delta = JSON.parse(
       decoder.decode(segmentsCandidate.updateForms?.(scenario, values, rows, nextRows).delta as Uint8Array),
     ) as DeltaPayload
-    const reconstructed = render(compiled.root, applyDelta(rooted, delta), compiled.resolve)
+    // The template goes in with it: a delta addresses the client's tables, and rebuilding the
+    // values means undoing the projections it addressed through.
+    const rebuilt = applyDelta(rooted, delta, compiled.root, compiled.resolve)
+    const reconstructed = render(compiled.root, rebuilt, compiled.resolve)
     const ok = reconstructed.length === expected.length && reconstructed.every((b, i) => b === expected[i])
     checks.push({
       name: 'delta applied to the base render reproduces the html bytes',

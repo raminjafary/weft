@@ -22,6 +22,28 @@ export interface Adopted {
   template: ClientTemplate
 }
 
+/**
+ * The markup a call site wrote between a component's tags, carried down to the instance that
+ * has to hold it. It stays in the *caller's* binding namespace, so `into` points back at the
+ * caller's tables — a value that appears only inside children content is still addressed by
+ * the caller's name for it. `outer` is the frame that was open where the markup was written,
+ * which is what makes `<Card><Panel>{children}</Panel></Card>` mean the caller's children
+ * rather than Card's.
+ */
+export interface ChildrenFrame {
+  template: ClientTemplate
+  signals?: Record<string, Readable<unknown>> | undefined
+  into: Tables
+  outer?: ChildrenFrame | undefined
+}
+
+/** Where an adoption pass files what it finds. Its own, unless it is filling somebody's children. */
+export interface Tables {
+  targets: Map<string, Target[]>
+  rows: Adopted[]
+  instances: Record<string, Adopted>
+}
+
 export interface AdoptOptions {
   root: Element
   template: ClientTemplate
@@ -34,6 +56,10 @@ export interface AdoptOptions {
    * element, which is how one row of a list is adopted out of its parent's children.
    */
   origin?: 'container' | 'element'
+  /** Set on the instance that has children to hold, and on nothing else. */
+  frame?: ChildrenFrame | undefined
+  /** Set only when this pass is filling somebody else's children hole. */
+  into?: Tables | undefined
 }
 
 /**
@@ -52,21 +78,17 @@ export function adopt(options: AdoptOptions): Adopted {
   // that follows it.
   const opaque = new Set<Element>()
   for (const hole of template.holes) {
-    if (hole.kind !== 'list' && hole.kind !== 'component') continue
+    if (hole.kind !== 'list' && hole.kind !== 'component' && hole.kind !== 'children') continue
     const element = elementAt(root, hole.path, origin)
     if (element) opaque.add(element)
   }
 
   const markers = collectMarkers(root, opaque)
   const targets = new Map<string, Target[]>()
-  const rows: Adopted[] = []
-  const instances: Record<string, Adopted> = {}
-
-  const record = (binding: string, target: Target): void => {
-    const existing = targets.get(binding)
-    if (existing) existing.push(target)
-    else targets.set(binding, [target])
-  }
+  const own: Tables = { targets, rows: [], instances: {} }
+  // Children markup shares the namespace of the template that wrote it, so what this pass
+  // finds belongs in that template's tables rather than in a set of its own.
+  const into = options.into ?? own
 
   for (const hole of template.holes) {
     if (hole.kind === 'slot') continue
@@ -76,8 +98,37 @@ export function adopt(options: AdoptOptions): Adopted {
       const nested = hole.nested ? options.resident?.[hole.nested] : undefined
       if (!host || !nested) continue
       for (const child of Array.from(host.children)) {
-        rows.push(adopt({ ...options, root: child, template: nested, origin: 'element' }))
+        into.rows.push(
+          adopt({
+            ...options,
+            root: child,
+            template: nested,
+            origin: 'element',
+            frame: undefined,
+            into: undefined,
+          }),
+        )
       }
+      continue
+    }
+
+    // The caller's markup, adopted where the instance put it and filed under the caller's
+    // names. `frame.outer` goes down with it so that a component forwarding its own children
+    // finds its caller's markup and not its own.
+    if (hole.kind === 'children') {
+      const frame = options.frame
+      const host = frame ? elementAt(root, hole.path, origin) : undefined
+      if (!frame || !host) continue
+      adopt({
+        root: host,
+        template: frame.template,
+        origin: 'container',
+        into: frame.into,
+        frame: frame.outer,
+        ...(options.resident ? { resident: options.resident } : {}),
+        ...(options.onIntent ? { onIntent: options.onIntent } : {}),
+        ...(frame.signals ? { signals: frame.signals } : {}),
+      })
       continue
     }
 
@@ -90,25 +141,35 @@ export function adopt(options: AdoptOptions): Adopted {
       // name the child declared it as. Its targets are deliberately not folded into the
       // parent's table — a delta addresses the instance by name, and merging them would
       // make one changed value two writes.
+      const content = hole.children ? options.resident?.[hole.children] : undefined
       const instance = adopt({
         ...options,
         root: host,
         template: nested,
         origin: 'element',
+        into: undefined,
+        // A component with no children opens no frame: an inner `{children}` would then be
+        // this instance's own, and it has none.
+        frame: content
+          ? { template: content, signals: options.signals, into, outer: options.frame }
+          : undefined,
         ...(options.signals ? { signals: forProps(hole.props, options.signals) } : {}),
       })
-      instances[hole.binding] = instance
+      into.instances[hole.binding] = instance
       continue
     }
 
     const target = locate(root, hole, markers, origin)
-    if (target) record(hole.binding, target)
+    if (!target) continue
+    const found = into.targets.get(hole.binding)
+    if (found) found.push(target)
+    else into.targets.set(hole.binding, [target])
   }
 
   const adopted: Adopted = {
     template,
-    rows,
-    instances,
+    rows: own.rows,
+    instances: own.instances,
     target: (binding) => targets.get(binding)?.[0],
     targets: (binding) => targets.get(binding) ?? [],
     write: (binding, value) => {

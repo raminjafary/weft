@@ -1,7 +1,18 @@
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
-import { cacheClassOf, render, verifySealed, type TemplateIR, type Values } from '@weft/ir'
+import {
+  applyDelta,
+  baseRenderId,
+  cacheClassOf,
+  createSegmentMemo,
+  deltaPayload,
+  render,
+  renderIncremental,
+  verifySealed,
+  type TemplateIR,
+  type Values,
+} from '@weft/ir'
 import { compileFile, compileFiles, compileSource, type CompiledFragment } from '../src/compile.ts'
 import { CompileError } from '../src/errors.ts'
 import { intentId } from '../src/intents.ts'
@@ -372,16 +383,232 @@ test('the refusals around a component name what is missing', async () => {
   )
   await rejects(
     BADGE + 'export default fragment(({ t }) => <p><Badge tone={t} label="a">child</Badge></p>)',
-    'E_COMPONENT_CHILDREN_UNSUPPORTED',
+    'E_COMPONENT_CHILDREN_UNDECLARED',
   )
   await rejects(
+    'const Two = fragment(() => <><p>a</p><p>b</p></>)\nexport default fragment(() => <div><Two /></div>)',
+    'E_COMPONENT_NOT_SINGLE_ROOT',
+  )
+})
+
+const CARD =
+  'const Card = fragment(({ children }) => <section><div class="body">{children}</div></section>)\n'
+
+test("a component takes children, and the call site's markup becomes a template of its own", async () => {
+  const out = await compile(
+    PRELUDE + CARD + 'export default fragment(({ n }) => <main><Card><p>{n}</p></Card></main>)',
+  )
+  const { entry, templates } = out.fragments[0] as { entry: TemplateIR; templates: TemplateIR[] }
+  const instance = entry.holes[0]
+  assert.equal(instance?.kind, 'component')
+
+  const card = templates.find((t) => t.id === 'test.tsx#Card') as TemplateIR
+  const content = templates.find((t) => t.id === 'test.tsx#default:c0<>') as TemplateIR
+  assert.equal(instance?.nested, card.version, 'the fragment it renders')
+  assert.equal(instance?.children, content.version, 'and the markup written between its tags')
+  assert.equal(card.holes[0]?.kind, 'children', 'the child names the place, never the content')
+
+  // The content stayed in the caller's namespace: no projection, no renaming.
+  assert.equal(content.holes[0]?.binding, 'n')
+  assert.equal(
+    decode(render(entry, { n: 'hello' }, versions(templates))),
+    '<main><section><div class="body"><p>hello</p></div></section></main>',
+  )
+})
+
+test('one component with two different children is one sealed child and two contents', async () => {
+  const out = await compile(
+    PRELUDE +
+      CARD +
+      'export default fragment(({ a, b }) => <main><Card><p>{a}</p></Card><Card><i>{b}</i></Card></main>)',
+  )
+  const { entry, templates } = out.fragments[0] as { entry: TemplateIR; templates: TemplateIR[] }
+  assert.equal(entry.holes[0]?.nested, entry.holes[1]?.nested, 'one template, used twice')
+  assert.notEqual(entry.holes[0]?.children, entry.holes[1]?.children, 'two call sites, two contents')
+  assert.equal(
+    decode(render(entry, { a: 'x', b: 'y' }, versions(templates))),
+    '<main><section><div class="body"><p>x</p></div></section>' +
+      '<section><div class="body"><i>y</i></div></section></main>',
+  )
+})
+
+test("a component may hand its own children on, and the inner one still means the caller's", async () => {
+  const out = await compile(
+    PRELUDE +
+      CARD +
+      'const Panel = fragment(({ children }) => <aside><Card>{children}</Card></aside>)\n' +
+      'export default fragment(({ n }) => <main><Panel><b>{n}</b></Panel></main>)',
+  )
+  const { entry, templates } = out.fragments[0] as { entry: TemplateIR; templates: TemplateIR[] }
+  assert.equal(
+    decode(render(entry, { n: 'deep' }, versions(templates))),
+    '<main><aside><section><div class="body"><b>deep</b></div></section></aside></main>',
+  )
+})
+
+test('the refusals around children say where the markup goes and where it does not', async () => {
+  await rejects(CARD + 'export default fragment(() => <main><Card /></main>)', 'E_COMPONENT_PROP_MISSING')
+  await rejects(
+    CARD + 'export default fragment(({ n }) => <main><Card children={n} /></main>)',
+    'E_CHILDREN_AS_PROP',
+  )
+  await rejects(
+    'export default fragment(({ children }) => <p class={children}>x</p>)',
+    'E_CHILDREN_NOT_A_VALUE',
+  )
+  await rejects(
+    'const C = fragment(({ children }) => <section><h2>t</h2>{children}</section>)\n' +
+      'export default fragment(() => <main><C><p>x</p></C></main>)',
+    'E_CHILDREN_NOT_SOLE_CHILD',
+  )
+})
+
+test('a list row carries an instance, and the row template names the child', async () => {
+  const out = await compile(
+    PRELUDE +
+      BADGE +
+      'export default fragment(({ rows }) => <ul>{rows.map((r) => <li><Badge tone={r.tone} label={r.name} /></li>)}</ul>)',
+  )
+  const { entry, templates } = out.fragments[0] as { entry: TemplateIR; templates: TemplateIR[] }
+  const row = templates.find((t) => t.id.endsWith(':rows[]')) as TemplateIR
+  const instance = row.holes.find((h) => h.kind === 'component')
+  assert.equal(instance?.provenance, 'test.tsx#Badge')
+  assert.deepEqual(instance?.props, { tone: 'tone', label: 'name' }, 'row fields, not outer bindings')
+  assert.equal(
+    decode(
+      render(
+        entry,
+        {
+          rows: [
+            { tone: 'ok', name: 'a' },
+            { tone: 'warn', name: 'b' },
+          ],
+        } as never,
+        versions(templates),
+      ),
+    ),
+    '<ul><li><span class="ok">a</span></li><li><span class="warn">b</span></li></ul>',
+  )
+})
+
+test("a component rendered inside a row still composes its reads into the caller's", async () => {
+  const out = await compile(
+    PRELUDE +
+      "const Money = fragment((ctx) => { const c = ctx.cookie('currency'); return <b>{c}</b> })\n" +
+      'export default fragment(({ rows }) => <ul>{rows.map((r) => <li><Money /></li>)}</ul>)',
+  )
+  const { entry } = out.fragments[0] as { entry: TemplateIR }
+  assert.deepEqual(entry.effects.reads, ['cookie:currency'], 'a row is not a wall around a read')
+  assert.equal(cacheClassOf(entry.effects), 'shared')
+})
+
+test('a private component inside a row is refused, because a row has no boundary to cut', async () => {
+  await rejects(
+    'const Who = fragment(async (ctx) => { const w = await ctx.user(); return <b>{w}</b> })\n' +
+      'export default fragment(({ rows }) => <ul>{rows.map((r) => <li><Who /></li>)}</ul>)',
+    'E_PRIVATE_COMPONENT_NESTED',
+  )
+  await rejects(
+    'const Who = fragment(async (ctx) => { const w = await ctx.user(); return <b>{w}</b> })\n' +
+      'const Card = fragment(({ children }) => <section><div>{children}</div></section>)\n' +
+      'export default fragment(() => <main><Card><Who /></Card></main>)',
+    'E_PRIVATE_COMPONENT_NESTED',
+  )
+})
+
+test("an intent on a component binds to the instance's root element", async () => {
+  const ir = await only(
     BADGE + 'export default fragment(({ t }) => <p><Badge tone={t} label="a" onClick={save} /></p>)',
-    'E_COMPONENT_EVENT_UNSUPPORTED',
   )
-  await rejects(
-    BADGE +
-      'export default fragment(({ rows, t }) => <ul>{rows.map((r) => <li><Badge tone={t} label="a" /></li>)}</ul>)',
-    'E_COMPONENT_IN_LIST',
+  assert.deepEqual(
+    ir.wiring.map((w) => [w.op, w.event, w.path]),
+    [['event', 'click', [0, 0]]],
+    'the path is the hole the instance occupies, which is one element',
+  )
+})
+
+test('a reordered list of rows carrying instances still costs no row render', async () => {
+  const out = await compileFile(fixture('rows-of-components.tsx'))
+  const { entry, templates } = out.fragments[0] as { entry: TemplateIR; templates: TemplateIR[] }
+  const resolve = versions(templates)
+  const rows = Array.from({ length: 10 }, (_, i) => ({
+    sku: i,
+    name: `item ${i}`,
+    tone: i % 2 ? 'ok' : 'warn',
+    label: 'in stock',
+  }))
+  const values = { epoch: 'e1', rows } as unknown as Values
+  const memo = createSegmentMemo()
+
+  const cold = renderIncremental({ ir: entry, values, memo, resolve })
+  assert.deepEqual(cold.bytes, render(entry, values, resolve), 'incremental is byte-identical or it is a bug')
+
+  const reversed = { epoch: 'e1', rows: rows.toReversed() } as unknown as Values
+  const warm = renderIncremental({ ir: entry, values: reversed, memo, resolve })
+  assert.equal(warm.stats.segments.rendered, 0, 'a row is content-addressed, instance and all')
+  assert.equal(warm.stats.segments.reused, 10)
+  assert.deepEqual(warm.bytes, render(entry, reversed, resolve))
+})
+
+test('a delta reaches a value that only the children markup reads', async () => {
+  const out = await compileFile(fixture('children.tsx'))
+  const { entry, templates } = out.fragments[0] as { entry: TemplateIR; templates: TemplateIR[] }
+  const resolve = versions(templates)
+  const before = { heading: 'Cart', note: 'two items', total: 12000 } as unknown as Values
+  const after = { ...before, note: 'one item' } as unknown as Values
+
+  const delta = deltaPayload(entry, baseRenderId(entry, before), before, after, resolve)
+  assert.deepEqual(
+    Object.keys(delta.changed),
+    ['note'],
+    "children are the caller's markup, so the caller's name for the value is the address",
+  )
+  assert.deepEqual(
+    [...render(entry, applyDelta(before, delta, entry, resolve), resolve)],
+    [...render(entry, after, resolve)],
+  )
+})
+
+test('a delta into a row instance is addressed through the row, and inverts back', async () => {
+  const out = await compileFile(fixture('rows-of-components.tsx'))
+  const { entry, templates } = out.fragments[0] as { entry: TemplateIR; templates: TemplateIR[] }
+  const resolve = versions(templates)
+  const rows = [
+    { sku: 1, name: 'a', tone: 'ok', label: 'in stock' },
+    { sku: 2, name: 'b', tone: 'ok', label: 'in stock' },
+  ]
+  const before = { epoch: 'e1', rows } as unknown as Values
+  const after = {
+    epoch: 'e1',
+    rows: [rows[0], { ...rows[1], label: 'low' }],
+  } as unknown as Values
+
+  const delta = deltaPayload(entry, baseRenderId(entry, before), before, after, resolve)
+  assert.deepEqual(Object.keys(delta.changed), ['rows[1].c0.label'])
+  assert.deepEqual(
+    [...render(entry, applyDelta(before, delta, entry, resolve), resolve)],
+    [...render(entry, after, resolve)],
+  )
+})
+
+test('a value a component computes for itself cannot be inverted back, and says so', async () => {
+  const out = await compileFile(fixture('composed.tsx'))
+  const { entry, templates } = out.fragments[0] as { entry: TemplateIR; templates: TemplateIR[] }
+  const resolve = versions(templates)
+  const before = { sku: 1, price: 2599, qty: 1 } as unknown as Values
+  const after = { sku: 1, price: 2999, qty: 1 } as unknown as Values
+
+  const delta = deltaPayload(entry, baseRenderId(entry, before), before, after, resolve)
+  // The child renders `amount / 100`; the caller's value set has no binding for the result,
+  // so a delta that names it is applicable to a DOM and not to a set of values.
+  assert.equal(
+    Object.keys(delta.changed).some((k) => k.startsWith('c0.')),
+    true,
+  )
+  assert.throws(
+    () => applyDelta(before, delta, entry, resolve),
+    /E_DELTA_NOT_INVERTIBLE/,
+    'refused by name rather than reconstructed into a plausible wrong render',
   )
 })
 

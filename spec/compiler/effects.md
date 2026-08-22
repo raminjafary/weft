@@ -69,6 +69,8 @@ redirect the read rather than to scold.
 | `ctx.anythingElse()`                                        | `E_UNKNOWN_EFFECT`     | The surface above, which is the whole surface               |
 | `ctx.setCookie()`, `ctx.status()`, `ctx.redirect()`         | `E_ENVELOPE_IN_RENDER` | The envelope phase, which settles before any hole is filled |
 | `{ctx.locale()}` inline in markup                           | `E_CTX_IN_MARKUP`      | Read it into a value in the body first                      |
+| `ctx.cookie(k)` with a computed key                         | `E_DYNAMIC_TAINT`      | A string literal, so the key has a name the build can see   |
+| `ctx.flag()` with no argument                               | `E_TAINT_ARGUMENT`     | Reference the flag, so its id comes from where it lives     |
 
 That last one is worth explaining, because it looks like fussiness. A read inlined into an
 attribute or a text hole is still tracked — the walk covers the whole fragment — but it
@@ -118,6 +120,24 @@ this render does not fill is not projectable from values the parent holds.
 Only `private` isolates. A shared child inside a static parent still composes, because the
 cost there is a wider cache key rather than a correctness problem, and cutting on it would
 turn every cookie read into a separate request.
+
+### Contagion follows the markup, not the template boundary
+
+A list row and the markup a call site writes between a component's tags are both cut into
+templates of their own, for addressing reasons that have nothing to do with reads. So an
+instance rendered inside either one is still the caller's instance, and its reads compose into
+the caller exactly as a top-level one does. A row is not a wall around a `ctx.cookie`.
+
+Isolation does not follow it, and that asymmetry is deliberate rather than an oversight.
+Isolating an instance means the parent leaves a boundary and the kernel fills it — a cut in the
+template's segment stream, made once per hole. A row repeats its holes once per item, and
+children markup lives inside somebody else's instance; neither position is a place the stream
+can be cut. A private fragment there is `E_PRIVATE_COMPONENT_NESTED`, naming the child and the
+container, because the alternative is to inline it and quietly make a shared route private —
+which is the one thing this whole section exists to prevent.
+
+The fix the message names is to move the read: take the private value above the list or the call
+site, where it is one hole in one template, and pass it in as a prop.
 
 ## What this does not do yet
 

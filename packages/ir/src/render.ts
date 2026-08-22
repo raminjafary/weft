@@ -1,14 +1,8 @@
 import { resolveDerived } from './derived.ts'
-import { componentValues } from './template-ir.ts'
-import type { DeltaPayload, Hole, Json, TemplateIR, Values } from './template-ir.ts'
+import { childrenFrame, componentValues } from './template-ir.ts'
+import type { ChildrenFrame, DeltaPayload, Hole, Json, TemplateIR, Values } from './template-ir.ts'
 
 const utf8 = new TextEncoder()
-const EMPTY = new Uint8Array(0)
-
-const AMP = utf8.encode('&amp;')
-const LT = utf8.encode('&lt;')
-const GT = utf8.encode('&gt;')
-const QUOT = utf8.encode('&quot;')
 
 function needsEscape(s: string, attr: boolean): boolean {
   for (let i = 0; i < s.length; i++) {
@@ -19,26 +13,13 @@ function needsEscape(s: string, attr: boolean): boolean {
   return false
 }
 
-/** Escapes only when a scan proves it necessary — the runtime half of escape elision. */
+/**
+ * Escapes only when a scan proves it necessary — the runtime half of escape elision. The
+ * escaping itself goes through the string form: replacing in a string and encoding once is
+ * one allocation, where splicing pre-encoded entities into a byte array was one per run.
+ */
 export function escapeBytes(s: string, attr: boolean): Uint8Array {
-  if (!needsEscape(s, attr)) return utf8.encode(s)
-  const parts: Uint8Array[] = []
-  let start = 0
-  for (let i = 0; i < s.length; i++) {
-    const c = s.charCodeAt(i)
-    let rep: Uint8Array | null = null
-    if (c === 38) rep = AMP
-    else if (c === 60) rep = LT
-    else if (c === 62) rep = GT
-    else if (attr && c === 34) rep = QUOT
-    if (rep) {
-      if (i > start) parts.push(utf8.encode(s.slice(start, i)))
-      parts.push(rep)
-      start = i + 1
-    }
-  }
-  if (start < s.length) parts.push(utf8.encode(s.slice(start)))
-  return concat(parts)
+  return utf8.encode(needsEscape(s, attr) ? escapeString(s, attr) : s)
 }
 
 export function escapeString(s: string, attr: boolean): string {
@@ -86,41 +67,20 @@ function truthy(v: Json | undefined): boolean {
 /** Resolves a nested template by version, which is how a list of fragments is projected. */
 export type Resolver = (version: string) => TemplateIR | undefined
 
+/**
+ * One hole's bytes, for a consumer that walks a template itself rather than rendering it —
+ * the kernel cutting a shell at its slots, or the incremental renderer filling in around a
+ * memoised region. It is the buffer writer with a copy on the end rather than a second
+ * implementation of the same switch: two of those would eventually disagree, and the one
+ * they disagreed about would be the wire form nobody was testing.
+ */
 export function renderHole(hole: Hole, value: Json | undefined, resolve?: Resolver): Uint8Array {
-  switch (hole.kind) {
-    case 'slot':
-      return EMPTY
-    // A component is projected from the whole parent value set, not from one value, so it
-    // is rendered by `render`. Reaching it here means a caller had only the one value.
-    case 'component':
-      return EMPTY
-    case 'attr-bool':
-      return truthy(value) ? utf8.encode(hole.attr ?? '') : EMPTY
-    case 'attr-presence': {
-      if (!truthy(value)) return EMPTY
-      const body =
-        hole.escape === 'escape' ? escapeBytes(stringify(value), true) : utf8.encode(stringify(value))
-      return concat([utf8.encode(`${hole.attr ?? ''}="`), body, utf8.encode('"')])
-    }
-    case 'list': {
-      if (!Array.isArray(value)) return EMPTY
-      if (hole.nested) {
-        const nested = resolve?.(hole.nested)
-        if (!nested) {
-          throw new Error(`E_NESTED_UNRESOLVED: hole ${hole.index} needs template ${hole.nested}`)
-        }
-        return concat(value.map((item) => render(nested, item as Values, resolve)))
-      }
-      return concat(
-        value.map((v) =>
-          hole.escape === 'escape' ? escapeBytes(stringify(v), false) : utf8.encode(stringify(v)),
-        ),
-      )
-    }
-    default: {
-      const attrContext = hole.kind === 'attr'
-      const s = stringify(value)
-      return hole.escape === 'escape' ? escapeBytes(s, attrContext) : utf8.encode(s)
+  for (;;) {
+    try {
+      return scratch.slice(0, writeValue(hole, value, scratch, 0, resolve))
+    } catch (e) {
+      if (e !== OVERFLOW) throw e
+      grow()
     }
   }
 }
@@ -137,7 +97,7 @@ export function renderHole(hole: Hole, value: Json | undefined, resolve?: Resolv
 export function render(ir: TemplateIR, values: Values, resolve?: Resolver): Uint8Array {
   for (;;) {
     try {
-      const written = writeTemplate(ir, values, resolve, scratch, 0)
+      const written = writeTemplate(ir, values, resolve, scratch, 0, undefined)
       return scratch.slice(0, written)
     } catch (e) {
       if (e !== OVERFLOW) throw e
@@ -154,7 +114,7 @@ export function renderInto(
   offset = 0,
   resolve?: Resolver,
 ): number {
-  return writeTemplate(ir, values, resolve, out, offset) - offset
+  return writeTemplate(ir, values, resolve, out, offset, undefined) - offset
 }
 
 const OVERFLOW = Symbol('weft.render.overflow')
@@ -185,7 +145,12 @@ function writeValue(
   resolve?: Resolver,
 ): number {
   switch (hole.kind) {
+    // Nothing this render owns. A slot is left for a later frame; a component is projected
+    // from the whole value set and children are the caller's markup, and both are written by
+    // `writeTemplate` before it ever reaches here.
     case 'slot':
+    case 'component':
+    case 'children':
       return off
     case 'attr-bool':
       return truthy(value) ? writeString(hole.attr ?? '', out, off) : off
@@ -201,7 +166,9 @@ function writeValue(
       if (hole.nested) {
         const nested = resolve?.(hole.nested)
         if (!nested) throw new Error(`E_NESTED_UNRESOLVED: hole ${hole.index} needs template ${hole.nested}`)
-        for (const item of value) cursor = writeTemplate(nested, item as Values, resolve, out, cursor)
+        for (const item of value) {
+          cursor = writeTemplate(nested, item as Values, resolve, out, cursor, undefined)
+        }
         return cursor
       }
       for (const item of value) {
@@ -226,6 +193,7 @@ function writeTemplate(
   resolve: Resolver | undefined,
   out: Uint8Array,
   offset: number,
+  frame: ChildrenFrame | undefined,
 ): number {
   const values = resolveDerived(ir.derived, supplied)
   let off = offset
@@ -237,7 +205,21 @@ function writeTemplate(
       // An isolated instance is not this render's to produce: it has its own cache entry,
       // and the kernel composes it in the same pass that fills a slot.
       if (hole.isolated) continue
-      off = writeTemplate(child(hole, resolve), componentValues(hole, values), resolve, out, off)
+      off = writeTemplate(
+        child(hole, resolve),
+        componentValues(hole, values),
+        resolve,
+        out,
+        off,
+        childrenFrame(hole, values, resolve, frame),
+      )
+      continue
+    }
+    if (hole.kind === 'children') {
+      // The caller's markup, rendered against the caller's values and under the frame that
+      // was open where it was written — so a component that passes its children on gets its
+      // caller's children, not its own.
+      if (frame) off = writeTemplate(frame.ir, frame.values, resolve, out, off, frame.outer)
       continue
     }
     off = writeValue(hole, values[hole.binding], out, off, resolve)
@@ -262,10 +244,71 @@ export function assertSameTemplate(ir: TemplateIR, payload: { tpl: string }): vo
 
 const PATH_TOKEN = /^([^[.]+)(?:\[(\d+)\])?$/
 
-/** Applies a path-keyed delta (`rows[3].qty`) onto a base value set. */
-export function applyDelta(base: Values, delta: DeltaPayload): Values {
+/**
+ * Undoes the projections a delta addresses through, so a path written for the client's tables
+ * becomes a path into the caller's value set. `c0.tone` names a hole inside an instance; the
+ * caller knows that value by whatever binding feeds the prop, and the component hole says
+ * which. A list is not a projection — a row keeps its own names — so it only moves the walk
+ * into the row template.
+ *
+ * A child hole with no prop behind it is a value the child *computed*, and the caller's value
+ * set has no name for it at all. That is refused rather than dropped: a reconstruction that
+ * quietly ignored one changed value would produce a plausible wrong render.
+ */
+function invertPath(path: string, ir: TemplateIR, resolve: Resolver | undefined): string {
+  const out: string[] = []
+  let current: TemplateIR | undefined = ir
+  const tokens = path.split('.')
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i] as string
+    const m = PATH_TOKEN.exec(token)
+    const key = m ? (m[1] as string) : token
+    const suffix = m && m[2] !== undefined ? `[${m[2]}]` : ''
+    const hole: Hole | undefined = current ? holeFor(current, key, resolve) : undefined
+    if (hole?.kind === 'component') {
+      const rest = tokens[i + 1]
+      if (rest === undefined) break
+      const inner = PATH_TOKEN.exec(rest)
+      const innerKey = inner ? (inner[1] as string) : rest
+      const behind = hole.props?.[innerKey]
+      if (behind === undefined) {
+        throw new Error(
+          `E_DELTA_NOT_INVERTIBLE: ${path} names ${innerKey}, which the instance computes; the caller's value set has no binding for it`,
+        )
+      }
+      tokens[i + 1] = behind + (inner && inner[2] !== undefined ? `[${inner[2]}]` : '')
+      current = hole.nested ? resolve?.(hole.nested) : undefined
+      continue
+    }
+    out.push(key + suffix)
+    current = hole?.kind === 'list' && hole.nested ? resolve?.(hole.nested) : undefined
+  }
+  return out.join('.')
+}
+
+/** A binding of this template, or of the children markup that shares its namespace. */
+function holeFor(ir: TemplateIR, binding: string, resolve: Resolver | undefined): Hole | undefined {
+  for (const hole of ir.holes) {
+    if (hole.binding === binding) return hole
+    const content = hole.children ? resolve?.(hole.children) : undefined
+    const inside = content ? holeFor(content, binding, resolve) : undefined
+    if (inside) return inside
+  }
+  return undefined
+}
+
+/**
+ * Applies a path-keyed delta (`rows[3].qty`) onto a base value set. Given the template it also
+ * inverts the projections the delta addressed through, which is what makes "apply the delta to
+ * the base and render again" comparable to rendering the new values. Without one, a path into
+ * an instance lands under the instance's binding and is inert — right for a client writing into
+ * the DOM it already has, wrong for anybody rebuilding the values.
+ */
+export function applyDelta(base: Values, delta: DeltaPayload, ir?: TemplateIR, resolve?: Resolver): Values {
   const next = structuredClone(base) as Values
-  for (const [path, value] of Object.entries(delta.changed)) {
+  for (const [addressed, value] of Object.entries(delta.changed)) {
+    const path = ir ? invertPath(addressed, ir, resolve) : addressed
+    if (!path) continue
     let cursor: Record<string, Json> | Json[] = next as Record<string, Json>
     const tokens = path.split('.')
     tokens.forEach((token, i) => {
@@ -301,7 +344,12 @@ export function applyDelta(base: Values, delta: DeltaPayload): Values {
   return next
 }
 
-export function byteLength(ir: TemplateIR, supplied: Values, resolve?: Resolver): number {
+export function byteLength(
+  ir: TemplateIR,
+  supplied: Values,
+  resolve?: Resolver,
+  frame?: ChildrenFrame,
+): number {
   const values = resolveDerived(ir.derived, supplied)
   let total = 0
   for (let i = 0; i < ir.segments.length; i++) {
@@ -310,7 +358,12 @@ export function byteLength(ir: TemplateIR, supplied: Values, resolve?: Resolver)
     if (!hole) continue
     if (hole.kind === 'component') {
       if (hole.isolated) continue
-      total += byteLength(child(hole, resolve), componentValues(hole, values), resolve)
+      const inner = childrenFrame(hole, values, resolve, frame)
+      total += byteLength(child(hole, resolve), componentValues(hole, values), resolve, inner)
+      continue
+    }
+    if (hole.kind === 'children') {
+      if (frame) total += byteLength(frame.ir, frame.values, resolve, frame.outer)
       continue
     }
     total += renderHole(hole, values[hole.binding], resolve).length

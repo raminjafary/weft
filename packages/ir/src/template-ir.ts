@@ -15,7 +15,7 @@ export const ALL_FORMS: readonly WireForm[] = ['html', 'bundle', 'split', 'patch
 export type EscapeClass = 'escape' | 'proven-safe' | 'trusted-raw'
 
 export type HoleKind =
-  'text' | 'attr' | 'attr-bool' | 'attr-presence' | 'node' | 'list' | 'slot' | 'component'
+  'text' | 'attr' | 'attr-bool' | 'attr-presence' | 'node' | 'list' | 'slot' | 'component' | 'children'
 
 export type BindingId = string
 
@@ -39,6 +39,14 @@ export interface Hole {
    * change to the child's hole, with no path syntax to invent.
    */
   props?: Record<string, BindingId>
+  /**
+   * For a `component` hole: the template version holding the markup the call site wrote
+   * between the tags. It is named here rather than in the child because the child is shared
+   * — one `<Card/>` used five times is one sealed template, and each of the five call sites
+   * writes different children. The content is lowered in the *caller's* binding namespace,
+   * so it reads the caller's props and signals directly and needs no projection.
+   */
+  children?: string
   /**
    * For a `component` hole: the instance is its own cache unit and the parent does not
    * render it. Set when the child is private and the parent is not — containment, so that
@@ -156,6 +164,11 @@ export function draftTemplate(t: DraftTemplate): TemplateIR {
   }
 }
 
+/** A hole whose markup comes from a nested template rather than from a value. */
+function fromTemplate(h: Hole): boolean {
+  return h.kind === 'component' || h.kind === 'list' || h.kind === 'children'
+}
+
 /**
  * Which wire forms this template can serve, derived rather than declared.
  * `html` is unconditional — it is the floor that needs nothing resident on the client.
@@ -174,10 +187,11 @@ export function derivableForms(holes: Hole[]): WireForm[] {
       // where the only thing a node can be written is text. Projecting one therefore displays the
       // markup escaped, which is worse than sending the region again.
       //
-      // `list` and `component` holes are trusted-raw as well and are not this case: their markup
-      // comes from a nested template the client already holds, and a delta projects values into
-      // it. The distinction is where the markup comes from — a template, or the value set.
-      !(h.escape === 'trusted-raw' && h.kind !== 'component' && h.kind !== 'list'),
+      // `list`, `component` and `children` holes are trusted-raw as well and are not this case:
+      // their markup comes from a nested template the client already holds, and a delta projects
+      // values into it. The distinction is where the markup comes from — a template, or the
+      // value set.
+      !(h.escape === 'trusted-raw' && !fromTemplate(h)),
   )
   if (projectable) forms.push('delta')
   return forms
@@ -192,6 +206,33 @@ export function componentValues(hole: Hole, values: Values): Values {
   const out: Values = {}
   for (const [prop, binding] of Object.entries(hole.props ?? {})) out[prop] = values[binding] ?? null
   return out
+}
+
+/**
+ * The markup a call site wrote between a component's tags, and the value set it reads.
+ *
+ * It is a frame rather than a value on the hole because a component may hand its own children
+ * on to another one — `<Card><Panel>{children}</Panel></Card>` — and the inner `{children}`
+ * has to mean the caller's markup, not Card's. `outer` is the frame that was active where the
+ * children markup was written, which is what makes the scoping lexical rather than dynamic.
+ */
+export interface ChildrenFrame {
+  ir: TemplateIR
+  values: Values
+  outer?: ChildrenFrame
+}
+
+/** The frame a component hole opens for its instance: absent when the call site wrote none. */
+export function childrenFrame(
+  hole: Hole,
+  values: Values,
+  resolve: ((version: string) => TemplateIR | undefined) | undefined,
+  outer: ChildrenFrame | undefined,
+): ChildrenFrame | undefined {
+  if (!hole.children) return undefined
+  const ir = resolve?.(hole.children)
+  if (!ir) throw new Error(`E_NESTED_UNRESOLVED: hole ${hole.index} needs template ${hole.children}`)
+  return { ir, values, ...(outer ? { outer } : {}) }
 }
 
 export function deltaPayload(
@@ -227,22 +268,97 @@ function changesFor(
   const before = resolveDerived(ir.derived, prev)
   const after = resolveDerived(ir.derived, next)
   const changed = diffValues(before, after)
-  const addressable = new Set(ir.holes.map((h) => h.binding))
+  const addressable = addressableIn(ir, resolve, new Set())
   const sources = [...ir.signals, ...[...fromSignal].map((id) => ({ id }))]
   const owned = clientOwned(ir.derived, sources)
+  // A row is its own template, so the rule about holes applies one level down as well. Without
+  // this, a row field that only feeds an instance inside the row would travel twice: once
+  // under a name the row has nothing to write it into, and once through the instance.
+  const rowFields = new Map<BindingId, Set<BindingId>>()
+  for (const hole of ir.holes) {
+    if (hole.kind !== 'list' || !hole.nested) continue
+    const row = resolve?.(hole.nested)
+    if (row) rowFields.set(hole.binding, addressableIn(row, resolve, new Set()))
+  }
+
   for (const key of Object.keys(changed)) {
-    const root = (key.split('.')[0] as string).replace(/\[\d+\]$/, '')
+    const tokens = key.split('.')
+    const root = (tokens[0] as string).replace(/\[\d+\]$/, '')
     // Two things never travel: a value with no hole, which the client could not write
     // anywhere, and a derived value the client recomputes for itself.
-    if (!addressable.has(root) || owned.has(root)) delete changed[key]
+    if (!addressable.has(root) || owned.has(root)) {
+      delete changed[key]
+      continue
+    }
+    const field = tokens[1]
+    const fields = tokens[0] === root ? undefined : rowFields.get(root)
+    if (fields && field !== undefined && !fields.has(field.replace(/\[\d+\]$/, ''))) delete changed[key]
   }
 
   const out: Values = {}
   for (const [key, value] of Object.entries(changed)) out[prefix ? `${prefix}.${key}` : key] = value
 
-  // An instance is addressed by name, the way a row is addressed by index, so a value
-  // computed inside a component is reachable without the parent knowing what it is.
+  Object.assign(out, instanceChanges(ir, before, after, resolve, prefix, owned, ir.signals, fromSignal))
+  return out
+}
+
+/**
+ * The changes that live behind a nested template rather than in this one's value set: a
+ * component instance, the children a call site handed one, and the instances inside a list
+ * row. Everything here is addressed by walking down from the caller — `c0.label`,
+ * `rows[3].c0.label` — because the client adopted each of them as its own table and a value
+ * the parent never held has no name at the parent's level.
+ */
+function instanceChanges(
+  ir: TemplateIR,
+  before: Values,
+  after: Values,
+  resolve: ((version: string) => TemplateIR | undefined) | undefined,
+  prefix: string,
+  owned: Set<BindingId>,
+  signals: readonly { id: BindingId }[],
+  fromSignal: Set<BindingId>,
+): Values {
+  const out: Values = {}
   for (const hole of ir.holes) {
+    // Children are the caller's markup rendered somewhere else, so they share the caller's
+    // value set and its prefix: nothing about them is renamed on the way in.
+    if (hole.children) {
+      const content = resolve?.(hole.children)
+      if (!content) throw new Error(`E_NESTED_UNRESOLVED: hole ${hole.index} needs ${hole.children}`)
+      Object.assign(out, instanceChanges(content, before, after, resolve, prefix, owned, signals, fromSignal))
+    }
+
+    // A row is its own template, so an instance inside one is reached through the row. The
+    // row's own values are already diffed by path; this is the part no path can express.
+    if (hole.kind === 'list' && hole.nested) {
+      const row = resolve?.(hole.nested)
+      const prevRows = before[hole.binding]
+      const nextRows = after[hole.binding]
+      if (!row || !Array.isArray(prevRows) || !Array.isArray(nextRows)) continue
+      // A length change is structural and sends the list whole, so there is nothing to address.
+      if (prevRows.length !== nextRows.length) continue
+      if (!row.holes.some((h) => h.kind === 'component' || h.children)) continue
+      const at = prefix ? `${prefix}.${hole.binding}` : hole.binding
+      nextRows.forEach((item, i) => {
+        Object.assign(
+          out,
+          instanceChanges(
+            row,
+            resolveDerived(row.derived, prevRows[i] as Values),
+            resolveDerived(row.derived, item as Values),
+            resolve,
+            `${at}[${i}]`,
+            // A row cannot close over a signal, so nothing inside one is the client's to own.
+            new Set(),
+            [],
+            new Set(),
+          ),
+        )
+      })
+      continue
+    }
+
     if (hole.kind !== 'component') continue
     const child = hole.nested ? resolve?.(hole.nested) : undefined
     if (!child) {
@@ -250,7 +366,7 @@ function changesFor(
     }
     const inherited = new Set<BindingId>()
     for (const [prop, binding] of Object.entries(hole.props ?? {})) {
-      if (owned.has(binding) || fromSignal.has(binding) || ir.signals.some((sig) => sig.id === binding)) {
+      if (owned.has(binding) || fromSignal.has(binding) || signals.some((sig) => sig.id === binding)) {
         inherited.add(prop)
       }
     }
@@ -265,6 +381,27 @@ function changesFor(
         inherited,
       ),
     )
+  }
+  return out
+}
+
+/**
+ * Which bindings of this value set have somewhere to land. Children content is included
+ * because it is written in this template's namespace and rendered inside the instance: a
+ * value used only there is still this template's to send.
+ */
+function addressableIn(
+  ir: TemplateIR,
+  resolve: ((version: string) => TemplateIR | undefined) | undefined,
+  seen: Set<string>,
+): Set<BindingId> {
+  const out = new Set<BindingId>()
+  for (const hole of ir.holes) {
+    out.add(hole.binding)
+    if (!hole.children || seen.has(hole.children)) continue
+    seen.add(hole.children)
+    const content = resolve?.(hole.children)
+    if (content) for (const id of addressableIn(content, resolve, seen)) out.add(id)
   }
   return out
 }

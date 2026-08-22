@@ -1,8 +1,8 @@
 export const TEMPLATE_IR_SPEC = 'weft.template-ir/2'
-export const TEMPLATE_IR_VERSION = '2.4.0'
+export const TEMPLATE_IR_VERSION = '2.5.0'
 
 export const PAYLOAD_SPEC = 'weft.payload/2'
-export const PAYLOAD_VERSION = '2.4.0'
+export const PAYLOAD_VERSION = '2.5.0'
 
 export interface SemVer {
   major: number
@@ -115,6 +115,10 @@ export function migrate(
 }
 
 /**
+ * 2.4.0 -> 2.5.0 added the `children` hole kind and the `children` field on a component hole:
+ * the markup a call site wrote between the tags, sealed as its own template in the *caller's*
+ * binding namespace. A 2.4.0 document has neither, so the migration restamps.
+ *
  * 2.3.0 -> 2.4.0 added `isolated` on a component hole: the instance is its own cache unit
  * and the parent does not render it. A 2.3.0 document has none, so the migration restamps.
  *
@@ -136,6 +140,7 @@ function installBuiltIns(): void {
   registerMigration('2.1.0', '2.2.0', (doc) => ({ ...doc, derived: doc.derived ?? [] }))
   registerMigration('2.2.0', '2.3.0', (doc) => doc)
   registerMigration('2.3.0', '2.4.0', (doc) => doc)
+  registerMigration('2.4.0', '2.5.0', (doc) => doc)
 }
 
 installBuiltIns()

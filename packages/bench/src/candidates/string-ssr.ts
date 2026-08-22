@@ -12,6 +12,13 @@ interface StringTemplate {
   holes: Hole[]
 }
 
+/** The control has to carry a call site's children too, or it is not rendering the same page. */
+interface Frame {
+  ir: TemplateIR
+  values: Values
+  outer?: Frame
+}
+
 const templates = new Map<string, StringTemplate>()
 
 /**
@@ -43,7 +50,7 @@ function truthy(v: Json | undefined): boolean {
   return v !== undefined && v !== null && v !== false && v !== '' && v !== 0
 }
 
-function renderTemplate(ir: TemplateIR, supplied: Values, compiled: Compiled): string {
+function renderTemplate(ir: TemplateIR, supplied: Values, compiled: Compiled, frame?: Frame): string {
   // The control has to compute derived values too, or it is not rendering the same
   // template. What is being compared is segment copying against string concatenation.
   const values = resolveDerived(ir.derived, supplied)
@@ -60,7 +67,18 @@ function renderTemplate(ir: TemplateIR, supplied: Values, compiled: Compiled): s
       case 'component': {
         const nested = hole.nested ? compiled.resolve(hole.nested) : undefined
         if (!nested) throw new Error(`E_NESTED_UNRESOLVED: ${hole.nested ?? 'unnamed'}`)
-        out += renderTemplate(nested, componentValues(hole, values), compiled)
+        const content = hole.children ? compiled.resolve(hole.children) : undefined
+        if (hole.children && !content) throw new Error(`E_NESTED_UNRESOLVED: ${hole.children}`)
+        out += renderTemplate(
+          nested,
+          componentValues(hole, values),
+          compiled,
+          content ? { ir: content, values, ...(frame ? { outer: frame } : {}) } : undefined,
+        )
+        break
+      }
+      case 'children': {
+        if (frame) out += renderTemplate(frame.ir, frame.values, compiled, frame.outer)
         break
       }
       case 'attr-bool':

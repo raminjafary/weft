@@ -77,6 +77,19 @@ test('reports a missing migration instead of guessing', () => {
 
 after(resetMigrations)
 
+test('every step of the built-in chain exists, so no minor can be skipped', () => {
+  resetMigrations()
+  const { doc, applied } = migrate({ spec: TEMPLATE_IR_SPEC, irVersion: '2.0.0' })
+  assert.deepEqual(applied, [
+    '2.0.0 -> 2.1.0',
+    '2.1.0 -> 2.2.0',
+    '2.2.0 -> 2.3.0',
+    '2.3.0 -> 2.4.0',
+    '2.4.0 -> 2.5.0',
+  ])
+  assert.equal(doc.irVersion, TEMPLATE_IR_VERSION)
+})
+
 test('a 2.1.0 document upgrades by gaining an empty derived table, not by rewriting', () => {
   resetMigrations()
   const { doc, applied } = migrate({ spec: TEMPLATE_IR_SPEC, irVersion: '2.1.0' }, '2.2.0')
