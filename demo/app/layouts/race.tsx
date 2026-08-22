@@ -1,10 +1,24 @@
 import { fragment, raw } from 'weft'
 
+interface NavItem {
+  href: string
+  label: string
+  current: string
+}
+
+interface Mode {
+  href: string
+  label: string
+  current: string
+}
+
 interface RaceProps {
   title: string
   css: string
+  nav: NavItem[]
   order: string
   note: string
+  modes: Mode[]
   fast: string
   medium: string
   slow: string
@@ -20,8 +34,16 @@ interface RaceProps {
  *
  * Nothing here animates. Each region reports the millisecond it was rendered at, relative to the
  * start of the request, so the arrival order is still legible after the page has finished loading.
+ *
+ * It carries the same chrome as every other page, from the same `nav` the framework supplies to
+ * any layout that asks for it. A document with its own layout is a document with no navigation
+ * unless it grows some, and a page you can arrive at and not leave is worse than a page nothing
+ * links to.
+ *
+ * Below it, both orders, with the one you are looking at marked: this page is a comparison, and a
+ * comparison whose other half is invisible is half a page.
  */
-export default fragment(({ title, css, order, note, fast, medium, slow }: RaceProps) => (
+export default fragment(({ title, css, nav, order, note, modes, fast, medium, slow }: RaceProps) => (
   <>
     {raw('<!doctype html>')}
     <html lang="en">
@@ -31,6 +53,29 @@ export default fragment(({ title, css, order, note, fast, medium, slow }: RacePr
         <link rel="stylesheet" href={css} />
       </head>
       <body class="race" data-order={order}>
+        <header class="top">
+          <a class="brand" href="/">
+            weft
+          </a>
+          <nav>
+            {nav.map((item) => (
+              <a href={item.href} data-current={item.current}>
+                {item.label}
+              </a>
+            ))}
+          </nav>
+        </header>
+        <nav class="race-top">
+          {/* Its own element, because a list has to be the only child of one: a sibling beside it
+              would shift position with the row count, and adoption addresses nodes by index. */}
+          <span class="race-modes">
+            {modes.map((mode) => (
+              <a href={mode.href} data-current={mode.current}>
+                {mode.label}
+              </a>
+            ))}
+          </span>
+        </nav>
         <p class="race-order">{order}</p>
         <p class="race-note">{note}</p>
         <div class="race-lanes">

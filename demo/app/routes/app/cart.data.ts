@@ -34,8 +34,16 @@ export default defineRoute({
     control: 'Add a line three ways: over the channel, deliberately failing, and with no JavaScript at all.',
     status: 'live',
   },
-  // Runs in phase A, where the envelope is still open — so this redirect is a real redirect.
-  guard: (ctx) => Boolean(ctx.cookie('sid')),
+  /**
+   * Runs in phase A, where the envelope is still open — so this redirect is a real redirect.
+   *
+   * The second half is not decoration. Nothing in this demo signs you in, so a guard that only
+   * asked for the cookie sent every visitor to a URL whose guard asked for it again: the page was
+   * an infinite redirect for anyone arriving without one, which is every first visit. The point
+   * being demonstrated is that a guard decides before a byte is rendered, and it survives being
+   * demonstrated once.
+   */
+  guard: (ctx) => Boolean(ctx.cookie('sid') ?? ctx.query('anonymous')),
   redirect: '/app/cart?anonymous=1',
   slots: {
     panel: { fragment: 'markup', stream: false, html: PANEL },
