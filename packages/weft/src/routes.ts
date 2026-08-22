@@ -1,6 +1,7 @@
 import { pathToFileURL } from 'node:url'
 import { baseRenderId, clientOwned, clientView, readsOf, type Values } from '@weft/ir'
 import {
+  createRouter,
   recordBase,
   type KernelSlot,
   type RenderContext,
@@ -588,6 +589,22 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
 
   const head = module_.head
   const extra = module_.layoutValues
+  /**
+   * Which nav entry is the page you are on, decided by the router rather than by string equality.
+   *
+   * A nav href is a URL somebody can click and a route is a pattern, so `/app/ordinary/pantry`
+   * and `/app/ordinary/:category` are never equal — and every parameterised page in the chrome
+   * was therefore permanently not-current. Matching with the same router that resolved the
+   * request means one notion of "this URL is that page", not two.
+   */
+  const matcher = createRouter([{ pattern: route.pattern, value: true }])
+  const isCurrent = (href: string): boolean => {
+    try {
+      return Boolean(matcher.match(new URL(href, 'http://weft.local')))
+    } catch {
+      return false
+    }
+  }
   const bindings: RouteBindings = {
     shell: { entry: layout.entry, resolve: layout.resolve },
     shellValues: (params) => {
@@ -602,7 +619,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
         nav: nav.map((item) => ({
           href: item.href,
           label: item.label,
-          current: item.href === route.pattern ? 'yes' : 'no',
+          current: isCurrent(item.href) ? 'yes' : 'no',
         })),
       } as unknown as Values
     },
