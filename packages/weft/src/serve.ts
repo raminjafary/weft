@@ -439,7 +439,7 @@ export async function serveApp(app: App): Promise<Serving> {
         res.writeHead(404, { 'content-type': 'text/plain' }).end(`no such module: ${name}\n`)
         return
       }
-      const body = browserModule(await readFile(source, 'utf8'), tree, prefix)
+      const body = browserModule(await readFile(source, 'utf8'), tree, prefix, assets.trees)
       res.writeHead(200, {
         'content-type': 'text/javascript; charset=utf-8',
         // The tree's digest is in the path, so every file under it is immutable together.

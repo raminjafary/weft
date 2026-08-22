@@ -220,13 +220,25 @@ export async function buildAssets(input: AssetInput): Promise<AssetTable> {
  * A client module on its way to the browser: types stripped, and bare specifiers rewritten to
  * the paths those packages are mounted at. That is the whole of it. The alternative is a
  * bundler, and the alternative to a bundler is two replacements.
+ *
+ * The extension is the *target's*, which is the only source of it that is ever right. Trees do
+ * not agree: an application's own `client.ts` is always source, a published `@weft/client` is
+ * always built, and this repository serves its framework from source beside packages resolved to
+ * their `dist`. Written with the importing tree's extension, every such pair produced a specifier
+ * for a file that is not there — a 404 on the runtime, from a page that otherwise looked fine.
  */
-export function browserModule(source: string, tree: ModuleTree, mountedAt: string): string {
+export function browserModule(
+  source: string,
+  tree: ModuleTree,
+  mountedAt: string,
+  trees: ReadonlyMap<string, ModuleTree>,
+): string {
   const stripped = tree.ext === '.ts' ? stripTypeScriptTypes(source, { mode: 'strip' }) : source
   const root = mountedAt.replace(/\/[a-z]+\/$/, '')
+  const extOf = (name: string): string => trees.get(`${root}/${name}/`)?.ext ?? tree.ext
   return stripped
-    .replace(/(['"])@weft\/client\1/g, `'${root}/runtime/index${tree.ext}'`)
-    .replace(/(['"])@weft\/warp\1/g, `'${root}/warp/index${tree.ext}'`)
+    .replace(/(['"])@weft\/client\1/g, `'${root}/runtime/index${extOf('runtime')}'`)
+    .replace(/(['"])@weft\/warp\1/g, `'${root}/warp/index${extOf('warp')}'`)
 }
 
 export async function isDirectory(path: string): Promise<boolean> {

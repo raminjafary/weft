@@ -195,10 +195,17 @@ export async function loadBuild(discovered: Discovered, config: ResolvedConfig):
     }
   }
 
-  // Every route in the file tree has to be in the build. A page added since would otherwise
-  // 404 with no explanation of why.
+  /**
+   * Every route with a template of its own has to be in the build. A page added since would
+   * otherwise 404 with no explanation of why.
+   *
+   * A route with no `.tsx` is exempt, and that is not a loosening: its body is named by its
+   * declaration — a shared fragment, or markup through the framework's own — so there is no
+   * `route:` template for the build to be missing. Requiring one refused to start any application
+   * whose pages are declarations, which is both applications in this repository.
+   */
   for (const route of discovered.routes) {
-    if (fragments[`route:${route.pattern}`]) continue
+    if (!route.file || fragments[`route:${route.pattern}`]) continue
     throw new Error(
       `E_STALE_BUILD: ${route.pattern} is a route in ${config.srcDir}/routes but not in the build. Run \`weft build\``,
     )
