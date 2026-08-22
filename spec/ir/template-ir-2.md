@@ -53,7 +53,7 @@ why `data` was cut; the short version is that measurement did not support it.
 ## Holes
 
 ```ts
-{ index, kind, escape, binding, path, attr?, provenance?, nested? }
+{ index, kind, escape, binding, path, attr?, provenance?, nested?, props?, children?, isolated? }
 ```
 
 | kind            | Position                                   | Renders                                            |
@@ -65,6 +65,8 @@ why `data` was cut; the short version is that measurement did not support it.
 | `list`          | Between nodes                              | each item, projected through `nested` if named     |
 | `node`          | Between nodes                              | a pre-rendered subtree                             |
 | `slot`          | A streaming hole                           | **nothing** — the content arrives in a later frame |
+| `component`     | One element position                       | a sealed child template, fed by `props`            |
+| `children`      | The whole content of its element           | the markup the caller wrote between the tags       |
 
 Where these come from in source, and every construct the compiler refuses, is in
 [the compiler's supported subset](../compiler/supported-subset.md).
@@ -132,6 +134,7 @@ only inside an expression — `price` above — has no hole of its own, so only 
   "path": [0, 0],
   "nested": "075b…", // the sealed child
   "props": { "tone": "t", "label": "d0" }, // child prop -> parent binding
+  "children": "9c41…", // the markup this call site wrote between the tags, sealed
   "isolated": false, // when true, the parent does not render it: its own cache unit
   "escape": "trusted-raw",
   "provenance": "app/cart#Badge",
@@ -163,6 +166,40 @@ the projection:
   [contagion](../compiler/effects.md).
 
 An isolated instance costs the `delta` form on its parent, the same way a `slot` does.
+
+## Children
+
+```jsonc
+{
+  "kind": "children",
+  "binding": "children",
+  "path": [0, 1], // the element whose only child the markup is
+  "escape": "trusted-raw",
+  "provenance": "app/cart#Card",
+}
+```
+
+A component that declares a `children` prop keeps a place for the markup its caller wrote and
+knows nothing else about it. The content is named on the **caller's** hole, not here, because
+the child template is shared: one `<Card/>` used at five call sites is one sealed template and
+five contents.
+
+The content is sealed in the **caller's binding namespace**. Nothing is renamed on the way in,
+so `{note}` inside a `<Card>` is the same `note` the caller interpolates anywhere else — the
+same value, the same wiring, the same delta path. The two templates therefore share one derived
+table, or both would allocate `d0` for different expressions against one value set.
+
+Filling is a **frame**, not a field: the pair of a content template and the values it reads,
+plus the frame that was open where the markup was written. A component that hands its own
+children on to another one — `<Card><Panel>{children}</Panel></Card>` — needs the inner
+`{children}` to mean Card's caller's markup, and only a stack gives that reading.
+
+Like a list, a `children` hole must be the **only child of its element**. A call site's content
+occupies element positions inside a template that was compiled without seeing it, so the content
+owns those positions outright or every sibling address after it would depend on the call site.
+
+A `children` hole is markup from a template the client already holds, exactly as `list` and
+`component` are, so it does not cost the `delta` form the way a `raw()` value does.
 
 ## Content addressing
 
@@ -200,6 +237,21 @@ in list _length_ is structural and sends the list whole — a diff that tried to
 about insertions would have to reason about identity, which is the case that is known to
 go wrong. Applying a delta to its base and rendering must produce bytes identical to
 rendering the new values directly; that check runs in the harness for every scenario.
+
+A path walks the same structures the client adopted: `rows[3]` steps into a row, `c0` steps
+into an instance, and `rows[3].c0.label` does both. Children need no step of their own — the
+markup shares the caller's namespace, so a value read only inside a `<Card>` travels under the
+caller's name for it.
+
+**Where the reconstruction check stops.** A delta addresses the client's tables, and `applyDelta`
+inverts those steps back into value paths when it is given the template: `c0.label` is the prop
+binding behind `label`. A hole inside an instance that has no prop behind it is a value the child
+_computed_ — `{amount / 100}` — and the caller's value set has no name for it at all, because
+inverting it would mean inverting arithmetic. That is `E_DELTA_NOT_INVERTIBLE` rather than a
+dropped entry: a reconstruction that quietly skipped a changed value would render something
+plausible and wrong. The delta itself is unaffected — the client writes the value into the node
+it belongs to — but the byte-equality check is not available for that template, and saying so is
+better than a gate that silently covers less than it claims.
 
 ### Closed in 2.1.0: surgical application
 

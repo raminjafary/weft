@@ -13,7 +13,7 @@ import {
   unionEffects,
 } from '@weft/ir'
 import { name, node, nodes, type Node } from './ast.ts'
-import { CompileError, locate } from './errors.ts'
+import { CompileError, locate, type Loc } from './errors.ts'
 import { inferEffects } from './effects.ts'
 import { lower, returnedJsx, type ComponentRef, type ImportRef, type Lowered, type Scope } from './lower.ts'
 import { createTypeOracle, type TypeOracle } from './types.ts'
@@ -217,18 +217,39 @@ function discover(program: Node, imports: Map<string, ImportRef>): Discovered[] 
 }
 
 /**
- * Stamps the holes whose instances the parent does not render. The nth component hole
- * corresponds to the nth entry in `components`, which is how the lowering records them.
+ * Stamps the holes whose instances the parent does not render, by the fragment they name.
+ * Isolation is decided per child — the parent's own class against the child's — so every
+ * instance of one child in one parent gets the same answer, and the id is enough.
+ *
+ * It reaches into rows and into children markup, because those are the parent's own markup
+ * cut into templates of their own, and stops at a component boundary, where another
+ * fragment's holes begin and another fragment's class decided them.
  */
-function markIsolated(lowered: Lowered, isolated: Set<number>): Lowered {
+function markIsolated(lowered: Lowered, isolated: Set<string>, at: Loc): Lowered {
   if (isolated.size === 0) return lowered
-  let seen = 0
   return {
     ...lowered,
-    holes: lowered.holes.map((hole) => {
-      if (hole.kind !== 'component') return hole
-      const index = seen++
-      return isolated.has(index) ? { ...hole, isolated: true } : hole
+    holes: lowered.holes.map((hole) =>
+      hole.kind === 'component' && hole.provenance && isolated.has(hole.provenance)
+        ? { ...hole, isolated: true }
+        : hole,
+    ),
+    nested: lowered.nested.map((nested) => {
+      if (nested.kind === 'component' || !nested.lowered) return nested
+      const inside = nested.lowered.holes.find(
+        (hole) => hole.kind === 'component' && hole.provenance && isolated.has(hole.provenance),
+      )
+      if (inside) {
+        // An isolated instance is a cut in the segment stream, and the stream is cut once per
+        // hole. A row repeats its holes and children markup lives inside somebody else's
+        // instance, so neither position has a boundary the kernel could fill.
+        throw new CompileError(
+          'E_PRIVATE_COMPONENT_NESTED',
+          `${inside.provenance} is private and is rendered inside ${nested.kind === 'row' ? 'a list row' : "another component's children"}; a private fragment is cut into its own cache entry, and only a hole at the top level of a template can be cut. Read what it reads above the ${nested.kind === 'row' ? 'list' : 'call site'} and pass it in as a prop`,
+          at,
+        )
+      }
+      return { ...nested, lowered: markIsolated(nested.lowered, isolated, at) }
     }),
   }
 }
@@ -279,7 +300,12 @@ async function sealTree(
     }
     const parentHole = holes[nested.holeIndex]
     if (!parentHole) throw new Error(`E_NESTED_HOLE_MISSING: ${nested.id}`)
-    holes[nested.holeIndex] = { ...parentHole, nested: child.entry.version }
+    // One component hole names two templates: the fragment it renders, and the markup the
+    // call site wrote between its tags. They arrive as two requests against one hole.
+    holes[nested.holeIndex] =
+      nested.kind === 'children'
+        ? { ...parentHole, children: child.entry.version }
+        : { ...parentHole, nested: child.entry.version }
   }
 
   const draft = draftTemplate({
@@ -290,7 +316,7 @@ async function sealTree(
     signals: lowered.signals,
     derived: lowered.derived,
     ...(effects ? { effects } : {}),
-    meta: { markers: lowered.markers },
+    meta: { markers: lowered.markers, singleRoot: lowered.singleRoot },
   })
   const entry = assertValidTemplate(await seal(draft))
   if (!all.some((t) => t.version === entry.version)) all.push(entry)
@@ -427,21 +453,21 @@ export async function compileSource(
    * fragment that reads identity does not make a whole shared route private. The parent's
    * own class decides, so the answer does not depend on which child is looked at first.
    */
-  const composeWithContagion = (local: string): { effects: EffectSet; isolated: Set<number> } => {
+  const composeWithContagion = (local: string): { effects: EffectSet; isolated: Set<string> } => {
     const ownSet = own.get(local) ?? unionEffects([])
     const ownClass = cacheClassOf(ownSet)
     const lowered = lowerings.get(local)
     const sets: EffectSet[] = [ownSet]
-    const isolated = new Set<number>()
+    const isolated = new Set<string>()
 
-    ;(lowered?.components ?? []).forEach((id, index) => {
+    for (const id of new Set(lowered?.components ?? [])) {
       const child = childEffects(id)
       if (ownClass !== 'private' && cacheClassOf(child) === 'private') {
-        isolated.add(index)
-        return
+        isolated.add(id)
+        continue
       }
       sets.push(child)
-    })
+    }
     return { effects: unionEffects(sets), isolated }
   }
 
@@ -449,7 +475,8 @@ export async function compileSource(
     if (!found.exported) continue
     const { lowered } = prepare(found)
     const { effects, isolated } = composeWithContagion(found.local)
-    const { entry, all } = await sealTree(markIsolated(lowered, isolated), effects)
+    const at = locate(file, source, found.call.start ?? 0)
+    const { entry, all } = await sealTree(markIsolated(lowered, isolated, at), effects)
     fragments.push({ entry, templates: all, exportName: found.exportName })
   }
 

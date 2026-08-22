@@ -223,7 +223,7 @@ test('a list whose length changes is structural and travels whole', async () => 
 test('serialization round-trips and preserves fields a newer minor added', async () => {
   const ir = await seal(draftTemplate({ id: 't', segments: ['<p>', '</p>'], holes: [hole(0, 'a')] }))
   const withFuture = JSON.parse(stringify(ir)) as Record<string, unknown>
-  withFuture.irVersion = '2.5.0'
+  withFuture.irVersion = '2.6.0'
   withFuture.budget = { js: 8192 }
 
   const parsed = parse(JSON.stringify(withFuture))
@@ -436,6 +436,41 @@ test('a delta over a template with instances refuses to guess when it cannot res
     }),
   )
   assert.throws(() => deltaPayload(parent, 'base', { l: 'a' }, { l: 'b' }), /E_NESTED_UNRESOLVED/)
+})
+
+test('only a component hole names children, and only by a sealed version', () => {
+  const wrongKind = validateTemplate(
+    draftTemplate({
+      id: 'x',
+      segments: ['<p>', '</p>'],
+      holes: [hole(0, 'a', { children: 'b'.repeat(32) })],
+    }),
+  )
+  assert.equal(wrongKind.errors[0]?.code, 'E_CHILDREN_KIND')
+
+  const unsealed = validateTemplate(
+    draftTemplate({
+      id: 'x',
+      segments: ['<p>', '</p>'],
+      holes: [
+        {
+          index: 0,
+          kind: 'component',
+          escape: 'trusted-raw',
+          binding: 'c0',
+          path: [0],
+          provenance: 'y',
+          props: {},
+          nested: 'c'.repeat(32),
+          children: 'the-content',
+        },
+      ],
+    }),
+  )
+  assert.equal(
+    unsealed.errors.some((e) => e.code === 'E_CHILDREN_SHAPE'),
+    true,
+  )
 })
 
 test('a component hole must name both the template it renders and what it passes', () => {

@@ -6,8 +6,8 @@ later means every client already in the field is unversioned.
 
 | Spec             | Id                   | Version | Reference implementation |
 | ---------------- | -------------------- | ------- | ------------------------ |
-| Template IR      | `weft.template-ir/2` | 2.4.0   | `packages/ir`            |
-| Payloads (delta) | `weft.payload/2`     | 2.4.0   | `packages/ir`            |
+| Template IR      | `weft.template-ir/2` | 2.5.0   | `packages/ir`            |
+| Payloads (delta) | `weft.payload/2`     | 2.5.0   | `packages/ir`            |
 | Warp frames      | `weft.warp/1`        | 1.2.0   | `packages/warp`          |
 
 ## What each version component means
@@ -81,6 +81,40 @@ decomposition, form negotiation and remote fragments the same mechanism.
 Neither frame is a substitute for the real thing, and the spec says so where a reader will meet
 it: a crawler will not follow a `REDIRECT` frame, and `HttpOnly` is precisely the property a
 body cannot grant.
+
+### Template IR 2.5.0 — children
+
+Two additions, and they are one feature. A `children` hole is the place a component keeps for
+the markup its caller wrote; `children` on a component hole is the sealed template holding that
+markup for this call site. The child names the place and never the content, which is what lets
+one `<Card/>` serve five call sites out of one sealed template.
+
+The content is sealed in the **caller's** binding namespace rather than projected through props.
+That is the decision the rest follows from: children read the caller's props and the caller's
+signals, so `{note}` inside a `<Card>` is the same `note` the caller interpolates anywhere else,
+a delta addresses it by the caller's name for it, and the two templates share one derived table
+so their ids cannot collide. A projection would have needed a name for every binding the markup
+happened to touch, which is a contract the call site never wrote down.
+
+Because a component may hand its own children on to another one, the fill is a **frame** rather
+than a field: `{children}` means the markup of the frame that was open where it was written, and
+`outer` is that frame's caller. `<Card><Panel>{children}</Panel></Card>` therefore means Card's
+caller's markup, which is the only reading that makes a wrapper composable.
+
+A `children` hole must be the only child of its element, exactly as a list must. Both rules buy
+the same thing: the content owns the element's child positions outright, so a call site cannot
+move an address the shared child template was compiled against.
+
+Additive, and — like the component hole and `isolated` before it — **not silently
+forward-compatible**. An older reader meeting an unknown hole kind has no way to render it, and
+one meeting an unknown field on a component hole would render the instance with an empty middle.
+A version disagreement costs the resident forms and falls back to `html`, which is the
+protection every other mismatch gets. In practice the protection is stronger than the rule: a
+template version is a hash of its content, so a client that has not seen this template does not
+claim to hold it and is sent markup.
+
+The registered migration from 2.4.0 restamps and changes nothing else, because a 2.4.0 document
+simply has neither field.
 
 ### Template IR 2.4.0 — isolated instances
 

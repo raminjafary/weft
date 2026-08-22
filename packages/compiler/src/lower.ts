@@ -72,6 +72,13 @@ export interface Scope {
 export interface NestedRequest {
   holeIndex: number
   id: string
+  /**
+   * Whose markup this is. A `row` and a `children` template are the parent's own markup cut
+   * into a template of its own; a `component` is another fragment. The difference decides
+   * whether a decision the parent makes about its instances — isolation, above all — reaches
+   * inside it or stops at the boundary.
+   */
+  kind: 'row' | 'component' | 'children'
   lowered?: Lowered
   sealed?: SealedFragment
 }
@@ -103,8 +110,18 @@ export interface Lowered {
   derived: DerivedDecl[]
   nested: NestedRequest[]
   markers: number
-  /** Ids of the fragments this one renders, so a caller can union their effects. */
+  /**
+   * Ids of the fragments this one renders, so a caller can union their effects. Instances
+   * inside a row or inside children markup are in here too: they are the caller's markup,
+   * and a read does not stop being the caller's because it happened one template down.
+   */
   components: string[]
+  /**
+   * Whether the template is exactly one element and nothing else. An instance occupies one
+   * element position in its caller, so a child with two roots — or with a bare text root —
+   * would shift every sibling after it.
+   */
+  singleRoot: boolean
 }
 
 interface Emitter {
@@ -146,6 +163,13 @@ export interface LowerInput {
   source: string
   /** When present, escaping is decided by the value's type rather than by its syntax. */
   types?: TypeOracle
+  /**
+   * A derived table to append to rather than start. Children markup is lowered into a
+   * template of its own but stays in its caller's binding namespace, so the two share one
+   * table — otherwise both would allocate `d0` for different expressions and the shared
+   * value set would have to hold two of them.
+   */
+  derived?: DerivedDecl[]
 }
 
 export function lower(input: LowerInput): Lowered {
@@ -156,13 +180,17 @@ export function lower(input: LowerInput): Lowered {
     wiring: [],
     nested: [],
     markers: 0,
-    derived: [],
+    derived: input.derived ?? [],
     components: [],
   }
   const root = input.root
+  let singleRoot = false
   if (root.type === 'JSXFragment') {
+    const surviving = nodes(root.children).filter(isSurviving)
+    singleRoot = surviving.length === 1 && (surviving[0] as Node).type === 'JSXElement'
     lowerChildren(nodes(root.children), [], em, input, '')
   } else if (root.type === 'JSXElement') {
+    singleRoot = true
     // A template always addresses from a container whose element children are its
     // top-level nodes, so a single root element is at [0] exactly as it would be inside
     // a fragment. Without this, [] would mean the root element in one case and the
@@ -182,6 +210,7 @@ export function lower(input: LowerInput): Lowered {
     nested: em.nested,
     markers: em.markers,
     components: em.components,
+    singleRoot,
   }
 }
 
@@ -244,6 +273,14 @@ function classifyBySyntax(expr: Node, input: LowerInput, em: Emitter): Classifie
       )
     }
     if (scope.itemParam) throw outOfRowScope(input, expr, ident)
+    if (ident === 'children' && scope.props.has('children')) {
+      throw fail(
+        input,
+        expr,
+        'E_CHILDREN_NOT_A_VALUE',
+        'children is markup a caller wrote, not a value; interpolate it as the only child of an element',
+      )
+    }
     if (!scope.props.has(ident) && !scope.locals.has(ident)) {
       throw fail(
         input,
@@ -456,27 +493,13 @@ function lowerComponent(element: Node, tag: string, path: number[], em: Emitter,
       input,
       element,
       'E_COMPONENT_UNRESOLVED',
-      `<${tag}> is not a fragment declared in this module; composition across modules needs a build graph that does not exist yet`,
-    )
-  }
-  if (input.scope.itemParam) {
-    throw fail(
-      input,
-      element,
-      'E_COMPONENT_IN_LIST',
-      `<${tag}> is rendered inside a list row; a row is its own template and cannot carry an instance`,
-    )
-  }
-  if (nodes(element.children).filter(isSurviving).length) {
-    throw fail(
-      input,
-      element,
-      'E_COMPONENT_CHILDREN_UNSUPPORTED',
-      `<${tag}> is given children; a component takes props only until slots are built`,
+      `<${tag}> is not a fragment declared in this module, and no import resolves to one; a cross-module child has to be in the file set compileFiles was given`,
     )
   }
 
+  const binding = `c${em.components.length}`
   const props: Record<string, string> = {}
+  const events: { attr: string; expression: Node }[] = []
   for (const raw of nodes(node(element.openingElement).attributes)) {
     const attribute = node(raw)
     if (attribute.type === 'JSXSpreadAttribute') {
@@ -485,11 +508,27 @@ function lowerComponent(element: Node, tag: string, path: number[], em: Emitter,
     const prop = name(node(attribute.name))
     if (prop === 'key') continue
     if (/^on[A-Z]/.test(prop)) {
+      // An instance is one element, so an intent has an element to bind to: the instance's
+      // root, addressed by the hole's own path. The child never learns about it, which is
+      // what keeps a listener out of the child's shared template.
+      const value = attribute.value === null || attribute.value === undefined ? null : node(attribute.value)
+      if (!value || value.type !== 'JSXExpressionContainer') {
+        throw fail(
+          input,
+          attribute,
+          'E_HANDLER_NOT_AN_INTENT',
+          `${prop} on <${tag}> must reference an intent`,
+        )
+      }
+      events.push({ attr: prop, expression: node(value.expression) })
+      continue
+    }
+    if (prop === 'children') {
       throw fail(
         input,
         attribute,
-        'E_COMPONENT_EVENT_UNSUPPORTED',
-        `${prop} is an event on <${tag}>; an intent binds to an element, and the component owns its own`,
+        'E_CHILDREN_AS_PROP',
+        `children is markup rather than a value; write it between <${tag}> and </${tag}>`,
       )
     }
     if (!ref.props.has(prop)) {
@@ -498,7 +537,29 @@ function lowerComponent(element: Node, tag: string, path: number[], em: Emitter,
     props[prop] = componentProp(attribute, prop, tag, em, input)
   }
 
+  const written = nodes(element.children).filter(isSurviving)
+  const takesChildren = ref.props.has('children')
+  if (written.length && !takesChildren) {
+    throw fail(
+      input,
+      element,
+      'E_COMPONENT_CHILDREN_UNDECLARED',
+      `<${tag}> is given children and does not declare a children prop; add one and interpolate it as {children}`,
+    )
+  }
+
   for (const declared of ref.props) {
+    if (declared === 'children') {
+      if (!written.length) {
+        throw fail(
+          input,
+          element,
+          'E_COMPONENT_PROP_MISSING',
+          `${tag} declares a children prop and this use site writes nothing between its tags`,
+        )
+      }
+      continue
+    }
     if (!(declared in props)) {
       throw fail(
         input,
@@ -511,14 +572,38 @@ function lowerComponent(element: Node, tag: string, path: number[], em: Emitter,
 
   const child = ref.sealed?.entry ?? ref.lower?.()
   if (!child) throw fail(input, element, 'E_COMPONENT_UNRESOLVED', `<${tag}> resolved to nothing`)
-  if (child.holes.some((h) => h.path.length === 0)) {
-    throw fail(input, element, 'E_COMPONENT_NOT_SINGLE_ROOT', `<${tag}> must render a single root element`)
+  const single = ref.sealed ? ref.sealed.entry.meta?.singleRoot === true : (child as Lowered).singleRoot
+  if (!single || child.holes.some((h) => h.path.length === 0)) {
+    throw fail(
+      input,
+      element,
+      'E_COMPONENT_NOT_SINGLE_ROOT',
+      `<${tag}> must render a single root element: an instance occupies one element position in its caller`,
+    )
+  }
+
+  // The children go into a template of their own, sealed like a row, but lowered in *this*
+  // fragment's scope: the markup was written here, so it reads this fragment's props and
+  // signals. That is also why the two share a derived table — one binding namespace, one
+  // set of ids.
+  let content: Lowered | undefined
+  if (written.length) {
+    content = lower({
+      id: `${input.id}:${binding}<>`,
+      root: node({ type: 'JSXFragment', children: element.children }),
+      file: input.file,
+      source: input.source,
+      scope: input.scope,
+      derived: em.derived,
+      ...(input.types ? { types: input.types } : {}),
+    })
+    em.components.push(...content.components)
   }
 
   const holeIndex = hole(em, {
     kind: 'component',
     escape: 'trusted-raw',
-    binding: `c${em.components.length}`,
+    binding,
     path,
     props,
     provenance: ref.id,
@@ -527,8 +612,13 @@ function lowerComponent(element: Node, tag: string, path: number[], em: Emitter,
   em.nested.push({
     holeIndex,
     id: ref.id,
+    kind: 'component',
     ...(ref.sealed ? { sealed: ref.sealed } : { lowered: child as Lowered }),
   })
+  if (content) {
+    em.nested.push({ holeIndex, id: content.id, kind: 'children', lowered: content })
+  }
+  for (const { attr, expression } of events) lowerEvent(attr, expression, path, em, input)
 }
 
 /**
@@ -701,6 +791,33 @@ function lowerChildren(
       return
     }
 
+    // The place a caller's markup goes. It is a boundary rather than a value: the content is
+    // its own sealed template, addressed from this element, so it has to own the element's
+    // child positions outright — the same rule a list lives under, for the same reason.
+    if (
+      expression.type === 'Identifier' &&
+      name(expression) === 'children' &&
+      input.scope.props.has('children') &&
+      !input.scope.itemParam
+    ) {
+      if (surviving.length !== 1) {
+        throw fail(
+          input,
+          child,
+          'E_CHILDREN_NOT_SOLE_CHILD',
+          'children must be the only child of its element, so that a call site cannot shift the sibling positions this template addresses by',
+        )
+      }
+      hole(em, {
+        kind: 'children',
+        escape: 'trusted-raw',
+        binding: 'children',
+        path,
+        provenance: input.id,
+      })
+      return
+    }
+
     const classified = classify(expression, input, em)
 
     if (classified.constant !== undefined) {
@@ -784,6 +901,11 @@ function lowerList(
     scope: { ...input.scope, itemParam: name(param), signals: input.scope.signals, locals: new Set() },
   })
 
+  // A row may render an instance of its own, and those reads are still this fragment's:
+  // the row template is its markup, cut out so that a row count can change without moving
+  // anything. Contagion follows the markup, not the template boundary.
+  em.components.push(...lowered.components)
+
   const holeIndex = hole(em, {
     kind: 'list',
     escape: 'trusted-raw',
@@ -791,7 +913,7 @@ function lowerList(
     path,
     provenance: id,
   })
-  em.nested.push({ holeIndex, id, lowered })
+  em.nested.push({ holeIndex, id, kind: 'row', lowered })
 }
 
 export function returnedJsx(block: Node, input: LowerInput): Node {

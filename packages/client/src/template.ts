@@ -9,6 +9,7 @@ export type HoleKind =
   | 'list'
   | 'slot'
   | 'component'
+  | 'children'
   /**
    * Not an IR hole kind: the shape `locate` uses when a wiring entry's op is `prop`. The
    * server rendered an attribute; the client writes the property behind it.
@@ -26,6 +27,11 @@ export interface ClientHole {
   nested?: string
   /** For a `component` hole: child prop name to the parent binding that supplies it. */
   props?: Record<string, string>
+  /**
+   * For a `component` hole: the template holding the markup the call site wrote between the
+   * tags. It stays in the caller's binding namespace, so nothing about it is renamed.
+   */
+  children?: string
 }
 
 export interface ClientWiring {

@@ -44,6 +44,9 @@ imports, and the compiler recognises them by resolving the import rather than by
 | `signal()` read                             | a hole plus a wiring op, since only a signal can change on the client               |
 | `{a * 2}`, `{qty() > 9}`, `{(a + b) / 2}`   | a hole plus a `derived` entry: the expression tree, wired only if it reads a signal |
 | `<slot>{fallback}</slot>`                   | a `slot` hole: the base render emits nothing and a later frame fills it             |
+| `<Widget a={x} />`                          | a `component` hole: a sealed child template plus a prop-to-binding projection       |
+| `<Card>…</Card>`                            | the same, plus the markup between the tags sealed as its own template               |
+| `{children}` in a fragment declaring it     | a `children` hole: the place a caller's markup goes                                 |
 | `<>…</>` at the root                        | a template with no wrapper element                                                  |
 
 ## Derived values
@@ -103,8 +106,56 @@ gains prop wiring the first time somebody composes it, and its version moves. Th
 correct — a composable template is not the same template — but it is worth knowing before
 it surprises you.
 
+**Children.** A fragment that destructures a prop named `children` may interpolate it, and a
+caller then writes markup between the tags. The markup is sealed as a template of its own and
+named on the caller's hole rather than on the child's, because the child template is shared:
+one `<Card/>` at five call sites is one sealed child and five contents.
+
+```tsx
+const Card = fragment(({ title, children }) => (
+  <section class="card">
+    <h2>{title}</h2>
+    <div class="body">{children}</div>
+  </section>
+))
+
+export default fragment(({ heading, note }) => (
+  <Card title={heading}>
+    <p>{note}</p>
+  </Card>
+))
+```
+
+The content stays in the **caller's** binding namespace. `note` is the caller's prop, wired from
+the caller's signals, addressed by the caller's name for it in a delta — nothing is projected and
+nothing is renamed, because a projection would need a name for every binding the markup happened
+to reach and the call site never wrote one down. The two templates share one derived table for
+the same reason: two `d0` entries against one value set would be two different expressions.
+
+`{children}` must be the **only child of its element**, which is `E_CHILDREN_NOT_SOLE_CHILD` —
+the same rule a list lives under, and for the same reason. The content occupies element positions
+inside a template compiled without ever seeing it, so it owns those positions outright or every
+sibling address after it depends on the call site. Wrap it in an element of its own and the
+constraint disappears.
+
+Children compose the way you would want: a component may pass its own children on, and the inner
+`{children}` still means its caller's markup rather than its own, because the fill is a frame
+with an `outer` rather than a value on the hole.
+
+**Rows.** A row may carry an instance. The row is still its own template and still content-
+addressed, so a reordered list costs no row render — the instance is part of the row's content,
+not a per-index identity. Row scope is unchanged: an instance's props come from the row's item,
+and reaching outside it is `E_OUT_OF_ROW_SCOPE` exactly as any other interpolation would be.
+
+**Events.** `<Badge onClick={save}/>` binds the intent to the instance's root element, which is
+addressable because a component renders exactly one. The wiring entry lives in the caller, so a
+listener at one call site does not enter the shared child template.
+
 **Contagion.** A component's reads compose into its caller's, except that a private child
-inside a non-private caller is isolated into its own cache unit instead. See
+inside a non-private caller is isolated into its own cache unit instead. Instances inside a row
+or inside children markup are the caller's markup too, so their reads compose the same way —
+but a private one there is `E_PRIVATE_COMPONENT_NESTED`, because isolation is a cut in a
+template's segment stream and only a hole at the top level of a template has one. See
 [effects](effects.md).
 
 ## Controls
@@ -195,30 +246,39 @@ moving any sibling.
 
 ## Every refusal
 
-| Code                               | Meaning                                                         |
-| ---------------------------------- | --------------------------------------------------------------- |
-| `E_COMPONENT_UNRESOLVED`           | `<Widget/>` names no fragment in this module                    |
-| `E_COMPONENT_CYCLE`                | a fragment renders itself, directly or through a sibling        |
-| `E_COMPONENT_PROP_MISSING`         | a use site does not supply a prop the child declares            |
-| `E_COMPONENT_PROP_UNKNOWN`         | a use site supplies a prop the child does not declare           |
-| `E_COMPONENT_CHILDREN_UNSUPPORTED` | a component takes props only until slots are built              |
-| `E_COMPONENT_EVENT_UNSUPPORTED`    | an intent binds to an element; the component owns its own       |
-| `E_COMPONENT_IN_LIST`              | a row is its own template and cannot carry an instance          |
-| `E_COMPONENT_NOT_SINGLE_ROOT`      | an instance occupies one element position, so it needs one root |
-| `E_SPREAD_UNSUPPORTED`             | `{...props}` hides what the template can contain                |
-| `E_COMPUTED_MEMBER`                | `{o[k]}` has no static binding name                             |
-| `E_UNKNOWN_BINDING`                | the identifier is not a prop of this fragment                   |
-| `E_SIGNAL_NOT_READ`                | `{n}` where `n` is a signal — write `{n()}`                     |
-| `E_OPERATOR_UNSUPPORTED`           | the operator is outside the set the client can evaluate         |
-| `E_SIGNAL_IN_LIST`                 | a row is its own template and cannot close over an outer signal |
-| `E_OUT_OF_ROW_SCOPE`               | a row referenced a value that is not its item                   |
-| `E_LIST_NOT_SOLE_CHILD`            | a list must be the only child of its element                    |
-| `E_HANDLER_NOT_AN_INTENT`          | an inline handler has no stable id                              |
-| `E_HANDLER_NOT_IMPORTED`           | a local function has no module to derive an intent id from      |
-| `E_VOID_CHILDREN`                  | a void element cannot have children                             |
-| `E_NESTED_FRAGMENT`                | `<>…</>` is allowed only at the root                            |
-| `E_ROOT_NOT_JSX`, `E_NO_RETURN`    | a fragment must return JSX                                      |
-| `E_EXPRESSION_UNSUPPORTED`         | the expression cannot be resolved to a binding                  |
+| Code                              | Meaning                                                                |
+| --------------------------------- | ---------------------------------------------------------------------- |
+| `E_COMPONENT_UNRESOLVED`          | `<Widget/>` names no fragment in this module or in the file set        |
+| `E_COMPONENT_CYCLE`               | a fragment renders itself, directly or through a sibling               |
+| `E_COMPONENT_PROP_MISSING`        | a use site does not supply a prop the child declares                   |
+| `E_COMPONENT_PROP_UNKNOWN`        | a use site supplies a prop the child does not declare                  |
+| `E_COMPONENT_CHILDREN_UNDECLARED` | markup between the tags of a component that declares no `children`     |
+| `E_CHILDREN_AS_PROP`              | `children={x}` — children are markup, written between the tags         |
+| `E_CHILDREN_NOT_A_VALUE`          | `{children}` used as an attribute or inside an expression              |
+| `E_CHILDREN_NOT_SOLE_CHILD`       | `{children}` must own its element's child positions                    |
+| `E_PRIVATE_COMPONENT_NESTED`      | a private child inside a row or inside children has no boundary to cut |
+| `E_COMPONENT_NOT_SINGLE_ROOT`     | an instance occupies one element position, so it needs one root        |
+| `E_SPREAD_UNSUPPORTED`            | `{...props}` hides what the template can contain                       |
+| `E_COMPUTED_MEMBER`               | `{o[k]}` has no static binding name                                    |
+| `E_UNKNOWN_BINDING`               | the identifier is not a prop of this fragment                          |
+| `E_SIGNAL_NOT_READ`               | `{n}` where `n` is a signal — write `{n()}`                            |
+| `E_OPERATOR_UNSUPPORTED`          | the operator is outside the set the client can evaluate                |
+| `E_SIGNAL_IN_LIST`                | a row is its own template and cannot close over an outer signal        |
+| `E_OUT_OF_ROW_SCOPE`              | a row referenced a value that is not its item                          |
+| `E_ITEM_NOT_A_VALUE`              | `{row}` — interpolate one of its fields                                |
+| `E_LIST_NOT_SOLE_CHILD`           | a list must be the only child of its element                           |
+| `E_ROW_NOT_SINGLE_ROOT`           | a row must be one element, or rows cannot be told apart                |
+| `E_MAP_PARAM`                     | the row callback needs a single named parameter                        |
+| `E_HANDLER_NOT_AN_INTENT`         | an inline handler has no stable id                                     |
+| `E_HANDLER_NOT_IMPORTED`          | a local function has no module to derive an intent id from             |
+| `E_VOID_CHILDREN`                 | a void element cannot have children                                    |
+| `E_NESTED_FRAGMENT`               | `<>…</>` is allowed only at the root                                   |
+| `E_ROOT_NOT_JSX`, `E_NO_RETURN`   | a fragment must return JSX                                             |
+| `E_FRAGMENT_ARGUMENT`             | `fragment()` takes a function                                          |
+| `E_ATTRIBUTE_UNSUPPORTED`         | an attribute value that is neither a literal nor an expression         |
+| `E_RAW_EMPTY`                     | `raw()` with nothing to vouch for                                      |
+| `E_EXPRESSION_UNSUPPORTED`        | the expression cannot be resolved to a binding                         |
+| `E_PARSE`                         | the file is not parseable                                              |
 
 ## Running it
 

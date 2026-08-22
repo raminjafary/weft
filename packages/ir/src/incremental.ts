@@ -2,8 +2,10 @@ import { evalDerived, readsOf, type DerivedDecl } from './derived.ts'
 import { canonicalJson, fastHash } from './hash.ts'
 import { concat, renderHole, type Resolver } from './render.ts'
 import {
+  childrenFrame,
   componentValues,
   type BindingId,
+  type ChildrenFrame,
   type Hole,
   type Json,
   type TemplateIR,
@@ -238,7 +240,7 @@ export function renderIncremental(input: IncrementalInput): IncrementalRender {
   }
 
   const parts: Uint8Array[] = []
-  writeSegments(input.ir, values, input, stats, parts)
+  writeSegments(input.ir, values, input, stats, parts, undefined)
   return { bytes: concat(parts), stats, resolved: values }
 }
 
@@ -248,6 +250,7 @@ function writeSegments(
   input: IncrementalInput,
   stats: IncrementalStats,
   parts: Uint8Array[],
+  frame: ChildrenFrame | undefined,
 ): void {
   for (let i = 0; i < ir.segments.length; i++) {
     parts.push(ir.segments[i] as Uint8Array)
@@ -257,7 +260,16 @@ function writeSegments(
     if (hole.kind === 'component') {
       if (hole.isolated) continue
       const nested = child(hole, input.resolve)
-      parts.push(nestedBytes(nested, componentValues(hole, values), input, stats))
+      const inner = childrenFrame(hole, values, input.resolve, frame)
+      parts.push(nestedBytes(nested, componentValues(hole, values), input, stats, inner))
+      continue
+    }
+
+    if (hole.kind === 'children') {
+      // Children are the caller's markup and the caller's values, so the memo key that
+      // would address them is the caller's — not anything this template can name. Rendered
+      // in place, exactly as `render` does it.
+      if (frame) writeSegments(frame.ir, frame.values, input, stats, parts, frame.outer)
       continue
     }
 
@@ -269,7 +281,7 @@ function writeSegments(
       }
       const nested = child(hole, input.resolve)
       for (const row of value) {
-        parts.push(nestedBytes(nested, row as Values, input, stats))
+        parts.push(nestedBytes(nested, row as Values, input, stats, undefined))
       }
       continue
     }
@@ -284,8 +296,13 @@ function nestedBytes(
   values: Values,
   input: IncrementalInput,
   stats: IncrementalStats,
+  frame: ChildrenFrame | undefined,
 ): Uint8Array {
-  const key = segmentKey(nested.version, values)
+  // An instance's bytes are a function of its props *and* of the markup its call site put
+  // between the tags. Two call sites can hand the same props to one template and different
+  // children, so the frame is part of the address or the memo would answer with the wrong
+  // markup — a content-addressed cache whose key is not the content.
+  const key = segmentKey(nested.version, values) + frameKey(frame)
   const cached = input.memo.get(key)
   if (cached) {
     stats.segments.reused++
@@ -297,10 +314,16 @@ function nestedBytes(
   const parts: Uint8Array[] = []
   const own = derivedPlan(nested.derived)
   const resolved = resolveDerivedFrom(own, {}, values, new Set(Object.keys(values)))
-  writeSegments(nested, resolved.values, input, stats, parts)
+  writeSegments(nested, resolved.values, input, stats, parts, frame)
   const bytes = concat(parts)
   input.memo.set(key, bytes)
   return bytes
+}
+
+function frameKey(frame: ChildrenFrame | undefined): string {
+  let key = ''
+  for (let f = frame; f; f = f.outer) key += `|${segmentKey(f.ir.version, f.values)}`
+  return key
 }
 
 function child(hole: Hole, resolve: Resolver | undefined): TemplateIR {
