@@ -375,18 +375,131 @@ function restoreScroll(): void {
 }
 
 /**
- * A form that posts to an intent is the framework's own navigation too.
+ * Whether this page can be brought up to date in place rather than reloaded.
  *
- * It is captured at the document rather than wired per form, because a region replaced by a delta
- * brings new forms with it and a listener that had to be re-attached per region is a listener that
- * will be missed once.
+ * Adoption is what binds nodes to state, and the swap below replaces nodes — so what matters is
+ * which *kind* of state a region declares. Wiring is fine: an intent listener is rebound against
+ * the new nodes from the new payload, which is what a reload would have done anyway. Signals and a
+ * live region are not: a signal holds a value nobody else has, and a live region holds the base
+ * the next delta is computed against. Losing either silently is worse than a reload.
  */
-function rememberScrollOnPost(): void {
+function swappable(root: ParentNode): boolean {
+  for (const node of root.querySelectorAll('script[type="application/json"][data-weft="adopt"]')) {
+    try {
+      const payload = JSON.parse(node.textContent ?? '{}') as { live?: boolean; signals?: unknown[] }
+      if (payload.live || (payload.signals?.length ?? 0) > 0) return false
+    } catch {
+      return false
+    }
+  }
+  return true
+}
+
+/**
+ * The same page, brought up to date, without leaving it.
+ *
+ * A control that reloads with new parameters and a form that posts and gets a 303 are both
+ * navigations the *framework* caused, and a navigation repaints from the top: the scroll position
+ * is lost, and putting it back afterwards is a visible jump no matter how early it happens,
+ * because a streamed document has already painted by then.
+ *
+ * So it is not a navigation. The answer is fetched, its regions replace this page's regions, and
+ * the address bar is corrected. Nothing above `<main>` moves, nothing scrolls, and there is no
+ * frame in which the page is somewhere else.
+ *
+ * Every failure falls back to the real navigation: a bad status, a document whose regions do not
+ * match this one's, anything adopted on either side. A fallback that reloads is worse than this
+ * and better than being wrong.
+ */
+async function swapFrom(html: string, url: string): Promise<boolean> {
+  let next: Document
+  try {
+    next = new DOMParser().parseFromString(html, 'text/html')
+  } catch {
+    return false
+  }
+  if (!swappable(document) || !swappable(next)) return false
+
+  /**
+   * The layout's own `<slot>` elements, not the region wrappers inside them.
+   *
+   * A region's adopt payload is a sibling of its wrapper and both sit inside the layout hole, so
+   * cutting at the hole replaces the markup *and* the payload that describes it. Cutting one level
+   * in would have left the old payload beside new nodes — a description of a render that is no
+   * longer on the page, which is the kind of stale that looks like it works.
+   */
+  /**
+   * An out-of-order answer arrives unfilled, and a parsed document runs no scripts.
+   *
+   * The regions of a streamed response are not inside their holes on the wire: each one is a
+   * `<template data-w="…">` after the shell, and the inline filler moves it to the anchor comment
+   * left in the hole. `DOMParser` executes nothing, so the holes of a document parsed this way are
+   * empty — and swapping them in would have emptied every region on the page, which is exactly
+   * what it did to the dashboard.
+   *
+   * So the same move is made here, against the inert document, before anything is read out of it.
+   */
+  for (const carrier of next.querySelectorAll('template[data-w]')) {
+    const hole = next.querySelector(`slot[name="${carrier.getAttribute('data-w') ?? ''}"]`)
+    if (hole) hole.replaceChildren((carrier as HTMLTemplateElement).content)
+    carrier.remove()
+  }
+
+  const holes = [...document.querySelectorAll('slot[name]')]
+  if (!holes.length) return false
+  const incoming = holes.map((hole) => next.querySelector(`slot[name="${hole.getAttribute('name') ?? ''}"]`))
+  // Same page, different content — not a different page. A hole this document has and the answer
+  // does not means the two are not the same shape, and swapping would leave one empty.
+  if (incoming.some((node) => node === null)) return false
+
+  holes.forEach((hole, index) => {
+    hole.innerHTML = (incoming[index] as Element).innerHTML
+  })
+  if (next.title) document.title = next.title
+  window.history.replaceState(null, '', url)
+  regionsHeld = await adoptRegions()
+  state.regions = regionsHeld.length
+  wireIntents()
+  wireControls()
+  return true
+}
+
+/**
+ * A form that posts to an intent, upgraded when there is something to upgrade it with.
+ *
+ * With no JavaScript it posts, the kernel dispatches, and a 303 brings you back — which is the
+ * whole progressive-enhancement story and the reason the markup is a form in the first place.
+ * With JavaScript the same post is a `fetch`, the redirect it follows is the page it came from,
+ * and that answer is swapped in place: same write, same server code, no navigation.
+ *
+ * Captured at the document rather than wired per form, because a region replaced by a delta
+ * brings new forms with it and a listener re-attached per region is a listener that will be
+ * missed once.
+ */
+function upgradeIntentForms(): void {
   document.addEventListener(
     'submit',
     (event) => {
       const form = event.target as HTMLFormElement | null
-      if (form?.action.includes('/_weft/i/')) rememberScroll()
+      if (!form?.action.includes('/_weft/i/')) return
+      if (!swappable(document)) {
+        // An adopted page keeps its own paths — the wiring the compiler emitted sends this over
+        // the channel. Record the position for the plain post that is about to happen.
+        rememberScroll()
+        return
+      }
+      event.preventDefault()
+      void (async () => {
+        const body = new URLSearchParams(new FormData(form) as unknown as Record<string, string>).toString()
+        const response = await fetch(form.action, {
+          method: 'POST',
+          body,
+          headers: { accept: 'text/html', 'content-type': 'application/x-www-form-urlencoded' },
+        }).catch(() => null)
+        if (response?.ok && (await swapFrom(await response.text(), response.url))) return
+        rememberScroll()
+        form.submit()
+      })()
     },
     true,
   )
@@ -395,8 +508,11 @@ function rememberScrollOnPost(): void {
 async function apply(): Promise<void> {
   const url = urlFromControls()
   if (!state.live.length) {
+    const target = url.toString()
+    const response = await fetch(target, { headers: { accept: 'text/html' } }).catch(() => null)
+    if (response?.ok && (await swapFrom(await response.text(), target))) return
     rememberScroll()
-    window.location.assign(url.toString())
+    window.location.assign(target)
     return
   }
   // The address bar has to agree with what the server was asked, or a reload shows something else.
@@ -655,7 +771,7 @@ async function open(): Promise<Wire> {
 async function boot(): Promise<void> {
   intentIds = window.__weftIntents ?? {}
   restoreScroll()
-  rememberScrollOnPost()
+  upgradeIntentForms()
   state.stage = 'adopting'
   regionsHeld = await adoptRegions()
   state.regions = regionsHeld.length
