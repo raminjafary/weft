@@ -32,6 +32,7 @@ import { discover, type Discovered } from './convention.ts'
 import { loadConfig, type ResolvedConfig, type WeftConfig } from './config.ts'
 import { devtoolsFor } from './devtools.ts'
 import { loadIntents, type IntentManifest } from './intents.ts'
+import { loadDocuments, type ServedDocument } from './static.ts'
 import { generateRoutes, type GeneratedRoute } from './routes.ts'
 
 /**
@@ -70,6 +71,14 @@ export interface App {
    */
   at: Map<string, Connection>
   assets: AssetTable
+  /**
+   * L0. Documents the build resolved and proved invariant, by the path each one answers.
+   *
+   * Populated by `weft start` and empty everywhere else: `weft dev` serving a file it rendered
+   * before your last edit is a dev server that lies to you, and the build is where a document
+   * becomes a file in the first place.
+   */
+  documents: Map<string, ServedDocument>
   diagnostics: string[]
   mode: Mode
   /** The live-slot keys a set of write tags reaches, for a notify that has to name keys. */
@@ -272,6 +281,7 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     hub,
     at,
     assets,
+    documents: mode === 'start' ? await loadDocuments(config) : new Map(),
     diagnostics: compiled.diagnostics,
     mode,
     keysFor,
@@ -331,7 +341,7 @@ function channelContext(
 }
 
 export async function serveApp(app: App): Promise<Serving> {
-  const { assets, at, config, intents, keysFor, routes, store, hub } = app
+  const { assets, at, config, documents, intents, keysFor, routes, store, hub } = app
   const table = createRouter<RouteResolver>(routes.map((route) => route.entry))
 
   const http = serveIntent({
@@ -424,6 +434,27 @@ export async function serveApp(app: App): Promise<Serving> {
     remember(url, req.headers.cookie)
     if (channel.http(req, res)) return
     if (devtools && (await devtools(req, res))) return
+
+    /**
+     * L0, and the whole of what it costs at serve time.
+     *
+     * The document was rendered at build time and proved not to depend on the request, so
+     * everything below this line — key derivation, the plan, the wave scheduler, the store, the
+     * stream — is work with a known answer. A conditional request costs the digest comparison and
+     * nothing else. Only `weft start` populates the table, so this is a no-op in dev.
+     */
+    const document = req.method === 'GET' || req.method === 'HEAD' ? documents.get(path) : undefined
+    if (document) {
+      const headers = { ...document.headers, etag: document.etag, 'x-weft-tier': 'l0' }
+      if (req.headers['if-none-match'] === document.etag) {
+        res.writeHead(304, headers)
+        res.end()
+        return
+      }
+      res.writeHead(200, { ...headers, 'content-length': String(document.body.byteLength) })
+      res.end(req.method === 'HEAD' ? undefined : document.body)
+      return
+    }
 
     const file = assets.files.get(path)
     if (file) {

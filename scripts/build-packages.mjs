@@ -16,8 +16,10 @@ const ORDER = [
   'kernel',
   'plan',
   'adapters',
-  'bench',
+  // `weft` before `bench`: the benchmark measures the framework's own build and start paths, so
+  // it typechecks against `weft`'s declarations and cannot be built before they exist.
   'weft',
+  'bench',
   'create-weft',
 ]
 

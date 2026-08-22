@@ -158,6 +158,16 @@ export const STATIONS: readonly Station[] = [
     group: 'cache',
   },
   {
+    id: 'static-documents',
+    title: 'Static documents',
+    shows: 'The classifier that decides a page is a file, and the two-render probe that decides it is not',
+    control:
+      'Give the page a loader that reads something the compiler cannot see, and watch the verdict change',
+    covers: ['kernel/static.md'],
+    status: 'live',
+    group: 'cache',
+  },
+  {
     id: 'stampede',
     title: 'Stampede',
     shows: 'N concurrent misses on one key, and the one render they share',

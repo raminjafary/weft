@@ -122,12 +122,15 @@ changes the answer rather than adding to it, which is why they are three files.
 
 ## What this does not do yet
 
-- **No L0.** A fragment that reads nothing is classified `static` and could be resolved at
-  build time and served by a CDN with the kernel never invoked. Nothing does that yet; it
-  renders and caches like anything else.
-- **No stampede coalescing in the request path.** `StorePort.lease` exists and is
-  implemented; `createKernel` does not take a lease before rendering a miss, so two
-  concurrent misses render twice.
+- **L0 is built, and it is a document rather than a fragment.** A page whose every fragment
+  reads nothing is rendered at build time, proved not to depend on the request, and written as a
+  file `weft start` answers with before the kernel is reached. A static fragment inside a page
+  that reads something is still a slot with a content-addressed key, because a file answers a URL
+  and a URL is a route. See [`static.md`](static.md).
+- **Stampede coalescing is a seam rather than a policy.** `createKernel` takes a `Coalescer`
+  and hands it the two things that decide a coalesce; `leaseCoalescer` is the implementation.
+  Without one, two concurrent misses still render twice — which is opt-in because the good
+  version is store-specific.
 - **No ETag.** `Cache-Control` and `Vary` are derived; the design's third HTTP-tier
   derivation is not.
 - **No `stale-if-error`.** `onExceed: 'stale'` degrades to the placeholder because the
