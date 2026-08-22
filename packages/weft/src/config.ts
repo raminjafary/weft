@@ -43,6 +43,14 @@ export interface WeftConfig {
   maxConcurrency?: number
   /** Type information decides escape elision. Turning it off is correct and slower. */
   types?: boolean
+  /**
+   * `weft routes` and `weft why` as pages, under `/_weft/devtools`, reading this process's own
+   * `App` object.
+   *
+   * `weft dev` only. Left on, `weft start` refuses by name rather than serving a deployment's
+   * route table, effect sets and cache-key reasons to anyone who asks for them.
+   */
+  devtools?: boolean
 }
 
 export function defineConfig(config: WeftConfig): WeftConfig {
@@ -58,6 +66,7 @@ export interface ResolvedConfig extends Required<Pick<WeftConfig, 'srcDir' | 'ou
   executors: Record<string, KernelExecutor>
   channelPath: string
   maxConcurrency: number
+  devtools: boolean
   types: boolean
   store?: StorePort
   telemetry?: TelemetryPort
@@ -105,6 +114,7 @@ export async function loadConfig(root: string, overrides: WeftConfig = {}): Prom
     channelPath: config.channel?.path ?? '/_weft/channel',
     maxConcurrency: config.maxConcurrency ?? 6,
     types: config.types ?? true,
+    devtools: config.devtools ?? false,
     ...(config.store ? { store: config.store } : {}),
     ...(config.telemetry ? { telemetry: config.telemetry } : {}),
     ...(file ? { file } : {}),

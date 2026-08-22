@@ -30,6 +30,7 @@ import { setAssets, setCompiled } from './current.ts'
 import { compileApp, frameworkStyles, type CompiledApp } from './compile.ts'
 import { discover, type Discovered } from './convention.ts'
 import { loadConfig, type ResolvedConfig, type WeftConfig } from './config.ts'
+import { devtoolsFor } from './devtools.ts'
 import { loadIntents, type IntentManifest } from './intents.ts'
 import { generateRoutes, type GeneratedRoute } from './routes.ts'
 
@@ -364,6 +365,9 @@ export async function serveApp(app: App): Promise<Serving> {
   }
 
   const channel = channelHandlers({ hub, path: config.channelPath })
+  // Null unless `devtools: true`, and a named refusal outside `weft dev`. Off, it is one null
+  // check per request and nothing else — no route, no template, no asset.
+  const devtools = devtoolsFor(app)
   const firstCss = routes[0] ? assets.pageCss(routes[0].pattern) : ''
 
   // What the client needs before it can do anything, and the only two things it cannot derive.
@@ -419,6 +423,7 @@ export async function serveApp(app: App): Promise<Serving> {
     // belongs to. Both are needed later, when there is no request to ask.
     remember(url, req.headers.cookie)
     if (channel.http(req, res)) return
+    if (devtools && (await devtools(req, res))) return
 
     const file = assets.files.get(path)
     if (file) {
