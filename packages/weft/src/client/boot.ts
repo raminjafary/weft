@@ -308,9 +308,94 @@ function urlFromControls(): URL {
   return url
 }
 
+/**
+ * Where you were, across a navigation the framework caused.
+ *
+ * A browser restores scroll on back and forward and on nothing else, so a control that reloads
+ * with new parameters and a form that posts and gets a 303 both land you at the top of a page you
+ * were halfway down. Neither is a page you asked to leave: you pressed a button *on* it.
+ *
+ * So the position is recorded against the path at the moment the framework navigates, and put
+ * back on the way in. It is `sessionStorage` because the value is this tab's and lives exactly as
+ * long as the tab does, and every access is guarded because a browser with site data blocked
+ * throws on the accessor itself rather than returning nothing.
+ *
+ * With JavaScript off the form still posts and the scroll still resets. That is the honest floor
+ * of the no-JavaScript path rather than something to hide: there is nothing on the page to record
+ * it with.
+ */
+const SCROLL_KEY = 'weft:scroll'
+
+function rememberScroll(): void {
+  try {
+    sessionStorage.setItem(`${SCROLL_KEY}:${window.location.pathname}`, String(Math.round(scrollY)))
+  } catch {
+    // A tab with site data blocked. The reload is still correct; it just starts at the top.
+  }
+}
+
+function restoreScroll(): void {
+  let held: string | null = null
+  const key = `${SCROLL_KEY}:${window.location.pathname}`
+  try {
+    held = sessionStorage.getItem(key)
+    if (held !== null) sessionStorage.removeItem(key)
+  } catch {
+    return
+  }
+  if (held === null) return
+  const y = Number(held)
+  if (!Number.isFinite(y) || y <= 0) return
+
+  /**
+   * Synchronously, and not a frame later.
+   *
+   * This module is deferred, so the document is parsed by the time it runs and the page already
+   * has its height — which means this lands before the next paint. Doing it in a
+   * `requestAnimationFrame` instead cost exactly one painted frame at the top of the page, and one
+   * frame is precisely what a blink is.
+   *
+   * `instant` because a page whose CSS asks for smooth scrolling would otherwise animate the
+   * restore, which is the same blink with a longer duration.
+   */
+  const land = (): void => window.scrollTo({ top: y, behavior: 'instant' as ScrollBehavior })
+  land()
+  // A slot filled out of order, a late font or an image with no dimensions can all grow or shrink
+  // the document after this. Landing again once everything has loaded only helps the case where the
+  // first attempt fell short, so it is skipped entirely if the reader has since scrolled themselves.
+  if (document.readyState !== 'complete') {
+    window.addEventListener(
+      'load',
+      () => {
+        if (Math.abs(scrollY - y) > 4 && scrollY < 4) land()
+      },
+      { once: true },
+    )
+  }
+}
+
+/**
+ * A form that posts to an intent is the framework's own navigation too.
+ *
+ * It is captured at the document rather than wired per form, because a region replaced by a delta
+ * brings new forms with it and a listener that had to be re-attached per region is a listener that
+ * will be missed once.
+ */
+function rememberScrollOnPost(): void {
+  document.addEventListener(
+    'submit',
+    (event) => {
+      const form = event.target as HTMLFormElement | null
+      if (form?.action.includes('/_weft/i/')) rememberScroll()
+    },
+    true,
+  )
+}
+
 async function apply(): Promise<void> {
   const url = urlFromControls()
   if (!state.live.length) {
+    rememberScroll()
     window.location.assign(url.toString())
     return
   }
@@ -569,6 +654,8 @@ async function open(): Promise<Wire> {
 
 async function boot(): Promise<void> {
   intentIds = window.__weftIntents ?? {}
+  restoreScroll()
+  rememberScrollOnPost()
   state.stage = 'adopting'
   regionsHeld = await adoptRegions()
   state.regions = regionsHeld.length
