@@ -23,6 +23,7 @@ import {
   createKernel,
   createReads,
   createRouter,
+  createExtender,
   createStager,
   envelopeContext,
   leaseCoalescer,
@@ -30,6 +31,7 @@ import {
   requestFacts,
   serveIntent,
   type ChannelHub,
+  type DiscoveredRoute,
   type Kernel,
   type Ports,
   type RenderContext,
@@ -50,6 +52,7 @@ import { compileApp, frameworkStyles, type CompiledApp } from './compile.ts'
 import { discover, type Discovered } from './convention.ts'
 import { loadConfig, type ResolvedConfig, type WeftConfig } from './config.ts'
 import { devtoolsFor } from './devtools.ts'
+import { resolveAuthority, serveToken, TOKEN_PATH, type Authority } from './authority.ts'
 import { loadIntents, type IntentManifest } from './intents.ts'
 import { services } from './context.ts'
 import {
@@ -59,7 +62,6 @@ import {
   readProfile,
   writeProfile,
   type Decisions,
-  type Profile,
   type Recorder,
 } from './profile.ts'
 import { loadDocuments, type ServedDocument } from './static.ts'
@@ -130,6 +132,13 @@ export interface App {
   ports: Ports
   /** The live-slot keys a set of write tags reaches, for a notify that has to name keys. */
   keysFor(tags: readonly string[]): string[]
+  /**
+   * Who may run an intent here, and which intents need a token this deployment minted.
+   *
+   * Resolved once and shared by both bindings on purpose: a capability enforced over the channel
+   * and not over the POST path would be a capability with a documented way around it.
+   */
+  authority: Authority
 }
 
 export interface Connection {
@@ -318,7 +327,145 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     ...new Set(tags.flatMap((tag) => [...(keysByTag.get(tag) ?? [])])),
   ]
 
-  const dispatch = createIntentDispatch({ registry: intents.registry, store })
+  /**
+   * Authority, resolved before anything can dispatch.
+   *
+   * `resolveAuthority` refuses here rather than at request time for the one failure a request
+   * cannot explain: a capability an intent requires and no role grants. Everything else it finds
+   * is a diagnostic, because the dispatch already refuses by name and a warning at startup is
+   * where somebody can act on it.
+   */
+  const authority = await resolveAuthority(config.authority, intents, store, ports)
+  const dispatch = createIntentDispatch({
+    registry: intents.registry,
+    store,
+    ...(authority.model ? { capabilities: authority.model.check } : {}),
+    ...(authority.verifier ? { verify: authority.verifier } : {}),
+  })
+
+  /**
+   * One route table, built once.
+   *
+   * Every path that has to turn a URL into a route — a document request, a refresh over the
+   * channel, a route being staged, a plan being extended — was building its own. Four matchers
+   * over one set of patterns is four chances for them to disagree about which route a URL is.
+   */
+  const router = createRouter(routes.map((route) => ({ pattern: route.pattern, value: route })))
+  const routeAt = (path: string): ReturnType<typeof router.match> =>
+    router.match(new URL(path, 'http://weft.local'))
+  const here = (channel: { id: string }): ReturnType<typeof router.match> => {
+    const connection = at.get(channel.id)
+    return connection ? routeAt(connection.path) : null
+  }
+  const transitions = (): Record<string, string[]> => (recorded ? likelyNext(recorded) : {})
+
+  /**
+   * A route staged over the channel, which is `WARM at=` doing what the frame table always said.
+   *
+   * Two decisions live here because only this side can make them. Whether the target shares this
+   * client's shell — a different document has different holes, so its regions cannot be swapped
+   * into the ones on screen, and the honest answer then is a document request. And what each
+   * region's next state is, which goes through the *same loaders* a document request would run:
+   * a staged route that computed its values differently would be a page nobody could reproduce.
+   */
+  const stager = createStager({
+    store,
+    ...(config.telemetry ? { telemetry: config.telemetry } : {}),
+    resolve: async ({ path, channel }) => {
+      const target = routeAt(path)
+      if (!target) return null
+      const from = here(channel)
+      if (!from || from.value.shell.version !== target.value.shell.version) {
+        return {
+          route: target.value.pattern,
+          shared: false,
+          why: from
+            ? `${target.value.pattern} is rendered into a different document, whose holes are ${target.value.holes.join(', ')}`
+            : 'this channel has not said which page it is on',
+        }
+      }
+
+      const connection = at.get(channel.id)
+      const ctx = channelContext(
+        new URL(path, 'http://weft.local'),
+        target.params,
+        connection?.cookie ?? '',
+        ports,
+      )
+      const slots: Record<string, SlotRender> = {}
+      for (const [name, region] of Object.entries(target.value.regions)) {
+        slots[name] = {
+          ir: region.fragment.entry,
+          values: await region.load(ctx, target.params),
+          ...(region.fragment.resolve ? { resolve: region.fragment.resolve } : {}),
+          key: region.key,
+          prefer: 'delta',
+        }
+      }
+      const next = decided ? transitions()[target.value.pattern] : undefined
+      return {
+        route: target.value.pattern,
+        shared: true,
+        title: target.value.titleFor(target.params),
+        css: table().pageCss(target.value.pattern),
+        ...(next?.length ? { next } : {}),
+        slots,
+      }
+    },
+  })
+
+  /**
+   * The part of the plan a client does not have, described rather than rendered.
+   *
+   * Every field here is something a client would otherwise have to make a request to learn, and
+   * the expensive one is the shell: a link whose target uses a different document cannot be swapped
+   * in as regions, and finding that out by asking costs a round trip *and* a server render of a
+   * page nobody clicked. Described, it costs a line in a frame the connection was already getting.
+   *
+   * Nothing here runs a loader. That is the difference between this and staging a route, and it is
+   * why a page can afford to know about thirty routes and stage two.
+   */
+  const describe = (route: GeneratedRoute, shell: string | undefined): DiscoveredRoute => {
+    const next = decided ? transitions()[route.pattern] : undefined
+    const versions = [...new Set(Object.values(route.regions).map((r) => r.fragment.entry.version))]
+    return {
+      pattern: route.pattern,
+      shell: route.shell.version,
+      shared: shell === route.shell.version,
+      slots: Object.keys(route.regions),
+      css: table().pageCss(route.pattern),
+      ...(versions.length ? { tpl: versions } : {}),
+      ...(next?.length ? { next } : {}),
+    }
+  }
+
+  const discovery = createExtender({
+    ...(config.telemetry ? { telemetry: config.telemetry } : {}),
+    resolve: ({ prefix, channel }) => {
+      const from = here(channel)
+      const shell = from?.value.shell.version
+      /**
+       * No prefix is the handshake, and what it answers is deliberately narrow: this page, and
+       * where the profile says its readers go next. A connection opening is not a request to
+       * describe the application — a route table pushed at every page load is a cost every reader
+       * pays for a page most of them will not leave by a link.
+       */
+      if (prefix === undefined) {
+        if (!from) return null
+        const patterns = [from.value.pattern, ...(transitions()[from.value.pattern] ?? [])]
+        const found = patterns
+          .map((pattern) => routes.find((route) => route.pattern === pattern))
+          .filter((route): route is GeneratedRoute => route !== undefined)
+        return { prefix: from.value.pattern, routes: found.map((route) => describe(route, shell)) }
+      }
+      // `/checkout/*` and `/checkout` ask the same thing. The star is how the design spells it.
+      const under = prefix.replace(/\/?\*$/, '')
+      const found = routes.filter((route) => route.pattern.startsWith(under))
+      if (!found.length) return null
+      return { prefix, routes: found.map((route) => describe(route, shell)) }
+    },
+  })
+
   const hub = createHub({
     store,
     source: liveSource(routes, at, ports),
@@ -331,8 +478,8 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
      * stale values — which looks exactly like not having push invalidation at all.
      */
     intents: {
-      run: async (id, raw, ctx) => {
-        const outcome = await dispatch.run(id, raw, ctx)
+      run: async (id, raw, ctx, credentials) => {
+        const outcome = await dispatch.run(id, raw, ctx, credentials)
         if (!outcome.ok) return outcome
         const extra = keysFor(outcome.invalidated)
         return { ...outcome, dropped: [...new Set([...outcome.dropped, ...extra])] }
@@ -356,61 +503,8 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
       return envelopeContext(createReads(requestFacts(new Request(url, { headers })), ports), envelope)
     },
     templates: (version) => compiled.templates.find((t) => t.version === version),
-    /**
-     * A route staged over the channel, which is `WARM at=` doing what the frame table always said.
-     *
-     * Two decisions live here because only this side can make them. Whether the target shares this
-     * client's shell — a different document has different holes, so its regions cannot be swapped
-     * into the ones on screen, and the honest answer then is a document request. And what each
-     * region's next state is, which goes through the *same loaders* a document request would run:
-     * a staged route that computed its values differently would be a page nobody could reproduce.
-     */
-    stageRoute: createStager({
-      store,
-      ...(config.telemetry ? { telemetry: config.telemetry } : {}),
-      resolve: async ({ path, channel }) => {
-        const router = createRouter(routes.map((route) => ({ pattern: route.pattern, value: route })))
-        const target = router.match(new URL(path, 'http://weft.local'))
-        if (!target) return null
-        const connection = at.get(channel.id)
-        const here = connection ? router.match(new URL(connection.path, 'http://weft.local')) : null
-        if (!here || here.value.shell.version !== target.value.shell.version) {
-          return {
-            route: target.value.pattern,
-            shared: false,
-            why: here
-              ? `${target.value.pattern} is rendered into a different document, whose holes are ${target.value.holes.join(', ')}`
-              : 'this channel has not said which page it is on',
-          }
-        }
-
-        const ctx = channelContext(
-          new URL(path, 'http://weft.local'),
-          target.params,
-          connection?.cookie ?? '',
-          ports,
-        )
-        const slots: Record<string, SlotRender> = {}
-        for (const [name, region] of Object.entries(target.value.regions)) {
-          slots[name] = {
-            ir: region.fragment.entry,
-            values: await region.load(ctx, target.params),
-            ...(region.fragment.resolve ? { resolve: region.fragment.resolve } : {}),
-            key: region.key,
-            prefer: 'delta',
-          }
-        }
-        const next = decided ? likelyNext(recorded as Profile)[target.value.pattern] : undefined
-        return {
-          route: target.value.pattern,
-          shared: true,
-          title: target.value.titleFor(target.params),
-          css: table().pageCss(target.value.pattern),
-          ...(next?.length ? { next } : {}),
-          slots,
-        }
-      },
-    }),
+    warm: { at: stager, plan: discovery.warm },
+    onOpen: discovery.open,
   })
 
   return {
@@ -424,7 +518,11 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     at,
     assets,
     documents: mode === 'start' ? await loadDocuments(config) : new Map(),
+    // The compiler's, and only the compiler's: `weft build` prints this list under a heading that
+    // says what it is, and folding a different kind of warning into it would make that heading lie.
+    // Authority's warnings live on `authority.diagnostics` and are printed as their own.
     diagnostics: compiled.diagnostics,
+    authority,
     mode,
     ports,
     recorder,
@@ -489,14 +587,20 @@ function channelContext(
 }
 
 export async function serveApp(app: App): Promise<Serving> {
-  const { assets, at, config, documents, intents, keysFor, recorder, routes, store, hub } = app
+  const { assets, at, authority, config, documents, intents, keysFor, recorder, routes, store, hub } = app
   const table = createRouter<RouteResolver>(routes.map((route) => route.entry))
+
+  // The stylesheet a page the framework itself renders — a 404, a refused intent — links. There is
+  // no bundle for a page that is not a route, so it borrows the first one's.
+  const firstCss = routes[0] ? assets.pageCss(routes[0].pattern) : ''
 
   const http = serveIntent({
     registry: intents.registry,
     store,
     routes: createIntentRouter(intents.routes),
     ports: app.ports,
+    ...(app.authority.model ? { capabilities: app.authority.model.check } : {}),
+    ...(app.authority.verifier ? { verify: app.authority.verifier } : {}),
     returnTo: (request) => request.headers.get('referer') ?? '/',
   })
 
@@ -509,7 +613,33 @@ export async function serveApp(app: App): Promise<Serving> {
    */
   const dispatchOverHttp = async (request: Request): Promise<Response> => {
     const response = await http.handle(request)
-    if (response.status >= 400) return response
+    /**
+     * A refused mutation, told to whoever asked.
+     *
+     * The dispatch answers with a named code and a reason, which is right, and until now the answer
+     * a *browser* got for it was that JSON rendered as a page — the reader's document gone, replaced
+     * by `{"ok":false,…}`. The no-JavaScript path is not finished at "the request was refused
+     * correctly"; failing legibly is part of working.
+     *
+     * The framework's own fetch says so with a header and keeps the JSON, because it turns the same
+     * refusal into a toast without leaving the page. A plain form post cannot send a header, which is
+     * exactly the caller that needs the page.
+     */
+    if (response.status >= 400) {
+      const wantsHtml = (request.headers.get('accept') ?? '').includes('text/html')
+      if (!wantsHtml || request.headers.get('x-weft-fetch')) return response
+      const said = (await response
+        .clone()
+        .json()
+        .catch(() => null)) as { code?: string; detail?: string } | null
+      return new Response(
+        refusalPage(said?.code ?? `E_INTENT_${response.status}`, said?.detail ?? '', firstCss, request),
+        {
+          status: response.status,
+          headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+        },
+      )
+    }
     const tags = [...new Set(intents.entries.flatMap((entry) => entry.writes))]
     if (tags.length) await hub.invalidate(tags, 'a form post wrote it')
     const keys = keysFor(tags)
@@ -521,12 +651,12 @@ export async function serveApp(app: App): Promise<Serving> {
   // Null unless `devtools: true`, and a named refusal outside `weft dev`. Off, it is one null
   // check per request and nothing else — no route, no template, no asset.
   const devtools = devtoolsFor(app)
-  const firstCss = routes[0] ? assets.pageCss(routes[0].pattern) : ''
 
   // What the client needs before it can do anything, and the only two things it cannot derive.
   const prelude =
     `window.__weftIntents = ${JSON.stringify(intents.names)};\n` +
     `window.__weftChannel = ${JSON.stringify(config.channelPath)};\n` +
+    (authority.signed.length ? `window.__weftSigned = ${JSON.stringify(authority.signed)};\n` : '') +
     `window.__weftScroll = ${JSON.stringify(config.scroll)};\n` +
     (assets.app ? `window.__weftClient = ${JSON.stringify(assets.app)};\n` : '')
 
@@ -633,6 +763,26 @@ export async function serveApp(app: App): Promise<Serving> {
       req.method === 'GET' || req.method === 'HEAD'
         ? undefined
         : await new Response(Readable.toWeb(req) as never).arrayBuffer()
+    const incoming = new Request(url, { method: req.method ?? 'GET', headers, ...(body ? { body } : {}) })
+
+    /**
+     * A token for a signed intent, minted for this reader and nothing else.
+     *
+     * Its own path rather than a field in a page, because a token in a render would be a token in
+     * whatever cache holds that render. `serveToken` says the whole of why. POST because a token
+     * has no business in a URL, a log, or a referer.
+     */
+    if (path === TOKEN_PATH) {
+      if (req.method !== 'POST') {
+        res.writeHead(405, { allow: 'POST', 'content-type': 'application/json' }).end('{"code":"E_METHOD"}')
+        return
+      }
+      const minted = await serveToken({ request: incoming, authority, intents, ports: app.ports })
+      const out_ = Object.fromEntries(minted.headers)
+      res.writeHead(minted.status, out_)
+      res.end(await minted.text())
+      return
+    }
 
     /**
      * The request, recorded before it is served.
@@ -652,9 +802,7 @@ export async function serveApp(app: App): Promise<Serving> {
     }
 
     const kernel = kernelFor(res)
-    const response = await kernel.serve(
-      new Request(url, { method: req.method ?? 'GET', headers, ...(body ? { body } : {}) }),
-    )
+    const response = await kernel.serve(incoming)
 
     /**
      * Which slots the store answered for.
@@ -774,6 +922,38 @@ export async function serveApp(app: App): Promise<Serving> {
       })
     },
   }
+}
+
+/**
+ * What a browser is shown when an intent refuses it.
+ *
+ * Every line here is something the reader or the person building the application can act on: the
+ * code, the reason the dispatch gave, a way back to the page they were on, and — for the one
+ * refusal that is a design decision rather than a mistake — what that decision is.
+ */
+function refusalPage(code: string, detail: string, css: string, request: Request): string {
+  const back = request.headers.get('referer')
+  const why =
+    code === 'E_INTENT_UNSIGNED'
+      ? `<p class="weft-lede">This intent requires a token this deployment minted for you, and a
+         plain form post cannot carry one — a token cannot be rendered into a page, because a page
+         can be cached and a token cannot. So this is the one kind of mutation that needs
+         JavaScript, and every other one here still works without it. See
+         <code>spec/kernel/authority.md</code>.</p>`
+      : ''
+  const link = back ? `<p><a href="${escapeAttribute(back)}">Back to the page</a></p>` : ''
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeText(code)}</title>
+  <link rel="stylesheet" href="${css}"></head>
+  <body><main class="weft-main"><h1><code>${escapeText(code)}</code></h1>
+  <p class="weft-lede">${escapeText(detail)}</p>${why}${link}</main></body></html>`
+}
+
+function escapeText(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function escapeAttribute(value: string): string {
+  return escapeText(value).replace(/"/g, '&quot;')
 }
 
 function notFound(patterns: readonly string[], css: string): string {

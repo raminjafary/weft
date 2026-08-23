@@ -11,28 +11,34 @@ the gate is the test that calls it. Rolldown, minified, brotli at quality 11 —
 
 ## The entries
 
-| Entry                | Covers                                                                            | Measured | Ceiling  | Where the ceiling comes from                                        |
-| -------------------- | --------------------------------------------------------------------------------- | -------- | -------- | ------------------------------------------------------------------- |
-| `entry-request.ts`   | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream | 8,169 B  | 8,192 B  | The design's "target under 8 KB server-side"                        |
-| `entry-channel.ts`   | The above, plus surgical refresh, form selection, epochs, the stale registry      | 10,461 B | 12,288 B | No design figure. A watermark                                       |
-| `entry-intent.ts`    | The request path, plus intent dispatch, capability checks, method-aware routing   | 9,288 B  | 10,240 B | No design figure. A watermark                                       |
-| `entry-transport.ts` | The channel path, plus a live channel: negotiation, held state, push invalidation | 13,250 B | 13,312 B | No design figure. A watermark                                       |
-| `entry-stage.ts`     | The above, plus a whole route staged over the channel: `WARM at=`, `NAV`          | 13,516 B | 14,336 B | No design figure. Its own, because it went past the watermark above |
-| `index.ts`           | Everything, including build-time validation and serialisation                     | 11,601 B | —        | Not a claim. Reported so the marginal split is checkable            |
+| Entry                | Covers                                                                             | Measured | Ceiling  | Where the ceiling comes from                                            |
+| -------------------- | ---------------------------------------------------------------------------------- | -------- | -------- | ----------------------------------------------------------------------- |
+| `entry-request.ts`   | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream  | 8,108 B  | 8,192 B  | The design's "target under 8 KB server-side"                            |
+| `entry-channel.ts`   | The above, plus surgical refresh, form selection, epochs, the stale registry       | 10,669 B | 12,288 B | No design figure. A watermark                                           |
+| `entry-intent.ts`    | The request path, plus intent dispatch, the two authority branches, method routing | 9,457 B  | 10,240 B | No design figure. A watermark                                           |
+| `entry-authority.ts` | The above, plus the capability model and signed intents                            | 11,120 B | 12,288 B | No design figure. Its own, because the design calls this tier separable |
+| `entry-transport.ts` | The channel path, plus a live channel: negotiation, held state, push invalidation  | 13,261 B | 13,312 B | No design figure. A watermark, and 51 bytes of it are left              |
+| `entry-stage.ts`     | The above, plus a whole route staged over the channel: `WARM at=`, `NAV`           | 13,568 B | 14,336 B | No design figure. Its own, because it went past the watermark above     |
+| `entry-discover.ts`  | The above, plus lazy plan extension: `WARM plan=`, `PLAN`                          | 13,784 B | 15,360 B | No design figure. Its own, on the rule route staging established        |
+| `index.ts`           | Everything, including build-time validation and serialisation                      | 11,601 B | —        | Not a claim. Reported so the marginal split is checkable                |
 
 On the client, same rule:
 
-| Entry              | Covers                                                              | Measured | Ceiling  |
-| ------------------ | ------------------------------------------------------------------- | -------- | -------- |
-| `entry-content.ts` | Adopt and bind                                                      | 2,226 B  | 5,120 B  |
-| `entry-app.ts`     | Plus deltas, epochs, residency                                      | 3,119 B  | 12,288 B |
-| `entry-channel.ts` | Plus routing arriving frames into regions and epochs                | 4,004 B  | 4,096 B  |
-| `entry-nav.ts`     | Plus routes staged and unpainted, `NAV` frames, and what a click is | 4,754 B  | 5,120 B  |
-| `index.ts`         | Everything                                                          | 4,680 B  | 6,144 B  |
+| Entry                  | Covers                                                              | Measured | Ceiling  |
+| ---------------------- | ------------------------------------------------------------------- | -------- | -------- |
+| `entry-content.ts`     | Adopt and bind                                                      | 2,226 B  | 5,120 B  |
+| `entry-app.ts`         | Plus deltas, epochs, residency                                      | 3,154 B  | 12,288 B |
+| `entry-channel.ts`     | Plus routing arriving frames into regions and epochs                | 4,081 B  | 4,096 B  |
+| `entry-nav.ts`         | Plus routes staged and unpainted, `NAV` frames, and what a click is | 4,932 B  | 5,120 B  |
+| `entry-discover.ts`    | Plus what it knows about routes it has not been to                  | 5,301 B  | 6,144 B  |
+| `index.ts`             | Everything                                                          | 5,315 B  | 6,144 B  |
+| `boot.ts` (front door) | What a page actually downloads                                      | 12,223 B | 12,288 B |
 
-Navigation is the client-side case of the rule below: 665 bytes on top of a channel route, in an
-entry of its own, because a page that links nowhere should not carry the staging model. The
-ceiling leaves 451 bytes, which is what the next thing added to a navigating page argues with.
+Navigation is the client-side case of the rule below: 851 bytes on top of a channel route, in an
+entry of its own, because a page that links nowhere should not carry the staging model. Discovery is
+369 bytes on top of that, in an entry of its own again — and it is the one entry here whose whole
+purpose is a request it does not make, so it has to cost less than the `WARM` and the server render
+it saves.
 
 **The 8 KB is the document request path, and it now includes the route matcher.** It did not
 at first: `createRouter` was never exported from the entry, so the figure described a kernel
@@ -57,6 +63,22 @@ what made this concrete: charged to `entry-channel.ts` it went 53 bytes over a c
 before it existed, and the fix is a third entry rather than a bigger second one. There is a
 real deployment behind the split — surgical refresh over plain request/response, with no
 long-lived connection, is how every phase 6 test worked before a channel existed.
+
+**The third time it changed a design was the channel's frame dispatch.** Lazy plan extension arrived
+as a second `WARM` grain beside route staging's, and the transport entry — 13,250 B against a 13,312
+watermark — went to 13,307. Five bytes of headroom satisfies the rule and does not honour it: the
+next grain would have had nowhere to go. So the channel stopped growing a case per capability. The
+grains are a table now, `warm: { at, plan }`, one lookup answers any of them, and each handler is
+charged to the entry that provides it — route staging's own header parsing moved out of the shared
+file and into `stage.ts` where it belongs. The transport entry is 13,261 B: eleven bytes more than
+before route staging had a second neighbour, for a mechanism that ends the growth.
+
+**The front door's entry is the one that cannot be split, and it says so.** Every other client figure
+measures a capability a page may decline to import; `boot.ts` measures the composition, so it
+accumulates all of them by construction. Discovery, signed intents and a refusal toast took it from
+11,048 B to 12,223 against a 12,288 watermark — 65 bytes left. The next addition either trims
+something or splits a capability out behind a dynamic `import()`, which this framework can do without
+a bundler because client modules are already separate files on disk.
 
 Intents were the first capability to arrive under this rule rather than into it, and it held.
 The request path grew 41 bytes, for the delegation that answers a non-GET with a 405 and an
@@ -120,12 +142,19 @@ on that basis. Three re-derivations is enough evidence that the check's design i
 So the ceiling is back at 2,500 and each entry has its own, by the same reachability walk the
 byte budget uses:
 
-| Entry                | Lines | Ceiling |
-| -------------------- | ----- | ------- |
-| `entry-request.ts`   | 1,693 | 1,800   |
-| `entry-channel.ts`   | 1,982 | 2,100   |
-| `entry-intent.ts`    | 1,974 | 2,100   |
-| `entry-transport.ts` | 2,349 | 2,500   |
+| Entry                | Ceiling |
+| -------------------- | ------- |
+| `entry-request.ts`   | 1,800   |
+| `entry-channel.ts`   | 2,100   |
+| `entry-intent.ts`    | 2,100   |
+| `entry-authority.ts` | 2,500   |
+| `entry-transport.ts` | 2,500   |
+| `entry-stage.ts`     | 2,600   |
+| `entry-discover.ts`  | 2,700   |
+
+The measured figures are deliberately not repeated here. Three re-derivations went into making this
+check measure something, and a table of numbers in prose is a fourth one waiting to happen: the
+ceilings are the commitment and `standards.test.ts` holds the measurements.
 
 A companion gate asserts every source file is reachable from some entry or named as off the
 request path, because a module that no ceiling applies to is a module that is invisible to

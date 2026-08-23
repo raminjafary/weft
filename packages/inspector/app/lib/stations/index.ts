@@ -12,6 +12,7 @@ import {
   transport,
 } from './client.ts'
 import { byteBudgets, devices, profileStation, sharedDeltas, wireForms } from './measure.ts'
+import { capabilities, discovery, signedIntents } from './authority.ts'
 import { staticDocuments } from './static.ts'
 import { blockingControl, components, epochs, streaming, streamingOrder } from './stream.ts'
 import {
@@ -35,6 +36,9 @@ import {
  * index from advertising a page that does not run.
  */
 export const HANDLERS: Record<string, StationHandler> = {
+  authority: capabilities,
+  'signed-intents': signedIntents,
+  discovery,
   'byte-budgets': byteBudgets,
   'shared-deltas': sharedDeltas,
   'wire-forms': wireForms,

@@ -462,3 +462,71 @@ th {
   color: var(--weft-muted);
   padding-top: 0.15rem;
 }
+
+/**
+ * A refused intent, said out loud.
+ *
+ * The framework dispatches intents, so the framework owns telling you when one was refused. Before
+ * this, a mutation that came back `ok=false` wrote a line to a log nobody had open: over the channel
+ * it was invisible, and a plain form post navigated to raw JSON. Neither is an application's bug to
+ * fix, because neither is an application's dispatch.
+ *
+ * An application that wants the feedback somewhere specific puts `[data-weft-toasts]` in its markup
+ * and the framework fills that instead.
+ */
+.weft-toasts {
+  position: fixed;
+  inset-block-end: 1rem;
+  inset-inline-end: 1rem;
+  z-index: 999;
+  display: grid;
+  gap: 0.5rem;
+  max-width: min(30rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.weft-toast {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem 0.75rem;
+  align-items: start;
+  padding: 0.7rem 0.85rem;
+  background: var(--weft-surface);
+  border: 1px solid color-mix(in srgb, var(--weft-bad) 45%, var(--weft-line));
+  border-inline-start: 3px solid var(--weft-bad);
+  border-radius: var(--weft-radius);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 12%);
+  font-size: 0.875rem;
+}
+
+.weft-toast[data-kind='ok'] {
+  border-color: color-mix(in srgb, var(--weft-good) 45%, var(--weft-line));
+  border-inline-start-color: var(--weft-good);
+}
+
+.weft-toast code {
+  font-family: var(--weft-mono);
+  font-size: 0.8125rem;
+  color: var(--weft-bad);
+}
+
+.weft-toast[data-kind='ok'] code {
+  color: var(--weft-good);
+}
+
+.weft-toast p {
+  margin: 0.15rem 0 0;
+  color: var(--weft-muted);
+  max-width: none;
+}
+
+.weft-toast button {
+  background: none;
+  border: 0;
+  color: var(--weft-muted);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.15rem 0.25rem;
+  cursor: pointer;
+}

@@ -119,7 +119,15 @@ async function main(): Promise<number> {
       else out(`  ${file} — rebuilt in ${ms} ms\n`)
     })
     const listed = await routeList(root, overrides)
-    out(banner('dev', server.url, listed.patterns, listed.devtools ? DEVTOOLS_PATH : undefined))
+    out(
+      banner(
+        'dev',
+        server.url,
+        listed.patterns,
+        listed.devtools ? DEVTOOLS_PATH : undefined,
+        server.warnings,
+      ),
+    )
     hold(() => server.close())
     return 0
   }
@@ -218,11 +226,20 @@ async function routeList(
   return { patterns: discovered.routes.map((route) => route.pattern), devtools: config.devtools }
 }
 
-function banner(command: string, url: string, patterns: readonly string[], devtools?: string): string {
+function banner(
+  command: string,
+  url: string,
+  patterns: readonly string[],
+  devtools?: string,
+  warnings: readonly string[] = [],
+): string {
   const lines = ['', `  weft ${command} · ${url}`, '']
   for (const pattern of patterns) lines.push(`  ${pattern}`)
   // Printed rather than left to be discovered: a page nobody can find is a page nobody has.
   if (devtools) lines.push('', `  devtools · ${new URL(devtools, url).href}`)
+  // Same argument, one step stronger: a gate that will refuse every call it is asked about should
+  // say so before the first call rather than as a 501 in front of somebody.
+  for (const warning of warnings) lines.push('', `  ${warning}`)
   lines.push('')
   return lines.join('\n')
 }

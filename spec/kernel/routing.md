@@ -134,12 +134,61 @@ Routing is one of the four jobs the design gives a kernel, so the ceiling moved 
 the check now says what it is for. The byte budget is the gate; the line count is a smell
 detector for the kernel absorbing work that belongs in a port.
 
+## Lazy plan extension
+
+The whole table is still resolved at construction — that part of the note below was about the
+_server_, and it stays true. What has changed is what a **client** knows about it.
+
+`WARM plan=/checkout/*` asks about a subtree; a `PLAN` frame answers with a record per route:
+
+| Field     | What a client would otherwise do to learn it                                        |
+| --------- | ----------------------------------------------------------------------------------- |
+| `pattern` | Nothing — it can read a link                                                        |
+| `shell`   | Ask the server to stage the route, and be told `form=document` after a whole render |
+| `shared`  | The same, precomputed against this connection's own page                            |
+| `slots`   | Fetch the document                                                                  |
+| `css`     | Fetch the document, then fetch the stylesheet it links                              |
+| `tpl`     | Fetch the document and find out which templates it needed                           |
+| `next`    | Nothing. Only the server has the profile                                            |
+
+The one that pays for itself immediately is `shell`. Staging a route the reader has not clicked
+costs a round trip _and_ a server render, and for a link into a different document that render is
+thrown away: a different shell has different holes, so its regions cannot be swapped into the ones
+on screen. Described in advance, the client fetches the document instead and spends neither. The
+decision is still the server's — this is the server's own answer, given earlier and for a subtree
+rather than one link at a time.
+
+**A `PLAN` also arrives unasked, once, when a channel opens.** Everything else in the protocol
+answers a question the client posed; this one exists because the client cannot pose it. A page has
+no route table to notice a gap in, and the thing most worth telling it — where readers of this page
+go next — is a measurement only the server has. Before this, `NAV next=` reached only a client that
+had already staged something over the channel, so a first visit, the visit it would have helped
+most, heard nothing.
+
+The handshake answer is deliberately narrow: this route, and the routes the profile says its readers
+go to next. A route table pushed at every page load would be a cost every reader pays for a page
+most of them will not leave by a link.
+
+**Describing a route runs no loader**, which is the difference between this and staging one, and the
+reason a page can afford to know about thirty routes and stage two. The answer is capped, and a
+truncated one says `complete=false` — a silent cap reads to the client as "that is the whole
+subtree", which is the one wrong thing it could conclude. A prefix matching nothing is answered with
+an empty `PLAN` rather than a silence, because a client that hears nothing cannot tell that from a
+frame still in flight.
+
+On the client, `weft.discover('/checkout/*')` is the design's `router.discover`, asked once per
+prefix. The registry it fills re-implements the router's specificity rule — static beats a param,
+a param beats a wildcard — because a client that decided differently would answer a click on the
+strength of a route the server would not have chosen. Both spellings are tested against the same
+cases, including the one where `/docs` matches `/docs/*`.
+
 ## What this does not do yet
 
 - **No method matching.** The table is path-only. Methods belong with intents, which do not
   exist, and a route that matched on method today would have nothing to dispatch to.
-- **No lazy plan extension.** `PLAN extend` and `router.discover('/checkout/*')` are phase 7.
-  The whole table is resolved at construction.
+- **The server's table is still resolved at construction.** Lazy plan extension is about what the
+  client knows, above; a server that discovered its own routes at request time is a different
+  feature and nothing needs it.
 - **No nested routes or layouts.** A route names one shell. A shell that is itself a region of
   another shell is the app-shell design in phase 9.
 - **No `RegistryPort`.** Resolving a region name to a deployment is what makes routing portable

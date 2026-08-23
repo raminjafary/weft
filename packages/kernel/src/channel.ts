@@ -24,7 +24,7 @@ import {
   type ServerCapabilities,
 } from '@weft/warp'
 import { createEpochs, type Epochs, type Transition } from './epoch.ts'
-import type { RouteStager } from './stage.ts'
+
 import type { EnvelopeContext } from './context.ts'
 import type { IntentDispatch, IntentOutcome } from './intent.ts'
 import type { StorePort, TelemetryPort } from './ports.ts'
@@ -88,6 +88,17 @@ export interface SlotRequest {
 
 export type SlotSource = (request: SlotRequest) => Promise<SlotRender | null> | SlotRender | null
 
+/** What a `WARM` asked about at one grain, and everything a handler needs to answer it. */
+export interface WarmRequest {
+  /** The grain's value: a path for `at`, a plan prefix for `plan`. */
+  value: string
+  /** The frame itself, for a handler that needs another header off it — `epoch`, say. */
+  frame: Frame
+  channel: Channel
+}
+
+export type WarmHandler = (request: WarmRequest) => Promise<Frame[]>
+
 export interface Channel {
   readonly id: string
   readonly binding: ChannelBinding
@@ -119,14 +130,32 @@ export interface HubOptions {
   /** Templates a WARM frame may ask for. Without one, WARM is refused by name. */
   templates?: (version: string) => TemplateIR | undefined
   /**
-   * What answers a `WARM` carrying `at=<path>`: a whole route, staged and painting nothing.
+   * Who answers a `WARM` at each grain, by the header that names the grain.
    *
-   * A hook rather than an implementation, and not only because a channel has no idea what a route
-   * is. Written into this file it took the transport entry 108 bytes past a watermark set before
-   * route staging existed, and a new capability gets its own entry rather than somebody else's
-   * headroom — so the implementation is `createStager` in `stage.ts`, measured on its own.
+   * `WARM` asks one question — "stage this, do not paint" — about a template set (`tpl`), a route
+   * (`at`), or a subtree of the plan (`plan`), and only the first of those is something a channel
+   * can answer on its own. The rest are hooks, and they are a **table** rather than one option per
+   * grain for a reason the byte budget made concrete twice.
+   *
+   * Route staging arrived as a branch here and took the transport entry 108 bytes past a watermark
+   * set before it existed. Lazy plan extension arrived as a second branch and took it to five bytes
+   * of headroom — a rule that says a new capability does not spend an existing entry's room, being
+   * satisfied by five bytes, is a rule about to stop being satisfied. So the channel stopped
+   * growing a case per capability: one lookup answers every grain, each handler is measured under
+   * the entry that provides it, and a deployment that binds none of them carries none of them.
+   *
+   * `createStager` in `stage.ts` answers `at`; `createExtender` in `discover.ts` answers `plan`.
    */
-  stageRoute?: RouteStager
+  warm?: Record<string, WarmHandler>
+  /**
+   * Frames appended to the handshake answer, after `WARP`.
+   *
+   * Everything else here answers a question the client asked. This is the one thing a client cannot
+   * ask for, because it does not know what it is missing: a page has no route table to notice a gap
+   * in, and what is worth telling it — where readers of this page go next — is a measurement only
+   * the server has. `createExtender` in `discover.ts` is what fills it.
+   */
+  onOpen?(channel: Channel): Promise<readonly Frame[]> | readonly Frame[]
   server?: ServerCapabilities
   maxEpochs?: number
   /**
@@ -315,7 +344,15 @@ export function createHub(options: HubOptions): ChannelHub {
       case 'RESIDENT': {
         record.hello = readResident(f as Frame)
         record.negotiation = negotiate(record.hello, options.server ?? serverCapabilities())
-        return [warpFrame(record.negotiation)]
+        /**
+         * The negotiation, and then what this client does not know about the plan.
+         *
+         * Unasked, and exactly once per connection. Every other frame here answers a question the
+         * client posed; this one exists because the client cannot pose it — it has no route table
+         * to notice a gap in, and the thing worth telling it (where readers of this page go next)
+         * is a measurement only the server has.
+         */
+        return [warpFrame(record.negotiation), ...((await options.onOpen?.(record.channel)) ?? [])]
       }
 
       case 'HELD': {
@@ -342,17 +379,21 @@ export function createHub(options: HubOptions): ChannelHub {
       }
 
       case 'WARM': {
-        const at = str(f, 'at')
-        if (at !== undefined) {
-          if (!options.stageRoute) {
-            return [errorFrame('E_NO_ROUTE_STAGING', 'this hub was given no way to stage a route')]
-          }
-          const epoch = str(f, 'epoch')
-          return options.stageRoute({
-            path: at,
-            channel: record.channel,
-            ...(epoch ? { epoch } : {}),
-          })
+        /**
+         * One question at whichever grain the frame names, and the grains it does not name are not
+         * this file's business. A `WARM` carrying two of them is answered at the first, because it
+         * asked two questions in a frame that means one.
+         */
+        for (const grain in options.warm) {
+          const value = str(f, grain)
+          if (value === undefined) continue
+          return (options.warm[grain] as WarmHandler)({ value, frame: f as Frame, channel: record.channel })
+        }
+        // `tpl` is the one grain a channel can answer on its own; anything else with no handler is
+        // named rather than dropped, because a stage that silently does nothing is indistinguishable
+        // from one that worked.
+        if (str(f, 'tpl') === undefined) {
+          return [errorFrame('E_NO_WARM_HANDLER', Object.keys(f.header).join(','))]
         }
         if (!options.templates) {
           return [errorFrame('E_NO_TEMPLATE_REGISTRY', 'this hub was given no template registry')]
@@ -400,7 +441,10 @@ export function createHub(options: HubOptions): ChannelHub {
     const epoch = str(f, 'epoch')
     const raw = f.body ? (JSON.parse(new TextDecoder().decode(f.body)) as unknown) : {}
     const ctx = await options.intentContext(record.channel)
-    const outcome = await options.intents.run(id, raw, ctx)
+    // `t` is the signature, in the header rather than the body: the body is the payload a bound
+    // token is checked against, and a token inside what it signs cannot be verified.
+    const token = str(f, 't')
+    const outcome = await options.intents.run(id, raw, ctx, token ? { token } : {})
     const out: Frame[] = [ackFrame(outcome, epoch)]
 
     if (!outcome.ok) {

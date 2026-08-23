@@ -43,24 +43,25 @@ Codes below `0x10` travel client to server, codes from `0x10` up travel server t
 client. A decoder rejects a frame arriving from the wrong side (`E_WRONG_DIRECTION`)
 without knowing what the frame means.
 
-| Client to server |                                                | Server to client         |                                     |
-| ---------------- | ---------------------------------------------- | ------------------------ | ----------------------------------- |
-| `RESIDENT` 0x01  | held templates, capabilities, network class    | `WARP` 0x10              | versions and negotiated strategy    |
-| `HELD` 0x02      | base renders the client can be deltaed against | `SHELL` 0x11             | route, plan, flags, device class    |
-| `REFRESH` 0x03   | refresh a slot, form negotiable                | `SLOT` 0x12              | open or close a hole                |
-| `WARM` 0x04      | stage data for a route, do not paint           | `HTML` 0x13              | rendered markup for a slot          |
-| `INTENT` 0x05    | an intent id and its params                    | `TPL` 0x14               | wiring table plus byte segments     |
-| `ACK` 0x06       | applied through epoch                          | `DATA` 0x15              | values for a resident template      |
-| `RESUME` 0x07    | continue from a committed epoch                | `DELTA` 0x16             | changed values against a named base |
-|                  |                                                | `PATCH` 0x17             | DOM operations                      |
-|                  |                                                | `SIGNAL` 0x18            | a signal value                      |
-|                  |                                                | `COMMIT` 0x19            | atomic flip of an epoch             |
-|                  |                                                | `MOD` 0x1a / `CSS` 0x1b  | chunk and stylesheet requirements   |
-|                  |                                                | `STALE` 0x1c             | push invalidation, client decides   |
-|                  |                                                | `NAV` 0x1d / `PLAN` 0x1e | navigation and lazy plan extension  |
-|                  |                                                | `ERROR` 0x1f             | a named failure                     |
-|                  |                                                | `REDIRECT` 0x20          | in-band redirect, after the seal    |
-|                  |                                                | `COOKIE` 0x21            | non-HttpOnly cookie, after the seal |
+| Client to server |                                                | Server to client        |                                     |
+| ---------------- | ---------------------------------------------- | ----------------------- | ----------------------------------- |
+| `RESIDENT` 0x01  | held templates, capabilities, network class    | `WARP` 0x10             | versions and negotiated strategy    |
+| `HELD` 0x02      | base renders the client can be deltaed against | `SHELL` 0x11            | route, plan, flags, device class    |
+| `REFRESH` 0x03   | refresh a slot, form negotiable                | `SLOT` 0x12             | open or close a hole                |
+| `WARM` 0x04      | stage templates, a route, or a plan subtree    | `HTML` 0x13             | rendered markup for a slot          |
+| `INTENT` 0x05    | an intent id and its params                    | `TPL` 0x14              | wiring table plus byte segments     |
+| `ACK` 0x06       | applied through epoch                          | `DATA` 0x15             | values for a resident template      |
+| `RESUME` 0x07    | continue from a committed epoch                | `DELTA` 0x16            | changed values against a named base |
+|                  |                                                | `PATCH` 0x17            | DOM operations                      |
+|                  |                                                | `SIGNAL` 0x18           | a signal value                      |
+|                  |                                                | `COMMIT` 0x19           | atomic flip of an epoch             |
+|                  |                                                | `MOD` 0x1a / `CSS` 0x1b | chunk and stylesheet requirements   |
+|                  |                                                | `STALE` 0x1c            | push invalidation, client decides   |
+|                  |                                                | `NAV` 0x1d              | the answer to a staged route        |
+|                  |                                                | `PLAN` 0x1e             | lazy plan extension                 |
+|                  |                                                | `ERROR` 0x1f            | a named failure                     |
+|                  |                                                | `REDIRECT` 0x20         | in-band redirect, after the seal    |
+|                  |                                                | `COOKIE` 0x21           | non-HttpOnly cookie, after the seal |
 
 `REDIRECT` and `COOKIE` arrived in 1.1.0 and are layer three of the envelope design: what a
 sealed response can still carry in its body. Neither is a substitute for the real thing. A
@@ -132,11 +133,34 @@ all. Measured in
 [the adoption spec](../client/adoption.md); 1,124 protocol bytes on a first visit against
 132 on a repeat.
 
-### `WARM at=`, and the answer only a server can give
+### `WARM`, at three grains
 
-`WARM` asks two questions at two grains and neither of them paints: `tpl=` names template versions
-the client does not hold, `at=` names a route it may be about to go to. The route case is answered
-by `NAV`, whose `form` header is the whole decision.
+`WARM` asks the same question — stage this, paint nothing — about three different things, and the
+grain is named by the header it carries. `tpl=` names template versions the client does not hold.
+`at=` names a route it may be about to go to, answered by `NAV`, whose `form` header is the whole
+decision. `plan=` names a subtree of the plan it knows nothing about, answered by `PLAN`.
+
+Only the first is something a channel can answer on its own; the other two are hooks, and they are a
+table keyed by grain rather than one option per grain. That is a byte decision that became a design
+one: route staging arrived as a branch in the channel and took its entry 108 bytes past a watermark,
+and lazy plan extension arrived as a second branch and took it to five bytes of headroom. A rule
+saying a new capability does not spend an existing entry's room, satisfied by five bytes, is a rule
+about to stop being satisfied — so the channel stopped growing a case per capability. One lookup
+answers every grain, each handler is measured under the entry that provides it, and a grain nothing
+answers is `E_NO_WARM_HANDLER` rather than a silence.
+
+### `PLAN`, including the one nobody asked for
+
+`PLAN` carries a JSON list of routes: the pattern, the shell version, whether that shell is this
+connection's, the region names, the stylesheet, the template versions the regions need, and the
+routes readers go to next. Every field is something a client would otherwise fetch a document to
+learn.
+
+It is the one frame here that also arrives **unasked** — once, when a channel opens. Everything else
+answers a question the client posed; this one exists because the client cannot pose it. A page has no
+route table to notice a gap in, and the thing most worth telling it is a measurement only the server
+has. A truncated answer says `complete=false`, because a silent cap reads as "that is the whole
+subtree".
 
 | `form`     | Meaning                                                                                    |
 | ---------- | ------------------------------------------------------------------------------------------ |

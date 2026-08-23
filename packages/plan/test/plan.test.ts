@@ -6,6 +6,7 @@ import {
   assertPlan,
   every,
   guard,
+  locusOf,
   plan,
   shell,
   slot,
@@ -245,4 +246,63 @@ test('weft why prints resolved keys when it is asked at request time', () => {
     },
   })
   assert.match(report.text, /summary\s+deadbeef\s+shared \| keyed by cookie:currency=IQD/)
+})
+
+/**
+ * Per-slot render-location enforcement.
+ *
+ * The executor has always decided where a slot renders and nothing checked that against what the
+ * compiler saw it read. Both halves already existed; only the meeting of them is new, which is why
+ * this is a build error rather than a convention.
+ */
+test('a slot on the client may not read what a browser has no request for', () => {
+  const onClient = (reads: string[]): string[] =>
+    validatePlan(route([slot('panel').executor('client')], { panel: facts(reads) }).plan, {
+      facts: route([slot('panel').executor('client')], { panel: facts(reads) }).facts,
+    }).errors.map((e) => e.code)
+
+  assert.deepEqual(onClient(['identity']), ['E_RENDER_LOCATION'], 'there is no session in a browser')
+  assert.deepEqual(onClient(['cookie:currency']), ['E_RENDER_LOCATION'])
+  assert.deepEqual(onClient(['header:accept']), ['E_RENDER_LOCATION'])
+  assert.deepEqual(onClient(['opaque']), ['E_RENDER_LOCATION'])
+  // What a browser does have: the URL it is on, its own locale and device, and a clock.
+  assert.deepEqual(onClient(['route:sku', 'locale', 'device', 'time']), [])
+  assert.deepEqual(onClient([]), [])
+})
+
+test('a slot on another deployment may not use the escape hatch', () => {
+  const r = route([slot('reviews').executor('svc:reviews')], { reviews: facts(['opaque']) })
+  const errors = validatePlan(r.plan, { facts: r.facts, executors: ['svc:reviews'] }).errors
+  assert.deepEqual(
+    errors.map((e) => e.code),
+    ['E_RENDER_LOCATION'],
+  )
+  assert.match(errors[0]?.message ?? '', /closure cannot cross a crash domain/)
+
+  // Identity is fine there and is deliberately not this check's business: whether a private
+  // fragment may render on a given service is a trust boundary, and only the deployment knows
+  // where its own boundaries are.
+  const private_ = route([slot('reviews').executor('svc:reviews')], { reviews: facts(['identity']) })
+  assert.deepEqual(
+    validatePlan(private_.plan, { facts: private_.facts, executors: ['svc:reviews'] }).errors,
+    [],
+  )
+})
+
+test('the message names the read and why it cannot be resolved there', () => {
+  const r = route([slot('panel').executor('client')], { panel: facts(['identity', 'cookie:sid']) })
+  const [issue] = validatePlan(r.plan, { facts: r.facts }).errors
+  assert.equal(issue?.slot, 'panel')
+  assert.match(issue?.message ?? '', /cookie:sid, identity/)
+  assert.match(issue?.message ?? '', /HttpOnly/)
+})
+
+test('the locus of an executor is derived from the target', () => {
+  assert.equal(locusOf('inline'), 'process')
+  assert.equal(locusOf('deferred'), 'process')
+  assert.equal(locusOf('isolate'), 'process')
+  assert.equal(locusOf('pool:heavy'), 'process', 'a worker thread is a crash domain, not another request')
+  assert.equal(locusOf('client'), 'client')
+  assert.equal(locusOf('svc:reviews'), 'remote')
+  assert.equal(locusOf('binding:cart'), 'remote')
 })

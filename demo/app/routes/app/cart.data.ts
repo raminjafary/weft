@@ -23,7 +23,18 @@ const PANEL =
      </form>`,
     ].join(''),
     'The last button is a plain form post to the same intent. It answers with a 303 back to this page, which is the whole progressive-enhancement story.',
-  ) + `<div class="card">${LOG}</div>`
+  ) +
+  panel(
+    [
+      `<button type="button" id="cart-checkout" data-weft-intent="cart.checkout" data-weft-payload='{"sku":"OIL-2L"}'>check out (capability + signature)</button>`,
+      `<form method="post" action="/_weft/i/cart.checkout" class="controls">
+       <input type="hidden" name="sku" value="OIL-2L">
+       <button type="submit">check out with no JavaScript</button>
+     </form>`,
+    ].join(''),
+    'cart.checkout is gated twice: it declares cart:checkout, which weft.config.ts grants, and it is signed — so the button fetches a token bound to this reader and this payload before it dispatches, and the frame log shows the extra round trip. The form beside it cannot fetch anything and is refused with E_INTENT_UNSIGNED, which is the price of the strongest gate: a token cannot be rendered into a page, because a page can be cached and a token cannot.',
+  ) +
+  `<div class="card">${LOG}</div>`
 
 export default defineRoute({
   head: { title: 'A cart, which is the hard case · weft demo' },
@@ -31,7 +42,8 @@ export default defineRoute({
     heading: 'A cart, which is the hard case',
     shows:
       'One private fragment inside a shared document. The document stays shared; only this region is per-user.',
-    control: 'Add a line three ways: over the channel, deliberately failing, and with no JavaScript at all.',
+    control:
+      'Add a line three ways: over the channel, deliberately failing, and with no JavaScript at all. Then check out, which is gated by a capability and a signature.',
     status: 'live',
   },
   /**

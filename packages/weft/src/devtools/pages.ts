@@ -172,12 +172,48 @@ export function routes(app: App, root: string): Shell {
     title: 'routes',
     subtitle: `${report.length} routes, as the file tree produced them and the generator planned them`,
     root,
-    body: section(
-      'the route table',
-      report.map((route) => routeSection(route, root)).join(''),
-      'The plan is generated per route, so nothing here had to agree across pages. Cache class and reads are the compiler’s; delivery, executor, budget and refresh are the route’s own declaration.',
-    ),
+    body: [
+      section(
+        'which routes can swap regions with which',
+        shells(app),
+        'A navigation arrives as regions only between routes that render into the same document — a different shell has different holes. This is the answer a <code>PLAN</code> frame carries to a client so a click on a link out of this group does not spend a round trip and a server render to discover it. See <code>spec/kernel/routing.md</code>.',
+      ),
+      section(
+        'the route table',
+        report.map((route) => routeSection(route, root)).join(''),
+        'The plan is generated per route, so nothing here had to agree across pages. Cache class and reads are the compiler’s; delivery, executor, budget and refresh are the route’s own declaration.',
+      ),
+    ].join(''),
   }
+}
+
+/**
+ * The shells, and which routes share one.
+ *
+ * Grouped rather than listed per route because the fact is about the *pair*: what matters is which
+ * routes can hand each other regions, and a column saying `sh-4f2a` on every row leaves the reader
+ * to do the grouping the framework already did.
+ */
+function shells(app: App): string {
+  const byShell = new Map<string, { id: string; patterns: string[]; holes: string[] }>()
+  for (const route of app.routes) {
+    const held = byShell.get(route.shell.version) ?? {
+      id: route.shell.id,
+      patterns: [],
+      holes: route.holes,
+    }
+    held.patterns.push(route.pattern)
+    byShell.set(route.shell.version, held)
+  }
+  return table(
+    ['document', 'version', 'holes', 'routes that render into it'],
+    [...byShell.entries()].map(([version, group]) => [
+      code(group.id),
+      code(version),
+      list(group.holes),
+      list(group.patterns),
+    ]),
+  )
 }
 
 function keyRows(page: WhyPage): string {
@@ -335,16 +371,64 @@ export function fragments(app: App, root: string): Shell {
 }
 
 export function intents(app: App, root: string): Shell {
+  const { authority } = app
   const rows = table(
-    ['id', 'name', 'module', 'export', 'writes'],
+    ['id', 'name', 'module', 'export', 'writes', 'capabilities', 'signed'],
     app.intents.entries.map((entry) => [
       code(entry.id),
       code(entry.name),
       code(entry.module),
       code(entry.export),
       list(entry.writes),
+      entry.capabilities.length ? list(entry.capabilities) : '<span class="none">none</span>',
+      entry.signed ? code('yes') : '<span class="none">no</span>',
     ]),
   )
+
+  /**
+   * What is actually enforcing the two declarations above.
+   *
+   * Both columns are worth nothing on their own: a capability with no model behind it is a 501 per
+   * call, and a signature with no public key is the same. So this section answers the only question
+   * a reader of that table has — whether this process can act on what it just showed them.
+   */
+  const bound = table(
+    ['what', 'bound', 'note'],
+    [
+      [
+        code('capability model'),
+        authority.model ? code('yes') : '<span class="none">no</span>',
+        authority.model
+          ? 'wired into both bindings from one place, so a grant cannot be enforced over the channel and not over the POST path'
+          : 'every intent declaring a capability answers E_NO_CAPABILITY_CHECK, which is a 501',
+      ],
+      [
+        code('signer'),
+        authority.signer ? code(`kid ${escape(authority.signer.kid)}`) : '<span class="none">no</span>',
+        authority.signer
+          ? `POST /_weft/token mints for a signed intent, ${authority.signer.ttlMs / 1000}s lifetime`
+          : 'this process can check tokens and mint none, which is a complete verifying deployment',
+      ],
+      [
+        code('verifier'),
+        authority.verifier ? list(authority.verifier.kids) : '<span class="none">no</span>',
+        authority.verifier
+          ? `replay is remembered ${authority.verifier.replayScope}-wide, in ${escape(app.store.name)}`
+          : 'every signed intent answers E_NO_VERIFIER',
+      ],
+      [
+        code('declared set'),
+        authority.declared.length ? list(authority.declared) : '<span class="none">none</span>',
+        'every capability any intent requires. A grant naming something outside it is a stale row; a requirement nothing grants fails the build',
+      ],
+    ],
+  )
+  const warnings = authority.diagnostics.length
+    ? table(
+        ['warning'],
+        authority.diagnostics.map((line) => [escape(line)]),
+      )
+    : '<p class="none">nothing bound here will refuse what it claims to allow.</p>'
   const routes_ = table(
     ['method', 'path', 'dispatches'],
     app.intents.routes.map((route) => [code(route.method), code(route.pattern), code(route.intent)]),
@@ -363,7 +447,17 @@ export function intents(app: App, root: string): Shell {
       section(
         'reachable without JavaScript',
         routes_,
-        'Each intent is dispatchable by id and by the name its author gave it, so a plain <code>&lt;form action&gt;</code> can reach one.',
+        'Each intent is dispatchable by id and by the name its author gave it, so a plain <code>&lt;form action&gt;</code> can reach one. An intent that is <code>signed</code> is the exception and refuses that path by name: a token cannot be rendered into a page, because a page can be cached and a token cannot.',
+      ),
+      section(
+        'authority',
+        bound,
+        'A declaration nothing enforces is worse than no declaration, so both halves are shown together. See <code>spec/kernel/authority.md</code>.',
+      ),
+      section(
+        'what will not do what it says',
+        warnings,
+        'The same lines <code>weft dev</code> prints on startup. Each one is also a named refusal per call; this is where it is legible before the first call.',
       ),
     ].join(''),
   }

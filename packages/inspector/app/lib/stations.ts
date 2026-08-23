@@ -381,6 +381,36 @@ export const STATIONS: readonly Station[] = [
     status: 'live',
     group: 'client',
   },
+  // ── authority and discovery ────────────────────────────────────────────────────────
+  {
+    id: 'authority',
+    title: 'Capabilities',
+    shows:
+      'The same requirement decided for two callers, against a real role table, with the missing grant named',
+    control: 'A role, and what the intent requires — including two capabilities at once',
+    covers: ['kernel/authority.md'],
+    status: 'live',
+    group: 'cache',
+  },
+  {
+    id: 'signed-intents',
+    title: 'Signed intents',
+    shows: 'A token minted and checked live, and every way it can be the wrong token',
+    control: 'A failure to induce: replayed, another payload, another intent, another reader, another key',
+    covers: ['kernel/authority.md', 'kernel/intents.md'],
+    status: 'live',
+    group: 'cache',
+  },
+  {
+    id: 'discovery',
+    title: 'Lazy plan extension',
+    shows:
+      'A subtree of the plan described rather than rendered, and the shell answer that saves a round trip',
+    control: 'A prefix, and how many routes one frame may carry',
+    covers: ['kernel/routing.md', 'client/navigation.md'],
+    status: 'live',
+    group: 'plan',
+  },
 ]
 
 export const BY_ID: Record<string, Station> = Object.fromEntries(STATIONS.map((s) => [s.id, s]))

@@ -23,6 +23,15 @@ import { createApp, serveApp, type Serving } from './serve.ts'
  */
 export interface DevServer {
   url: string
+  /**
+   * What this deployment bound that will not do what it says — an intent whose capability nothing
+   * grants, a signature nothing can check, a replay window narrower than the deployment.
+   *
+   * Surfaced here because `weft dev` is where somebody can act on it. Every one of these is also a
+   * named refusal at request time, and a 501 during a demo is a bad way to learn that a config file
+   * is missing a line.
+   */
+  warnings: string[]
   close(): Promise<void>
 }
 
@@ -85,6 +94,9 @@ export async function dev(
   return {
     get url() {
       return serving.url
+    },
+    get warnings() {
+      return serving.app.authority.diagnostics
     },
     close: async () => {
       closing = true

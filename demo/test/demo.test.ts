@@ -114,11 +114,20 @@ test('the plan the framework generated says what the showcases claim', async () 
 test('every intent in app/intents is in the manifest, under an id derived from its module', async () => {
   const { intents } = await app()
   const names = intents.entries.map((entry) => entry.name).sort()
-  assert.deepEqual(names, ['cart.add', 'cart.setQty', 'feed.tick'])
+  assert.deepEqual(names, ['cart.add', 'cart.checkout', 'cart.setQty', 'feed.tick'])
   for (const entry of intents.entries) {
     assert.match(entry.id, /^[0-9a-f]{6}$/, 'an intent id is six hex characters and nothing else')
     assert.match(entry.module, /^app\/intents\//)
   }
+  // What the manifest carries about authority, which is what the config is checked against.
+  const checkout = intents.entries.find((entry) => entry.name === 'cart.checkout')
+  assert.deepEqual(checkout?.capabilities, ['cart:checkout'])
+  assert.equal(checkout?.signed, true)
+  assert.deepEqual(
+    intents.entries.filter((entry) => entry.signed).map((entry) => entry.name),
+    ['cart.checkout'],
+    'exactly one intent here asks for the strongest gate, and it is the one that spends money',
+  )
 })
 
 /**

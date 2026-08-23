@@ -1,4 +1,14 @@
-import { defineConfig } from 'weft'
+import { defineConfig, generateSigningKeys } from 'weft'
+
+/**
+ * A signing key, generated on boot.
+ *
+ * Right for a demo and wrong for a deployment, which is the interesting half: a restart here
+ * invalidates every token in flight, because the key that could check them is gone. A deployment
+ * holds its keys somewhere it can rotate — `publicKeys` is a bundle by id precisely so a new key
+ * can be added before the old one is retired — and the config is the only place that changes.
+ */
+const dev = await generateSigningKeys()
 
 /**
  * What the demo binds.
@@ -30,6 +40,18 @@ export default defineConfig({
    * recorded on the entry being returned to.
    */
   navigation: { scroll: 'preserve' },
+  /**
+   * Who may run an intent here.
+   *
+   * `cart.checkout` declares `cart:checkout`, and this is the row that makes it reachable. Nothing
+   * in this demo signs you in, so the grant is on `anonymous` — delete that line and every
+   * checkout becomes `E_CAPABILITY_DENIED` with the missing capability named, which is the whole
+   * behaviour worth demonstrating: the framework refuses, and the config is where the answer lives.
+   */
+  authority: {
+    grants: { anonymous: ['cart:checkout'], user: ['cart:checkout'] },
+    signing: { kid: 'dev', privateKey: dev.privateKey, publicKeys: { dev: dev.publicKey } },
+  },
   nav: [
     { href: '/', label: 'The five' },
     { href: '/app/ordinary/pantry', label: 'Ordinary page' },

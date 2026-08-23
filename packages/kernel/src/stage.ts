@@ -1,5 +1,5 @@
-import { frame, type Frame } from '@weft/warp'
-import type { Channel, SlotRender } from './channel.ts'
+import { frame, str, type Frame } from '@weft/warp'
+import type { Channel, SlotRender, WarmHandler } from './channel.ts'
 import type { StorePort, TelemetryPort } from './ports.ts'
 import { surgicalRefresh, type RefreshTtl } from './refresh.ts'
 
@@ -51,6 +51,9 @@ export interface StageRequest {
   epoch?: string
 }
 
+/** What the hub calls. A `WARM` carrying `at=` is one grain of one frame, and this answers it. */
+export type RouteStager = WarmHandler
+
 export interface StageOptions {
   store: StorePort
   /** What the path resolves to, which is route knowledge a channel does not have. */
@@ -59,10 +62,14 @@ export interface StageOptions {
   telemetry?: TelemetryPort
 }
 
-export type RouteStager = (request: StageRequest) => Promise<Frame[]>
-
 export function createStager(options: StageOptions): RouteStager {
-  return async (request) => {
+  return async (asked) => {
+    const epochAsked = str(asked.frame, 'epoch')
+    const request: StageRequest = {
+      path: asked.value,
+      channel: asked.channel,
+      ...(epochAsked ? { epoch: epochAsked } : {}),
+    }
     const negotiation = request.channel.negotiation
     if (!negotiation) {
       return [error('E_NO_NEGOTIATION', 'send RESIDENT before WARM: a form cannot be chosen without it')]

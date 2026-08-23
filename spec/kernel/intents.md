@@ -27,20 +27,26 @@ the disagreement would look like an intent that silently does nothing.
 
 ## Every refusal has a name and a status
 
-| Code                      | Status | When                                                   |
-| ------------------------- | ------ | ------------------------------------------------------ |
-| `E_NO_SUCH_INTENT`        | 404    | No registered intent under that id                     |
-| `E_CAPABILITY_DENIED`     | 403    | The bound check said no                                |
-| `E_NO_CAPABILITY_CHECK`   | 501    | The intent declares a capability and no check is bound |
-| `E_INTENT_INPUT`          | 422    | `input()` threw                                        |
-| `E_UNDECLARED_WRITE`      | 500    | It invalidated a tag outside `writes`                  |
-| `E_INTENT_FAILED`         | 500    | `run()` threw                                          |
-| `E_INTENT_ON_SAFE_METHOD` | build  | A GET or HEAD pattern in the intent table              |
+| Code                      | Status  | When                                                   |
+| ------------------------- | ------- | ------------------------------------------------------ |
+| `E_NO_SUCH_INTENT`        | 404     | No registered intent under that id                     |
+| `E_CAPABILITY_DENIED`     | 403     | The bound check said no                                |
+| `E_NO_CAPABILITY_CHECK`   | 501     | The intent declares a capability and no check is bound |
+| `E_NO_VERIFIER`           | 501     | The intent is `signed` and no public key is bound      |
+| the signed-intent set     | 400–503 | See [`authority.md`](authority.md) — eleven of them    |
+| `E_INTENT_INPUT`          | 422     | `input()` threw                                        |
+| `E_UNDECLARED_WRITE`      | 500     | It invalidated a tag outside `writes`                  |
+| `E_INTENT_FAILED`         | 500     | `run()` threw                                          |
+| `E_INTENT_ON_SAFE_METHOD` | build   | A GET or HEAD pattern in the intent table              |
 
 **An unchecked capability is refused rather than waved through.** Defaulting to allow would make
 the declaration decorative, and a decorative authority check is worse than none because it
-reads like one that works. Signing intents is phase 7; `CapabilityCheck` is the seam that will
-hold it.
+reads like one that works.
+
+Both gates exist now, and they are one document of their own:
+[`authority.md`](authority.md). A capability is a property of the caller and a signature is a
+property of the call, so an intent may declare `capabilities`, `signed`, or both — and a
+declaration this deployment cannot enforce is a named refusal rather than a silent pass.
 
 **What an intent invalidated before it failed is still reported.** The cache is already cold;
 saying otherwise would be a lie a monitoring dashboard would repeat.
@@ -91,11 +97,15 @@ rather than reused.
 
 ## What this does not do yet
 
-- **No signed intents, and no capability implementation.** `CapabilityCheck` is a seam; phase 7
-  is the work.
-- **No generated intent table.** `createIntentRouter` takes its routes by hand, like the plan's
-  bindings. Generating both is phase 8.
-- **No client-side intent transport.** The client routes an arriving `ACK` and discards a failed
-  epoch; sending the `INTENT` is the application's, which is the phase 3 gap.
+- **No render intents.** An intent is addressed by an opaque id, its params are validated and its
+  caller is checked — and every intent is a _mutation_. A catalogue of renderable fragments reached
+  the same way is the module-catalogue half of the design and belongs with `remote`: it needs the
+  registry port that resolves a region name to a deployment, which is still declared and
+  unimplemented.
+- **No generated intent table in the kernel.** `createIntentRouter` takes its routes by hand. The
+  front door generates them from the `intents/` directory, and the manifest carries what each one
+  declares — writes, capabilities, whether it is signed — because the closed-set check needs both
+  halves in one place.
+- **No delegation.** A token authorises one call and cannot mint another.
 - **`EffectSet.writes` is still empty on fragments**, and correctly so — a fragment cannot
   write. An intent's writes live on the intent.

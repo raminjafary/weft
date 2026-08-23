@@ -21,6 +21,10 @@ export interface ManifestEntry {
   /** The intent's own declared name, for a diagnostic and for a plain HTML form's action. */
   name: string
   writes: string[]
+  /** Capabilities the caller must hold. The closed set the config's grants are checked against. */
+  capabilities: string[]
+  /** Reachable only with a token this deployment minted. See `spec/kernel/authority.md`. */
+  signed: boolean
 }
 
 export interface IntentManifest {
@@ -71,6 +75,8 @@ export async function loadIntents(root: string, files: readonly string[]): Promi
         id,
         name: declared,
         writes: [...(value.writes ?? [])],
+        capabilities: [...(value.capabilities ?? [])],
+        signed: value.signed === true,
       })
       names[declared] = id
       byId.set(id, value)

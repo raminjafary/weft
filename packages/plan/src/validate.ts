@@ -72,6 +72,7 @@ export function validatePlan(plan: Plan, context: ValidateContext): Diagnostics 
 
     checkExecutor(spec, context, errors)
     checkBudget(spec, warnings)
+    if (facts) checkRenderLocation(spec, facts, errors)
 
     if (!facts) {
       errors.push({
@@ -220,6 +221,81 @@ function checkExecutor(spec: SlotSpec, context: ValidateContext, errors: Issue[]
     code: 'E_UNKNOWN_EXECUTOR',
     slot: spec.name,
     message: `executor '${target}' is not one of inline, client, isolate, pool:*, binding:*, svc:*`,
+  })
+}
+
+/**
+ * Where a slot's render actually happens, coarsely, and it is the only distinction that changes
+ * what the render can *read*: this process, the browser, or another deployment.
+ *
+ * Not the same question as a crash domain. `pool:` is a separate crash domain and the same
+ * process's view of the request; `client` is neither.
+ */
+export type RenderLocus = 'process' | 'client' | 'remote'
+
+export function locusOf(target: string): RenderLocus {
+  if (target === 'client') return 'client'
+  if (target.startsWith('binding:') || target.startsWith('svc:')) return 'remote'
+  return 'process'
+}
+
+/**
+ * Per-slot render-location enforcement: a slot may not be sent somewhere its reads cannot be
+ * resolved.
+ *
+ * The executor already decides where a render runs, and until now nothing checked that against
+ * what the compiler saw the fragment read. `executor('client')` on a fragment that reads identity
+ * is not a slow page or a cache mistake — it is an island shipped to a browser that has no session
+ * to resolve, and the failure arrives at request time, per reader, as an empty region.
+ *
+ * Both rules are derived from facts that already exist, which is why this is a build error rather
+ * than a convention:
+ *
+ * - **The browser has no request.** A `cookie:` read is refused there whether or not the cookie is
+ *   `HttpOnly`, because which one it is is a runtime property and this is a build check — and the
+ *   one that matters is exactly the one a session uses. Route params, locale, device and the clock
+ *   all exist in a browser and are left alone.
+ * - **A closure cannot cross a crash domain**, which is the constraint that made `JobAddress`
+ *   necessary in the first place. `ctx.raw()` is a function over the whole request, so a fragment
+ *   using the escape hatch cannot render on a `binding:` or `svc:` executor at all.
+ *
+ * What this deliberately does *not* decide: whether a private fragment may render on another
+ * deployment. That is a trust boundary, and only the deployment knows where its own boundaries
+ * are — a framework guessing would either refuse a legitimate internal service or wave through a
+ * third-party one, and both are worse than saying so.
+ */
+const NOT_IN_A_BROWSER: Record<string, string> = {
+  identity: 'the session is resolved from a request the browser cannot see',
+  opaque: 'ctx.raw() is a function over the request, and there is no request in a browser',
+}
+
+function unreadableIn(locus: RenderLocus, read: string): string | undefined {
+  if (locus === 'remote') {
+    return read === 'opaque'
+      ? 'ctx.raw() is a closure over the request, and a closure cannot cross a crash domain'
+      : undefined
+  }
+  if (locus !== 'client') return undefined
+  if (NOT_IN_A_BROWSER[read]) return NOT_IN_A_BROWSER[read]
+  if (read.startsWith('cookie:'))
+    return 'a request cookie is not readable in a browser, and an HttpOnly one never will be'
+  if (read.startsWith('header:')) return 'request headers do not exist in a browser'
+  return undefined
+}
+
+function checkRenderLocation(spec: SlotSpec, facts: SlotFacts, errors: Issue[]): void {
+  const locus = locusOf(spec.executor)
+  if (locus === 'process') return
+  const offending = facts.effects.reads
+    .map((read) => ({ read, why: unreadableIn(locus, read) }))
+    .filter((entry): entry is { read: string; why: string } => entry.why !== undefined)
+  if (!offending.length) return
+  errors.push({
+    code: 'E_RENDER_LOCATION',
+    slot: spec.name,
+    message:
+      `renders on '${spec.executor}' and reads ${offending.map((o) => o.read).join(', ')}: ` +
+      offending.map((o) => o.why).join('; '),
   })
 }
 

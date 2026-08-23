@@ -109,6 +109,16 @@ export type { Decisions, Profile, RouteDecision, SlotDecision } from './profile.
 export { listHole, slotHoles, type CompiledFragment } from './compile.ts'
 export { adoptScript, type AdoptOptions } from './routes.ts'
 export { defineConfig, type WeftConfig } from './config.ts'
+/**
+ * Authority, from the front door.
+ *
+ * `generateSigningKeys` is here because a deployment that wants signed intents needs a key before
+ * it has one, and the alternative is a paragraph telling somebody which OpenSSL invocation produces
+ * a PKCS#8 Ed25519 key. `AuthorityConfig` is what `weft.config.ts` writes; the model and the
+ * verifier behind it are the kernel's.
+ */
+export { generateSigningKeys, TOKEN_PATH, type AuthorityConfig } from './authority.ts'
+export type { Grant, Grants, Decision, CapabilityModel, IntentClaims } from '@weft/kernel'
 export { defineIntent } from '@weft/kernel'
 export type { Intent, IntentContext, IntentResult, RenderContext, EnvelopeContext } from '@weft/kernel'
 export type { Values } from '@weft/ir'

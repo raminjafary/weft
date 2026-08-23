@@ -9,6 +9,7 @@ import type {
   StorePort,
   TelemetryPort,
 } from '@weft/kernel'
+import type { AuthorityConfig } from './authority.ts'
 
 /**
  * The one file a deployment writes, and the only place it states what it binds.
@@ -57,6 +58,14 @@ export interface WeftConfig {
   deployment?: DeploymentPort
   db?: DbPort
   channel?: { path?: string }
+  /**
+   * Who may run an intent, and which intents need a token this deployment minted.
+   *
+   * Unbound, an intent that declares a capability is `E_NO_CAPABILITY_CHECK` and one that declares
+   * `signed` is `E_NO_VERIFIER` — refused rather than waved through, because a declaration nothing
+   * enforces is worse than no declaration at all. See [`spec/kernel/authority.md`](../../../spec/kernel/authority.md).
+   */
+  authority?: AuthorityConfig
   /**
    * What a route change does, for the pages this application serves.
    *
@@ -118,6 +127,7 @@ export interface ResolvedConfig extends Required<Pick<WeftConfig, 'srcDir' | 'ou
   config?: ConfigPort
   deployment?: DeploymentPort
   db?: DbPort
+  authority?: AuthorityConfig
   /** The config file that produced this, for a message that has to name it. */
   file?: string
 }
@@ -170,6 +180,7 @@ export async function loadConfig(root: string, overrides: WeftConfig = {}): Prom
     ...(config.config ? { config: config.config } : {}),
     ...(config.deployment ? { deployment: config.deployment } : {}),
     ...(config.db ? { db: config.db } : {}),
+    ...(config.authority ? { authority: config.authority } : {}),
     ...(file ? { file } : {}),
   }
 }

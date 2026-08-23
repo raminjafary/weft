@@ -79,6 +79,28 @@ export const BUDGETS: ByteBudget[] = [
     limitNote: 'no design figure; its own entry, because it went 108 B past the transport watermark',
   },
   {
+    id: 'kernel-authority',
+    label: 'Server kernel plus a capability model and signed intents',
+    entry: kernelSrc('entry-authority.ts'),
+    limit: 12 * 1024,
+    limitNote:
+      'no design figure; its own entry, because the design calls the authority tier separable and a tier that is separable is a tier you can measure',
+  },
+  {
+    id: 'kernel-discover',
+    label: 'Server kernel plus lazy plan extension',
+    entry: kernelSrc('entry-discover.ts'),
+    limit: 15 * 1024,
+    limitNote: 'no design figure; its own entry, on the same rule route staging established',
+  },
+  {
+    id: 'discover-route',
+    label: 'Navigation plus what the client knows about routes it has not been to',
+    entry: src('entry-discover.ts'),
+    limit: 6 * 1024,
+    limitNote: 'no design figure; a watermark over a capability whose whole point is a request it saves',
+  },
+  {
     id: 'channel-route',
     label: 'Channel route: an app route plus arriving frames',
     entry: src('entry-channel.ts'),

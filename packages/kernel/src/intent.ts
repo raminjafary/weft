@@ -1,5 +1,6 @@
 import type { EnvelopeContext } from './context.ts'
 import type { Registry, StorePort } from './ports.ts'
+import type { IntentVerifier } from './token.ts'
 
 /**
  * Intents: the only thing in this framework allowed to write.
@@ -61,6 +62,14 @@ export interface Intent<I = unknown> {
   reads?: readonly string[]
   /** Capabilities the caller must hold. Unchecked capabilities are refused, not waved through. */
   capabilities?: readonly string[]
+  /**
+   * Reachable only with a signed, expiring token this deployment minted.
+   *
+   * A different question from a capability, and both are asked: a grant says this caller may make
+   * this call, a signature says the server issued it. Declared and unverifiable is
+   * `E_NO_VERIFIER`, for the same reason an unchecked capability is refused rather than allowed.
+   */
+  signed?: boolean
   /** Parse and validate the raw payload. Throwing here is `E_INTENT_INPUT`, a 422, not a 500. */
   input?(raw: unknown): I
   /** Invalidate every declared tag on success without naming them again. */
@@ -72,7 +81,10 @@ export function defineIntent<I>(intent: Intent<I>): Intent<I> {
   return intent
 }
 
-/** Who may run this intent. Phase 7 signs them; this is the seam that will hold the check. */
+/**
+ * Who may run this intent. The seam; `createCapabilityModel` in `authority.ts` is the model
+ * behind it, and a deployment that binds neither refuses every intent that declares one.
+ */
 export type CapabilityCheck = (
   ctx: EnvelopeContext,
   capabilities: readonly string[],
@@ -87,11 +99,23 @@ export interface IntentDispatchOptions {
    * decorative.
    */
   capabilities?: CapabilityCheck
+  /**
+   * Required as soon as any intent declares `signed`. Same argument, one step stronger: a
+   * signature nobody checks is a signature, and an intent that reads as authorised is worse than
+   * one that reads as open.
+   */
+  verify?: IntentVerifier
+}
+
+/** What the caller presented that is not the payload. Credentials travel beside it, never in it. */
+export interface IntentCredentials {
+  /** The signed token, from `INTENT t=` over a channel or the token field of a form post. */
+  token?: string
 }
 
 export interface IntentDispatch {
   /** The intent, its outcome, and what it invalidated. Never a Response — that is the caller's. */
-  run(id: string, raw: unknown, ctx: EnvelopeContext): Promise<IntentOutcome>
+  run(id: string, raw: unknown, ctx: EnvelopeContext, credentials?: IntentCredentials): Promise<IntentOutcome>
 }
 
 export interface IntentOutcome {
@@ -111,10 +135,35 @@ export interface IntentOutcome {
 
 export function createIntentDispatch(options: IntentDispatchOptions): IntentDispatch {
   return {
-    async run(id, raw, base) {
+    async run(id, raw, base, credentials) {
       const intent = await options.registry.intent(id)
       if (!intent) {
         return refusal(id, null, 'E_NO_SUCH_INTENT', `no intent is registered under ${id}`)
+      }
+
+      /**
+       * The signature before the grant, because they answer different questions in an order.
+       *
+       * Authenticity first: whether this deployment issued the call at all. Only then who is
+       * making it. Reversed, a caller with the right grant would learn whether their forged token
+       * was the problem — and a denial that distinguishes the two is a denial that helps.
+       */
+      if (intent.signed) {
+        if (!options.verify) {
+          return refusal(
+            id,
+            intent.name,
+            'E_NO_VERIFIER',
+            `${intent.name} is signed and no verifier is bound`,
+          )
+        }
+        const verified = await options.verify.verify({
+          id,
+          raw,
+          subject: await base.user(),
+          ...(credentials?.token ? { token: credentials.token } : {}),
+        })
+        if (!verified.ok) return refusal(id, intent.name, verified.code, verified.detail)
       }
 
       if (intent.capabilities?.length) {

@@ -151,6 +151,31 @@ properties of this layer only appear above two. It orders itself into two waves 
 writing a priority integer, and `@weft/csp` is in it specifically to justify `before`: a nonce
 has to precede anything that adds a script tag, and no read/write relationship captures that.
 
+## Where a slot may render
+
+A slot's executor decides where its render happens, and until now nothing checked that against what
+the compiler saw the fragment read. `E_RENDER_LOCATION` is that check, and both halves of it already
+existed — which is why it is a build error rather than a convention.
+
+The rule needs one distinction the executor table does not already make: not whether a target is a
+separate crash domain, but whether it can see the request. `locusOf` derives three answers.
+`inline`, `deferred`, `isolate` and `pool:` are this **process** — a worker thread is a crash domain
+and the same request. `client` is the **browser**. `binding:` and `svc:` are another **deployment**.
+
+| Locus     | Refused reads                                | Why                                                                                                                                                                                                                         |
+| --------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `client`  | `identity`, `cookie:*`, `header:*`, `opaque` | There is no request in a browser. A cookie is refused whether or not it is `HttpOnly`, because which one it is is a runtime property and this is a build check — and the one that matters is exactly the one a session uses |
+| `remote`  | `opaque`                                     | `ctx.raw()` is a closure over the request, and a closure cannot cross a crash domain — the same constraint that made `JobAddress` necessary                                                                                 |
+| `process` | none                                         | It is the request's own thread                                                                                                                                                                                              |
+
+`route:*`, `locale`, `device` and `time` all exist in a browser and are left alone, which is what
+makes an island a usable thing rather than a fragment that may read nothing.
+
+**What this deliberately does not decide** is whether a private fragment may render on another
+deployment. That is a trust boundary, and only the deployment knows where its own are: a framework
+guessing would either refuse a legitimate internal service or wave through a third-party one, and
+both are worse than saying so here.
+
 ## What this does not do yet
 
 - **Nothing generates a plan.** `lowerPlan` turns one into a route (see
@@ -161,8 +186,10 @@ has to precede anything that adds a script tag, and no read/write relationship c
   exists in `@weft/bench`; the two are not wired together.
 - **No scoped registration.** Fastify-style per-subtree plugin encapsulation is not
   implemented; plugins are global to a kernel.
-- **No client plugins, no capability grants, no residency checking.** `residency`,
-  `capabilities` and `budget` are declared on the plugin type and read by nothing.
+- **No plugin capabilities.** The capability model is on intents, where the writes are — see
+  [`../kernel/authority.md`](../kernel/authority.md). `residency`, `capabilities` and `budget` on the
+  _plugin_ type are still declared and read by nothing, and a second gate with a second set of
+  failure modes is not worth having before somebody needs it.
 - **`refresh` and `speculate` are recorded and unread.** `.incremental()` is read now: it puts a
   content-addressed segment memo on the slot, and `W_INCREMENTAL_NO_GRAPH` fires only when there
   is neither a derived value nor a nested template for it to reuse.

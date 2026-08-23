@@ -103,7 +103,15 @@ export function serveIntent(options: ServeIntentOptions): IntentServer {
         return json(422, { ok: false, code: 'E_INTENT_PAYLOAD', detail: String(error) })
       }
 
-      const outcome = await dispatch.run(matched.intent, raw, base)
+      /**
+       * The token travels beside the payload, never in it.
+       *
+       * A form has one place to put a field, so a hidden input is the only way a page with no
+       * JavaScript can carry a signature — and it is taken *out* of the payload before dispatch,
+       * because a token that bound a payload containing itself could never verify.
+       */
+      const token = request.headers.get(TOKEN_HEADER) ?? take(raw, TOKEN_FIELD)
+      const outcome = await dispatch.run(matched.intent, raw, base, token ? { token } : {})
       last = outcome
 
       // The envelope is still open, so a real status, a real Set-Cookie and a redirect a
@@ -135,22 +143,60 @@ function bodyOf(outcome: IntentOutcome): Record<string, unknown> {
   }
 }
 
-/** Named refusals map to the status that describes them, rather than everything being a 500. */
+/**
+ * Named refusals map to the status that describes them, rather than everything being a 500.
+ *
+ * The signed-intent codes are here rather than beside the verifier because a status code is an
+ * HTTP fact and the verifier is not: the same refusal over a channel is an `ACK` carrying the code,
+ * with no status anywhere in it.
+ */
 function statusFor(code: string | undefined): number {
   switch (code) {
     case 'E_NO_SUCH_INTENT':
       return 404
     case 'E_CAPABILITY_DENIED':
+    case 'E_INTENT_SIGNATURE':
+    case 'E_TOKEN_KEY_UNKNOWN':
+    case 'E_TOKEN_WRONG_INTENT':
+    case 'E_TOKEN_WRONG_SUBJECT':
+    case 'E_TOKEN_WRONG_PAYLOAD':
       return 403
     case 'E_NO_CAPABILITY_CHECK':
+    case 'E_NO_VERIFIER':
+    case 'E_NO_ED25519':
       return 501
     case 'E_INTENT_INPUT':
       return 422
+    // Unsigned and expired are both "authenticate and try again", which is what 401 means and
+    // what 403 does not: a 403 tells a caller that presenting a valid token would not help.
+    case 'E_INTENT_UNSIGNED':
+    case 'E_INTENT_EXPIRED':
+      return 401
+    case 'E_INTENT_TOKEN_MALFORMED':
+      return 400
+    case 'E_INTENT_REPLAYED':
+      return 409
+    case 'E_REPLAY_UNKNOWN':
+      return 503
     case 'E_UNDECLARED_WRITE':
       return 500
     default:
       return 500
   }
+}
+
+/** The header a `fetch` carries a signature in, and the field a form has to use instead. */
+export const TOKEN_HEADER = 'x-weft-intent-token'
+export const TOKEN_FIELD = '_weft_token'
+
+/** Pull a credential out of a decoded payload, so what the intent sees is the payload alone. */
+function take(raw: unknown, field: string): string | undefined {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
+  const record = raw as Record<string, unknown>
+  const value = record[field]
+  if (typeof value !== 'string') return undefined
+  delete record[field]
+  return value
 }
 
 async function payload(request: Request): Promise<unknown> {

@@ -5,8 +5,11 @@ import {
   createEpochs,
   createStaging,
   digest,
+  createKnown,
+  discoverFrame,
   navFrames,
   navigable,
+  planFrames,
   openResident,
   plainClick,
   signal,
@@ -96,6 +99,15 @@ interface WeftState {
    * `scroll` defaults to the application's `navigation.scroll`, which defaults to `top`.
    */
   navigate(href: string, scroll?: 'top' | 'preserve'): Promise<boolean>
+  /** Route patterns this page has been told about, from `PLAN` frames. */
+  known: string[]
+  /**
+   * Ask the server about a subtree of the plan: `weft.discover('/checkout/*')`.
+   *
+   * Resolves with what is known afterwards. Cheap on purpose — what comes back describes routes
+   * rather than rendering them, so a page can know about a subtree it will mostly not visit.
+   */
+  discover(prefix: string): Promise<string[]>
 }
 
 declare global {
@@ -107,6 +119,8 @@ declare global {
     __weftClient?: string
     /** What a route change does to the scroll position: the config's `navigation.scroll`. */
     __weftScroll?: 'top' | 'preserve'
+    /** Intent ids this deployment will not run without a token it minted. */
+    __weftSigned?: string[]
   }
 }
 
@@ -122,7 +136,21 @@ const state: WeftState = {
   staged: [],
   nav: { staged: 0, cold: 0, lastMs: 0 },
   navigate: (href, scroll) => navigate(href, scroll),
+  known: [],
+  discover: (prefix) => discover(prefix),
 }
+
+/**
+ * What this page has been told about routes it has not been to.
+ *
+ * Filled by `PLAN` frames — one arrives unasked when the channel opens, carrying this route and
+ * where the server's own profile says readers go next, and more arrive for any subtree the page
+ * asks about. Every field in it is something that would otherwise cost a request to learn, and the
+ * one that pays for itself immediately is the shell: a link into a different document cannot be
+ * swapped in as regions, and finding that out by asking costs a round trip *and* a server render
+ * of a page nobody clicked.
+ */
+const known = createKnown()
 /** True once a region declares itself refreshable, which is what decides whether to connect. */
 let liveRegions = false
 window.weft = state
@@ -137,6 +165,73 @@ function log(dir: 'up' | 'down', text: string): void {
   line.textContent = `${dir === 'up' ? '↑' : '↓'} ${text}`
   box.prepend(line)
   while (box.childElementCount > 60) box.lastElementChild?.remove()
+}
+
+/**
+ * A refused intent, said out loud.
+ *
+ * The framework dispatches intents, so telling you one was refused is the framework's job. Every
+ * path used to swallow it: over the channel the ACK went to a log nobody had open, and a plain form
+ * post navigated to raw JSON. Neither is an application's bug, because neither is an application's
+ * dispatch — and an intent silently doing nothing is the failure mode the whole `ACK`-carries-the-
+ * outcome design exists to avoid.
+ *
+ * An application that wants the feedback somewhere specific puts `[data-weft-toasts]` in its markup
+ * and this fills that instead of appending its own.
+ */
+const TOAST_MS = 8_000
+
+function toast(code: string, detail: string, kind: 'bad' | 'ok' = 'bad'): void {
+  const box =
+    document.querySelector('[data-weft-toasts]') ??
+    (() => {
+      const made = document.createElement('div')
+      made.className = 'weft-toasts'
+      made.dataset.weftToasts = ''
+      made.setAttribute('role', 'status')
+      // Polite: a refused mutation is worth announcing and is not worth interrupting a reader
+      // mid-sentence for.
+      made.setAttribute('aria-live', 'polite')
+      document.body.append(made)
+      return made
+    })()
+
+  const node = document.createElement('div')
+  node.className = 'weft-toast'
+  node.dataset.kind = kind
+  const said = document.createElement('div')
+  const name = document.createElement('code')
+  name.textContent = code
+  const why = document.createElement('p')
+  why.textContent = detail
+  said.append(name, why)
+  const close = document.createElement('button')
+  close.type = 'button'
+  close.setAttribute('aria-label', 'dismiss')
+  close.textContent = '×'
+  close.addEventListener('click', () => node.remove())
+  node.append(said, close)
+  box.append(node)
+  window.setTimeout(() => node.remove(), TOAST_MS)
+}
+
+/**
+ * What a refusal means, where the framework can say more than the dispatch did.
+ *
+ * Only two entries, and the shortness is the point: a dispatch's `detail` already names the missing
+ * capability, the tag that was not declared, the field that failed `input()`. Restating any of that
+ * here would be a second copy of a message to keep in step, and the copy in the browser would be the
+ * one that goes stale. These two are the cases where what a person needs is a decision they cannot
+ * see from the refusal — one is a config file, the other is a design constraint.
+ */
+const REFUSALS: Record<string, string> = {
+  E_INTENT_UNSIGNED:
+    'this intent needs a token, and a plain form cannot carry one — see spec/kernel/authority.md',
+  E_NO_CAPABILITY_CHECK: 'the intent declares a capability and weft.config.ts binds no authority',
+}
+
+function refused(code: string, detail: string): void {
+  toast(code, REFUSALS[code] ?? detail)
 }
 
 function describe(frame: ChannelFrame): string {
@@ -217,7 +312,7 @@ async function adoptRegions(within?: Element): Promise<Region[]> {
           const next = Number((target as HTMLInputElement).value)
           if (Number.isFinite(next)) writable.get(binding)?.set(next)
         }
-        void send([intentFrame(intent, payloadOf(target))])
+        void fire(intent, payloadOf(target))
       },
     })
     if (entry.live) {
@@ -243,12 +338,61 @@ async function adoptRegions(within?: Element): Promise<Region[]> {
  */
 let intentIds: Record<string, string> = {}
 
-function intentFrame(id: string, input: unknown): ChannelFrame {
+function intentFrame(id: string, input: unknown, token?: string): ChannelFrame {
   return {
     kind: 'INTENT',
-    header: { i: id, e: `o-${Date.now().toString(36)}` },
+    // `t` beside the payload rather than in it: a token binds the payload, so a token inside what
+    // it signs could never verify.
+    header: { i: id, e: `o-${Date.now().toString(36)}`, ...(token ? { t: token } : {}) },
     body: new TextEncoder().encode(JSON.stringify(input)),
   }
+}
+
+/**
+ * The intents this deployment will not run without a signature, and what a control does about it.
+ *
+ * The token is fetched at the moment of the interaction and for exactly this payload, which is the
+ * only place it can be: a token rendered into the page would be cached with the page. So a signed
+ * intent costs one round trip before it dispatches, and that round trip is what makes the call a
+ * receipt rather than a request — bound to this reader, this payload, and the next few minutes.
+ *
+ * A refusal sends nothing. Dispatching without the token would be a call the server is certain to
+ * refuse, and an optimistic epoch staged against it would paint a guess that cannot be confirmed.
+ */
+function signedIntent(id: string): boolean {
+  return (window.__weftSigned ?? []).includes(id)
+}
+
+async function mint(id: string, payload: unknown): Promise<string | null> {
+  const response = await fetch('/_weft/token', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ intent: id, payload }),
+  }).catch(() => null)
+  if (!response?.ok) {
+    const body = response
+      ? ((await response.json().catch(() => ({}))) as { code?: string; detail?: string })
+      : {}
+    log('up', `no token for ${id}: ${response?.status ?? 'no answer'} ${body.code ?? ''}`)
+    // The refusal that matters most is this one: minting runs the same capability check the dispatch
+    // would, so a caller who may not run the intent is told here rather than after a round trip.
+    refused(body.code ?? 'E_NO_TOKEN', body.detail ?? 'no token could be minted for this intent')
+    return null
+  }
+  const minted = (await response.json()) as { token?: string }
+  return minted.token ?? null
+}
+
+/** One intent, sent — with a token first where the intent requires one. */
+async function fire(id: string, payload: unknown): Promise<void> {
+  if (!signedIntent(id)) {
+    await send([intentFrame(id, payload)])
+    return
+  }
+  const token = await mint(id, payload)
+  if (!token) return
+  await send([intentFrame(id, payload, token)])
 }
 
 /**
@@ -313,12 +457,12 @@ function wireIntents(): void {
     if (element.tagName === 'FORM') {
       element.addEventListener('submit', (event) => {
         event.preventDefault()
-        void send([intentFrame(id, payloadOf(element))])
+        void fire(id, payloadOf(element))
       })
       continue
     }
     element.addEventListener('click', () => {
-      void send([intentFrame(id, payloadOf(element))])
+      void fire(id, payloadOf(element))
     })
   }
 }
@@ -541,8 +685,33 @@ function upgradeIntentForms(): void {
         const response = await fetch(form.action, {
           method: 'POST',
           body,
-          headers: { accept: 'text/html', 'content-type': 'application/x-www-form-urlencoded' },
+          headers: {
+            // `text/html` because a *successful* intent answers a browser with a 303 back to the
+            // page, and that redirect is what makes the swap possible. `x-weft-fetch` is how the
+            // refusal comes back machine-readable anyway: a plain form post cannot send it and gets
+            // a page instead — see `refusalPage` in `serve.ts`.
+            accept: 'text/html',
+            'x-weft-fetch': '1',
+            'content-type': 'application/x-www-form-urlencoded',
+          },
         }).catch(() => null)
+        /**
+         * A refusal is answered here rather than navigated to.
+         *
+         * The answer is already in hand, so submitting the form again to see it would throw away
+         * the page and land the reader on the same refusal with the document gone.
+         */
+        if (response && !response.ok) {
+          const failed = (await response.json().catch(() => null)) as {
+            code?: string
+            detail?: string
+          } | null
+          refused(
+            failed?.code ?? `E_INTENT_HTTP_${response.status}`,
+            failed?.detail ?? 'the intent was refused',
+          )
+          return
+        }
         if (response?.ok && (await swapFrom(await response.text(), response.url))) return
         rememberScroll()
         form.submit()
@@ -645,6 +814,11 @@ function paintStats(): void {
           state.nav.lastMs ? ` · last ${state.nav.lastMs}ms` : ''
         }`
         break
+      case 'known':
+        element.textContent = state.known.length
+          ? `${state.known.length}: ${state.known.join(' · ')}`
+          : 'nothing discovered'
+        break
       default:
         break
     }
@@ -734,6 +908,68 @@ function encodeUp(frames: readonly ChannelFrame[]): Uint8Array<ArrayBuffer> {
 /** Where the client last told the server it is. A refresh re-registers this before it asks. */
 let location_ = ''
 
+/**
+ * The answer to a route this client asked to stage.
+ *
+ * Settled here rather than by the sending side because the answer arrives on the down connection:
+ * the frames are applied by the reader loop, and the promise that asked for them is waiting in
+ * `waiting`. A `document` answer resolves to nothing, which is the caller's signal to stage it the
+ * way a page with no channel would.
+ */
+const routeNav = navFrames((nav) => {
+  log('down', `NAV ${nav.at} ${nav.form}${nav.why ? ` — ${nav.why}` : ''}`)
+  const settle = nav.epoch ? waiting.get(nav.epoch) : undefined
+  if (!nav.epoch || !settle) return
+  if (nav.form !== 'slots') {
+    waiting.delete(nav.epoch)
+    settle(null)
+    return
+  }
+  pending.set(nav.epoch, nav)
+})
+
+/**
+ * The plan, extended — and the two things a page does with it the moment it arrives.
+ *
+ * The stylesheet of a route the reader is likely to go to is preloaded, which is bytes fetched
+ * against nothing and a commit that is a cache hit. And where the profile says readers of *this*
+ * page go next is staged, at most two of them: that hint used to reach only a client that had
+ * already staged something over the channel, which is to say never on a first visit — the visit it
+ * would have helped most.
+ */
+const routePlan = planFrames(known, (arrival) => {
+  log('down', `PLAN ${arrival.prefix || '(this page)'} ${arrival.routes.length} route(s)`)
+  state.known = known.patterns
+  const here_ = known.route(window.location.href, window.location.href)
+  for (const route of arrival.routes) {
+    if (route.css && route.pattern !== here_?.pattern) preloadStylesheet(route.css)
+  }
+  // Only for the frame about this page. A prefix the page asked about is a prefetch hint, not a
+  // list of things to fetch, and staging a route is a render on the server.
+  if (arrival.prefix && here_ && arrival.prefix !== here_.pattern) return
+  for (const pattern of (here_?.next ?? []).slice(0, 2)) {
+    if (pattern.includes(':') || pattern.includes('*')) continue
+    void routes.stage(stagingKey(pattern, window.location.href)).then(syncStaged)
+  }
+})
+
+/**
+ * Ask about a subtree of the plan: the design's `router.discover('/checkout/*')`.
+ *
+ * Asked once per prefix. The answer is a description rather than a render, so a page can afford to
+ * know about a subtree it will mostly not visit — which is the difference between this and staging.
+ */
+async function discover(prefix: string): Promise<string[]> {
+  if (known.asked(prefix)) return known.patterns
+  known.ask(prefix)
+  if (!window.__weftChannel) return known.patterns
+  const w = await wire()
+  await w.send([discoverFrame(prefix) as ChannelFrame])
+  // The answer arrives on the down connection and lands in `known` from there.
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  return known.patterns
+}
+
 async function open(): Promise<Wire> {
   const base = channelPath()
   const id = `c-${Math.random().toString(36).slice(2, 10)}`
@@ -746,25 +982,20 @@ async function open(): Promise<Wire> {
     regions: () => regionsHeld,
     onStale: (slot, reason) => log('down', `STALE ${slot} — ${reason}`),
     /**
-     * The answer to a route this client asked to stage.
+     * Two handlers, composed rather than one switch.
      *
-     * Settled here rather than by the sending side because the answer arrives on the down
-     * connection: the frames are applied by the reader loop, and the promise that asked for them
-     * is waiting in `waiting`. A `document` answer resolves to nothing, which is the caller's
-     * signal to stage it the way a page with no channel would.
+     * A frame kind belongs to the capability that introduced it, which is why neither of these
+     * lives in the channel: `NAV` is navigation's and `PLAN` is discovery's, and a page that does
+     * neither carries neither.
      */
-    onFrame: navFrames((nav) => {
-      log('down', `NAV ${nav.at} ${nav.form}${nav.why ? ` — ${nav.why}` : ''}`)
-      const settle = nav.epoch ? waiting.get(nav.epoch) : undefined
-      if (!nav.epoch || !settle) return
-      if (nav.form !== 'slots') {
-        waiting.delete(nav.epoch)
-        settle(null)
-        return
-      }
-      pending.set(nav.epoch, nav)
-    }),
-    onAck: (ack) => log('down', `ACK ${ack.intent} ok=${ack.ok}${ack.code ? ` ${ack.code}` : ''}`),
+    onFrame: (frame, applied) => {
+      routeNav(frame, applied)
+      routePlan(frame)
+    },
+    onAck: (ack) => {
+      log('down', `ACK ${ack.intent} ok=${ack.ok}${ack.code ? ` ${ack.code}` : ''}`)
+      if (!ack.ok) refused(ack.code ?? 'E_INTENT_FAILED', ack.detail ?? 'the intent was refused')
+    },
     onRedirect: (to) => window.location.assign(to),
     /**
      * A region sent as markup rather than as a delta, and the two things that has to trigger.
@@ -991,6 +1222,18 @@ const routes = createStaging<Held>({
   load: async (url, abort) => {
     const open_ = opening
     if (!open_ || !window.__weftChannel) return stageDocument(url, abort)
+    /**
+     * The whole point of knowing the plan: a route the server has already said uses a different
+     * document is fetched as a document, with no `WARM` and no render of it on the server.
+     *
+     * The decision is still the server's — this is the server's own answer, given earlier and for
+     * a whole subtree rather than one link at a time.
+     */
+    const plan = known.route(url, window.location.href)
+    if (plan && !plan.shared) {
+      log('up', `no WARM for ${new URL(url).pathname}: a different shell, from the plan`)
+      return stageDocument(url, abort)
+    }
 
     const epoch = `n-${Math.random().toString(36).slice(2, 8)}`
     const answered = new Promise<Held | null>((resolve) => {
@@ -1090,6 +1333,19 @@ function styleHrefs(from: Document): string[] {
  * stylesheet would apply its rules to the page being looked at, which is the one thing staging
  * is not allowed to do. Preloaded, the bytes are in the cache and the commit is a cache hit.
  */
+/** One stylesheet, fetched and applied to nothing. See `preloadStyles` for why `preload`. */
+function preloadStylesheet(href: string): void {
+  const absolute = new URL(href, window.location.href).href
+  for (const node of document.head.querySelectorAll('link')) {
+    if ((node as HTMLLinkElement).href === absolute) return
+  }
+  const link = document.createElement('link')
+  link.rel = 'preload'
+  link.as = 'style'
+  link.href = href
+  document.head.append(link)
+}
+
 function preloadStyles(next: Document): void {
   const have = new Set([
     ...styleHrefs(document),

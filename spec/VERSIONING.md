@@ -8,7 +8,7 @@ later means every client already in the field is unversioned.
 | ---------------- | -------------------- | ------- | ------------------------ |
 | Template IR      | `weft.template-ir/2` | 2.5.0   | `packages/ir`            |
 | Payloads (delta) | `weft.payload/2`     | 2.5.0   | `packages/ir`            |
-| Warp frames      | `weft.warp/1`        | 1.4.0   | `packages/warp`          |
+| Warp frames      | `weft.warp/1`        | 1.5.0   | `packages/warp`          |
 
 ## What each version component means
 
@@ -45,6 +45,26 @@ requires nothing resident on the client, which is why it is the fallback wheneve
 versions disagree: a version mismatch costs a form, never the page.
 
 ## Changelog
+
+### Warp 1.5.0 — WARM asks about a plan, and PLAN answers unasked
+
+A third grain on a frame that already had two. `WARM plan=/checkout/*` asks about a subtree of the
+plan, and `PLAN` (0x1e) answers with a record per route: the pattern, the shell version, whether that
+shell is this connection's, the region names, the stylesheet, the template versions the regions need,
+and where readers of it go next. Every field is something a client would otherwise fetch a document
+to learn, and the one that pays immediately is the shell — a route in another document cannot arrive
+as regions, and discovering that by staging it costs a round trip and a server render that is thrown
+away.
+
+`PLAN` is also the first frame in this protocol that arrives **unasked**: once, after `WARP`, when a
+channel opens. Everything else answers a question the client posed; a client cannot pose this one,
+because it has no route table to notice a gap in and the useful part — where readers of this page go
+next — is a measurement only the server has.
+
+Additive in both directions. A `WARM` with no `plan` is exactly the frame it was; an older server
+ignores the header and answers about templates or a route; an older client skips a `PLAN` by its
+length prefix and reports it as `UNKNOWN`, which is what the length prefix is for. `PLAN` was a
+declared code with no implementation, so no reader can be holding one that means something else.
 
 ### Warp 1.4.0 — WARM stages a route, and NAV answers
 

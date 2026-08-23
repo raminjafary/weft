@@ -219,12 +219,17 @@ anywhere, which is the case that did not work at all before.
 
 | Entry                                 | brotli  | Ceiling |
 | ------------------------------------- | ------- | ------- |
-| Channel route                         | 4,004 B | 4,096 B |
-| Channel route plus instant navigation | 4,669 B | 5,120 B |
+| Channel route                         | 4,081 B | 4,096 B |
+| Channel route plus instant navigation | 4,932 B | 5,120 B |
+| Plus what it knows about other routes | 5,301 B | 6,144 B |
 
-665 bytes, in its own budget entry, because a page that links nowhere should not carry the
-staging model and a capability with no ceiling of its own grows into somebody else's headroom.
-`node packages/bench/src/cli.ts budget` is the gate.
+851 bytes for staging and 369 for discovery, each in its own budget entry, because a page that links
+nowhere should not carry the staging model and a capability with no ceiling of its own grows into
+somebody else's headroom. `node packages/bench/src/cli.ts budget` is the gate.
+
+The discovery entry is the one whose whole purpose is a request it does not make, so 369 bytes is
+the number to hold it to: one avoided `WARM` and the render behind it pays for it many times over,
+and a page whose links all share its shell pays it for nothing.
 
 ### What it buys, and where it buys nothing
 
@@ -253,13 +258,39 @@ reader spent hovering rather than waiting.
 The bytes are identical either way. A staged navigation transfers the same document, from the same
 kernel, on the same route; what changes is when it is asked for.
 
+## What the client knows before it asks
+
+Staging a route is a request and a render. Knowing _about_ a route is neither, and the two are worth
+separating: a page can afford to know about thirty routes and stage two.
+
+A `PLAN` frame carries what the client would otherwise have to fetch a document to learn — which
+shell a route renders into, its region names, its stylesheet, the templates those regions need, and
+where the profile says its readers go next. One arrives unasked when the channel opens, describing
+this page and its onward routes; `weft.discover('/checkout/*')` asks about any other subtree. The
+mechanism is in [`../kernel/routing.md`](../kernel/routing.md).
+
+Two things change on this page as a result:
+
+- **A link into a different document skips the `WARM` entirely.** Without the plan, staging such a
+  link costs a round trip and a server render, and the answer is `form=document` — both thrown away.
+  With it, the client goes straight to the document path it would have fallen back to. The decision
+  is still the server's; it was simply given earlier, and for a subtree rather than one link.
+- **The profile's transitions reach a page that arrived by a document request.** `NAV next=` only
+  ever reached a client that had already staged something over the channel, which excluded every
+  first visit. The handshake `PLAN` is where that hint has a home, and the two routes it names are
+  staged once the page is interactive.
+
+A stylesheet named by a discovered route is `preload`ed rather than linked — a second page's bundle
+appended as a stylesheet would apply its rules to the page being looked at, which is the one thing
+staging may not do.
+
 ## What is not built
 
-**A staged route over the channel.** The design's `WARM` is "stage data for a route, do not
-paint", and what is implemented answers with templates. A route staged here is a document over
-HTTP, which is the same path a first visit takes and therefore renders every slot the same way.
-`NAV` (0x1d) remains a declared frame code with no implementation: staging a route needs the
-whole page, and the whole page is what the document request path already produces.
+**A discovery signal that is not a link or a hover.** `weft.discover` is called by an application
+that knows something the framework does not; nothing calls it on the framework's own initiative
+beyond the handshake. Whether a subtree is worth describing before anybody looks at it is the same
+kind of question as whether a route is worth staging, and the same answer applies: it is a
+measurement, and the recording that would support it does not record discoveries yet.
 
 **Off-main-thread preparation.** Parsing the staged document happens on the main thread, in the
 `DOMParser` call inside the staging load, and it cannot move: `DOMParser` does not exist in a

@@ -55,3 +55,32 @@ export const setQuantity = defineIntent<{ sku: string; qty: number }>({
     return { refresh: ['body'] }
   },
 })
+
+/**
+ * The one intent here that has to prove who is asking, and that this deployment asked for it.
+ *
+ * Two gates, and they answer different questions. `cart:checkout` is a capability: the demo's
+ * config grants it to everybody, which is the point — the grant is a row an operator can see and
+ * change rather than a branch in the framework, and taking the row out turns every checkout into a
+ * named 403. `signed` is the other question: the call has to carry a token this process minted for
+ * this reader and this payload, minutes ago, and once.
+ *
+ * What that costs is visible on the page. The button fetches a token first, so a signed intent is
+ * one round trip slower than an unsigned one — and the plain form beside it, which cannot fetch
+ * anything, is refused with `E_INTENT_UNSIGNED`. That is not a gap in the progressive-enhancement
+ * story so much as the price of the strongest gate, paid only by the intent that asked for it: a
+ * token cannot be rendered into a page, because a page can be cached and a token cannot.
+ */
+export const checkout = defineIntent<{ sku: string }>({
+  name: 'cart.checkout',
+  writes: ['cart'],
+  capabilities: ['cart:checkout'],
+  signed: true,
+  input: (raw) => ({ sku: skuOf(raw) }),
+  async run(ctx, input) {
+    const session = ctx.cookie('sid') ?? 'demo-shared'
+    for (const key of [session, 'demo-shared']) cartOf(key).delete(input.sku)
+    await ctx.revalidate('cart')
+    return { refresh: ['body'], data: { checkedOut: input.sku } }
+  },
+})

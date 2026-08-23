@@ -36,14 +36,35 @@ test('the kernel imports no host runtime', () => {
   assert.deepEqual(offenders, [])
 })
 
+/**
+ * Code, with comments removed — because this gate is about what the kernel *touches*, and a
+ * sentence naming `Buffer` to say the kernel does not use it touches nothing.
+ *
+ * It fired on exactly that: a base64url helper whose comment explained why it was not using the
+ * Node global. The line-count check in this file already learned this lesson the same way, and a
+ * check that fires when somebody explains the rule teaches people to stop explaining it.
+ */
+function stripComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+}
+
 test('the kernel touches no host global', () => {
   const offenders: string[] = []
   for (const { file, text } of sources()) {
+    const code = stripComments(text)
     for (const pattern of BANNED_GLOBALS) {
-      if (pattern.test(text)) offenders.push(`${file}: ${String(pattern)}`)
+      if (pattern.test(code)) offenders.push(`${file}: ${String(pattern)}`)
     }
   }
   assert.deepEqual(offenders, [])
+})
+
+test('the comment-stripping does not blind the gate', () => {
+  // The gate above is only trustworthy if what it strips is comments and not code, so the
+  // stripping is checked directly rather than trusted.
+  const stripped = stripComments('const a = 1 // process.env\n/* Buffer */\nconst b = process.env.X\n')
+  assert.match(stripped, /process\.env\.X/)
+  assert.doesNotMatch(stripped, /Buffer/)
 })
 
 test('the kernel only reaches sideways into the two versioned wire packages', () => {
@@ -86,6 +107,12 @@ const LINE_CEILINGS: Record<string, number> = {
   // A route staged over the channel: the transport plus `stage.ts`, and its own entry for the same
   // reason the transport has one — it went past a watermark set before it existed.
   'entry-stage.ts': 2600,
+  // Authority: the intent path plus a capability model and signed intents. The tier the design
+  // calls separable, so it gets a ceiling it can be reviewed against rather than a share of the
+  // intent path's.
+  'entry-authority.ts': 2500,
+  // Lazy plan extension, on top of route staging. The whole capability is one module.
+  'entry-discover.ts': 2700,
 }
 
 /** Code only. A comment is not work the kernel absorbed from a port. */

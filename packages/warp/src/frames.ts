@@ -11,9 +11,9 @@ export const FRAMES = {
   REFRESH: { code: 0x03, dir: 'up' },
   /**
    * "Stage data for a route, do not paint", which is what the design's frame table always said it
-   * was for. It asks two different questions depending on what it carries, and they are the same
-   * question at two grains: `tpl` names template versions the client does not hold, and `at` names
-   * a route the client may be about to go to. Both answers paint nothing.
+   * was for. It asks the same question at three grains and none of the answers paint: `tpl` names
+   * template versions the client does not hold, `at` names a route the client may be about to go
+   * to, and `plan` names a subtree it knows nothing about at all.
    */
   WARM: { code: 0x04, dir: 'up' },
   INTENT: { code: 0x05, dir: 'up' },
@@ -44,6 +44,19 @@ export const FRAMES = {
    * server knows both shells.
    */
   NAV: { code: 0x1d, dir: 'down' },
+  /**
+   * Lazy plan extension: the part of the plan a client does not have.
+   *
+   * The answer to `WARM plan=<prefix>`, and the one frame here that also arrives *unasked* — once,
+   * when a channel opens, carrying the route this connection is on and where its readers go next.
+   * That is deliberate rather than convenient: a client has no route table to notice a gap in, and
+   * what is worth telling it is a measurement only the server has.
+   *
+   * The body is a JSON list of routes, because it is a list of records and a header set is not one.
+   * Per route: the pattern, the shell version, whether that shell is this page's, the region names,
+   * the stylesheet, the template versions the regions need, and the routes readers go to next. Every
+   * field is something a client would otherwise have to make a request to learn.
+   */
   PLAN: { code: 0x1e, dir: 'down' },
   ERROR: { code: 0x1f, dir: 'down' },
 
