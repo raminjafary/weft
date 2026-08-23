@@ -45,16 +45,34 @@ export default defineRoute({
     status: 'live',
   },
   slots: {
+    /**
+     * Two ordinary links, and the pair is the whole demonstration.
+     *
+     * Same route, same layout, same sealed templates, different param — so what changes between
+     * them is content and nothing else. Hover one and the framework fetches the page and holds it,
+     * painting nothing; click it and the click is a DOM swap rather than a request, so there is no
+     * blank frame, nothing above the content is rebuilt, and the templates the browser already
+     * holds are not sent again.
+     *
+     * They are `<a href>` and nothing more. Nothing here opts in, and with JavaScript off they are
+     * two links to two URLs — which is the floor the whole framework is built on rather than a
+     * fallback bolted to the side of it.
+     */
     panel: {
       fragment: 'markup',
       stream: false,
-      html: panel(
-        [
-          '<a class="pill" href="/app/ordinary/pantry">pantry</a>',
-          '<a class="pill" href="/app/ordinary/household">household</a>',
-        ].join(''),
-        'Two ordinary links. There is no client-side navigation yet — and the page does not need it to be fast.',
-      ),
+      html: (_ctx, params) => {
+        const current = params.category === 'household' ? 'household' : 'pantry'
+        const pill = (key: string, label: string): string =>
+          `<a class="pill" href="/app/ordinary/${key}"${
+            key === current ? ' aria-current="page"' : ''
+          }>${label}</a>`
+        return panel(
+          [pill('pantry', 'pantry'), pill('household', 'household')].join(''),
+          'Hover one, then click it: the document was already here, so the click paints rather than loads. ' +
+            'Click without hovering first and it is an ordinary navigation — the counter below says which of your clicks was which.',
+        )
+      },
     },
     body: {
       fragment: 'ordinary',
@@ -88,6 +106,8 @@ export default defineRoute({
           <dt>Cache class</dt><dd><code>public</code> — this fragment reads nothing but its route param</dd>
           <dt>Writes</dt><dd>a form post to <code>/_weft/i/cart.add</code>, answered with a 303 back here</dd>
           <dt>JavaScript needed</dt><dd>none. Turn it off and the button still works</dd>
+          <dt>Switching category</dt><dd>staged on hover, committed on click — <span data-weft-stat="nav" class="mono">no navigations yet</span></dd>
+          <dt>Held, unpainted</dt><dd><span data-weft-stat="staged" class="mono">nothing staged</span></dd>
         </dl></div>`,
     },
   },

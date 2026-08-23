@@ -1,3 +1,4 @@
+import { DEFAULT_STAGING } from '@weft/client'
 import { baseRenderId, clientView, deltaPayload, render, type Values } from '@weft/ir'
 import { explain, field, panel, pick, pre, press, readout, slider } from '../pages.ts'
 import { numeric, type StationHandler } from './kind.ts'
@@ -407,5 +408,67 @@ export const intents: StationHandler = async () => {
 POST /i/cart.add          → 200 { ok, invalidated, refresh }  (fetch)
 INTENT i=cart.add epoch=… → ACK ok=true  → DELTA epoch=… → COMMIT   (channel)
 INTENT i=cart.add epoch=… → ACK ok=false                            (discard the epoch)`),
+  }
+}
+
+/**
+ * Navigation, which is the one station whose subject is the act of arriving at it.
+ *
+ * There is nothing to render: what it demonstrates is what happened between the last page and
+ * this one. So the readouts are the runtime's own counters, and the control is a pair of links —
+ * one the framework may stage and one the markup has told it to leave alone.
+ */
+export const navigation: StationHandler = async () => {
+  return {
+    panel: panel(
+      [
+        '<a class="button" href="/s/adoption">a staged link</a>',
+        '<a class="button" href="/s/signals" data-weft-prefetch="off">a link that refuses staging</a>',
+        '<a class="button" href="https://developer.mozilla.org/" rel="external">a link off this origin</a>',
+      ].join(''),
+      'Hover the first, wait a moment, and click: the document was already here, so the click is a DOM swap. ' +
+        'The second is fetched only when you click it, so it is a real navigation — which is what a link has always cost.',
+    ),
+    body: async () =>
+      readout(
+        'What the last click cost',
+        [
+          {
+            label: 'navigations from this page',
+            value: '<span data-weft-stat="nav" class="mono">none yet</span>',
+            note: 'staged means the answer was already in hand; cold means the browser was left to do it',
+          },
+          {
+            label: 'staged right now',
+            value: '<span data-weft-stat="staged" class="mono">nothing staged</span>',
+            note: 'hover a link and watch it appear. Nothing on this page changes when it does',
+          },
+          {
+            label: 'routes staged at once',
+            value: String(DEFAULT_STAGING.max),
+            note: 'each one is a render the server performed for a page nobody has asked for, so the ceiling is low and the oldest goes first',
+            state: 'within',
+          },
+          {
+            label: 'how long an answer may be committed',
+            value: `${DEFAULT_STAGING.ttlMs / 1000}s`,
+            note: 'past it the answer is discarded and fetched again: a page that shows a five-minute-old render instantly is worse than one that waits',
+            state: 'within',
+          },
+          {
+            label: 'what the framework will not take',
+            value: 'six cases',
+            note: 'another origin, a target, a download, rel=external, a modified click, and a fragment on the page you are already on',
+          },
+        ],
+        {
+          what: `A staged route is an epoch one level up. An epoch is data fetched, resolved and painting nothing; staging is a whole route fetched, parsed and painting nothing. The click commits it, which is a DOM swap and not a request — so the scroll position, the tab order and the open channel all survive it.`,
+          from: "createStaging() in @weft/client, wired to links in the framework's own boot module",
+          caveat:
+            'A click on a route that is not staged yet is handed back to the browser rather than waited for. A document response streams — shell first, regions as they arrive — and a fetch of the same document has to be read to its last byte before anything can be parsed, so waiting would make a slow page slower than doing nothing at all.',
+          tryThis:
+            'Hover the second link, count to three, and click it: it is fetched on the click, because the markup told the framework not to stage it.',
+        },
+      ),
   }
 }

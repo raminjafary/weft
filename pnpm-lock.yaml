@@ -148,6 +148,9 @@ importers:
       '@weft/bench':
         specifier: workspace:*
         version: link:../bench
+      '@weft/client':
+        specifier: workspace:*
+        version: link:../client
       '@weft/compiler':
         specifier: workspace:*
         version: link:../compiler

@@ -16,6 +16,7 @@
     "weft": "workspace:*",
     "@weft/adapters": "workspace:*",
     "@weft/bench": "workspace:*",
+    "@weft/client": "workspace:*",
     "@weft/compiler": "workspace:*",
     "@weft/ir": "workspace:*",
     "@weft/kernel": "workspace:*",

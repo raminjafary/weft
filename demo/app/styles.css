@@ -488,6 +488,11 @@ table.forms td.no {
 .pill:hover {
   border-color: var(--acc);
 }
+/* The page you are on, said in the markup rather than in a class the server has to remember. */
+.pill[aria-current='page'] {
+  border-color: var(--acc);
+  color: var(--acc);
+}
 .ordinary .standfirst {
   font-size: 0.95rem;
   color: var(--dim);

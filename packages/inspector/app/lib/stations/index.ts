@@ -6,6 +6,7 @@ import {
   deltas as deltasStation,
   derived,
   intents,
+  navigation,
   residency,
   signals,
   transport,
@@ -68,4 +69,5 @@ export const HANDLERS: Record<string, StationHandler> = {
   residency,
   transport,
   intents,
+  navigation,
 }
