@@ -15,6 +15,7 @@ import { checkAll } from './equivalence.ts'
 import { measureClientRuntime } from './measure/client-runtime.ts'
 import { formatSharedDelta, measureSharedDelta } from './measure/shared-delta.ts'
 import { formatL0, measureL0 } from './measure/l0.ts'
+import { formatNavigation, measureNavigation } from './measure/navigation.ts'
 import { compileScenario } from './compiled.ts'
 import { renderMarkdown, comparison } from './report.ts'
 import { run } from './runner.ts'
@@ -91,6 +92,7 @@ const HELP = `weft-bench — phase-zero benchmark harness
   slots     stream a route in both orders, and probe incremental shadow DOM
   deltas    shared vs per-connection delta computation, the phase 6 claim
   l0        a document served from the build against the same document rendered
+  nav       a staged click against the same click handed back to the browser
   list      list axes, scenarios, and candidates
   ir        print the sealed, versioned IR for a scenario
 
@@ -107,8 +109,10 @@ run flags
   --batches N       in-process timing batches (default 25)
   --ops N           renders per batch (default 200)
   --clients N       clients in the deltas comparison (default 1000)
-  --app DIR         the application l0 measures (default demo)
+  --app DIR         the application l0 and nav measure (default demo)
   --route PATTERN   which document l0 measures (default the largest one)
+  --from PATH       the page nav starts every click from (default /)
+  --to PATHS        which links nav clicks (default every internal link on --from)
   --engines         chromium,firefox,webkit (browser axes; requires playwright)
                     webkit is the closest proxy for an iOS webview and is never an iOS number
   --out DIR         where to write the report (default results/)
@@ -222,6 +226,22 @@ async function main(): Promise<number> {
       ...(flags.route ? { path: flags.route } : {}),
     })
     process.stdout.write(formatL0(report))
+    return 0
+  }
+
+  if (command === 'nav') {
+    const engines = (csv(flags.engines) ?? ['chromium']) as EngineName[]
+    for (const engine of engines) {
+      const report = await measureNavigation({
+        root: flags.app ?? positional[0] ?? 'demo',
+        engine,
+        iterations: Number(flags.iterations ?? 10),
+        ...(flags.from ? { from: flags.from } : {}),
+        ...(csv(flags.to) ? { to: csv(flags.to) as string[] } : {}),
+        ...(flags.latency ? { latencyMs: Number(flags.latency) } : {}),
+      })
+      process.stdout.write(formatNavigation(report))
+    }
     return 0
   }
 

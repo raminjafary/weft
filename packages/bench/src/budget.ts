@@ -78,6 +78,14 @@ export const BUDGETS: ByteBudget[] = [
     limitNote: 'no design figure; a watermark with ~470 B of room, so the next addition argues with a number',
   },
   {
+    id: 'nav-route',
+    label: 'Channel route plus instant navigation',
+    entry: src('entry-nav.ts'),
+    limit: 5 * 1024,
+    limitNote:
+      'no design figure; its own entry, because a page that links nowhere should not pay for staging',
+  },
+  {
     id: 'app-route',
     label: 'App route: adopt, bind, patch, persist',
     entry: src('entry-app.ts'),
