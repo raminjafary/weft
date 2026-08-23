@@ -9,19 +9,56 @@ Nothing here is a hypothetical. Every number comes from
 `node packages/bench/src/cli.ts`, on an Apple M4, and every one of them is reproducible by
 the command the report prints.
 
-| The design says                                                 | Verdict                                |
-| --------------------------------------------------------------- | -------------------------------------- |
-| TTFB against a tuned React Router 7 app is the phase-zero gate  | **Reversed** — worth 1.2 ms            |
-| Six negotiable wire forms, including `data`                     | **Cut to five**                        |
-| Escape elision is a throughput lever                            | **Reversed** — worth nothing           |
-| Incremental declarative shadow DOM is the largest platform risk | **Did not materialise**, and sharpened |
-| Streaming beats a blocking response                             | **Confirmed** — 2.19×                  |
-| Pre-encoded segments beat string concatenation                  | **Confirmed** — 1.4× to 2×             |
-| The `delta` form is the smallest possible payload               | **Confirmed** — 3.2× after brotli      |
-| A returning visitor does zero wiring construction               | **Confirmed, with a correction**       |
-| The client runtime fits in 4–6 KB                               | **Confirmed** for what exists          |
-| Isolated DOM updates will tie                                   | **Consistent** — 0.29–1.7 µs           |
-| Warp unifies five jobs on one channel                           | **One path exercised** of five         |
+| The design says                                                 | Verdict                                              |
+| --------------------------------------------------------------- | ---------------------------------------------------- |
+| TTFB against a tuned React Router 7 app is the phase-zero gate  | **Reversed** — worth 1.2 ms                          |
+| Six negotiable wire forms, including `data`                     | **Cut to five**                                      |
+| Escape elision is a throughput lever                            | **Reversed** — worth nothing                         |
+| Incremental declarative shadow DOM is the largest platform risk | **Did not materialise**, and sharpened               |
+| Streaming beats a blocking response                             | **Confirmed** — 2.19×                                |
+| Pre-encoded segments beat string concatenation                  | **Confirmed** — 1.4× to 2×                           |
+| The `delta` form is the smallest possible payload               | **Confirmed** — 3.2× after brotli                    |
+| A returning visitor does zero wiring construction               | **Confirmed, with a correction**                     |
+| The client runtime fits in 4–6 KB                               | **Confirmed** for what exists                        |
+| Isolated DOM updates will tie                                   | **Consistent** — 0.29–1.7 µs                         |
+| Warp unifies five jobs on one channel                           | **One path exercised** of five                       |
+| Client rendering work belongs off the main thread               | **Refused** — the decode is under the worker's floor |
+
+## Refused after measuring: decoding frames off the main thread
+
+> _"Off-main-thread rendering, client side. Nothing runs in a worker. What could be prepared
+> off-thread — parsing a `TPL`, resolving derived values — is not."_
+
+This sat on the roadmap as the last honestly-absent line of phase 3, which made it look like work
+nobody had got to. It is not: it is work that does not pay, and the number says so.
+
+`applyDelta` writes the DOM and cannot leave the main thread by nature. The candidate was the
+byte-walking half of the frame router — length prefixes, headers, JSON bodies — so both paths were
+measured against each other in a real engine before anything was built on either.
+`node packages/bench/src/cli.ts decode` transfers the same batch to a module worker, decodes and
+parses it there, and structured-clones the frames back.
+
+| A `DELTA` of       | On the wire | Main thread | In a worker |
+| ------------------ | ----------- | ----------- | ----------- |
+| 400 changed values | 10.8 KB     | 0.100 ms    | 0.100 ms    |
+| 2,000 values       | 55 KB       | 0.200 ms    | 0.200 ms    |
+| 20,000 values      | 580 KB      | 1.500 ms    | 1.600 ms    |
+
+Chromium clamps `performance.now()` to 100 µs here, so the first two rows are both _at the
+resolution of the clock_: the decode of a realistic frame batch is too small to measure. At 580 KB —
+twenty thousand changed values, which is not a page anybody has — the decode is finally measurable
+at 1.5 ms and the worker is **slower**, because a `postMessage` and the structured clone of the
+result cost about what the decode costs.
+
+That is the general shape rather than an accident of this codec. A worker pays for moving data twice
+and earns it back only when the work between the two moves is large. Decoding is the opposite: it
+consumes bytes and produces _more_ objects than it consumed, so the return trip is the expensive
+half. What would pay is work that shrinks its input — a diff, a digest, a projection — and the
+client's diffing already happens on the server, which is what the shared-delta finding is about.
+
+So this is refused rather than pending, and the roadmap says so with the numbers. What remains
+genuinely unmeasured is parsing a staged _document_ off-thread, which is not possible at all:
+`DOMParser` does not exist in a worker.
 
 ## Reversed: TTFB was the wrong gate
 

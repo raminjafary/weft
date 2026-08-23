@@ -15,6 +15,7 @@ import { checkAll } from './equivalence.ts'
 import { measureClientRuntime } from './measure/client-runtime.ts'
 import { formatSharedDelta, measureSharedDelta } from './measure/shared-delta.ts'
 import { formatL0, measureL0 } from './measure/l0.ts'
+import { formatDecode, measureDecode } from './measure/decode.ts'
 import { formatNavigation, measureNavigation } from './measure/navigation.ts'
 import { compileScenario } from './compiled.ts'
 import { renderMarkdown, comparison } from './report.ts'
@@ -93,6 +94,7 @@ const HELP = `weft-bench — phase-zero benchmark harness
   deltas    shared vs per-connection delta computation, the phase 6 claim
   l0        a document served from the build against the same document rendered
   nav       a staged click against the same click handed back to the browser
+  decode    frames decoded on the main thread against the same frames decoded in a worker
   list      list axes, scenarios, and candidates
   ir        print the sealed, versioned IR for a scenario
 
@@ -241,6 +243,15 @@ async function main(): Promise<number> {
         ...(flags.latency ? { latencyMs: Number(flags.latency) } : {}),
       })
       process.stdout.write(formatNavigation(report))
+    }
+    return 0
+  }
+
+  if (command === 'decode') {
+    const engines = (csv(flags.engines) ?? ['chromium']) as EngineName[]
+    for (const engine of engines) {
+      const measured = await measureDecode(engine, Number(flags.rows ?? 400), Number(flags.iterations ?? 40))
+      process.stdout.write(formatDecode(measured))
     }
     return 0
   }

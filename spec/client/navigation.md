@@ -262,7 +262,9 @@ HTTP, which is the same path a first visit takes and therefore renders every slo
 whole page, and the whole page is what the document request path already produces.
 
 **Off-main-thread preparation.** Parsing the staged document happens on the main thread, in the
-`DOMParser` call inside the staging load. Nothing measures it yet, and nothing moves it.
+`DOMParser` call inside the staging load, and it cannot move: `DOMParser` does not exist in a
+worker. The other candidate — decoding a batch of frames — was measured and refused, because the
+decode is smaller than a worker's own floor. See [`../FINDINGS.md`](../FINDINGS.md).
 
 **A staged route that is worth staging.** Everything hovered is fetched, and nothing decides
 whether it was worth it. `weft profile` is the roadmap entry where that belongs: which routes are

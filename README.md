@@ -125,6 +125,7 @@ node packages/bench/src/cli.ts budget                      # bundle each entry a
 node packages/bench/src/cli.ts slots                       # both stream orders, and the shadow-DOM probe
 node packages/bench/src/cli.ts l0                          # a document served from the build against the same one rendered
 node packages/bench/src/cli.ts nav --latency 100           # a staged click against the same click handed to the browser
+node packages/bench/src/cli.ts decode --rows 20000         # frames decoded on the main thread against in a worker
 node packages/bench/src/cli.ts run                          # measure and write a report
 node packages/bench/src/cli.ts run --transport buffered      # the intercepted-webview path
 node packages/bench/src/cli.ts run --axes shell-ttfb --scenarios slow-feed \
