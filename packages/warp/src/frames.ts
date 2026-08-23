@@ -62,6 +62,21 @@ export const RETIRED: readonly { code: number; was: string; until: string }[] = 
   { code: 0x06, was: 'ACK, in the up direction', until: 'warp 1.2.0' },
 ]
 
+/**
+ * A HELD frame's headers are slot names, so anything the frame has to say about itself needs a
+ * key no slot can have. `$` is that key: a layout hole is named by an attribute the compiler
+ * reads as an identifier, and an identifier does not start with one.
+ *
+ * `$only` means the frame carries the whole of what the client holds — see the HELD entry in
+ * `spec/warp/warp-1.md`.
+ */
+export const HELD_ONLY = '$only'
+
+/** True for a header key the frame reserved for itself rather than for a slot. */
+export function reservedHeader(key: string): boolean {
+  return key.startsWith('$')
+}
+
 export type FrameKind = keyof typeof FRAMES
 
 export type HeaderValue = string | number | boolean

@@ -8,7 +8,7 @@ later means every client already in the field is unversioned.
 | ---------------- | -------------------- | ------- | ------------------------ |
 | Template IR      | `weft.template-ir/2` | 2.5.0   | `packages/ir`            |
 | Payloads (delta) | `weft.payload/2`     | 2.5.0   | `packages/ir`            |
-| Warp frames      | `weft.warp/1`        | 1.2.0   | `packages/warp`          |
+| Warp frames      | `weft.warp/1`        | 1.3.0   | `packages/warp`          |
 
 ## What each version component means
 
@@ -45,6 +45,23 @@ requires nothing resident on the client, which is why it is the fallback wheneve
 versions disagree: a version mismatch costs a form, never the page.
 
 ## Changelog
+
+### Warp 1.3.0 — a HELD frame can say it is all of it
+
+`HELD` carries a base render per slot, keyed by slot name, and a server merges what arrives into
+what it already believes. That is right for a client naming one more region and wrong for a client
+that has navigated: slot names belong to a page, so the page that was left stays in the map, is
+refreshed by a `REFRESH` that names no slots, and is sent `STALE` frames about regions nobody is
+looking at.
+
+`$only` is the reserved header that says otherwise. `$` cannot be a slot name — a layout hole is
+named by an attribute the compiler reads as an identifier — so the frame gains somewhere to talk
+about itself without colliding with what it carries, and `reservedHeader()` is the one place that
+rule is stated.
+
+Additive and forward-compatible in both directions. An older server ignores the header and merges,
+which is exactly what it did before; an older client never sends it and is never worse off than it
+was. Nothing about the frame's shape changed, so no reader has to be upgraded to keep parsing it.
 
 ### Warp 1.2.0 — ACK travels down
 

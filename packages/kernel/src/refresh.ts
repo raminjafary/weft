@@ -7,7 +7,7 @@ import {
   type Values,
   type WireForm,
 } from '@weft/ir'
-import { frame, type Frame } from '@weft/warp'
+import { frame, HELD_ONLY, reservedHeader, type Frame } from '@weft/warp'
 import type { StorePort } from './ports.ts'
 
 /**
@@ -35,7 +35,7 @@ export interface Held {
 export function parseHeld(f: Frame): Held[] {
   const out: Held[] = []
   for (const [slot, value] of Object.entries(f.header)) {
-    if (typeof value !== 'string') continue
+    if (reservedHeader(slot) || typeof value !== 'string') continue
     const dash = value.lastIndexOf('-')
     if (dash <= 0) continue
     out.push({ slot, tpl: value.slice(0, dash), base: value.slice(dash + 1) })
@@ -43,9 +43,19 @@ export function parseHeld(f: Frame): Held[] {
   return out
 }
 
-export function heldFrame(held: readonly Held[]): Frame {
-  const header: Record<string, string> = {}
+/**
+ * What the client is showing, per slot — and, with `only`, that this is the whole of it.
+ *
+ * Without `only` a HELD frame adds to what the server believes, which is right for a client that
+ * is telling it about one more region. It is wrong for a client that has *navigated*: slot names
+ * belong to a page, so the previous page's `sidebar` would sit in the map forever, be refreshed
+ * by a REFRESH that names no slots, and be told it was stale by an invalidation about a page
+ * nobody is on. `only` says the client is somewhere else now and this is everything it holds.
+ */
+export function heldFrame(held: readonly Held[], options: { only?: boolean } = {}): Frame {
+  const header: Record<string, string | boolean> = {}
   for (const h of held) header[h.slot] = `${h.tpl}-${h.base}`
+  if (options.only) header[HELD_ONLY] = true
   return frame('HELD', header)
 }
 
