@@ -1,4 +1,4 @@
-import type { CacheClass } from '@weft/ir'
+import type { CacheClass, Resolver, TemplateIR, Values } from '@weft/ir'
 import type { Intent } from './intent.ts'
 
 /**
@@ -219,15 +219,22 @@ export interface ExecutorPort {
 
 export interface SchedulableSlot {
   name: string
-  prio: number
+  prio?: number
   /** Slots whose results this one needs. Data dependency, never existence dependency. */
-  needs: string[]
+  needs?: readonly string[]
 }
 
 export interface SchedulerPort {
   readonly name: string
-  /** Given one wave's worth of ready slots, decide what order to dispatch them in. */
-  order(ready: SchedulableSlot[]): SchedulableSlot[]
+  /**
+   * Given one wave's worth of ready slots, decide what order to dispatch them in.
+   *
+   * A scheduler **reorders what it was handed**. It may not invent a slot, drop one, or return
+   * something it was not given: the wave is the plan's, and a scheduler that could change its
+   * membership would be a scheduler that can change what a page contains. The kernel passes its
+   * own nodes through and reads the order back, so anything else would be discarded anyway.
+   */
+  order<T extends SchedulableSlot>(ready: readonly T[]): readonly T[]
   /** Hard ceiling on concurrent renders per request. Forty parallel queries will melt a database. */
   readonly maxConcurrency: number
 }
@@ -300,9 +307,97 @@ export interface Registry {
 
 // ── render ───────────────────────────────────────────────────────────────────────────
 
+export interface RenderJobIR {
+  slot: string
+  template: TemplateIR
+  values: Values
+  /** Nested templates a hole names. Without it a list row or an instance renders nothing. */
+  resolve?: Resolver
+}
+
+/**
+ * Who turns a fragment and a value set into bytes.
+ *
+ * Naming the slot was not enough: one slot renders a different fragment on every route, so a
+ * renderer that is handed only a name has to be told the route as well and then look up what the
+ * plan already knows. The job carries the template.
+ *
+ * The default implementation is the IR renderer, and it is bound rather than assumed — which is
+ * what makes `remote` in phase 9 another implementation of this port rather than a second render
+ * path beside it.
+ */
 export interface RenderPort {
   readonly name: string
-  render(slot: string, values: Record<string, unknown>): Promise<Uint8Array>
+  render(job: RenderJobIR): Promise<Uint8Array> | Uint8Array
+}
+
+// ── config ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * What this deployment was configured with, read through a port so nothing else has to know
+ * whether that means an environment variable, a Worker binding, or a secrets manager.
+ *
+ * A setting is deliberately **not** a tracked read. Every read on `Reads` taints a fragment and
+ * lands in its cache key; a setting is a property of the deployment rather than of the request,
+ * so two requests that differ in nothing may not produce two entries — and a key that contained
+ * a database URL would be a key nobody could safely log.
+ */
+export interface ConfigPort {
+  readonly name: string
+  get(key: string): string | undefined
+  /** A setting the deployment cannot run without: missing is refused by name, never defaulted. */
+  required(key: string): string
+  /** Every key this source can answer. A build that has to prove a setting exists asks here. */
+  keys(): readonly string[]
+}
+
+// ── db ───────────────────────────────────────────────────────────────────────────────
+
+export interface DbQuery {
+  /** What this access is, for telemetry and for a trace somebody has to read at 3am. */
+  name: string
+  /** What it reads, in the vocabulary an intent invalidates with. */
+  tags?: readonly string[]
+  timeoutMs?: number
+}
+
+/**
+ * Where a loader's data comes from, named rather than anonymous.
+ *
+ * The framework never sees a loader — a `.data.ts` is application code the compiler does not
+ * read — so a query is invisible to everything that would otherwise bound it. Running it through
+ * a port gives back the three things that absence costs: a name in the telemetry, a deadline that
+ * is somebody's decision rather than the database's default, and the tags the render depended on
+ * recorded where an invalidation can be checked against them.
+ *
+ * Deliberately not a query language. What runs is the caller's function; this decides what
+ * happens around it.
+ */
+export interface DbPort {
+  readonly name: string
+  query<T>(query: DbQuery, run: (signal: AbortSignal) => Promise<T>): Promise<T>
+  /** Accesses this port has run, newest last. Read by the trace, never by a render. */
+  observed?(): readonly { name: string; ms: number; tags: readonly string[]; failed?: boolean }[]
+}
+
+// ── deployment ───────────────────────────────────────────────────────────────────────
+
+/**
+ * Which build is answering, and where it is running.
+ *
+ * The reason this is a port rather than three environment variables read wherever they are
+ * needed: every runtime spells them differently — a revision is `GIT_SHA` on one platform, a
+ * deployment id on another, and nothing at all on a laptop — and a kernel that read the ambient
+ * environment would stop being a kernel that runs on Workers.
+ */
+export interface DeploymentPort {
+  readonly name: string
+  /** The build being served. `dev` where there is no build to name. */
+  readonly revision: string
+  readonly environment: string
+  readonly region?: string
+  /** This process or isolate, when the platform names one. */
+  readonly instance?: string
 }
 
 // ── the set ──────────────────────────────────────────────────────────────────────────
@@ -326,6 +421,9 @@ export interface Ports {
   transport?: TransportPort
   render?: RenderPort
   registry?: Registry
+  config?: ConfigPort
+  db?: DbPort
+  deployment?: DeploymentPort
 }
 
 export function requestFacts(request: Request, params: Record<string, string> = {}): RequestFacts {

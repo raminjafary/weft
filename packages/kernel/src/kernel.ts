@@ -194,7 +194,10 @@ export function createKernel(options: KernelOptions): Kernel {
       ? options.connectionOf(request)
       : request.headers.get('x-weft-connection')
 
-    const hints = await sendEarlyHints(life, options.ports.transport, route.critical ?? [])
+    // The route's own links win; failing that the assets port is asked what this route needs
+    // before it has been rendered, which is the whole point of 103 — discovery without commitment.
+    const critical = route.critical ?? options.ports.assets?.criticalFor(route.path) ?? []
+    const hints = await sendEarlyHints(life, options.ports.transport, critical)
     options.ports.telemetry?.mark('hints', performance.now())
 
     life.to('envelope')
@@ -321,8 +324,10 @@ export function createKernel(options: KernelOptions): Kernel {
     }
 
     const byName = new Map(route.slots.map((s) => [s.name, s]))
+    const scheduler = options.ports.scheduler
     const work = dispatch(nodes, {
-      maxConcurrency: route.maxConcurrency ?? options.ports.scheduler?.maxConcurrency ?? 6,
+      maxConcurrency: route.maxConcurrency ?? scheduler?.maxConcurrency ?? 6,
+      ...(scheduler ? { order: (ready) => scheduler.order(ready) } : {}),
       run: async (node) => {
         const held = results.get(node.name) as Gate
         try {

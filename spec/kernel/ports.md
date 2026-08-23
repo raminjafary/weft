@@ -47,23 +47,98 @@ enforcement as a dev-time check.
 
 ## The thirteen
 
-| Port         | Status              | Notes                                                                   |
-| ------------ | ------------------- | ----------------------------------------------------------------------- |
-| `store`      | Interface + 2 impls | `memoryStore` (L1), `tieredStore` (composition)                         |
-| `flags`      | Interface + 1 impl  | `staticFlags`; `axes()` is mandatory, not optional                      |
-| `session`    | Interface + 1 impl  | `cookieSession`                                                         |
-| `executor`   | Interface + 3 impls | `inline`, `deferred`, `client`                                          |
-| `telemetry`  | Interface + 1 impl  | `collectingTelemetry`                                                   |
-| `transport`  | Interface + 1 impl  | `nodeTransport`, for 103                                                |
-| `scheduler`  | Interface only      | The kernel uses `maxConcurrency`; ordering inside a wave is by priority |
-| `assets`     | Interface only      | `route.critical` is passed in directly today                            |
-| `render`     | Interface only      | Slots carry their own `render`                                          |
-| `registry`   | Interface + 1 impl  | `manifestRegistry`; resolves an opaque intent id to its implementation  |
-| `config`     | Declared only       | as above                                                                |
-| `db`         | Declared only       | as above                                                                |
-| `deployment` | Declared only       | as above                                                                |
+| Port         | Status              | Notes                                                                             |
+| ------------ | ------------------- | --------------------------------------------------------------------------------- |
+| `store`      | Interface + 2 impls | `memoryStore` (L1), `tieredStore` (composition)                                   |
+| `flags`      | Interface + 1 impl  | `staticFlags`; `axes()` is mandatory, not optional                                |
+| `session`    | Interface + 1 impl  | `cookieSession`                                                                   |
+| `executor`   | Interface + 4 impls | `inline`, `deferred`, `client`, and a real `pool` of worker threads               |
+| `telemetry`  | Interface + 1 impl  | `collectingTelemetry`                                                             |
+| `transport`  | Interface + 1 impl  | `nodeTransport`, for 103                                                          |
+| `scheduler`  | Interface + 2 impls | `prioScheduler` is the kernel's own rule, named; `fifoScheduler` keeps plan order |
+| `assets`     | Interface + 1 impl  | `weftAssets`, and the kernel asks it when the route named no critical links       |
+| `render`     | Interface + 1 impl  | `irRenderer`; the plan binds it, so `remote` is another implementation not a path |
+| `registry`   | Interface + 1 impl  | `manifestRegistry`; resolves an opaque intent id to its implementation            |
+| `config`     | Interface + 2 impls | `envConfig` under a prefix, `staticConfig` for a Worker's `env`                   |
+| `db`         | Interface + 1 impl  | `boundedDb`: a name, a deadline, and the tags an access declared                  |
+| `deployment` | Interface + 2 impls | `hostDeployment` reads whatever the host calls a revision; `staticDeployment`     |
 
-A port that does not exist refuses with a named error. It does not approximate.
+Thirteen declared, thirteen implemented, and ten of them bound by the front door with no
+configuration at all. A port that does not exist refuses with a named error and does not
+approximate — which is what the three that were "declared only" did until they were built, and
+what any future one will do.
+
+### The three that were declared only, and what they turned out to be
+
+**`config`.** What the deployment was configured with — an environment variable, a Worker
+binding, a secrets manager — behind one interface, so nothing above it has to know which. Two
+rules make it more than a `Record`. A setting is **not a tracked read**: it is a property of the
+deployment rather than of the request, so it cannot taint a fragment and cannot enter a cache key,
+which is also the only reason it is safe for a key to be loggable. And `required` refuses by name
+rather than defaulting, because a deployment missing its database URL should fail where it is
+configured. `envConfig` is visible only under a prefix (`WEFT_` by default), so a fragment asking
+for a setting cannot reach a credential the process happened to be started with.
+
+**`db`.** Where a loader's data comes from, named rather than anonymous. The framework never sees
+a loader — a `.data.ts` is application code the compiler does not read — so every query inside one
+is invisible to everything that would otherwise bound it. The port gives back exactly what that
+absence costs: a name in the telemetry, a deadline somebody chose rather than the driver's
+default, and the tags the render depended on recorded where an invalidation can be checked against
+them. It is deliberately **not a query language**: what runs is the caller's own function, and a
+`run` that ignores its `AbortSignal` gets a named `E_QUERY_TIMEOUT` and a query that is still
+running, which is stated rather than hidden.
+
+**`deployment`.** Which build is answering and where. Worth a port because every platform spells
+it differently and most spell it in an environment variable the kernel may not read. It feeds a
+response header, telemetry attributes that make two versions comparable during a rollout, and the
+inspector's own ports page. It deliberately does **not** feed cache keys: a revision in the key
+namespace would drop every cached render on every deploy, and the entries that genuinely must not
+survive one already do not, because a key contains the template's content address.
+
+### Where a capability goes when the request path has no room for it
+
+`ctx.data` and `ctx.setting` are the front door's, not the kernel's — `packages/weft/src/context.ts`
+rather than `packages/kernel/src/context.ts`. That is the byte budget deciding an architecture
+question, and it decided it correctly.
+
+Written into the kernel's context, the two of them plus the scheduler and assets wiring took the
+document request path to **8,254 B** against a ceiling of 8,192 that the design fixed and this
+repository has already refused to move once. The rule says a new capability does not draw on that
+headroom, so the capability moved to where its consumer already was: a loader is a front-door
+concept, so what a loader can reach is the front door's decision. The kernel kept the port
+declarations, which are types and cost nothing, and the request path came back to **8,108 B**.
+
+The wrapper is one function. `withServices(ctx, ports)` spreads the deployment's services onto the
+context the kernel handed in, and cannot add to what it tracks — so a loader gains a database and
+a settings table and still cannot smuggle an unkeyed read into a render.
+
+## SchedulerPort: the kernel's own rule, named
+
+`order(ready)` and `maxConcurrency`, and the default implementation is exactly what the kernel did
+before the port was bound: priority descending, then name. Naming it is what makes it a
+deployment's decision, and the name-breaks-the-tie half is not a preference — two runs of one plan
+have to dispatch in the same order, or a measurement of one is not a measurement of the other.
+
+A scheduler **reorders what it was handed**. It may not invent a slot, drop one, or return
+something it was not given: the wave is the plan's, and a scheduler that could change its
+membership could change what a page contains. The kernel passes its own nodes through and reads
+the order back, so anything else would be discarded anyway.
+
+The ceiling is the part that is not policy. Forty concurrent queries from one page request will
+melt a database, so the cap exists whether or not anyone tunes it, and the plan warns at build
+time when a plan's widest wave exceeds it (`W_WAVE_WIDTH`).
+
+## AssetPort: what a route needs before it has been rendered
+
+`criticalFor(route)` is asked while the envelope is still open and the plan has not run — which is
+the whole of what 103 is for, and until this port was bound the kernel had nothing to ask. Every
+page now hints its own stylesheet and the client runtime at effectively zero milliseconds, from a
+table the build already had: a page links one stylesheet and one module, so answering costs a map
+lookup rather than a render.
+
+Only what is _critical_ goes in. A 103 listing everything a page might use is a 103 that delays
+the things it needs, so fonts and images a fragment happens to reference are not there: they are
+discovered from the shell, which by then has already been flushed.
 
 ## StorePort, and why `coherence` is in the interface
 

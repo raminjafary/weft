@@ -43,13 +43,25 @@ export default defineRoute({
       incremental: true,
       live: true,
       placeholder: '<p class="skeleton"></p>',
+      /**
+       * The rows, fetched through the data port rather than called directly.
+       *
+       * There is no database here — `feedItems` is a generator — and that is the point of showing
+       * it on the page that has none: what the port adds is a *name* for the access, a deadline
+       * somebody chose, and the tags this render depended on recorded where an invalidation can
+       * be checked against them. All three are missing from a plain function call, and all three
+       * are what you want at 3am. `feed` is the same tag `feed.tick` declares it writes.
+       */
       load: async (ctx) => {
         const rows = Number(ctx.query('rows') ?? 120)
+        const items = await ctx.data({ name: 'feed.rows', tags: ['feed'], timeoutMs: 250 }, async () =>
+          feedItems(rows, at()),
+        )
         return {
           heading: 'Markets',
           count: rows,
           generated: ctx.now(),
-          [listHole(fragmentIR('fragment:feed'))]: feedItems(rows, at()),
+          [listHole(fragmentIR('fragment:feed'))]: items,
         }
       },
     },

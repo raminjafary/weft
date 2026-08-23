@@ -1,5 +1,6 @@
 import type { Values } from '@weft/ir'
 import type { EnvelopeContext, RenderContext } from '@weft/kernel'
+import type { LoaderContext } from './context.ts'
 import type { ExceedPolicy, PolicyClass, WireForm } from './types.ts'
 
 /**
@@ -12,7 +13,7 @@ import type { ExceedPolicy, PolicyClass, WireForm } from './types.ts'
  * is the pair the framework already had and the user had to write by hand.
  */
 export type RouteLoad = (
-  ctx: RenderContext,
+  ctx: LoaderContext,
   params: Record<string, string>,
 ) => Values | Promise<Values> | Record<string, unknown> | Promise<Record<string, unknown>>
 

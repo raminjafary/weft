@@ -3,7 +3,18 @@ import { access, readFile } from 'node:fs/promises'
 import { basename, dirname, join, relative } from 'node:path'
 import { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
-import { channelHandlers, cookieSession, memoryStore, nodeTransport, staticFlags } from '@weft/adapters'
+import {
+  boundedDb,
+  channelHandlers,
+  cookieSession,
+  envConfig,
+  hostDeployment,
+  irRenderer,
+  memoryStore,
+  nodeTransport,
+  prioScheduler,
+  staticFlags,
+} from '@weft/adapters'
 import {
   createEnvelope,
   createHub,
@@ -25,13 +36,21 @@ import {
   type SlotRender,
   type StorePort,
 } from '@weft/kernel'
-import { browserModule, buildAssets, cacheControlFor, type AssetTable, type ModuleTree } from './assets.ts'
-import { setAssets, setCompiled } from './current.ts'
+import {
+  browserModule,
+  buildAssets,
+  cacheControlFor,
+  weftAssets,
+  type AssetTable,
+  type ModuleTree,
+} from './assets.ts'
+import { setAssets, setCompiled, setPorts } from './current.ts'
 import { compileApp, frameworkStyles, type CompiledApp } from './compile.ts'
 import { discover, type Discovered } from './convention.ts'
 import { loadConfig, type ResolvedConfig, type WeftConfig } from './config.ts'
 import { devtoolsFor } from './devtools.ts'
 import { loadIntents, type IntentManifest } from './intents.ts'
+import { services } from './context.ts'
 import { loadDocuments, type ServedDocument } from './static.ts'
 import { generateRoutes, type GeneratedRoute } from './routes.ts'
 
@@ -81,6 +100,14 @@ export interface App {
   documents: Map<string, ServedDocument>
   diagnostics: string[]
   mode: Mode
+  /**
+   * What this deployment bound, built once and shared by every path that needs ports.
+   *
+   * Four of these used to be constructed per request — a session, a flag source, an executor
+   * table and a store reference, rebuilt for the kernel, for the intent dispatch and for the
+   * channel. Three copies of the same decisions is three places to change one of them.
+   */
+  ports: Ports
   /** The live-slot keys a set of write tags reaches, for a notify that has to name keys. */
   keysFor(tags: readonly string[]): string[]
 }
@@ -164,10 +191,42 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     return assets
   }
 
+  /**
+   * Every port this deployment binds, in one place.
+   *
+   * Thirteen are declared and this binds ten of them. The three that are not here are bound per
+   * request because they are per request: the transport is a `ServerResponse`, and the registry
+   * and the executor table belong to the intent dispatch and the config respectively.
+   *
+   * `assets` takes the table lazily. The hrefs carry a digest of the bundle's contents and the
+   * bundle is not assembled until the generator has said which stylesheets each page links, so at
+   * this point there is no table yet — one late binding rather than a 103 pointing at a URL that
+   * will not exist.
+   */
+  const configPort = config.config ?? envConfig()
+  const ports: Ports = {
+    store,
+    session: cookieSession({ cookie: config.session.cookie }),
+    flags: staticFlags({ axes: config.flags }),
+    executors: config.executors,
+    scheduler: prioScheduler({ maxConcurrency: config.maxConcurrency }),
+    assets: weftAssets(table),
+    render: irRenderer(),
+    config: configPort,
+    deployment:
+      config.deployment ??
+      hostDeployment({ config: configPort, ...(mode === 'dev' ? { environment: 'development' } : {}) }),
+    db: config.db ?? boundedDb(config.telemetry ? { telemetry: config.telemetry } : {}),
+    ...(config.telemetry ? { telemetry: config.telemetry } : {}),
+  }
+  // Published before the route modules render: a station page's loader may read what this
+  // deployment bound, and a page about the ports is a page about *these* ports.
+  setPorts(ports)
   const { routes } = await generateRoutes({
     discovered,
     compiled,
     config,
+    ports,
     styleHref: (pattern) => table().pageCss(pattern),
     styleOf,
     store,
@@ -225,12 +284,6 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     ...new Set(tags.flatMap((tag) => [...(keysByTag.get(tag) ?? [])])),
   ]
 
-  const ports: Ports = {
-    store,
-    session: cookieSession({ cookie: config.session.cookie }),
-    flags: staticFlags({ axes: config.flags }),
-    executors: config.executors,
-  }
   const dispatch = createIntentDispatch({ registry: intents.registry, store })
   const hub = createHub({
     store,
@@ -284,6 +337,7 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     documents: mode === 'start' ? await loadDocuments(config) : new Map(),
     diagnostics: compiled.diagnostics,
     mode,
+    ports,
     keysFor,
   }
 }
@@ -337,7 +391,10 @@ function channelContext(
   const headers = new Headers()
   if (cookie) headers.set('cookie', cookie)
   const reads = createReads(requestFacts(new Request(url, { headers }), params), ports)
-  return { ...reads, phase: 'render', defer: () => {} }
+  // The same services a document render hands a loader: a slot refreshed over the channel runs
+  // the same code, and a context that differed between the two would make the delta describe a
+  // render nobody could reproduce.
+  return { ...reads, ...services(ports), phase: 'render', defer: () => {} }
 }
 
 export async function serveApp(app: App): Promise<Serving> {
@@ -348,12 +405,7 @@ export async function serveApp(app: App): Promise<Serving> {
     registry: intents.registry,
     store,
     routes: createIntentRouter(intents.routes),
-    ports: {
-      store,
-      session: cookieSession({ cookie: config.session.cookie }),
-      flags: staticFlags({ axes: config.flags }),
-      executors: config.executors,
-    },
+    ports: app.ports,
     returnTo: (request) => request.headers.get('referer') ?? '/',
   })
 
@@ -387,16 +439,11 @@ export async function serveApp(app: App): Promise<Serving> {
     `window.__weftScroll = ${JSON.stringify(config.scroll)};\n` +
     (assets.app ? `window.__weftClient = ${JSON.stringify(assets.app)};\n` : '')
 
+  // The deployment's ports, plus the one that is a property of this response rather than of the
+  // deployment: 103 goes out on a socket, so the transport is per request and nothing else is.
   const kernelFor = (res: ServerResponse): Kernel =>
     createKernel({
-      ports: {
-        store,
-        session: cookieSession({ cookie: config.session.cookie }),
-        flags: staticFlags({ axes: config.flags }),
-        executors: config.executors,
-        transport: nodeTransport(res),
-        ...(config.telemetry ? { telemetry: config.telemetry } : {}),
-      },
+      ports: { ...app.ports, transport: nodeTransport(res) },
       coalesce: leaseCoalescer(store, { pollMs: 5 }),
       routes: table,
       notFound: () =>
@@ -504,6 +551,9 @@ export async function serveApp(app: App): Promise<Serving> {
     for (const [key, value] of response.headers) {
       out[key] = key === 'set-cookie' ? response.headers.getSetCookie() : value
     }
+    // Which build answered. One header, on every document, because the alternative is a deploy
+    // log and a guess — and during a rollout the two versions are the whole question.
+    if (app.ports.deployment) out['x-weft-revision'] = app.ports.deployment.revision
     res.writeHead(response.status, out)
     if (!response.body) {
       res.end()

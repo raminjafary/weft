@@ -1,7 +1,14 @@
 import { pathToFileURL } from 'node:url'
 import { join } from 'node:path'
 import { access } from 'node:fs/promises'
-import type { KernelExecutor, StorePort, TelemetryPort } from '@weft/kernel'
+import type {
+  ConfigPort,
+  DbPort,
+  DeploymentPort,
+  KernelExecutor,
+  StorePort,
+  TelemetryPort,
+} from '@weft/kernel'
 
 /**
  * The one file a deployment writes, and the only place it states what it binds.
@@ -38,6 +45,17 @@ export interface WeftConfig {
    */
   executors?: Record<string, KernelExecutor>
   telemetry?: TelemetryPort
+  /**
+   * Three ports a deployment may bind and most never have to.
+   *
+   * The defaults are real rather than stubs: settings come from `WEFT_`-prefixed environment
+   * variables, the deployment names itself from whatever the host calls a revision, and data
+   * access is bounded by a deadline and counted. Binding one replaces one decision and leaves the
+   * other two alone, which is the whole claim a port makes.
+   */
+  config?: ConfigPort
+  deployment?: DeploymentPort
+  db?: DbPort
   channel?: { path?: string }
   /**
    * What a route change does, for the pages this application serves.
@@ -86,6 +104,9 @@ export interface ResolvedConfig extends Required<Pick<WeftConfig, 'srcDir' | 'ou
   types: boolean
   store?: StorePort
   telemetry?: TelemetryPort
+  config?: ConfigPort
+  deployment?: DeploymentPort
+  db?: DbPort
   /** The config file that produced this, for a message that has to name it. */
   file?: string
 }
@@ -134,6 +155,9 @@ export async function loadConfig(root: string, overrides: WeftConfig = {}): Prom
     devtools: config.devtools ?? false,
     ...(config.store ? { store: config.store } : {}),
     ...(config.telemetry ? { telemetry: config.telemetry } : {}),
+    ...(config.config ? { config: config.config } : {}),
+    ...(config.deployment ? { deployment: config.deployment } : {}),
+    ...(config.db ? { db: config.db } : {}),
     ...(file ? { file } : {}),
   }
 }

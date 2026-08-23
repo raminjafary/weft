@@ -505,11 +505,23 @@ warnings, each naming the read or the slot that caused it — including the one 
 promises in its strongest terms: `.cache('public')` on a fragment that reads identity fails
 the build, naming `identity`.
 
-**Ports replace, plugins extend.** Thirteen ports declared; seven implemented; the rest refuse
-with `E_PORT_UNIMPLEMENTED` rather than approximating. A plugin's dependency graph is inferred
-from `reads` and `provides`, so most middleware becomes concurrent without anyone opting in,
-and a plugin that reads state it did not declare throws — the one rule that keeps effect
-tracking honest.
+**Ports replace, plugins extend.** Thirteen ports declared and thirteen implemented, ten of them
+bound by the front door with no configuration at all. The last three were the interesting ones,
+because building them decided something. `config` is settings from an environment or a Worker
+binding, and a setting is deliberately **not** a tracked read — it is a property of the deployment,
+so it cannot taint a fragment and cannot enter a key, which is the only reason a key is safe to
+log. `db` is where a loader's data comes from, named: the framework never sees a loader, so a query
+inside one has no name in the telemetry, no deadline anybody chose and no record of the tags the
+render depended on, and the port gives all three back without inventing a query language.
+`deployment` is which build is answering, a port because every platform spells a revision
+differently and most spell it in an environment variable the kernel may not read. `scheduler` and
+`assets` were interfaces the kernel worked around: the first is the kernel's own ordering rule
+named so a deployment can replace it, and the second is why every page now emits a 103 carrying its
+own stylesheet and runtime instead of the kernel having nobody to ask. And `ctx.data`/`ctx.setting`
+live in the front door rather than the kernel because writing them into the request path took it 62
+bytes over a ceiling the design fixed — the byte budget deciding an architecture question, and
+deciding it correctly: a loader is a front-door concept, so what a loader may reach is the front
+door's business.
 
 **None of it is asserted against a hand-built IR.** `packages/kernel/fixtures/cart-route.ts`
 assembles a route out of real compiler output and the integration test asserts what falls out —

@@ -1,3 +1,4 @@
+import type { Ports } from '@weft/kernel'
 import type { AssetTable } from './assets.ts'
 import type { CompiledApp, CompiledFragment } from './compile.ts'
 
@@ -20,11 +21,12 @@ import type { CompiledApp, CompiledFragment } from './compile.ts'
 interface CurrentApp {
   assets: AssetTable | null
   compiled: CompiledApp | null
+  ports: Ports | null
 }
 
 const CURRENT = Symbol.for('weft.current')
 const container = globalThis as unknown as Record<symbol, CurrentApp | undefined>
-const current: CurrentApp = (container[CURRENT] ??= { assets: null, compiled: null })
+const current: CurrentApp = (container[CURRENT] ??= { assets: null, compiled: null, ports: null })
 
 export function setAssets(table: AssetTable): void {
   current.assets = table
@@ -32,6 +34,23 @@ export function setAssets(table: AssetTable): void {
 
 export function setCompiled(app: CompiledApp): void {
   current.compiled = app
+}
+
+export function setPorts(ports: Ports): void {
+  current.ports = ports
+}
+
+/**
+ * What this deployment bound, for a page whose subject is the deployment.
+ *
+ * The inspector's ports station used to construct its own store and session and describe those,
+ * which is a page about a plausible application rather than about the one serving it. Reading the
+ * live record means the row for the store is the store answering the request that rendered it.
+ */
+export function appPorts(): Ports {
+  const { ports } = current
+  if (!ports) throw new Error('E_NO_APP: appPorts() was called outside a running application')
+  return ports
 }
 
 /**

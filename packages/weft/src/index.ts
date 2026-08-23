@@ -103,10 +103,11 @@ export {
   type SlotDeclaration,
 } from './route.ts'
 export type { ExceedPolicy, PolicyClass, WireForm } from './types.ts'
-export { allFragments, allTemplates, asset, fragmentIR } from './current.ts'
+export { allFragments, allTemplates, appPorts, asset, fragmentIR } from './current.ts'
 export { listHole, slotHoles, type CompiledFragment } from './compile.ts'
 export { adoptScript, type AdoptOptions } from './routes.ts'
 export { defineConfig, type WeftConfig } from './config.ts'
 export { defineIntent } from '@weft/kernel'
 export type { Intent, IntentContext, IntentResult, RenderContext, EnvelopeContext } from '@weft/kernel'
 export type { Values } from '@weft/ir'
+export type { LoaderContext, Services } from './context.ts'

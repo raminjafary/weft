@@ -4,6 +4,7 @@ import {
   createRouter,
   recordBase,
   type KernelSlot,
+  type Ports,
   type RenderContext,
   type RouteEntry,
   type RouteResolver,
@@ -23,6 +24,7 @@ import {
   type SlotFacts,
 } from '@weft/plan'
 import { composedIn, slotHoles, type CompiledApp, type CompiledFragment } from './compile.ts'
+import { withServices } from './context.ts'
 import type { Discovered, DiscoveredRoute } from './convention.ts'
 import type { CacheDeclaration, RouteModule, SlotDeclaration } from './route.ts'
 import { staticVerdict, type StaticVerdict } from './static.ts'
@@ -212,8 +214,17 @@ function fragmentFor(
  * markup that goes through the framework's one unescaped fragment, and a slot with neither
  * renders its fragment with no values — which is right for a static header.
  */
+/**
+ * A slot's values, and the context its loader is given.
+ *
+ * The kernel's context is what tracks reads; `withServices` adds what the deployment bound — a
+ * settings table and a data port — without touching it. Wrapping here rather than in the kernel
+ * is deliberate: a loader is a front-door concept, so what a loader can reach is the front door's
+ * decision and costs the document request path nothing.
+ */
 function valuesOf(
   declaration: SlotDeclaration,
+  ports: Ports,
 ): (ctx: RenderContext, params: Record<string, string>) => Promise<Values> {
   if (declaration.html !== undefined) {
     const html = declaration.html
@@ -224,7 +235,7 @@ function valuesOf(
   }
   if (declaration.load) {
     const load = declaration.load
-    return async (ctx, params) => (await load(ctx, params)) as Values
+    return async (ctx, params) => (await load(withServices(ctx, ports), params)) as Values
   }
   return async () => ({}) as Values
 }
@@ -427,6 +438,8 @@ export interface GenerateOptions {
   styleOf(file: string): string | undefined
   /** Where a live slot's base render is recorded, so its first refresh can be a delta. */
   store: StorePort
+  /** What this deployment bound. A loader is handed the services half of it. */
+  ports: Ports
   /** The client entry the layout loads. Also a digest-bearing URL, so also resolved late. */
   runtime(): string
   brand: string
@@ -565,7 +578,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
   const live: Record<string, LiveSlot> = {}
   for (const name of holes) {
     const { declaration, fragment } = declarations[name] as (typeof declarations)[string]
-    const values = valuesOf(declaration)
+    const values = valuesOf(declaration, options.ports)
     slots[name] = {
       fragment: { entry: fragment.entry, resolve: fragment.resolve },
       values: async (ctx, params) => {

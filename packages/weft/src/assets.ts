@@ -1,3 +1,4 @@
+import type { AssetPort, PreloadLink } from '@weft/kernel'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { stripTypeScriptTypes } from 'node:module'
 import { extname, join, relative, sep } from 'node:path'
@@ -246,5 +247,38 @@ export async function isDirectory(path: string): Promise<boolean> {
     return (await stat(path)).isDirectory()
   } catch {
     return false
+  }
+}
+
+/**
+ * What a route needs before it has been rendered, which is the whole of what 103 is for.
+ *
+ * The kernel asks this while the envelope is still open and the plan has not run: the browser
+ * starts fetching the stylesheet and the runtime at effectively zero milliseconds, and the
+ * response stays open for phase A to finish. Everything here is known at build time — a page
+ * links one stylesheet and one module — so answering costs a map lookup rather than a render.
+ *
+ * Only what is *critical* goes in. A 103 listing every asset a page might use is a 103 that
+ * delays the ones it needs, so the fonts and images a fragment happens to reference are not
+ * here: they are discovered from the shell, which by then has already been flushed.
+ */
+export function weftAssets(table: () => AssetTable): AssetPort {
+  return {
+    name: 'weft',
+    criticalFor(route) {
+      const assets = table()
+      const links: PreloadLink[] = [
+        { href: assets.pageCss(route), as: 'style', rel: 'preload' },
+        { href: assets.boot, as: 'script', rel: 'modulepreload' },
+      ]
+      // The application's own client module, when it has one: it is imported by the runtime
+      // after adoption, so without a hint it is discovered one round trip later than it could be.
+      if (assets.app) links.push({ href: assets.app, as: 'script', rel: 'modulepreload' })
+      return links
+    },
+    chunksFor(route) {
+      const assets = table()
+      return [assets.pageCss(route), assets.boot, ...(assets.app ? [assets.app] : [])]
+    },
   }
 }

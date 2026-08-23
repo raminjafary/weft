@@ -13,7 +13,7 @@ import { cookieSession, memoryStore, staticFlags } from '@weft/adapters'
 import { factsFrom, plan, shell, slot, validatePlan } from '@weft/plan'
 import { escapeHtml, field, panel, pick, pre, press, readout } from '../pages.ts'
 import type { StationHandler } from './kind.ts'
-import { allFragments, fragmentIR } from 'weft'
+import { allFragments, appPorts, fragmentIR } from 'weft'
 
 /**
  * The introspection stations: what the compiler inferred, what the kernel derived from it, and
@@ -413,28 +413,56 @@ export const shellBoundaries: StationHandler = async () => {
   }
 }
 
+/**
+ * What each port is, when this application is the one being described.
+ *
+ * Read from the live record rather than reconstructed: the store row is the store that answered
+ * the request that rendered this page, and the deployment row is the build serving it. A station
+ * that built its own ports would be a page about a plausible application.
+ */
+function describe(name: PortName, bound: Ports): string {
+  switch (name) {
+    case 'store':
+      return `${bound.store.name} · ${bound.store.consistency} · coherence ${bound.store.coherence} · scope ${bound.store.scope}`
+    case 'registry':
+      return 'manifestRegistry, which derives intent ids with the same function the compiler used'
+    case 'executor':
+      return `${Object.keys(bound.executors).length + 3} bound: inline, deferred and client always, plus what the config added`
+    case 'scheduler':
+      return `${bound.scheduler?.name ?? '—'}, ceiling ${bound.scheduler?.maxConcurrency ?? '—'} concurrent renders per request`
+    case 'assets':
+      return `${bound.assets?.name ?? '—'} — what a route's 103 carries, answered before the plan runs`
+    case 'render':
+      return `${bound.render?.name ?? '—'} — pre-encoded segments around escaped holes`
+    case 'config':
+      return `${bound.config?.name ?? '—'} · ${bound.config?.keys().length ?? 0} setting(s) visible under the prefix`
+    case 'deployment':
+      return `${bound.deployment?.revision ?? '—'} · ${bound.deployment?.environment ?? '—'}${bound.deployment?.region ? ` · ${bound.deployment.region}` : ''}`
+    case 'db':
+      return `${bound.db?.name ?? '—'} — a deadline and a name per access, and the tags it declared`
+    case 'transport':
+      return 'nodeTransport, per response, because 103 goes out on a socket'
+    default:
+      return 'bound in @weft/adapters'
+  }
+}
+
 export const portsStation: StationHandler = async () => {
-  const p = ports()
+  const bound = appPorts()
+  // Bound, rather than a list somebody keeps in step by hand: the transport is per request and
+  // therefore absent from the record, so it is named separately rather than reported missing.
   const implemented = new Set<PortName>([
-    'store',
-    'session',
-    'flags',
+    ...(Object.entries(bound)
+      .filter(([, value]) => Boolean(value))
+      .map(([key]) => (key === 'executors' ? 'executor' : key)) as PortName[]),
     'transport',
-    'telemetry',
-    'executor',
-    'registry',
   ])
   const rows = PORTS.map((name) => {
     if (implemented.has(name)) {
       return {
         label: name,
         value: 'implemented',
-        note:
-          name === 'store'
-            ? `${p.store.name} · ${p.store.consistency} · coherence ${p.store.coherence} · scope ${p.store.scope}`
-            : name === 'registry'
-              ? 'manifestRegistry, which derives intent ids with the same function the compiler used'
-              : 'bound in @weft/adapters',
+        note: describe(name, bound),
         state: 'within' as const,
       }
     }
@@ -449,12 +477,12 @@ export const portsStation: StationHandler = async () => {
   return {
     panel: panel(
       '',
-      'Thirteen ports are declared. The ones with no implementation refuse by name rather than approximating.',
+      `Thirteen ports are declared and this deployment binds ${implemented.size}. Any that remain refuse by name rather than approximating.`,
     ),
     body: async () =>
       readout('The thirteen', rows, {
-        what: `A port has exactly one active implementation and answers “who does this job”. Replacing one cannot change an invariant: cache keys are still derived from effects, render is still read-only, the envelope still has two phases. The ones that are declared and not implemented are not stubs — calling them throws a named error.`,
-        from: 'PORTS and unimplemented() in @weft/kernel; the store row is the live store this demo is using',
+        what: `A port has exactly one active implementation and answers “who does this job”. Replacing one cannot change an invariant: cache keys are still derived from effects, render is still read-only, the envelope still has two phases. Any that are declared and not implemented are not stubs — calling them throws a named error.`,
+        from: 'PORTS and unimplemented() in @weft/kernel; every row describes the port answering this request',
         caveat:
           'A port being implemented says nothing about how good the implementation is. The store here is an isolate-local map with a byte ceiling, and it says so in its own coherence field.',
         tryThis:

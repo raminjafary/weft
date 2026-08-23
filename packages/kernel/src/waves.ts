@@ -128,6 +128,12 @@ export interface DispatchOptions {
   maxConcurrency: number
   /** Called for each node when its turn comes. Rejections are the caller's to police. */
   run(node: DagNode): Promise<void>
+  /**
+   * The scheduler's say over what runs first inside a wave. Without one the wave keeps the
+   * order `schedule()` produced, which is priority and then name — a deterministic default
+   * rather than a policy, and the reason the port exists is that a deployment may have one.
+   */
+  order?(ready: readonly DagNode[]): readonly DagNode[]
 }
 
 /**
@@ -139,9 +145,10 @@ export async function dispatch(nodes: readonly DagNode[], options: DispatchOptio
   const byName = new Map(nodes.map((n) => [n.name, n]))
   const { waves } = schedule(nodes)
   for (const wave of waves) {
-    for (let i = 0; i < wave.length; i += options.maxConcurrency) {
-      const batch = wave.slice(i, i + options.maxConcurrency)
-      await Promise.all(batch.map((name) => options.run(byName.get(name) as DagNode)))
+    const nodes_ = wave.map((name) => byName.get(name) as DagNode)
+    const ordered = options.order ? [...options.order(nodes_)] : nodes_
+    for (let i = 0; i < ordered.length; i += options.maxConcurrency) {
+      await Promise.all(ordered.slice(i, i + options.maxConcurrency).map((node) => options.run(node)))
     }
   }
 }

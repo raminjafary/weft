@@ -14,6 +14,7 @@ import {
   type KernelSlot,
   type Order,
   type PreloadLink,
+  type RenderPort,
   type RenderContext,
   type RouteResolver,
 } from '@weft/kernel'
@@ -81,6 +82,15 @@ export interface RouteBindings {
   critical?: PreloadLink[]
   /** Overrides the order derived from the plan's slot deliveries. */
   order?: Order
+  /**
+   * Who turns this route's fragments into bytes. Without one the IR renderer is called directly,
+   * which is what every route did before the port existed and is still what most of them want.
+   *
+   * A slot declared `.incremental()` renders through its own memo either way. The port answers
+   * *who produces bytes from a template*; incremental answers *which of last time's bytes can be
+   * reused*, and a renderer that has never seen the previous values cannot answer the second.
+   */
+  render?: RenderPort
 }
 
 function policyOf(spec: CacheSpec | undefined): CachePolicy | undefined {
@@ -126,13 +136,26 @@ function incrementalRender(fragment: FragmentSource, memo: SegmentMemo): (values
     }).bytes
 }
 
-function slotOf(spec: SlotSpec, binding: SlotBinding, params: Record<string, string>): KernelSlot {
+function slotOf(
+  spec: SlotSpec,
+  binding: SlotBinding,
+  params: Record<string, string>,
+  renderer?: RenderPort,
+): KernelSlot {
   const { fragment } = binding
   const policy = policyOf(spec.cache)
   const memo = spec.incremental ? createSegmentMemo() : null
   const paint = memo
     ? incrementalRender(fragment, memo)
-    : (values: Values) => renderTemplate(fragment.entry, values, fragment.resolve)
+    : renderer
+      ? (values: Values) =>
+          renderer.render({
+            slot: spec.name,
+            template: fragment.entry,
+            values,
+            ...(fragment.resolve ? { resolve: fragment.resolve } : {}),
+          })
+      : (values: Values) => renderTemplate(fragment.entry, values, fragment.resolve)
   return {
     name: spec.name,
     id: fragment.entry.id,
@@ -201,7 +224,9 @@ export function lowerPlan(plan: Plan, context: ValidateContext, bindings: RouteB
       },
       order,
       maxConcurrency: plan.maxConcurrency,
-      slots: plan.slots.map((spec) => slotOf(spec, bindings.slots[spec.name] as SlotBinding, params)),
+      slots: plan.slots.map((spec) =>
+        slotOf(spec, bindings.slots[spec.name] as SlotBinding, params, bindings.render),
+      ),
       ...(bindings.shell.resolve ? { resolve: bindings.shell.resolve } : {}),
       ...(bindings.critical ? { critical: bindings.critical } : {}),
       ...(documentPolicy ? { policy: documentPolicy } : {}),
