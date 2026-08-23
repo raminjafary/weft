@@ -384,6 +384,7 @@ export async function serveApp(app: App): Promise<Serving> {
   const prelude =
     `window.__weftIntents = ${JSON.stringify(intents.names)};\n` +
     `window.__weftChannel = ${JSON.stringify(config.channelPath)};\n` +
+    `window.__weftScroll = ${JSON.stringify(config.scroll)};\n` +
     (assets.app ? `window.__weftClient = ${JSON.stringify(assets.app)};\n` : '')
 
   const kernelFor = (res: ServerResponse): Kernel =>

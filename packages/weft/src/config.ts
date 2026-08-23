@@ -39,6 +39,20 @@ export interface WeftConfig {
   executors?: Record<string, KernelExecutor>
   telemetry?: TelemetryPort
   channel?: { path?: string }
+  /**
+   * What a route change does, for the pages this application serves.
+   *
+   * `scroll` decides where the reader lands when the framework answers a link itself. `top` is the
+   * default because it is what a navigation has always done, and a swap that silently kept the
+   * position would be a framework quietly changing what a link means. `preserve` is for the
+   * applications where the position *is* the reader's place — a long list with a filter in the
+   * URL, a document with a chapter per route — and it can be asked for one link at a time with
+   * `data-weft-scroll="preserve"` in the markup, which wins over whatever is set here.
+   *
+   * Neither setting touches back and forward: those restore the position recorded on the entry
+   * being returned to, which is what a browser does and what a reader means by going back.
+   */
+  navigation?: { scroll?: 'top' | 'preserve' }
   /** Per-request ceiling on concurrent slot renders. Forty queries from one page will melt a database. */
   maxConcurrency?: number
   /** Type information decides escape elision. Turning it off is correct and slower. */
@@ -65,6 +79,8 @@ export interface ResolvedConfig extends Required<Pick<WeftConfig, 'srcDir' | 'ou
   session: { cookie: string }
   executors: Record<string, KernelExecutor>
   channelPath: string
+  /** Where a route change lands when the framework answers a link. See `WeftConfig.navigation`. */
+  scroll: 'top' | 'preserve'
   maxConcurrency: number
   devtools: boolean
   types: boolean
@@ -112,6 +128,7 @@ export async function loadConfig(root: string, overrides: WeftConfig = {}): Prom
     session: { cookie: config.session?.cookie ?? 'sid' },
     executors: config.executors ?? {},
     channelPath: config.channel?.path ?? '/_weft/channel',
+    scroll: config.navigation?.scroll === 'preserve' ? 'preserve' : 'top',
     maxConcurrency: config.maxConcurrency ?? 6,
     types: config.types ?? true,
     devtools: config.devtools ?? false,
