@@ -82,6 +82,8 @@ weft build          # sealed templates, the generated plan, the intent manifest,
 weft start          # serve the build. No compiler runs
 weft routes         # the route table, as the file tree produced it
 weft why /          # the plan the framework generated for a route
+weft dev --profile  # record what every render costs, and plan the next run from it
+weft profile        # what the recording decided about delivery, and what it refuses to decide
 ```
 
 A route declares placement and data and deliberately cannot declare a cache key: keys come from
@@ -499,6 +501,18 @@ deliberately: only nested templates are memoised, because hashing a text hole co
 rendering it, and the memo is process-local because `render` is synchronous and a shared tier
 could not answer it. The gate is byte identity with a full render, checked over every scenario
 cold and warm.
+
+**A plan can come from a measurement, and only for the half that is about time.** `weft dev
+--profile` records what every render costs — per route and per slot, renders separately from cache
+hits, and where readers came from — and the next generation plans delivery from it: a slow region on
+a page with a fast one streams, a page whose regions are uniformly fast buffers so the 329-byte
+out-of-order filler stays off the wire, and a slot with fewer than eight renders decides nothing,
+because two requests are not a measurement. Placement, cache classes and keys are untouched — a
+recording of last Tuesday has no standing over what the compiler inferred. On the demo the only
+region it streams is the dashboard panel the demo made deliberately slow, which is the measurement
+finding what was planted for it. The other two thirds of phase 8 are **refused with reasons rather
+than pending**: chunk packing assumes a bundler this framework does not have, and V8 compile hints
+assume a function per template where a template here is data.
 
 **The plan is checked against the compiler, never the reverse.** A refusal per rule and five
 warnings, each naming the read or the slot that caused it — including the one the design
