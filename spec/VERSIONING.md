@@ -8,7 +8,7 @@ later means every client already in the field is unversioned.
 | ---------------- | -------------------- | ------- | ------------------------ |
 | Template IR      | `weft.template-ir/2` | 2.5.0   | `packages/ir`            |
 | Payloads (delta) | `weft.payload/2`     | 2.5.0   | `packages/ir`            |
-| Warp frames      | `weft.warp/1`        | 1.3.0   | `packages/warp`          |
+| Warp frames      | `weft.warp/1`        | 1.4.0   | `packages/warp`          |
 
 ## What each version component means
 
@@ -45,6 +45,23 @@ requires nothing resident on the client, which is why it is the fallback wheneve
 versions disagree: a version mismatch costs a form, never the page.
 
 ## Changelog
+
+### Warp 1.4.0 — WARM stages a route, and NAV answers
+
+The frame table has always said `WARM` means "stage data for a route, do not paint", and what was
+implemented answered with templates. It now answers both questions, at the two grains they are:
+`tpl=` names template versions the client does not hold, and `at=` names a route it may be about to
+go to. Both paint nothing.
+
+`NAV` (0x1d) is the answer, and its `form` is the decision only a server can make. `slots` means the
+target shares this client's shell, so its regions follow as frames — deltas where the client holds
+the template and the base, markup where it does not. `document` means it does not, and a different
+shell has different holes: swapping those regions into the ones on screen would assemble a page out
+of two layouts, so the client is told to fetch the document instead.
+
+Additive in both directions. A `WARM` with no `at` is exactly the frame it was, an older server
+ignores the header and answers about templates, and an older client never sends one. `NAV` was a
+declared code with no implementation, so no reader can be holding one that means something else.
 
 ### Warp 1.3.0 — a HELD frame can say it is all of it
 

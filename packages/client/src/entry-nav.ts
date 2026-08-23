@@ -7,5 +7,21 @@
  * growth is charged to somebody else's headroom.
  */
 export * from './entry-channel.ts'
-export { createStaging, navigable, plainClick, stagingKey, DEFAULT_STAGING } from './navigate.ts'
-export type { Staging, StagingOptions, StageState, Claimed, LinkFacts, ClickFacts } from './navigate.ts'
+export {
+  createStaging,
+  navFrames,
+  navigable,
+  plainClick,
+  stagingKey,
+  warmFrame,
+  DEFAULT_STAGING,
+} from './navigate.ts'
+export type {
+  Staging,
+  StagingOptions,
+  StageState,
+  Claimed,
+  LinkFacts,
+  ClickFacts,
+  StagedNav,
+} from './navigate.ts'

@@ -132,6 +132,30 @@ all. Measured in
 [the adoption spec](../client/adoption.md); 1,124 protocol bytes on a first visit against
 132 on a repeat.
 
+### `WARM at=`, and the answer only a server can give
+
+`WARM` asks two questions at two grains and neither of them paints: `tpl=` names template versions
+the client does not hold, `at=` names a route it may be about to go to. The route case is answered
+by `NAV`, whose `form` header is the whole decision.
+
+| `form`     | Meaning                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------ |
+| `slots`    | The target shares this client's shell. Its regions follow as frames, staged into the epoch |
+| `document` | It does not. A different shell has different holes, so fetch the document instead          |
+
+**Why the server decides.** Only the server knows both shells — the one this connection is on and
+the one the target renders into — and a page assembled out of two layouts is worse than a document
+request. The client sends no shell version and needs none.
+
+**What the regions come back as** is the surgical ladder, unchanged: a `DELTA` where the client
+holds the template _and_ the base for that slot name, markup where it does not. Two pages on one
+route share a template, so switching between them travels as the values that differ — for a page
+the reader has not been to yet, which is what a staged route is.
+
+**The held map is not touched.** What the client is showing has not changed. Writing the target's
+bases into it would make the next refresh of the page they are still looking at a delta against a
+render they have never seen.
+
 ### `HELD`, and saying that this is all of it
 
 A `HELD` frame's headers are slot names, so anything the frame has to say about _itself_ needs a
@@ -144,8 +168,9 @@ the server clears the map, drops that connection's entries in the stale registry
 new set. Added in Warp 1.3.0; an older server ignores it and merges, which is the behaviour it
 had before.
 
-What that path does not yet touch: the socket binding, `RESUME`, epochs and `COMMIT`,
-`STALE`, `NAV`, and the uplink frames. Version negotiation runs, but only against a client
+What that path does not yet touch: the socket binding, `RESUME`, and `STALE`. Epochs, `COMMIT`,
+`NAV` and the uplink frames are exercised end to end — a route staged over a channel and committed
+by a click is measured in [the navigation spec](../client/navigation.md). Version negotiation runs, but only against a client
 that agrees with the server, so the downgrade paths remain tested in isolation rather than
 in traffic.
 

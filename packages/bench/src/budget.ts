@@ -72,6 +72,13 @@ export const BUDGETS: ByteBudget[] = [
     limitNote: 'no design figure; a watermark, so the next addition argues with a number',
   },
   {
+    id: 'kernel-stage',
+    label: 'Server kernel plus a route staged over the channel',
+    entry: kernelSrc('entry-stage.ts'),
+    limit: 14 * 1024,
+    limitNote: 'no design figure; its own entry, because it went 108 B past the transport watermark',
+  },
+  {
     id: 'channel-route',
     label: 'Channel route: an app route plus arriving frames',
     entry: src('entry-channel.ts'),

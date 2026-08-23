@@ -24,6 +24,7 @@ import {
   type ServerCapabilities,
 } from '@weft/warp'
 import { createEpochs, type Epochs, type Transition } from './epoch.ts'
+import type { RouteStager } from './stage.ts'
 import type { EnvelopeContext } from './context.ts'
 import type { IntentDispatch, IntentOutcome } from './intent.ts'
 import type { StorePort, TelemetryPort } from './ports.ts'
@@ -117,6 +118,15 @@ export interface HubOptions {
   intentContext?(channel: Channel): EnvelopeContext | Promise<EnvelopeContext>
   /** Templates a WARM frame may ask for. Without one, WARM is refused by name. */
   templates?: (version: string) => TemplateIR | undefined
+  /**
+   * What answers a `WARM` carrying `at=<path>`: a whole route, staged and painting nothing.
+   *
+   * A hook rather than an implementation, and not only because a channel has no idea what a route
+   * is. Written into this file it took the transport entry 108 bytes past a watermark set before
+   * route staging existed, and a new capability gets its own entry rather than somebody else's
+   * headroom — so the implementation is `createStager` in `stage.ts`, measured on its own.
+   */
+  stageRoute?: RouteStager
   server?: ServerCapabilities
   maxEpochs?: number
   /**
@@ -332,6 +342,18 @@ export function createHub(options: HubOptions): ChannelHub {
       }
 
       case 'WARM': {
+        const at = str(f, 'at')
+        if (at !== undefined) {
+          if (!options.stageRoute) {
+            return [errorFrame('E_NO_ROUTE_STAGING', 'this hub was given no way to stage a route')]
+          }
+          const epoch = str(f, 'epoch')
+          return options.stageRoute({
+            path: at,
+            channel: record.channel,
+            ...(epoch ? { epoch } : {}),
+          })
+        }
         if (!options.templates) {
           return [errorFrame('E_NO_TEMPLATE_REGISTRY', 'this hub was given no template registry')]
         }
@@ -408,6 +430,46 @@ export function createHub(options: HubOptions): ChannelHub {
   }
 
   /**
+   * One slot, rendered into the smallest form this client can apply.
+   *
+   * Shared by a refresh and by a route being staged, because it is the same question both times:
+   * what does this client hold, and what is the least that has to travel given that. The only
+   * difference is whether the answer becomes what the server believes the client is showing —
+   * true for a refresh of the page they are on, false for a route they have not gone to.
+   */
+  async function serveSlot(
+    record: ChannelRecord,
+    slot: string,
+    source: SlotRender,
+    remember: boolean,
+  ): Promise<{ frame: Frame }> {
+    const held = record.held.get(slot)
+    const result = await surgicalRefresh({
+      slot,
+      ir: source.ir,
+      next: source.values,
+      store: options.store,
+      accepted: (record.negotiation as Negotiation).forms,
+      ...(held ? { held } : {}),
+      ...(source.resolve ? { resolve: source.resolve } : {}),
+      ...(source.prefer ? { prefer: source.prefer } : {}),
+      ...(source.fallback ? { fallback: source.fallback } : {}),
+      ...(record.hello?.rtt !== undefined ? { rttMs: record.hello.rtt } : {}),
+      ...(options.ttl ? { ttl: options.ttl } : {}),
+    })
+    if (remember) {
+      record.held.set(slot, { slot, tpl: source.ir.version, base: result.nextBase })
+      if (source.key) stale.hold(record.channel.id, slot, source.key)
+    }
+    options.telemetry?.measure('channel.refresh', result.memoized ? 0 : 1, {
+      slot,
+      form: result.choice.form,
+      memoized: String(result.memoized),
+    })
+    return result
+  }
+
+  /**
    * One REFRESH, any number of slots. `epoch` stages instead of sending, which is the whole
    * point of an epoch: the data arrives, resolves, and paints nothing. `commit` flips
    * everything staged under that epoch at once — set both on one frame and you have an
@@ -430,27 +492,7 @@ export function createHub(options: HubOptions): ChannelHub {
         out.push(errorFrame('E_NO_SUCH_SLOT', slot))
         continue
       }
-      const held = record.held.get(slot)
-      const result = await surgicalRefresh({
-        slot,
-        ir: source.ir,
-        next: source.values,
-        store: options.store,
-        accepted: record.negotiation.forms,
-        ...(held ? { held } : {}),
-        ...(source.resolve ? { resolve: source.resolve } : {}),
-        ...(source.prefer ? { prefer: source.prefer } : {}),
-        ...(source.fallback ? { fallback: source.fallback } : {}),
-        ...(record.hello?.rtt !== undefined ? { rttMs: record.hello.rtt } : {}),
-        ...(options.ttl ? { ttl: options.ttl } : {}),
-      })
-      record.held.set(slot, { slot, tpl: source.ir.version, base: result.nextBase })
-      if (source.key) stale.hold(record.channel.id, slot, source.key)
-      options.telemetry?.measure('channel.refresh', result.memoized ? 0 : 1, {
-        slot,
-        form: result.choice.form,
-        memoized: String(result.memoized),
-      })
+      const result = await serveSlot(record, slot, source, true)
       if (epoch) record.epochs.stage(epoch, slot, result.frame)
       else out.push(result.frame)
     }

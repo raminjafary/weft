@@ -1,6 +1,7 @@
 import type { Adopted } from './adopt.ts'
 import { applyDelta, baseMatches, type DeltaPayload } from './delta.ts'
 import type { Epochs } from './epoch.ts'
+import type { StagedNav } from './navigate.ts'
 import type { ClientTemplate, Json } from './template.ts'
 
 /**
@@ -40,6 +41,15 @@ export interface ChannelClientOptions {
   onTemplate?(template: ClientTemplate): void | Promise<void>
   /** A region the server says is stale. The client decides: now, on focus, or never. */
   onStale?(slot: string, reason: string): void
+  /**
+   * A frame this build does not route.
+   *
+   * The extension point a capability that owns a frame kind uses, rather than this file growing a
+   * case per feature — which is also a byte decision: routing `NAV` here took the channel entry 86
+   * bytes past a watermark, and a page that never navigates should not carry navigation's handler.
+   * `navFrames` in `navigate.ts` is the one that exists.
+   */
+  onFrame?(frame: ChannelFrame, applied: Applied): void
   /** Markup for a slot the server could not send a delta for. */
   onHtml?(slot: string, html: string, base: string): void
   onError?(code: string, detail: string): void
@@ -71,6 +81,11 @@ export interface Applied {
   /** Intent outcomes. A failed one names the epoch that was discarded because of it. */
   acked: Acked[]
   discarded: string[]
+  /**
+   * Routes the server answered a stage for, refused or otherwise. Filled by `navFrames`, which is
+   * navigation's handler rather than this file's — see `onFrame`.
+   */
+  navs: StagedNav[]
 }
 
 const decoder = new TextDecoder()
@@ -164,6 +179,7 @@ export function createChannelClient(options: ChannelClientOptions): ChannelClien
         errors: [],
         acked: [],
         discarded: [],
+        navs: [],
       }
       const regions = byName()
 
@@ -203,7 +219,31 @@ export function createChannelClient(options: ChannelClientOptions): ChannelClien
           case 'HTML': {
             const slot = text(frame, 's') ?? ''
             const base = text(frame, 'base') ?? ''
-            options.onHtml?.(slot, frame.body ? decoder.decode(frame.body) : '', base)
+            const html = frame.body ? decoder.decode(frame.body) : ''
+            const epoch = text(frame, 'epoch')
+            /**
+             * Markup for a slot, and the epoch that decides when it is painted.
+             *
+             * Without an epoch this is the floor of the surgical ladder: the server could not send
+             * a delta, so the region is replaced now. With one it is a route being staged — a
+             * navigation's regions arrive as a mixture of deltas and markup, and painting the
+             * markup on arrival while the deltas waited for a commit would show half a page.
+             */
+            if (epoch) {
+              const region_ = regions.get(slot)
+              options.epochs.stage(epoch, {
+                slot,
+                html,
+                base,
+                paint: (painted, showing) => {
+                  options.onHtml?.(slot, painted, showing)
+                  if (region_) region_.base = showing
+                },
+              })
+              result.staged.push(slot)
+              break
+            }
+            options.onHtml?.(slot, html, base)
             const region = regions.get(slot)
             if (region) region.base = base
             break
@@ -277,6 +317,7 @@ export function createChannelClient(options: ChannelClientOptions): ChannelClien
             break
 
           default:
+            options.onFrame?.(frame, result)
             break
         }
       }

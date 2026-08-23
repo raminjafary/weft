@@ -23,6 +23,7 @@ import {
   createKernel,
   createReads,
   createRouter,
+  createStager,
   envelopeContext,
   leaseCoalescer,
   lifecycle,
@@ -54,9 +55,11 @@ import { services } from './context.ts'
 import {
   createRecorder,
   decide,
+  likelyNext,
   readProfile,
   writeProfile,
   type Decisions,
+  type Profile,
   type Recorder,
 } from './profile.ts'
 import { loadDocuments, type ServedDocument } from './static.ts'
@@ -353,6 +356,61 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
       return envelopeContext(createReads(requestFacts(new Request(url, { headers })), ports), envelope)
     },
     templates: (version) => compiled.templates.find((t) => t.version === version),
+    /**
+     * A route staged over the channel, which is `WARM at=` doing what the frame table always said.
+     *
+     * Two decisions live here because only this side can make them. Whether the target shares this
+     * client's shell — a different document has different holes, so its regions cannot be swapped
+     * into the ones on screen, and the honest answer then is a document request. And what each
+     * region's next state is, which goes through the *same loaders* a document request would run:
+     * a staged route that computed its values differently would be a page nobody could reproduce.
+     */
+    stageRoute: createStager({
+      store,
+      ...(config.telemetry ? { telemetry: config.telemetry } : {}),
+      resolve: async ({ path, channel }) => {
+        const router = createRouter(routes.map((route) => ({ pattern: route.pattern, value: route })))
+        const target = router.match(new URL(path, 'http://weft.local'))
+        if (!target) return null
+        const connection = at.get(channel.id)
+        const here = connection ? router.match(new URL(connection.path, 'http://weft.local')) : null
+        if (!here || here.value.shell.version !== target.value.shell.version) {
+          return {
+            route: target.value.pattern,
+            shared: false,
+            why: here
+              ? `${target.value.pattern} is rendered into a different document, whose holes are ${target.value.holes.join(', ')}`
+              : 'this channel has not said which page it is on',
+          }
+        }
+
+        const ctx = channelContext(
+          new URL(path, 'http://weft.local'),
+          target.params,
+          connection?.cookie ?? '',
+          ports,
+        )
+        const slots: Record<string, SlotRender> = {}
+        for (const [name, region] of Object.entries(target.value.regions)) {
+          slots[name] = {
+            ir: region.fragment.entry,
+            values: await region.load(ctx, target.params),
+            ...(region.fragment.resolve ? { resolve: region.fragment.resolve } : {}),
+            key: region.key,
+            prefer: 'delta',
+          }
+        }
+        const next = decided ? likelyNext(recorded as Profile)[target.value.pattern] : undefined
+        return {
+          route: target.value.pattern,
+          shared: true,
+          title: target.value.titleFor(target.params),
+          css: table().pageCss(target.value.pattern),
+          ...(next?.length ? { next } : {}),
+          slots,
+        }
+      },
+    }),
   })
 
   return {

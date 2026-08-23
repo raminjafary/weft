@@ -15,10 +15,38 @@ import { batch } from './signal.ts'
  * staged epoch committed immediately, so rollback is discarding an epoch rather than
  * reconstructing prior state.
  */
+/**
+ * A change held for a slot, in one of the two forms a slot's next state can arrive in.
+ *
+ * A delta is the interesting one and the one everything else is built for: the client holds the
+ * template and the base render, so what travels is the values that differ. Markup is the floor —
+ * the server could not send a delta, or the region is on a route this client has never rendered —
+ * and it has to be stageable for the same reason a delta does: a route staged for a navigation
+ * arrives as a mixture of the two, and a commit that painted the markup on arrival and the deltas
+ * later would show half a page.
+ *
+ * `paint` is the caller's, because replacing a region's nodes is not something this module can do
+ * correctly on its own: the bindings adopted inside them have to be adopted again, and only the
+ * layer that owns adoption knows how.
+ */
 export interface StagedWrite {
   slot: string
   adopted: Adopted
   delta: DeltaPayload
+}
+
+export interface StagedMarkup {
+  slot: string
+  html: string
+  /** The render the region will be showing once this is painted. */
+  base: string
+  paint(html: string, base: string): void
+}
+
+export type Staged = StagedWrite | StagedMarkup
+
+function isMarkup(staged: Staged): staged is StagedMarkup {
+  return 'html' in staged
 }
 
 export interface CommitOptions {
@@ -35,7 +63,7 @@ export interface CommitResult {
 }
 
 export interface Epochs {
-  stage(epoch: string, write: StagedWrite): void
+  stage(epoch: string, write: Staged): void
   commit(epoch: string, options?: CommitOptions): Promise<CommitResult>
   discard(epoch: string): number
   staged(epoch: string): string[]
@@ -47,7 +75,7 @@ type ViewTransitionHost = {
 }
 
 export function createEpochs(host?: ViewTransitionHost): Epochs {
-  const staged = new Map<string, Map<string, StagedWrite>>()
+  const staged = new Map<string, Map<string, Staged>>()
   const target =
     host ?? (typeof document === 'undefined' ? undefined : (document as unknown as ViewTransitionHost))
 
@@ -77,12 +105,21 @@ export function createEpochs(host?: ViewTransitionHost): Epochs {
       const bucket = staged.get(epoch)
       if (!bucket) return { epoch, slots: [], writes: 0, animated: false }
       staged.delete(epoch)
-      const writes: StagedWrite[] = [...bucket.values()]
+      const writes: Staged[] = [...bucket.values()]
 
       let count = 0
       const apply = (): void => {
         batch(() => {
-          for (const write of writes) count += applyDelta(write.adopted, write.delta)
+          for (const write of writes) {
+            if (isMarkup(write)) {
+              // One write, whatever the region contains: replacing nodes is one operation, and
+              // counting the values inside them would be counting something nobody wrote.
+              write.paint(write.html, write.base)
+              count++
+              continue
+            }
+            count += applyDelta(write.adopted, write.delta)
+          }
         })
       }
 

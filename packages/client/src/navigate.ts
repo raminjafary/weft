@@ -38,6 +38,14 @@ export interface StagingOptions<T> {
    * because a page that shows a five-minute-old answer instantly is worse than one that waits.
    */
   ttlMs?: number
+  /**
+   * Called for an answer that is dropped without being committed — evicted, expired, discarded.
+   *
+   * A staged route can hold more than the object handed back: over a channel it holds a staged
+   * epoch on the client and a base render on the server. Dropping the answer and keeping that is
+   * how a prefetch that nobody clicked becomes a leak, so the caller gets told.
+   */
+  release?(value: T): void
   now?(): number
 }
 
@@ -95,6 +103,7 @@ export function createStaging<T>(options: StagingOptions<T>): Staging<T> {
     if (!entry) return false
     entry.abort.abort()
     open.delete(url)
+    if (entry.value !== null) options.release?.(entry.value)
     return true
   }
 
@@ -254,4 +263,71 @@ export function stagingKey(href: string, here: string): string {
   const url = new URL(href, here)
   url.hash = ''
   return url.href
+}
+
+/**
+ * What a `NAV` frame says: whether a route can be staged as regions, and what those regions are.
+ *
+ * `form: 'document'` is the server refusing — a different shell has different holes, so its regions
+ * cannot be swapped into the ones on screen — and the caller then stages the route the way it would
+ * have without a channel. That decision is the server's because only the server knows both shells.
+ */
+export interface StagedNav {
+  at: string
+  route: string
+  form: 'slots' | 'document'
+  epoch?: string
+  /** The regions that follow this frame, by slot name. */
+  slots: string[]
+  title?: string
+  css?: string
+  /** Where readers of the staged route go next, from a profile. Worth staging once it commits. */
+  next: string[]
+  why?: string
+}
+
+/** The frame that asks for a route: the design's `WARM`, at the grain it always described. */
+export function warmFrame(at: string, epoch: string): { kind: string; header: Record<string, string> } {
+  return { kind: 'WARM', header: { at, epoch } }
+}
+
+/**
+ * Navigation's own frame handler, passed to the channel as `onFrame`.
+ *
+ * Here rather than in the channel's own switch for two reasons that agree. A frame kind belongs to
+ * the capability that introduced it, so the channel does not grow a case per feature; and routing
+ * this in the channel took its byte entry 86 bytes past a watermark, which a page that never
+ * navigates should not be paying.
+ */
+function header(
+  frame: { header: Record<string, string | number | boolean> },
+  key: string,
+): string | undefined {
+  const value = frame.header[key]
+  return value === undefined ? undefined : String(value)
+}
+
+export function navFrames(
+  onNav?: (nav: StagedNav) => void,
+): (
+  frame: { kind: string; header: Record<string, string | number | boolean> },
+  applied: { navs: StagedNav[] },
+) => void {
+  const text = header
+  return (frame, applied) => {
+    if (frame.kind !== 'NAV') return
+    const nav: StagedNav = {
+      at: text(frame, 'at') ?? '',
+      route: text(frame, 'route') ?? '',
+      form: text(frame, 'form') === 'slots' ? 'slots' : 'document',
+      ...(text(frame, 'epoch') ? { epoch: text(frame, 'epoch') as string } : {}),
+      slots: (text(frame, 's') ?? '').split(',').filter(Boolean),
+      ...(text(frame, 'title') ? { title: text(frame, 'title') as string } : {}),
+      ...(text(frame, 'css') ? { css: text(frame, 'css') as string } : {}),
+      next: (text(frame, 'next') ?? '').split(',').filter(Boolean),
+      ...(text(frame, 'why') ? { why: text(frame, 'why') as string } : {}),
+    }
+    applied.navs.push(nav)
+    onNav?.(nav)
+  }
 }

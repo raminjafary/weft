@@ -9,6 +9,12 @@ export const FRAMES = {
   RESIDENT: { code: 0x01, dir: 'up' },
   HELD: { code: 0x02, dir: 'up' },
   REFRESH: { code: 0x03, dir: 'up' },
+  /**
+   * "Stage data for a route, do not paint", which is what the design's frame table always said it
+   * was for. It asks two different questions depending on what it carries, and they are the same
+   * question at two grains: `tpl` names template versions the client does not hold, and `at` names
+   * a route the client may be about to go to. Both answers paint nothing.
+   */
   WARM: { code: 0x04, dir: 'up' },
   INTENT: { code: 0x05, dir: 'up' },
   RESUME: { code: 0x07, dir: 'up' },
@@ -26,6 +32,17 @@ export const FRAMES = {
   MOD: { code: 0x1a, dir: 'down' },
   CSS: { code: 0x1b, dir: 'down' },
   STALE: { code: 0x1c, dir: 'down' },
+  /**
+   * The answer to a route staged with `WARM at=`: what that route is, and whether this client can
+   * be given it as regions at all.
+   *
+   * `form=slots` means the target shares this page's shell, so its regions are the frames that
+   * follow — deltas where the client holds the template and the base, markup where it does not.
+   * `form=document` means it does not, and the client is told to fetch the document instead: a
+   * different shell is a different set of holes, and swapping regions into the wrong ones would
+   * leave a page assembled out of two layouts. Only the server can decide that, because only the
+   * server knows both shells.
+   */
   NAV: { code: 0x1d, dir: 'down' },
   PLAN: { code: 0x1e, dir: 'down' },
   ERROR: { code: 0x1f, dir: 'down' },

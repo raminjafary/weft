@@ -54,6 +54,21 @@ export interface GeneratedRoute {
   /** Slots this route can refresh over the channel, by slot name. */
   live: Record<string, LiveSlot>
   /**
+   * Every region of this route, live or not, by slot name.
+   *
+   * `live` is the subset a slot declared refreshable, which is the right gate for a *refresh*: a
+   * region nobody said could change should not be re-rendered under a reader. Staging a route is
+   * the other question — the reader is about to see the whole page, so every region of it has to
+   * be produced — and the gate for that is whether the route was asked for at all.
+   */
+  regions: Record<string, LiveSlot>
+  /** The document this route is rendered into. Two routes share regions only if they share it. */
+  shell: { id: string; version: string }
+  /** The title, resolved for a set of params, so a staged route can carry the one it will show. */
+  titleFor(params: Record<string, string>): string
+  /** Every layout hole, in document order. */
+  holes: string[]
+  /**
    * Whether every byte of this document is decided before a request exists, and if not, why not.
    *
    * Structural only: it is what the compiler and the plan already know, which is everything
@@ -614,6 +629,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
 
   const slots: Record<string, SlotBinding> = {}
   const live: Record<string, LiveSlot> = {}
+  const regions: Record<string, LiveSlot> = {}
   for (const name of holes) {
     const { declaration, fragment } = declarations[name] as (typeof declarations)[string]
     const values = valuesOf(declaration, options.ports)
@@ -630,14 +646,14 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
         ? { placeholder: utf8.encode(declaration.placeholder) }
         : { placeholder: utf8.encode('<p class="weft-skeleton"></p>') }),
     }
-    if (declaration.live) {
-      live[name] = {
-        fragment,
-        load: values,
-        key: `weft:${route.pattern}:${name}`,
-        tags: declaration.cache?.tags ?? [],
-      }
+    const region: LiveSlot = {
+      fragment,
+      load: values,
+      key: `weft:${route.pattern}:${name}`,
+      tags: declaration.cache?.tags ?? [],
     }
+    regions[name] = region
+    if (declaration.live) live[name] = region
   }
 
   // Cascade order: the layout's, then every fragment this page renders — including the ones it
@@ -780,6 +796,13 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     entry: { pattern: route.pattern, value },
     module: module_,
     live,
+    regions,
+    shell: { id: layout.entry.id, version: layout.entry.version },
+    titleFor: (params) => {
+      const resolved = typeof head === 'function' ? head(params) : (head ?? {})
+      return resolved.title ?? labelOf(route.pattern)
+    },
+    holes,
     css,
     static: staticVerdict({
       pattern: route.pattern,

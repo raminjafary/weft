@@ -83,6 +83,9 @@ const LINE_CEILINGS: Record<string, number> = {
   'entry-channel.ts': 2100,
   'entry-intent.ts': 2100,
   'entry-transport.ts': 2500,
+  // A route staged over the channel: the transport plus `stage.ts`, and its own entry for the same
+  // reason the transport has one — it went past a watermark set before it existed.
+  'entry-stage.ts': 2600,
 }
 
 /** Code only. A comment is not work the kernel absorbed from a port. */

@@ -128,6 +128,44 @@ browser's own clamp lands _after_ the first attempt. The same applies to an in-p
 holes of a page are replaced one at a time, so for a moment the document is shorter than it was,
 and a button pressed at the bottom of a page threw the reader to the top and back.
 
+## Over the channel, which is what the design meant
+
+A page that already holds a channel stages a route through it rather than over HTTP: `WARM at=`,
+answered by `NAV`, then the target's regions as frames. It is tried only where a channel is already
+open — opening one to stage a route nobody has clicked would be paying for speculation twice.
+
+What it buys is the reason the channel exists. The regions come back through the same surgical
+ladder a refresh uses, so a region whose template _and_ base this client already holds arrives as a
+**delta**: the values that differ, for a page the reader has not been to. Measured on the demo, the
+feed at forty rows staging the feed at eighty:
+
+```
+up    WARM  at=/app/feed?rows=80 epoch=n-2
+down  NAV   form=slots s=panel,body,readout title=… css=…
+down  DELTA s=body  tpl=3d3b9c65…  why=preferred by the plan  epoch=n-2
+down  HTML  s=panel …  epoch=n-2
+```
+
+and the click that committed it took **1 ms**. A route on a _different_ page — the feed staging the
+cart — comes back as three `HTML` frames instead, because none of those templates is held, and its
+commit took 16 ms with no document request at all.
+
+**The shell decision belongs to the server**, and it is the reason `NAV` has a `form` at all. Only
+the server knows both shells: the one this connection is on and the one the target renders into. A
+different shell has different holes, so its regions cannot be swapped into the ones on screen —
+`form: 'document'` says so with the reason, and the client stages it the way a page with no channel
+would. The demo's dashboard is that case, and it has a layout of its own.
+
+**A staged route holds an epoch, and an epoch that is dropped is given back.** The staging model
+evicts the oldest when it is full and expires an answer nobody committed; over a channel that
+answer is a staged epoch on the client and a recorded base on the server. `release` on the staging
+model is what stops a prefetch nobody clicked from being a leak.
+
+**Nothing is committed by the server.** The client holds the epoch and commits it on the click,
+which is the same commit an optimistic intent uses — every region flips together, and a partially
+arrived route is never committed at all: a route is staged only when every region the `NAV` named
+is held, and a partial answer becomes a document fetch instead.
+
 ## The commit
 
 The body is replaced, not the holes. A layout's own values — the title, the heading, whatever the

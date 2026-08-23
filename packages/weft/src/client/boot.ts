@@ -5,15 +5,19 @@ import {
   createEpochs,
   createStaging,
   digest,
+  navFrames,
   navigable,
   openResident,
   plainClick,
   signal,
   stagingKey,
+  warmFrame,
   type ChannelFrame,
   type ClientTemplate,
+  type Epochs,
   type LinkFacts,
   type Readable,
+  type StagedNav,
   type Region,
 } from '@weft/client'
 import {
@@ -735,11 +739,31 @@ async function open(): Promise<Wire> {
   const id = `c-${Math.random().toString(36).slice(2, 10)}`
   location_ = window.location.pathname + window.location.search
   const epochs = createEpochs()
+  staging = epochs
 
   const client = createChannelClient({
     epochs,
     regions: () => regionsHeld,
     onStale: (slot, reason) => log('down', `STALE ${slot} — ${reason}`),
+    /**
+     * The answer to a route this client asked to stage.
+     *
+     * Settled here rather than by the sending side because the answer arrives on the down
+     * connection: the frames are applied by the reader loop, and the promise that asked for them
+     * is waiting in `waiting`. A `document` answer resolves to nothing, which is the caller's
+     * signal to stage it the way a page with no channel would.
+     */
+    onFrame: navFrames((nav) => {
+      log('down', `NAV ${nav.at} ${nav.form}${nav.why ? ` — ${nav.why}` : ''}`)
+      const settle = nav.epoch ? waiting.get(nav.epoch) : undefined
+      if (!nav.epoch || !settle) return
+      if (nav.form !== 'slots') {
+        waiting.delete(nav.epoch)
+        settle(null)
+        return
+      }
+      pending.set(nav.epoch, nav)
+    }),
     onAck: (ack) => log('down', `ACK ${ack.intent} ok=${ack.ok}${ack.code ? ` ${ack.code}` : ''}`),
     onRedirect: (to) => window.location.assign(to),
     /**
@@ -807,6 +831,35 @@ async function open(): Promise<Wire> {
       for (const f of frames) log('down', describe(f))
       const applied = await client.apply(frames)
       state.writes += applied.writes
+      /**
+       * A staged route becomes staged when the last of its regions lands.
+       *
+       * Checked after the whole batch rather than per frame: the regions of one route arrive
+       * together almost always, and asking "are they all here" once per chunk is both cheaper and
+       * the only version that is correct when they do not.
+       */
+      for (const [epoch, nav] of pending) {
+        if (epochs.staged(epoch).length < nav.slots.length) continue
+        pending.delete(epoch)
+        const settle = waiting.get(epoch)
+        if (!settle) {
+          epochs.discard(epoch)
+          continue
+        }
+        waiting.delete(epoch)
+        settle({
+          kind: 'regions',
+          regions: {
+            epoch,
+            url: new URL(nav.at, window.location.href).href,
+            route: nav.route,
+            slots: nav.slots,
+            ...(nav.title ? { title: nav.title } : {}),
+            ...(nav.css ? { css: nav.css } : {}),
+            next: nav.next,
+          },
+        })
+      }
       // A STALE frame is an invitation rather than an instruction: the client decides when to ask.
       if (applied.stale.length) await post([{ kind: 'REFRESH', header: { s: applied.stale.join(',') } }])
     }
@@ -847,28 +900,112 @@ async function open(): Promise<Wire> {
  * Every failure is a real navigation rather than a wrong one: a bad status, a redirect the server
  * decided on, a document that is not this application's, an answer that arrived too long ago.
  */
+/**
+ * A route held and unpainted, in one of the two forms it can arrive in.
+ *
+ * A **document** is the floor and the general case: fetched over HTTP by the same path a first
+ * visit takes, so it renders every slot the route has whatever shell it uses. A **page of regions**
+ * is the design's own version — `WARM at=`, answered by `NAV` — and it only exists when the target
+ * shares this page's shell, because a different shell has different holes. What it buys is the
+ * whole point of having a channel: two pages on one route share a template, so switching between
+ * them arrives as the changed values rather than as a second copy of the markup.
+ */
 interface StagedPage {
   document: Document
   /** Where the answer came from. A guard's redirect is a decision about the URL, so it wins. */
   url: string
 }
 
+interface StagedRegions {
+  /** The epoch its regions are held in. Painting is committing that epoch. */
+  epoch: string
+  url: string
+  route: string
+  slots: string[]
+  title?: string
+  css?: string
+  /** Where readers of this route go next, from the server's own profile. */
+  next: string[]
+}
+
+type Held = { kind: 'document'; page: StagedPage } | { kind: 'regions'; regions: StagedRegions }
+
 /** Hover intent. Below this a pointer crossing a nav on its way elsewhere prefetches the lot. */
 const HOVER_MS = 65
 
-const routes = createStaging<StagedPage>({
+/**
+ * Answers waiting on the down connection, by epoch.
+ *
+ * A staged route asked for over the channel is answered by frames the reader loop applies, not by
+ * the promise that asked — so the asking side leaves a resolver here and the frame router settles
+ * it. The grace is what makes a partial answer a fallback rather than a hang: the regions arrive
+ * in one chunk almost always, and when they do not the route is staged over HTTP like any other.
+ */
+/** The epoch store of the open channel, for releasing a staged route nobody committed. */
+let staging: Epochs | null = null
+
+const waiting = new Map<string, (held: Held | null) => void>()
+/**
+ * Routes whose `NAV` has arrived and whose regions have not, all of them, yet.
+ *
+ * A route is only staged when every region it named is held: a partial epoch committed would paint
+ * some of the next page over some of this one, which is the one thing staging exists to prevent.
+ */
+const pending = new Map<string, StagedNav>()
+const WARM_GRACE_MS = 2_000
+
+async function stageDocument(url: string, abort: AbortSignal): Promise<Held | null> {
+  const response = await fetch(url, {
+    signal: abort,
+    credentials: 'same-origin',
+    headers: { accept: 'text/html' },
+  }).catch(() => null)
+  if (!response?.ok) return null
+  if (!(response.headers.get('content-type') ?? '').includes('text/html')) return null
+  const next = parseDocument(await response.text())
+  if (!next?.querySelector('slot[name]')) return null
+  preloadStyles(next)
+  return { kind: 'document', page: { document: next, url: response.url || url } }
+}
+
+/**
+ * The route, asked for over the channel first and over HTTP otherwise.
+ *
+ * The channel is tried only when one is already open — opening a socket to stage a route nobody
+ * has clicked would be paying for speculation twice — and the server decides whether it can answer
+ * as regions at all. `form: 'document'` comes back for a target with a different shell, and the
+ * fallback below is then the same path a page with no channel takes.
+ */
+const routes = createStaging<Held>({
+  /**
+   * A staged route that is dropped gives its epoch back.
+   *
+   * The staging model evicts the oldest when the ceiling is reached and expires an answer nobody
+   * committed, and a route staged as regions holds a staged epoch either way. Left behind, that
+   * epoch is the next page's values kept in memory for a page nobody is going to — and still
+   * committable by something that no longer knows what it contains.
+   */
+  release: (held: Held) => {
+    if (held.kind === 'regions') staging?.discard(held.regions.epoch)
+  },
   load: async (url, abort) => {
-    const response = await fetch(url, {
-      signal: abort,
-      credentials: 'same-origin',
-      headers: { accept: 'text/html' },
-    }).catch(() => null)
-    if (!response?.ok) return null
-    if (!(response.headers.get('content-type') ?? '').includes('text/html')) return null
-    const next = parseDocument(await response.text())
-    if (!next?.querySelector('slot[name]')) return null
-    preloadStyles(next)
-    return { document: next, url: response.url || url }
+    const open_ = opening
+    if (!open_ || !window.__weftChannel) return stageDocument(url, abort)
+
+    const epoch = `n-${Math.random().toString(36).slice(2, 8)}`
+    const answered = new Promise<Held | null>((resolve) => {
+      waiting.set(epoch, resolve)
+      window.setTimeout(() => {
+        if (waiting.delete(epoch)) resolve(null)
+      }, WARM_GRACE_MS)
+    })
+    const w = await open_
+    await w.send([warmFrame(new URL(url).pathname + new URL(url).search, epoch) as ChannelFrame])
+    const held = await answered
+    if (held) return held
+    // Either the server sent us to the document, or the regions did not all arrive. Both are the
+    // same fallback, and it is the path every page without a channel is already on.
+    return stageDocument(url, abort)
   },
 })
 
@@ -977,13 +1114,13 @@ async function applyStyles(next: Document): Promise<void> {
     holding.set((node as HTMLLinkElement).href, node as HTMLLinkElement)
   }
   const wanted = styleHrefs(next)
-  const pending: Promise<unknown>[] = []
+  const loading: Promise<unknown>[] = []
   for (const href of wanted) {
     if (holding.has(href)) continue
     const link = document.createElement('link')
     link.rel = 'stylesheet'
     link.href = href
-    pending.push(
+    loading.push(
       new Promise((resolve) => {
         link.addEventListener('load', resolve, { once: true })
         link.addEventListener('error', resolve, { once: true })
@@ -994,7 +1131,7 @@ async function applyStyles(next: Document): Promise<void> {
   // Awaited, because painting the next page with the last one's stylesheet is precisely the
   // flash this path exists to avoid. The bytes are already cached from the preload, so what is
   // waited on is a task rather than a round trip.
-  await Promise.all(pending)
+  await Promise.all(loading)
   for (const [href, node] of holding) if (!wanted.includes(href)) node.remove()
 }
 
@@ -1070,6 +1207,61 @@ async function rebind(url: URL): Promise<void> {
  * heading, whatever the route declared — are holes in the shell rather than slots in it, and a
  * page swapped hole by hole would have kept the last one's chrome.
  */
+/**
+ * A route staged as regions, painted.
+ *
+ * The commit is the epoch: every region flips together, and the ones the server sent as deltas are
+ * one DOM write per changed value. What has to happen around it is the same list a document swap
+ * has, minus the document — the cascade in place before anything paints, the title, the address
+ * bar, and the channel told where this client is now.
+ */
+async function commitRegions(staged: StagedRegions, mode: 'push' | 'restore', y: number): Promise<number> {
+  const url = new URL(staged.url, window.location.href)
+  if (staged.css) await ensureStylesheet(staged.css)
+  if (staged.title) document.title = staged.title
+
+  if (mode === 'push') {
+    const state_ = (window.history.state ?? {}) as Record<string, unknown>
+    window.history.replaceState({ ...state_, weftY: Math.round(scrollY) }, '')
+  }
+
+  const w = await wire()
+  const applied = await w.client.apply([{ kind: 'COMMIT', header: { epoch: staged.epoch } }])
+  state.writes += applied.writes
+  if (mode === 'push') window.history.pushState({ weftY: 0 }, '', url.href)
+  here = url
+
+  // The regions are new nodes wherever the server sent markup, so anything inside them is new.
+  wireIntents()
+  wireControls()
+  observed?.()
+  const painted = performance.now()
+  landAt(url, y)
+  await rebind(url)
+  // What the server's own numbers say this reader is likely to want next.
+  for (const route of staged.next.slice(0, 2)) {
+    void routes.stage(stagingKey(route, window.location.href)).then(syncStaged)
+  }
+  return painted
+}
+
+/** A stylesheet the next page links, in place and loaded before anything paints. */
+async function ensureStylesheet(href: string): Promise<void> {
+  const absolute = new URL(href, window.location.href).href
+  for (const node of document.head.querySelectorAll('link[rel="stylesheet"]')) {
+    if ((node as HTMLLinkElement).href === absolute) return
+  }
+  const link = document.createElement('link')
+  link.rel = 'stylesheet'
+  link.href = href
+  const loaded = new Promise((resolve) => {
+    link.addEventListener('load', resolve, { once: true })
+    link.addEventListener('error', resolve, { once: true })
+  })
+  document.head.append(link)
+  await loaded
+}
+
 async function commitPage(page: StagedPage, mode: 'push' | 'restore', y: number): Promise<number> {
   const next = page.document
   if (!next.body) return 0
@@ -1139,7 +1331,11 @@ async function go(href: string, mode: 'push' | 'restore', y = 0): Promise<boolea
   syncStaged()
   if (!claimed.value) return false
 
-  const painted = await commitPage(claimed.value, mode, y)
+  const held = claimed.value
+  const painted =
+    held.kind === 'regions'
+      ? await commitRegions(held.regions, mode, y)
+      : await commitPage(held.page, mode, y)
   if (!painted) return false
   state.nav = { ...state.nav, staged: state.nav.staged + 1, lastMs: Math.round(painted - started) }
   log('up', `NAV ${url.pathname}${url.search} ${state.nav.lastMs}ms`)
@@ -1196,23 +1392,23 @@ const VIEWPORT_MAX = 2
 function watchViewport(): void {
   if (typeof IntersectionObserver === 'undefined') return
   let staged = 0
-  const waiting = new Map<Element, number>()
+  const dwelling = new Map<Element, number>()
 
   const observer = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
         const link = entry.target as HTMLAnchorElement
         if (!entry.isIntersecting) {
-          const timer = waiting.get(link)
+          const timer = dwelling.get(link)
           if (timer !== undefined) window.clearTimeout(timer)
-          waiting.delete(link)
+          dwelling.delete(link)
           continue
         }
-        if (waiting.has(link) || staged >= VIEWPORT_MAX) continue
-        waiting.set(
+        if (dwelling.has(link) || staged >= VIEWPORT_MAX) continue
+        dwelling.set(
           link,
           window.setTimeout(() => {
-            waiting.delete(link)
+            dwelling.delete(link)
             if (staged >= VIEWPORT_MAX || !prefetchable(link)) return
             staged++
             observer.unobserve(link)
