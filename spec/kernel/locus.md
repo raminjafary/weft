@@ -51,6 +51,45 @@ parallel evaluation makes ordering observable and the result nondeterministic. T
 that made the envelope design necessary is the constraint that makes concurrent evaluation
 possible — the same invariant paying twice.
 
+## Six kinds, and what each one actually promises
+
+`ExecutorPort.run(job)` is one method and there are six implementations of it. The differences that
+matter are two: whether a budget on it is a _limit_ or a _report_, and what the other side is.
+
+| Kind       | Preemption | A CPU budget is | The other side is                                |
+| ---------- | ---------- | --------------- | ------------------------------------------------ |
+| `inline`   | `never`    | a report        | this thread, this task                           |
+| `deferred` | `at-await` | a report        | this thread, a fresh macrotask                   |
+| `pool`     | `always`   | a limit         | a warm worker thread, module registry shared     |
+| `isolate`  | `always`   | a limit         | a worker thread per render, nothing carried over |
+| `binding`  | `at-await` | a deadline      | a call to something in the same datacentre       |
+| `svc`      | `at-await` | a deadline      | another pod, over a network                      |
+| `client`   | —          | vacuous         | the browser; nothing renders on the server       |
+
+Only a separate stack can promise a limit, and only `pool` and `isolate` have one. A binding and a
+service _are_ separate crash domains — a failure there cannot take this process down — but this end
+cannot stop them either: aborting the request stops the waiting, not the work. So they report
+`at-await` and their budget message says exactly that, because a slot whose budget silently bounded
+latency rather than CPU is a slot whose author was told the wrong thing.
+
+**What an isolate costs, measured.** Same trivial render, fifteen samples each, on this machine: a
+warm pool worker answers in under a tenth of a millisecond, because the round trip is a
+`postMessage` and the module is already loaded. A fresh isolate pays a p50 of **27.8 ms** (min 15.1)
+before it renders anything, because its module registry is empty by construction — which is the
+guarantee, not an inefficiency: nothing can leak from one render to the next when there is nowhere
+for it to live. It is the wrong default and the right answer for a fragment rendering somebody
+else's template.
+
+**A closure does not cross any of these.** Four of the six require a `JobAddress` — a module and an
+export — and refuse `E_JOB_NOT_ADDRESSABLE` without one rather than quietly running on the request
+thread, which would hand back a budget that looks enforced and is not. Props must survive
+serialisation for the same reason. Both are real constraints on what a fragment may be, and the
+plan refuses at build time rather than at request time.
+
+`renderService()` is the other side of a binding or a service, so a deployment does not have to
+write one — and so this repository tests both against a real `fetch` handler and a real socket
+rather than against a mock.
+
 ## Executors, and the two budgets that are different mechanisms
 
 `ExecutorPort.run(job)` is one method. `inline`, `pool`, `isolate`, `binding`, `svc` and
