@@ -194,6 +194,13 @@ whole page, and the whole page is what the document request path already produce
 **Off-main-thread preparation.** Parsing the staged document happens on the main thread, in the
 `DOMParser` call inside the staging load. Nothing measures it yet, and nothing moves it.
 
+**A signal a phone has.** Hover is the signal that carries the desktop case, and a phone does not
+have it — so on mobile every tap is a cold tap and therefore an ordinary navigation. `pointerdown`
+in place of `touchstart`, bounded viewport staging, and Speculation Rules where the engine has
+them are the three things that would close it; they are on the roadmap with what each one costs.
+Nothing about the model changes for any of them: they decide when `stage` is called, and the
+commit rule stays exactly as it is.
+
 **A staged route that is worth staging.** Everything hovered is fetched, and nothing decides
 whether it was worth it. `weft profile` is the roadmap entry where that belongs: which routes are
 worth speculating on is a measurement, not a hover.
