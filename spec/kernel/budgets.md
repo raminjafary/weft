@@ -21,12 +21,17 @@ the gate is the test that calls it. Rolldown, minified, brotli at quality 11 —
 
 On the client, same rule:
 
-| Entry              | Covers                                               | Measured | Ceiling  |
-| ------------------ | ---------------------------------------------------- | -------- | -------- |
-| `entry-content.ts` | Adopt and bind                                       | 2,082 B  | 5,120 B  |
-| `entry-app.ts`     | Plus deltas, epochs, residency                       | 2,982 B  | 12,288 B |
-| `entry-channel.ts` | Plus routing arriving frames into regions and epochs | 3,852 B  | 4,096 B  |
-| `index.ts`         | Everything                                           | 3,865 B  | 6,144 B  |
+| Entry              | Covers                                                | Measured | Ceiling  |
+| ------------------ | ----------------------------------------------------- | -------- | -------- |
+| `entry-content.ts` | Adopt and bind                                        | 2,226 B  | 5,120 B  |
+| `entry-app.ts`     | Plus deltas, epochs, residency                        | 3,119 B  | 12,288 B |
+| `entry-channel.ts` | Plus routing arriving frames into regions and epochs  | 4,004 B  | 4,096 B  |
+| `entry-nav.ts`     | Plus routes staged and unpainted, and what a click is | 4,669 B  | 5,120 B  |
+| `index.ts`         | Everything                                            | 4,680 B  | 6,144 B  |
+
+Navigation is the client-side case of the rule below: 665 bytes on top of a channel route, in an
+entry of its own, because a page that links nowhere should not carry the staging model. The
+ceiling leaves 451 bytes, which is what the next thing added to a navigating page argues with.
 
 **The 8 KB is the document request path, and it now includes the route matcher.** It did not
 at first: `createRouter` was never exported from the entry, so the figure described a kernel
