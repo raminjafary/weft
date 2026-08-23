@@ -25,6 +25,7 @@ export interface BundleSize {
 }
 
 const src = (name: string) => fileURLToPath(new URL(`../../client/src/${name}`, import.meta.url))
+const front = (name: string) => fileURLToPath(new URL(`../../weft/src/client/${name}`, import.meta.url))
 const kernelSrc = (name: string) => fileURLToPath(new URL(`../../kernel/src/${name}`, import.meta.url))
 
 export const BUDGETS: ByteBudget[] = [
@@ -84,6 +85,22 @@ export const BUDGETS: ByteBudget[] = [
     limit: 5 * 1024,
     limitNote:
       'no design figure; its own entry, because a page that links nowhere should not pay for staging',
+  },
+  {
+    /**
+     * What a page actually downloads, which is not any of the entries above.
+     *
+     * Every other client figure measures `@weft/client` — the runtime a page composes. This
+     * measures the composition: the framework's own boot module, which is what a `<script>` on a
+     * real weft page points at, with the runtime and the codec pulled in behind it. It is the only
+     * number a reader on a phone experiences, and until this entry existed it was the one number
+     * nobody was measuring.
+     */
+    id: 'front-door',
+    label: 'The boot module a page loads, runtime and codec included',
+    entry: front('boot.ts'),
+    limit: 12 * 1024,
+    limitNote: 'no design figure; a watermark over what a page downloads, adoption to navigation',
   },
   {
     id: 'app-route',

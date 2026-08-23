@@ -36,8 +36,33 @@ than one that waits.
 
 ## What the framework does with a link
 
-The front door stages on hover, on focus, and on the moment before a tap, each after 65 ms of
-hover intent — below that, a pointer crossing a nav on its way somewhere else prefetches the lot.
+Four signals, and only the first is a hover.
+
+| Signal                     | When it stages              | What it is for                              |
+| -------------------------- | --------------------------- | ------------------------------------------- |
+| `pointerover`, `focusin`   | after 65 ms of hover intent | a pointer or a keyboard, deliberately aimed |
+| `pointerdown`              | immediately                 | the only warning a phone gives              |
+| a link visible in a region | after 300 ms, at most two   | a reader scrolling towards something        |
+| speculation rules          | the engine decides          | Chrome's own heuristics, where they exist   |
+
+Hover intent exists because below it a pointer crossing a nav on its way somewhere else prefetches
+the lot. A press has nothing to disambiguate — a finger on a link is a decision — so it stages at
+once, and the window it opens is the press plus the browser's tap handling: roughly 80–150 ms,
+which on a mobile network is a head start rather than an answer.
+
+**A link the reader has been looking at** is the strongest mobile signal and needs no gesture,
+which is why the bounds are the whole design. Only links inside a `[data-weft-slot]` region, so the
+chrome is excluded — a nav is on every page and lists every page, and staging all of it because the
+reader can see it would be a fetch per link for a page they came to read. Only after 300 ms of
+being visible, because scrolling past is not looking at. And at most two, so a hover and a press
+still have somewhere to go inside the ceiling of four.
+
+**Speculation rules** are the one mechanism here that is not this framework's: `prefetch` with
+`eagerness: "moderate"` hands the decision to the engine, which has signals we do not — how the
+pointer is moving, what the connection is doing, whether the reader is on a metered network. Where
+it exists the HTTP cache is warm before `stage` is called; where it does not, nothing changes.
+Chrome and Android WebView have it and Safari does not, which is the wrong half for iOS, so it is a
+layer over the other three rather than a replacement for them.
 
 A click is answered **only when the answer is already in hand**. This is the decision worth
 stating, because the obvious alternative is wrong: waiting for the fetch the hover started makes
@@ -145,6 +170,13 @@ and neither is optional:
 A page that had no channel does not open one to say this; a page that arrives with a live region
 opens one, and it registers where it is as part of opening.
 
+### Measured on a touch profile
+
+Chromium with `hasTouch`, a 390×780 viewport and no pointer that can hover: the category pill is
+staged from the viewport 300 ms after load, the speculation-rules script lists it, a `pointerdown`
+finds it already held, and the tap commits in **10 ms**. Every step of that happens with no hover
+anywhere, which is the case that did not work at all before.
+
 ## What it costs
 
 | Entry                                 | brotli  | Ceiling |
@@ -193,13 +225,6 @@ whole page, and the whole page is what the document request path already produce
 
 **Off-main-thread preparation.** Parsing the staged document happens on the main thread, in the
 `DOMParser` call inside the staging load. Nothing measures it yet, and nothing moves it.
-
-**A signal a phone has.** Hover is the signal that carries the desktop case, and a phone does not
-have it — so on mobile every tap is a cold tap and therefore an ordinary navigation. `pointerdown`
-in place of `touchstart`, bounded viewport staging, and Speculation Rules where the engine has
-them are the three things that would close it; they are on the roadmap with what each one costs.
-Nothing about the model changes for any of them: they decide when `stage` is called, and the
-commit rule stays exactly as it is.
 
 **A staged route that is worth staging.** Everything hovered is fetched, and nothing decides
 whether it was worth it. `weft profile` is the roadmap entry where that belongs: which routes are

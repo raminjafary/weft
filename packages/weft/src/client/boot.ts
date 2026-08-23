@@ -1102,6 +1102,8 @@ async function commitPage(page: StagedPage, mode: 'push' | 'restore', y: number)
   wireControls()
   await wireRuntimeReadouts()
   const painted = performance.now()
+  observed?.()
+  speculate()
   landAt(url, y)
   // After the number: rebinding is a POST, and what the click bought is a page that is on screen
   // and interactive, not a round trip that happens to follow it.
@@ -1176,6 +1178,98 @@ async function navigate(href: string, scroll: 'top' | 'preserve' = scrollFor()):
 }
 
 /**
+ * A link the reader has been looking at.
+ *
+ * The strongest mobile signal there is, and it needs no gesture: a phone reader scrolls a link
+ * into view seconds before tapping it, which is far more warning than a hover ever gives. What
+ * makes it defensible rather than a load-time stampede is entirely in the bounds.
+ *
+ * Only links inside a region — `[data-weft-slot]` — so the chrome is excluded. A nav is on every
+ * page and lists every page; staging all of it because the reader can see it would be a fetch per
+ * link for a page they came to read. Only after the link has been visible for a moment, because
+ * scrolling past is not looking at. And only two, so hover and a press still have somewhere to
+ * go inside the ceiling of four.
+ */
+const VIEWPORT_DWELL_MS = 300
+const VIEWPORT_MAX = 2
+
+function watchViewport(): void {
+  if (typeof IntersectionObserver === 'undefined') return
+  let staged = 0
+  const waiting = new Map<Element, number>()
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        const link = entry.target as HTMLAnchorElement
+        if (!entry.isIntersecting) {
+          const timer = waiting.get(link)
+          if (timer !== undefined) window.clearTimeout(timer)
+          waiting.delete(link)
+          continue
+        }
+        if (waiting.has(link) || staged >= VIEWPORT_MAX) continue
+        waiting.set(
+          link,
+          window.setTimeout(() => {
+            waiting.delete(link)
+            if (staged >= VIEWPORT_MAX || !prefetchable(link)) return
+            staged++
+            observer.unobserve(link)
+            void routes.stage(stagingKey(link.href, window.location.href)).then(syncStaged)
+          }, VIEWPORT_DWELL_MS),
+        )
+      }
+    },
+    { rootMargin: '0px' },
+  )
+
+  const observe = (): void => {
+    for (const node of document.querySelectorAll('[data-weft-slot] a[href]')) {
+      if (prefetchable(node as HTMLAnchorElement)) observer.observe(node)
+    }
+  }
+  observe()
+  // A region replaced by a delta or a commit brings new links with it, and an observer only knows
+  // about the nodes it was given.
+  observed = observe
+}
+
+/** Re-observed after a swap. Set by `watchViewport`; a page without one does nothing. */
+let observed: (() => void) | null = null
+
+/**
+ * The browser's own heuristics, told which links are worth them.
+ *
+ * Speculation rules are the one mechanism here that is not this framework's: the engine decides
+ * when to prefetch, using signals it has and we do not — how the pointer is moving, what the
+ * connection is doing, whether the reader is on a metered network. `moderate` is roughly
+ * "hovered or pressed", which is the same intent as the code above and better tuned per platform.
+ *
+ * Chrome and Android WebView have it; Safari does not, which is the wrong half for iOS. So this is
+ * a layer over the two above rather than a replacement: where it exists the cache is warm before
+ * `stage` is called, and where it does not nothing changes.
+ */
+function speculate(): void {
+  const supports = (HTMLScriptElement as { supports?(type: string): boolean }).supports
+  if (!supports?.call(HTMLScriptElement, 'speculationrules')) return
+  if (document.documentElement.dataset.weftPrefetch === 'off') return
+  const hrefs = [...document.querySelectorAll('[data-weft-slot] a[href]')]
+    .filter((node) => prefetchable(node as HTMLAnchorElement))
+    .map((node) => new URL((node as HTMLAnchorElement).href).pathname)
+  if (!hrefs.length) return
+
+  const script = document.createElement('script')
+  script.type = 'speculationrules'
+  script.textContent = JSON.stringify({
+    prefetch: [{ source: 'list', urls: [...new Set(hrefs)].slice(0, 8), eagerness: 'moderate' }],
+  })
+  document.querySelector('script[type="speculationrules"][data-weft]')?.remove()
+  script.dataset.weft = 'speculate'
+  document.head.append(script)
+}
+
+/**
  * Links, answered by the framework only where the markup says it may.
  *
  * Delegated at the document rather than wired per link, because a region replaced by a delta
@@ -1220,12 +1314,32 @@ function wireNavigation(): void {
     }, HOVER_MS)
   }
 
+  /**
+   * Staged now, with no hover intent to wait for.
+   *
+   * `pointerdown` is one event for mouse, pen and touch, and it fires on finger-down rather than
+   * on the tap resolving — which is the only warning a phone gives, since a phone has no hover at
+   * all. The window is the press plus the browser's tap handling, roughly 80–150 ms: a head start
+   * rather than an answer, and when it is not enough the click falls back the way it already does.
+   *
+   * No delay, because there is nothing to disambiguate. A pointer crossing a nav on its way
+   * somewhere else is what hover intent protects against; a finger pressed on a link is a
+   * decision.
+   */
+  const now_ = (event: Event): void => {
+    const link = (event.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null
+    if (!link || !prefetchable(link)) return
+    cancel()
+    void routes.stage(stagingKey(link.href, window.location.href)).then(syncStaged)
+  }
+
   document.addEventListener('pointerover', consider, { passive: true })
   document.addEventListener('pointerout', cancel, { passive: true })
-  // A keyboard reader and a touch reader never hover. Focus and the moment before a tap are the
-  // same signal by another name, and a tap has ~90ms of its own before the click lands.
+  // A keyboard reader never hovers either, and focus is the same signal by another name.
   document.addEventListener('focusin', consider, { passive: true })
-  document.addEventListener('touchstart', consider, { passive: true })
+  document.addEventListener('pointerdown', now_, { passive: true })
+  watchViewport()
+  speculate()
 
   document.addEventListener('click', (event) => {
     if (event.defaultPrevented) return
