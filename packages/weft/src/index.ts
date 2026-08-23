@@ -103,7 +103,9 @@ export {
   type SlotDeclaration,
 } from './route.ts'
 export type { ExceedPolicy, PolicyClass, WireForm } from './types.ts'
-export { allFragments, allTemplates, appPorts, asset, fragmentIR } from './current.ts'
+export { allFragments, allTemplates, appPorts, appProfile, asset, fragmentIR } from './current.ts'
+export { ageOf, decide, likelyNext, MIN_SAMPLES, SLOW_MS } from './profile.ts'
+export type { Decisions, Profile, RouteDecision, SlotDecision } from './profile.ts'
 export { listHole, slotHoles, type CompiledFragment } from './compile.ts'
 export { adoptScript, type AdoptOptions } from './routes.ts'
 export { defineConfig, type WeftConfig } from './config.ts'

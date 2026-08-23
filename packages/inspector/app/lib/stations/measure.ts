@@ -1,5 +1,6 @@
 import { budgets, deltas, forms, versions } from '../api.ts'
 import { escapeHtml, explain, field, panel, pick, pre, press, readout, slider } from '../pages.ts'
+import { ageOf, appProfile, MIN_SAMPLES } from 'weft'
 import type { StationHandler } from './kind.ts'
 
 const n = (value: number): string => value.toLocaleString('en-US')
@@ -139,5 +140,60 @@ export const devices: StationHandler = async () => {
   and WebKit on this machine. WebKit there is a desktop proxy, labelled as one
   everywhere it appears, and it is not an iOS number.`,
     ),
+  }
+}
+
+/**
+ * The station whose subject is a recording, and which has nothing to show without one.
+ *
+ * A profile is evidence: it says what this deployment's renders cost and what that decides about
+ * delivery. So the page reads the live one rather than describing the idea — and when there is no
+ * recording it says so and says how to make one, because a page that invented plausible numbers
+ * for a demonstration would be the exact mistake the whole feature exists to avoid.
+ */
+export const profileStation: StationHandler = async () => {
+  const app = appProfile()
+  const rows = app
+    ? app.decisions.routes.flatMap((route) =>
+        route.slots.map((decision) => ({
+          label: `${route.route} · ${decision.slot}`,
+          value: decision.delivery === 'stream' ? `stream prio ${decision.prio ?? 0}` : 'buffered',
+          note: decision.because,
+          state: (decision.delivery === 'stream' ? 'over' : 'within') as 'over' | 'within',
+        })),
+      )
+    : []
+
+  return {
+    panel: panel(
+      '',
+      app
+        ? `Recorded ${ageOf(app.profile)}, over ${Math.round(app.profile.forMs / 1000)}s. Every row below is a decision and the renders it rests on.`
+        : 'Nothing recorded. Serve with `profile: true` or `weft dev --profile`, take some traffic, and this page fills in — it will not invent numbers to have something to show.',
+    ),
+    body: async () =>
+      readout(
+        app ? 'What the measurement decided' : 'No recording',
+        rows.length
+          ? rows
+          : [
+              {
+                label: 'decisions',
+                value: 'none yet',
+                note: app
+                  ? `no slot has reached ${MIN_SAMPLES} renders. ${app.decisions.thin.length} slot(s) are being watched`
+                  : 'this process is not recording',
+                state: 'plain' as const,
+              },
+            ],
+        {
+          what: `The convention generates a plan from the file tree, which cannot say what any of it costs — and delivery is a decision about cost. So delivery, and only delivery, is decided from renders: a slow region on a page with a fast one streams, a page whose regions are uniformly fast buffers so the out-of-order filler stays off the wire, and a slot with fewer than ${MIN_SAMPLES} renders decides nothing at all.`,
+          from: 'decide() over .weft/profile.json in weft, which is what generated the plan this page is served by',
+          caveat:
+            'A profile describes a deployment at a moment. An old one looks exactly like a current one, which is why the panel above states its age rather than only its contents.',
+          tryThis:
+            'Compare a row with what the route declares. Where they disagree, the measurement won — and where a slot is missing, it is nearly always a cache hit, whose delivery hardly matters.',
+        },
+      ),
   }
 }

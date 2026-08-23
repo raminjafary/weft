@@ -44,13 +44,21 @@ import {
   type AssetTable,
   type ModuleTree,
 } from './assets.ts'
-import { setAssets, setCompiled, setPorts } from './current.ts'
+import { setAssets, setCompiled, setPorts, setProfile } from './current.ts'
 import { compileApp, frameworkStyles, type CompiledApp } from './compile.ts'
 import { discover, type Discovered } from './convention.ts'
 import { loadConfig, type ResolvedConfig, type WeftConfig } from './config.ts'
 import { devtoolsFor } from './devtools.ts'
 import { loadIntents, type IntentManifest } from './intents.ts'
 import { services } from './context.ts'
+import {
+  createRecorder,
+  decide,
+  readProfile,
+  writeProfile,
+  type Decisions,
+  type Recorder,
+} from './profile.ts'
 import { loadDocuments, type ServedDocument } from './static.ts'
 import { generateRoutes, type GeneratedRoute } from './routes.ts'
 
@@ -100,6 +108,15 @@ export interface App {
   documents: Map<string, ServedDocument>
   diagnostics: string[]
   mode: Mode
+  /**
+   * What this process is recording, and what the last recording decided.
+   *
+   * Both null unless `profile` is on. The recorder is what every slot render reports to; the
+   * decisions are what the plan was generated *from*, so `weft why` can attribute a delivery to a
+   * measurement rather than to a declaration nobody wrote.
+   */
+  recorder: Recorder | null
+  decided: Decisions | null
   /**
    * What this deployment bound, built once and shared by every path that needs ports.
    *
@@ -222,12 +239,26 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   // Published before the route modules render: a station page's loader may read what this
   // deployment bound, and a page about the ports is a page about *these* ports.
   setPorts(ports)
+
+  /**
+   * The last recording, and what it decided.
+   *
+   * Read before the plan is generated because it is an input to it: delivery comes from the
+   * profile where there is one and from the declaration where there is not. A profile from a
+   * different format version is ignored rather than half-read.
+   */
+  const recorded = config.profile ? await readProfile(root, config.outDir) : null
+  const decided = recorded ? decide(recorded) : null
+  const recorder = config.profile ? createRecorder() : null
+  setProfile(recorded && decided ? { profile: recorded, decisions: decided } : null)
   const { routes } = await generateRoutes({
     discovered,
     compiled,
     config,
     ports,
     styleHref: (pattern) => table().pageCss(pattern),
+    ...(decided ? { profile: decided } : {}),
+    ...(recorder ? { recorder } : {}),
     styleOf,
     store,
     runtime: () => table().boot,
@@ -338,6 +369,8 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     diagnostics: compiled.diagnostics,
     mode,
     ports,
+    recorder,
+    decided,
     keysFor,
   }
 }
@@ -398,7 +431,7 @@ function channelContext(
 }
 
 export async function serveApp(app: App): Promise<Serving> {
-  const { assets, at, config, documents, intents, keysFor, routes, store, hub } = app
+  const { assets, at, config, documents, intents, keysFor, recorder, routes, store, hub } = app
   const table = createRouter<RouteResolver>(routes.map((route) => route.entry))
 
   const http = serveIntent({
@@ -543,9 +576,42 @@ export async function serveApp(app: App): Promise<Serving> {
         ? undefined
         : await new Response(Readable.toWeb(req) as never).arrayBuffer()
 
-    const response = await kernelFor(res).serve(
+    /**
+     * The request, recorded before it is served.
+     *
+     * The route comes from the same matcher the kernel is about to use, and where the reader came
+     * from is the `Referer` matched against the same table — which is the only way to learn a
+     * transition without asking the client to report one. A staged navigation sends a referer too,
+     * so a page reached by a swap counts the same as a page reached by a load.
+     */
+    if (recorder && (req.method === 'GET' || req.method === 'HEAD')) {
+      const matched = table.match(url)
+      if (matched) {
+        const referer = req.headers.referer
+        const from = referer ? patternOf(referer) : undefined
+        recorder.request(matched.pattern, from)
+      }
+    }
+
+    const kernel = kernelFor(res)
+    const response = await kernel.serve(
       new Request(url, { method: req.method ?? 'GET', headers, ...(body ? { body } : {}) }),
     )
+
+    /**
+     * Which slots the store answered for.
+     *
+     * A hit is the absence of a render, so it cannot be counted where renders are counted. The
+     * trace names both — the key each slot resolved to, and the keys that hit — so the difference
+     * is available for exactly as long as the request is, and a hit rate per slot is what says
+     * whether a slow region is slow for readers or only slow the first time.
+     */
+    if (recorder && kernel.trace?.matched) {
+      const hit = new Set(kernel.trace.hits)
+      for (const [slot, resolved] of Object.entries(kernel.trace.keys)) {
+        if (resolved.key && hit.has(resolved.key)) recorder.hit(kernel.trace.matched.pattern, slot)
+      }
+    }
 
     const out: Record<string, string | string[]> = {}
     for (const [key, value] of response.headers) {
@@ -579,6 +645,39 @@ export async function serveApp(app: App): Promise<Serving> {
     out_.pipe(res)
   }
 
+  /**
+   * The recording, written as it is collected.
+   *
+   * Every thirty seconds rather than on exit, because the interesting case for a profile is a
+   * process that was killed: a deployment that only ever wrote its numbers on a clean shutdown
+   * would have nothing to show for the afternoon it spent falling over. Unref'd, so it cannot be
+   * the reason a process stays alive.
+   */
+  const flushing = recorder
+    ? setInterval(() => {
+        void writeProfile(config.root, config.outDir, recorder.profile())
+      }, 30_000)
+    : null
+  flushing?.unref()
+
+  /**
+   * Which route a URL belongs to, or nothing.
+   *
+   * A referer is a URL and a route is a pattern, so `/app/ordinary/pantry` and
+   * `/app/ordinary/:category` are never equal — the same mistake the nav's current-page marking
+   * made once. Matching with the router means one notion of "this URL is that page", and a referer
+   * from another origin belongs to no pattern here and is dropped rather than counted as one.
+   */
+  function patternOf(href: string): string | undefined {
+    try {
+      const target = new URL(href)
+      const matched = table.match(target)
+      return matched?.pattern
+    } catch {
+      return undefined
+    }
+  }
+
   function remember(url: URL, cookie: string | undefined): void {
     const id = url.searchParams.get('c')
     const path = url.searchParams.get('at')
@@ -606,11 +705,16 @@ export async function serveApp(app: App): Promise<Serving> {
   return {
     url: `http://${config.host}:${address.port}/`,
     app,
-    close: () =>
-      new Promise<void>((resolve) => {
+    close: async () => {
+      if (flushing) clearInterval(flushing)
+      // Written on the way out as well as periodically: the last thirty seconds of a run are
+      // exactly the ones a `weft profile` after a load test wants to include.
+      if (recorder) await writeProfile(config.root, config.outDir, recorder.profile())
+      await new Promise<void>((resolve) => {
         server.closeAllConnections()
         server.close(() => resolve())
-      }),
+      })
+    },
   }
 }
 

@@ -7,6 +7,7 @@ import { loadBuild } from './build.ts'
 import { loadConfig } from './config.ts'
 import { discover } from './convention.ts'
 import { dev, RESTART_CODE } from './dev.ts'
+import { decide, formatProfile, readProfile } from './profile.ts'
 import { createApp, serveApp } from './serve.ts'
 import { DEVTOOLS_PATH } from './devtools.ts'
 import { scaffold, type Template } from './scaffold.ts'
@@ -19,11 +20,13 @@ const HELP = `weft — a folder is an application
   weft create <name>      a new application, with a page you can open
   weft routes [dir]       the route table, as the file tree produced it
   weft why <route> [dir]  what the generated plan says about a route, and where each fact came from
+  weft profile [dir]      what a recording decided about delivery, and what it refuses to decide
 
 Options
   --port <n>              default 3000, or PORT
   --host <name>           default localhost
   --devtools              dev only: this application's routes, effect sets, keys and bytes
+  --profile               record what every render costs, and plan the next build from it
   --template <name>       create only: minimal | app   (default app)
   --no-types              skip the type checker. Escape elision falls back to escaping
 `
@@ -59,6 +62,7 @@ function overridesFrom(flags: Argv['flags']): {
   host?: string
   types?: boolean
   devtools?: boolean
+  profile?: boolean
 } {
   const port = flags.port ?? process.env.PORT
   return {
@@ -68,6 +72,9 @@ function overridesFrom(flags: Argv['flags']): {
     // Only when asked. A flag on the command line is the right place for something that must
     // never be deployed, and a config that carries it is a config `weft start` has to refuse.
     ...(flags.devtools === true ? { devtools: true } : {}),
+    // Recording is a deployment's decision either way, so unlike devtools this is allowed in a
+    // config as well as on the command line — a profile worth having comes from real traffic.
+    ...(flags.profile === true ? { profile: true } : {}),
   }
 }
 
@@ -163,6 +170,38 @@ async function main(): Promise<number> {
       return 1
     }
     out(`${JSON.stringify(route.plan, null, 2)}\n`)
+    return 0
+  }
+
+  if (command === 'profile') {
+    const config = await loadConfig(root, overrides)
+    const profile = await readProfile(root, config.outDir)
+    if (!profile) {
+      process.stderr.write(
+        `no recording in ${config.outDir}/profile.json. Serve with \`profile: true\` in the config or ` +
+          `\`weft dev --profile\`, take some traffic, and ask again — a plan generated from two requests ` +
+          `is a plan generated from a guess with extra steps.\n`,
+      )
+      return 1
+    }
+    const decisions = decide(profile)
+    out(formatProfile(profile, decisions))
+    // What it *would* change, against what the convention says today, so the diff is the point
+    // rather than the numbers.
+    const app = await createApp(root, { ...overrides, mode: 'dev' })
+    const changes: string[] = []
+    for (const route of decisions.routes) {
+      const plan = app.routes.find((r) => r.pattern === route.route)?.plan
+      if (!plan) continue
+      for (const decision of route.slots) {
+        const spec = plan.slots.find((slot) => slot.name === decision.slot)
+        if (!spec || decision.delivery === null) continue
+        if (spec.delivery !== decision.delivery) {
+          changes.push(`  ${route.route} ${decision.slot}: ${spec.delivery} -> ${decision.delivery}`)
+        }
+      }
+    }
+    out(changes.length ? `  what this changes\n${changes.join('\n')}\n\n` : '  the plan already agrees\n\n')
     return 0
   }
 

@@ -25,6 +25,7 @@ import {
 } from '@weft/plan'
 import { composedIn, slotHoles, type CompiledApp, type CompiledFragment } from './compile.ts'
 import { withServices } from './context.ts'
+import type { Decisions, Recorder, SlotDecision } from './profile.ts'
 import type { Discovered, DiscoveredRoute } from './convention.ts'
 import type { CacheDeclaration, RouteModule, SlotDeclaration } from './route.ts'
 import { staticVerdict, type StaticVerdict } from './static.ts'
@@ -135,12 +136,24 @@ function cacheOf(
   ]
 }
 
+/**
+ * Placement, and the one part of it a measurement may overrule.
+ *
+ * A profile decides delivery and nothing else. It cannot move a fragment, change a cache class or
+ * touch a key: those are the compiler's and the convention's, and a recording of last Tuesday has
+ * no standing over any of them. What it does have standing over is whether a region is worth its
+ * own flush, which is a question about milliseconds — and the declaration loses that one, because
+ * the declaration was a guess and this is a measurement.
+ */
 function applyPlacement(
   builder: ReturnType<typeof slotSpec>,
   declaration: SlotDeclaration,
+  decided?: SlotDecision,
 ): ReturnType<typeof slotSpec> {
   const stream = declaration.stream
-  if (stream === false) builder.buffered()
+  if (decided?.delivery === 'stream') builder.stream(decided.prio === undefined ? {} : { prio: decided.prio })
+  else if (decided?.delivery === 'buffered') builder.buffered()
+  else if (stream === false) builder.buffered()
   else if (typeof stream === 'object') builder.stream(stream.prio === undefined ? {} : { prio: stream.prio })
   else if (stream === true) builder.stream()
   else builder.buffered()
@@ -374,6 +387,7 @@ function wrapSlot(
   expose: readonly string[],
   live: boolean,
   store: StorePort,
+  recorder?: Recorder,
 ): KernelSlot {
   const open = utf8.encode(`<div data-weft-slot="${name}">`)
   return {
@@ -401,7 +415,17 @@ function wrapSlot(
      */
     id: `${slot.id}@${pattern}:${name}${paramsOf(params)}`,
     render: async (ctx) => {
+      /**
+       * Where a profile's numbers come from.
+       *
+       * Here rather than in a telemetry port, because a port sees `slot.render` with a slot name
+       * and no route — and `body` is a different slot on every page. This wrapper is the one place
+       * that holds both, and it is only reached when the store did not already have the bytes, so
+       * a render counted here is a render that happened.
+       */
+      const at = recorder ? performance.now() : 0
       const bytes = await slot.render(ctx)
+      recorder?.render(pattern, name, performance.now() - at, bytes.length)
       const values = captured.get(ctx as unknown as object)?.get(name)
       /**
        * A live slot records the render the client is about to be shown.
@@ -440,6 +464,17 @@ export interface GenerateOptions {
   store: StorePort
   /** What this deployment bound. A loader is handed the services half of it. */
   ports: Ports
+  /**
+   * What a recording of this application decided about delivery, if there is one.
+   *
+   * Placement stays the convention's: which fragment fills which hole is a fact about the file
+   * tree. What a profile decides is the half that is about *time* — whether a region is worth
+   * arriving separately — because that is not in the file tree and an author asked to guess it
+   * guesses `stream: true` on everything.
+   */
+  profile?: Decisions
+  /** Where a render's cost is recorded, when this process was asked to record one. */
+  recorder?: Recorder
   /** The client entry the layout loads. Also a digest-bearing URL, so also resolved late. */
   runtime(): string
   brand: string
@@ -560,7 +595,10 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
       : []),
     ...holes.map((name) => {
       const { declaration, fragment } = declarations[name] as (typeof declarations)[string]
-      return applyPlacement(slotSpec(name).fragment(fragment.entry.id), declaration)
+      const decided = options.profile?.routes
+        .find((r) => r.route === route.pattern)
+        ?.slots.find((s) => s.slot === name)
+      return applyPlacement(slotSpec(name).fragment(fragment.entry.id), declaration, decided)
     }),
   ]
 
@@ -729,6 +767,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
           expose,
           Boolean(live[slot.name]),
           options.store,
+          options.recorder,
         ),
         ...overrides.get(slot.name),
       })),

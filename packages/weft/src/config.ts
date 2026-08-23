@@ -76,6 +76,16 @@ export interface WeftConfig {
   /** Type information decides escape elision. Turning it off is correct and slower. */
   types?: boolean
   /**
+   * Record what every render costs, and generate the next plan from it.
+   *
+   * Off by default, because a recording is only worth having from traffic that resembles
+   * production and a laptop's is not that. On, the process writes `.weft/profile.json` as it
+   * serves, and the next `weft build` or `weft dev` reads it: a slow region on a page with a fast
+   * one starts streaming, a page whose regions are all fast stops paying for the out-of-order
+   * filler, and the framework knows which routes readers actually go to next.
+   */
+  profile?: boolean
+  /**
    * `weft routes` and `weft why` as pages, under `/_weft/devtools`, reading this process's own
    * `App` object.
    *
@@ -101,6 +111,7 @@ export interface ResolvedConfig extends Required<Pick<WeftConfig, 'srcDir' | 'ou
   scroll: 'top' | 'preserve'
   maxConcurrency: number
   devtools: boolean
+  profile: boolean
   types: boolean
   store?: StorePort
   telemetry?: TelemetryPort
@@ -153,6 +164,7 @@ export async function loadConfig(root: string, overrides: WeftConfig = {}): Prom
     maxConcurrency: config.maxConcurrency ?? 6,
     types: config.types ?? true,
     devtools: config.devtools ?? false,
+    profile: config.profile ?? false,
     ...(config.store ? { store: config.store } : {}),
     ...(config.telemetry ? { telemetry: config.telemetry } : {}),
     ...(config.config ? { config: config.config } : {}),

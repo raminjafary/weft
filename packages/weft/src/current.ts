@@ -1,5 +1,6 @@
 import type { Ports } from '@weft/kernel'
 import type { AssetTable } from './assets.ts'
+import type { Decisions, Profile } from './profile.ts'
 import type { CompiledApp, CompiledFragment } from './compile.ts'
 
 /**
@@ -22,11 +23,18 @@ interface CurrentApp {
   assets: AssetTable | null
   compiled: CompiledApp | null
   ports: Ports | null
+  /** The recording this application's plan was generated from, when there was one. */
+  profile: { profile: Profile; decisions: Decisions } | null
 }
 
 const CURRENT = Symbol.for('weft.current')
 const container = globalThis as unknown as Record<symbol, CurrentApp | undefined>
-const current: CurrentApp = (container[CURRENT] ??= { assets: null, compiled: null, ports: null })
+const current: CurrentApp = (container[CURRENT] ??= {
+  assets: null,
+  compiled: null,
+  ports: null,
+  profile: null,
+})
 
 export function setAssets(table: AssetTable): void {
   current.assets = table
@@ -38,6 +46,20 @@ export function setCompiled(app: CompiledApp): void {
 
 export function setPorts(ports: Ports): void {
   current.ports = ports
+}
+
+export function setProfile(recorded: { profile: Profile; decisions: Decisions } | null): void {
+  current.profile = recorded
+}
+
+/**
+ * The recording this application's plan was generated from, or null.
+ *
+ * Null is the common case and is not an error: a deployment that was not asked to record has
+ * nothing to show, and a page about a profile should say so rather than describe one it invented.
+ */
+export function appProfile(): { profile: Profile; decisions: Decisions } | null {
+  return current.profile
 }
 
 /**

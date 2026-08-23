@@ -364,6 +364,15 @@ export const STATIONS: readonly Station[] = [
   },
 
   {
+    id: 'profile',
+    title: 'Plans from a profile',
+    shows: "What this deployment's renders cost, and what that decided about delivery",
+    control: 'None: the page reads the live recording, and says so when there is not one',
+    covers: ['plan/profile.md'],
+    status: 'live',
+    group: 'budget',
+  },
+  {
     id: 'navigation',
     title: 'Instant navigation',
     shows: 'A route staged on hover, and a click that is a DOM swap rather than a request',
