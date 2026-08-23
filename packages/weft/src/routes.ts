@@ -342,10 +342,22 @@ function neededInBrowser(fragment: CompiledFragment): string[] {
  * anything else is inside it. The wrapper is also what a channel delta and an HTML fallback
  * target by name, so one element serves three mechanisms.
  */
+/**
+ * The params a slot's cache identity has to carry, as a stable string.
+ *
+ * Sorted, because two requests to the same route must not resolve to two keys because the router
+ * happened to fill the map in a different order.
+ */
+function paramsOf(params: Record<string, string>): string {
+  const entries = Object.entries(params).sort(([a], [b]) => a.localeCompare(b))
+  return entries.length ? `?${entries.map(([k, v]) => `${k}=${v}`).join('&')}` : ''
+}
+
 function wrapSlot(
   slot: KernelSlot,
   name: string,
   pattern: string,
+  params: Record<string, string>,
   fragment: CompiledFragment,
   captured: WeakMap<object, Map<string, Values>>,
   expose: readonly string[],
@@ -368,8 +380,15 @@ function wrapSlot(
      * the first one to render answers for the rest. Scoping the id to the route and slot is what
      * makes them four cached things. Two tabs on the same route and slot still share one, which is
      * the sharing that was ever worth having.
+     *
+     * The params are the same argument one level down, and it took a second page to see it.
+     * `/app/ordinary/:category` is one route, one slot and one template, and its loader is a `.ts`
+     * file the compiler never reads — so `route:category` is not in the effect set, the key cannot
+     * contain it, and whichever category rendered first answered for the other one. A route param
+     * is part of what a slot on a generated route *is*, so it is part of the identity, and a
+     * loader that ignores its params pays a cache entry per param rather than a wrong page.
      */
-    id: `${slot.id}@${pattern}:${name}`,
+    id: `${slot.id}@${pattern}:${name}${paramsOf(params)}`,
     render: async (ctx) => {
       const bytes = await slot.render(ctx)
       const values = captured.get(ctx as unknown as object)?.get(name)
@@ -691,6 +710,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
           slot,
           slot.name,
           route.pattern,
+          params,
           (declarations[slot.name] as (typeof declarations)[string]).fragment,
           captured,
           expose,

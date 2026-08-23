@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { createApp } from 'weft/server'
+import { createApp, serveApp } from 'weft/server'
 import { fragmentIR, slotHoles } from 'weft'
 import { SHOWCASES } from '../app/lib/showcases.ts'
 
@@ -18,7 +18,9 @@ const ROOT = fileURLToPath(new URL('../', import.meta.url))
 let built: Awaited<ReturnType<typeof createApp>> | null = null
 
 async function app(): Promise<NonNullable<typeof built>> {
-  built ??= await createApp(ROOT, { mode: 'dev' })
+  // Port zero: one of these tests serves this application, and the demo's own config asks for
+  // 4173 — which is the port somebody running `pnpm demo` is already listening on.
+  built ??= await createApp(ROOT, { mode: 'dev', port: 0 })
   return built
 }
 
@@ -133,4 +135,35 @@ test('a component stylesheet reaches the pages that render it and no others', as
   assert.equal(css('/app/article').includes('product-card.css'), false)
   assert.ok(css('/app/dashboard').includes('dashboard.css'))
   assert.equal(css('/app/article').includes('dashboard.css'), false)
+})
+
+/**
+ * One route with two params is two cached things.
+ *
+ * `/app/ordinary/:category` is one route, one slot and one sealed template, and the loader that
+ * picks a category lives in a `.data.ts` — which the compiler never reads. So `route:category` is
+ * not in the effect set, the key cannot contain it, and for as long as a slot's cache identity was
+ * the route pattern and the slot name, whichever category rendered first answered for the other.
+ * It is the same mistake the generated plan made one level up, where four slots bound to `markup`
+ * shared a key, and it needed a second page on the same route to become visible.
+ *
+ * The order matters, so both directions are asked: a cache hit that serves the wrong page looks
+ * exactly like a correct render of whichever page happened to be requested first.
+ */
+test('a route param is part of what a slot on a generated route is', async () => {
+  // The application these tests already built, served — rather than a second one. Building twice
+  // means staging the framework's own `.tsx` into `.weft` twice, and `weft build` in the L0 tests
+  // empties that directory from another process.
+  const serving = await serveApp(await app())
+  try {
+    const heading = async (path: string): Promise<string> => {
+      const body = await (await fetch(new URL(path, serving.url))).text()
+      return /<h2[^>]*>([^<]*)</.exec(body)?.[1] ?? ''
+    }
+    assert.equal(await heading('/app/ordinary/household'), 'Household')
+    assert.equal(await heading('/app/ordinary/pantry'), 'Pantry', 'the first render answered for the second')
+    assert.equal(await heading('/app/ordinary/household'), 'Household')
+  } finally {
+    await serving.close()
+  }
 })
