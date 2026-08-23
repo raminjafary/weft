@@ -24,72 +24,50 @@ is the only reason to keep a demo at all.
 
 The nine phases are from [the architecture proposal](docs/weft-and-warp.html).
 
-| Phase                                 | State                                                                                                                                                                      |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 · Prove the physics, version the IR | Done. RR7 gate measured, IR versioned from commit one, harness gates every claim                                                                                           |
-| 2 · Kernel and ports                  | Request state machine, two-phase envelope, 103 Early Hints, deferral, routing, intents, a stampede lease, L0 documents, thirteen ports declared and seven implemented      |
-| 3 · Client runtime                    | Signals, wiring, adoption, deltas, residency, epochs, budget, a frame router, optimistic intents with rollback. Missing: navigation, which is blocked on phase 7 discovery |
-| 4 · The plan layer                    | Done. Plan DSL, effect inference, runtime keys, plugin DAG, `weft why`, `.incremental()`, and plans generated from a folder convention rather than authored                |
-| 5 · Negotiation and locus             | Done. Resident digests, form selection, `STALE`, epochs with atomic commit, executors, per-slot budgets, all three transport bindings, a real worker pool                  |
-| 6 · Stateless surgical updates        | Done. `HELD` flow, base recovery, memoized deltas over a live channel, three levels of incremental recompute, and the shared-delta comparison measured                     |
-| 7 · Discovery and authority           | Intents dispatch and declare their writes; `CapabilityCheck` is the seam a capability model plugs into. Missing: lazy plan extension, an implemented model, signed intents |
-| 8 · Profile-guided planning           | Generated plans are done, from a convention rather than a profile. Missing: `weft profile`, chunk packing, V8 compile hints                                                |
-| 9 · Composition and topology          | Composition is in-process. `remote` is a declared wire form with no implementation                                                                                         |
+| Phase                                 | State                                                                                                                                                                                                                                                                                |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1 · Prove the physics, version the IR | Done. RR7 gate measured, IR versioned from commit one, harness gates every claim                                                                                                                                                                                                     |
+| 2 · Kernel and ports                  | Request state machine, two-phase envelope, 103 Early Hints, deferral, routing, intents, a stampede lease, L0 documents, thirteen ports declared and seven implemented                                                                                                                |
+| 3 · Client runtime                    | Done. Signals, wiring, adoption, deltas, residency, epochs, budget, a frame router, optimistic intents with rollback, and instant navigation over routes staged and unpainted                                                                                                        |
+| 4 · The plan layer                    | Done. Plan DSL, effect inference, runtime keys, plugin DAG, `weft why`, `.incremental()`, and plans generated from a folder convention rather than authored                                                                                                                          |
+| 5 · Negotiation and locus             | Done. Resident digests, form selection, `STALE`, epochs with atomic commit, executors, per-slot budgets, all three transport bindings, a real worker pool                                                                                                                            |
+| 6 · Stateless surgical updates        | Done. `HELD` flow, base recovery, memoized deltas over a live channel, three levels of incremental recompute, and the shared-delta comparison measured                                                                                                                               |
+| 7 · Discovery and authority           | Intents dispatch and declare their writes; `CapabilityCheck` is the seam a capability model plugs into. Nothing waits on it now — a staged route is a whole document, so navigation needs no slot set in advance. Missing: lazy plan extension, an implemented model, signed intents |
+| 8 · Profile-guided planning           | Generated plans are done, from a convention rather than a profile. Missing: `weft profile`, chunk packing, V8 compile hints                                                                                                                                                          |
+| 9 · Composition and topology          | Composition is in-process. `remote` is a declared wire form with no implementation                                                                                                                                                                                                   |
 
 ---
 
 ## Near term — closing the seams that were opened
 
-### 1. Instant navigation, and what is already prepared for it
+### 1. A staged route over the channel
 
-The hard primitive exists and is tested. The thing that would compose it into "navigate and
-it is already there" does not.
+Instant navigation is built — routes staged on hover and unpainted, a click that is a DOM swap,
+and the whole of it in [`spec/client/navigation.md`](spec/client/navigation.md) with what it
+costs and where it buys nothing. What is _not_ built is the version the design describes.
 
-**What is available.** Three layers of preparation, and they cover more than assets.
+**What was done instead, and why it works.** A staged route is a document, fetched over HTTP by
+the same path a first visit takes. That is why it needed no discovery: the document renders every
+slot the route has, so nothing has to know a route's slot set before arriving there, and phase 7
+stopped being a blocker rather than being finished.
 
-- **Bytes.** 103 Early Hints (`kernel/src/hints.ts`), `PreloadLink` carrying `preload` and
-  `modulepreload`, fed by `AssetPort.criticalFor(route)` and `chunksFor(route)`. This is the
-  CSS-and-JS layer, and it is the least interesting part.
-- **Templates.** The `WARM` frame asks the server to push `TPL` for versions the client does
-  not hold, and the resident store (`client/src/resident.ts`, IndexedDB) keeps them across
-  visits. The structure of a page you have not visited can be resident before you go there,
-  so adoption on arrival costs only bindings.
-- **Data, resolved and unpainted.** The real one. An epoch is exactly "fully fetched, fully
-  resolved, painting nothing": any number of staged epochs coexist with `live`, and one
-  `COMMIT` flips every slot staged in one of them at once. Prefetch being unable to disturb
-  the present falls out of that rather than being built, which is the design's own argument
-  for separating data currency from view currency. The client frame router honours it —
-  a `DELTA` carrying an `epoch` header performs zero DOM writes, and a region's base
-  deliberately does not advance until the commit paints it, with a test asserting exactly
-  that nothing is written.
+**What is still open.**
 
-**What is missing.**
-
-- **Navigation itself.** Phase 3's stated gap. Nothing intercepts a link, requests the target
-  route's slots under an epoch, and commits on click. What does exist is the same move for the
-  page you are already on: a control that changes the query and a form that posts an intent both
-  fetch the answer and swap the layout's holes in place rather than navigating, so neither costs
-  a repaint or a scroll position. That is one route with new values; a _different_ route is the
-  part below. `NAV` (0x1d) is a declared frame code
-  with no implementation. Regions are keyed by slot on the current page, so there is no notion
-  of a staged _route_: tomorrow's prices can be staged into today's page, a different page
-  cannot.
-- **Knowing a route's slot set before arriving there.** Lazy plan extension is phase 7 and not
-  started. Without it there is nothing to ask for.
+- **`WARM` as the design means it.** The frame table says "stage data for a route, do not paint";
+  what is implemented answers with templates. A route staged over the channel would send values
+  rather than markup for the regions whose templates the client already holds — which is the
+  delta form's argument applied to a page you have not been to. `NAV` (0x1d) is still a declared
+  code with no implementation, and the reason is the same: staging a route needs the whole page,
+  and the whole page is what the document request path already produces.
+- **Off-main-thread preparation, client side.** `applyDelta` writes the DOM and cannot leave the
+  main thread by nature. What could be prepared off-thread — parsing a staged document, resolving
+  derived values — is not, and nothing measures it.
 - **Off-main-thread rendering, server side.** `ExecutorPort` declares `pool`, `isolate`,
   `binding` and `svc`; `inline`, `deferred` and `client` are implemented, and `deferred` is
-  honest about being a fresh macrotask preemptible at await points rather than a worker
-  thread. That is why `.budget({ cpu })` is advisory on it. See the worker-pool item below.
-- **Off-main-thread rendering, client side.** Nothing runs in a worker. `applyDelta` writes the
-  DOM and cannot leave the main thread by nature; what could be prepared off-thread — parsing
-  a `TPL`, resolving derived values — is not.
-
-**What it would take.** A navigation module on the client that, on hover or viewport entry,
-sends `WARM` for the target's templates and a `REFRESH` scoped to the target route under a
-fresh epoch, then commits that epoch on click. The transport exists now and the epoch
-semantics exist; what is missing is a route-scoped staging model and something that knows a
-route's slot set before arrival. So: real, and blocked on phase 7's discovery rather than on
-the transport.
+  honest about being a fresh macrotask preemptible at await points rather than a worker thread.
+  That is why `.budget({ cpu })` is advisory on it.
+- **Deciding what is worth staging.** Everything hovered is fetched. Which routes are worth
+  speculating on is a measurement, which is the profile entry below.
 
 ### 2. Plans from a profile
 
@@ -219,6 +197,7 @@ cost.
 | **Residency**           | Repeat visits with templates already held                  | A "forget everything" button; boot path timing for both states                                                                 |
 | **Negotiation**         | A client that speaks an older IR                           | A version picker; watch forms drop and `html` survive                                                                          |
 | **Byte budgets**        | The runtime and the kernel measured against their ceilings | Per-entry breakdown, updated from the real bundle                                                                              |
+| **Navigation**          | A route staged on hover, and a click that paints           | Three links: one the framework may stage, one told not to, and one off this origin                                             |
 
 ### Build notes
 

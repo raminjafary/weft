@@ -122,6 +122,7 @@ node packages/bench/src/cli.ts client                      # adopt and patch, in
 node packages/bench/src/cli.ts budget                      # bundle each entry against its byte budget
 node packages/bench/src/cli.ts slots                       # both stream orders, and the shadow-DOM probe
 node packages/bench/src/cli.ts l0                          # a document served from the build against the same one rendered
+node packages/bench/src/cli.ts nav --latency 100           # a staged click against the same click handed to the browser
 node packages/bench/src/cli.ts run                          # measure and write a report
 node packages/bench/src/cli.ts run --transport buffered      # the intercepted-webview path
 node packages/bench/src/cli.ts run --axes shell-ttfb --scenarios slow-feed \
@@ -281,14 +282,15 @@ minified, compressed the way it would ship:
 
 | Entry                                     | Raw    | gzip   | brotli     | Budget |
 | ----------------------------------------- | ------ | ------ | ---------- | ------ |
-| Client runtime, everything                | 11,010 | 4,231  | **3,865**  | 6,144  |
-| Content route — adopt and bind            | 6,120  | 2,282  | **2,082**  | 5,120  |
-| App route — adopt, bind, patch, epochs    | 8,494  | 3,258  | **2,982**  | 12,288 |
-| Channel route — plus routing frames       | 10,979 | 4,216  | **3,852**  | 4,096  |
-| Server kernel — the document request path | 24,355 | 9,173  | **8,169**  | 8,192  |
-| Server kernel — plus intent dispatch      | 28,297 | 10,441 | **9,288**  | 10,240 |
-| Server kernel — plus refresh and epochs   | 31,538 | 11,747 | **10,461** | 12,288 |
-| Server kernel — plus a live Warp channel  | 39,038 | 14,467 | **12,914** | 13,312 |
+| Client runtime, everything                | 13,378 | 5,130  | **4,680**  | 6,144  |
+| Content route — adopt and bind            | 6,657  | 2,426  | **2,226**  | 5,120  |
+| App route — adopt, bind, patch, epochs    | 9,031  | 3,405  | **3,119**  | 12,288 |
+| Channel route — plus routing frames       | 11,573 | 4,375  | **4,004**  | 4,096  |
+| Navigating route — plus staged routes     | 13,347 | 5,115  | **4,669**  | 5,120  |
+| Server kernel — the document request path | 23,604 | 9,055  | **8,058**  | 8,192  |
+| Server kernel — plus intent dispatch      | 27,235 | 10,301 | **9,163**  | 10,240 |
+| Server kernel — plus refresh and epochs   | 31,936 | 11,905 | **10,608** | 12,288 |
+| Server kernel — plus a live Warp channel  | 39,622 | 14,660 | **13,095** | 13,312 |
 
 Comfortably inside on the client, and a content route still drops by never importing the
 update path, which is the module-level version of paying only for what you use.
@@ -313,9 +315,11 @@ The first attempt measured the whole barrel and came out 29% over — the gross-
 mistake the design warns about in the same paragraph as the byte budget, made immediately.
 
 Read the client headroom carefully too. **This runtime still does less than the design's
-runtime will.** No navigation, no form negotiation, no intent transport. What the numbers
-establish is a baseline and a gate: about 2.5 KB of brotli headroom on the client, and a test
-that fails the moment an entry crosses its ceiling.
+runtime will.** No form negotiation on the client's side of the wire, and nothing off the main
+thread. What the numbers establish is a baseline and a gate: about 1.4 KB of brotli headroom on
+the client, and a test that fails the moment an entry crosses its ceiling. Instant navigation
+arrived under that rule rather than into it — 665 bytes, in an entry of its own, so a page that
+links nowhere does not carry the staging model.
 
 ## Repeat visits, and Warp's first real run
 
@@ -459,6 +463,23 @@ runs elsewhere needs an address and a slot without one fails the build.
 `COMMIT` flips every slot in an epoch at once. Prefetch cannot disturb the present, and
 rollback is discarding an epoch. 254 bytes on the client.
 
+**A staged route is an epoch one level up, and that is what instant navigation is.** An epoch
+stages values into the slots of the page you are on; it cannot stage a _different_ page, because a
+staged write names a region and a region does not exist until its route has rendered. So routes are
+staged the same way and keyed by URL: hover a link and the document is fetched, parsed, and painted
+nowhere; click it and the commit is a DOM swap rather than a request, so the channel, the resident
+templates and the reader's place all survive it. A click on a route that is **not** already staged
+is handed back to the browser — a document response streams and a `fetch` of the same document does
+not, so waiting on one would make a slow page slower than doing nothing. Measured on the demo in
+Chromium: 17 ms staged against 606 ms for the page whose slots are deliberately slow, and at 100 ms
+injected RTT 7–19× on the ordinary ones. On loopback, where there is no round trip to remove, a
+staged click is _slower_ than letting the browser do it for a page the server answers instantly —
+which is the honest floor of the whole idea and is in
+[`spec/client/navigation.md`](spec/client/navigation.md) with the table. 665 bytes, in its own
+budget entry. `navigation: { scroll: 'preserve' }` in the config keeps the reader's position across
+a route change, per link with `data-weft-scroll`; back and forward restore what the entry recorded
+either way.
+
 **The surgical refresh is stateless and its delta is shared, and that is now measured.** The
 client names the base it holds, the server recovers it through `StorePort`, diffs, and memoizes
 under `delta:<tpl>:<from>-><to>`. A thousand clients on one base render cost **one** diff
@@ -529,13 +550,10 @@ un-painted.
 
 ## What has to be true next
 
-1. **Instant navigation.** Bytes, templates and unpainted data are all prepared for; nothing
-   intercepts a link. It is blocked on knowing a route's slot set before arriving there, which
-   is phase 7 discovery rather than transport.
-2. **A capability model behind `CapabilityCheck`.** Intents declare capabilities and an
+1. **A capability model behind `CapabilityCheck`.** Intents declare capabilities and an
    unchecked one is refused rather than allowed, which is honest and is not an implementation.
-3. **A bandwidth and loss model in the latency proxy.** It delays packets and nothing else, so
+2. **A bandwidth and loss model in the latency proxy.** It delays packets and nothing else, so
    it understates what a slow link does to an 18% byte difference.
-4. **Incremental declarative-shadow-DOM parsing on real iOS, Android WebView, and WebKitGTK.**
+3. **Incremental declarative-shadow-DOM parsing on real iOS, Android WebView, and WebKitGTK.**
    If the engines diverge the filler script becomes the primary path, which is survivable and
    changes what can be claimed.
