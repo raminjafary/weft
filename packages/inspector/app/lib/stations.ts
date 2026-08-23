@@ -363,15 +363,13 @@ export const STATIONS: readonly Station[] = [
     group: 'budget',
   },
 
-  // ── not built ──────────────────────────────────────────────────────────────────────
   {
     id: 'navigation',
     title: 'Instant navigation',
-    shows: 'Nothing yet. Bytes, templates and unpainted data are all prepared for; nothing intercepts a link',
-    control: 'None. The page explains what exists and what it is waiting on',
-    covers: ['kernel/transport.md'],
-    status: 'refused',
-    roadmap: 'instant-navigation-and-what-is-already-prepared-for-it',
+    shows: 'A route staged on hover, and a click that is a DOM swap rather than a request',
+    control: 'Three links: one the framework may stage, one told not to, and one off this origin',
+    covers: ['client/navigation.md'],
+    status: 'live',
     group: 'client',
   },
 ]
