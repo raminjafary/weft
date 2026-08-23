@@ -3,15 +3,27 @@ import {
   computed,
   createChannelClient,
   createEpochs,
+  createStaging,
   digest,
+  navigable,
   openResident,
+  plainClick,
   signal,
+  stagingKey,
   type ChannelFrame,
   type ClientTemplate,
+  type LinkFacts,
   type Readable,
   type Region,
 } from '@weft/client'
-import { createBinaryDecoder, encodeStream, frame as warpFrame, type Frame, type FrameKind } from '@weft/warp'
+import {
+  createBinaryDecoder,
+  encodeStream,
+  frame as warpFrame,
+  WARP_VERSION,
+  type Frame,
+  type FrameKind,
+} from '@weft/warp'
 
 /**
  * The client, for every application.
@@ -45,6 +57,11 @@ interface WeftState {
   connected: boolean
   /** How far boot got. A silent failure in an async boot looks exactly like a page with no script. */
   stage: string
+  /**
+   * When this page became interactive, on its own clock — so on a fresh document it is the whole
+   * cost of arriving, navigation included, and the number a staged navigation is compared against.
+   */
+  readyAt: number
   frames: { dir: 'up' | 'down'; text: string }[]
   /** Slots on this page the server will refresh over the channel. Empty means there is nothing to ask for. */
   live: string[]
@@ -61,6 +78,20 @@ interface WeftState {
    * change what it asks for but not what the answer is computed from.
    */
   refresh(slots?: readonly string[], at?: string): Promise<number>
+  /** Routes fetched and unpainted, by URL. Staging one cannot disturb the page they are staged from. */
+  staged: string[]
+  /**
+   * Navigations from this page, by what the click cost. `staged` was answered here from a route
+   * that was already fetched; `cold` was handed back to the browser, which is what a link has
+   * always cost. There is deliberately no third case — see `go`.
+   */
+  nav: { staged: number; cold: number; lastMs: number }
+  /**
+   * Go somewhere, the way a click on a link would. False when it fell back to a real navigation.
+   *
+   * `scroll` defaults to the application's `navigation.scroll`, which defaults to `top`.
+   */
+  navigate(href: string, scroll?: 'top' | 'preserve'): Promise<boolean>
 }
 
 declare global {
@@ -70,6 +101,8 @@ declare global {
     __weftIntents?: Record<string, string>
     __weftChannel?: string
     __weftClient?: string
+    /** What a route change does to the scroll position: the config's `navigation.scroll`. */
+    __weftScroll?: 'top' | 'preserve'
   }
 }
 
@@ -78,9 +111,13 @@ const state: WeftState = {
   writes: 0,
   connected: false,
   stage: 'loaded',
+  readyAt: 0,
   frames: [],
   live: [],
   refresh: (slots, at) => refresh(slots, at),
+  staged: [],
+  nav: { staged: 0, cold: 0, lastMs: 0 },
+  navigate: (href, scroll) => navigate(href, scroll),
 }
 /** True once a region declares itself refreshable, which is what decides whether to connect. */
 let liveRegions = false
@@ -326,12 +363,28 @@ function urlFromControls(): URL {
  */
 const SCROLL_KEY = 'weft:scroll'
 
-function rememberScroll(): void {
+/**
+ * Where the reader is, recorded for a load that is about to happen somewhere else.
+ *
+ * The position lives against a path rather than against a history entry because the page that
+ * will read it is a *new document*: nothing in this one survives to hand it over. Boot removes
+ * the key it reads, so a value written here is used once and cannot be restored over a later
+ * visit that arrived some other way.
+ */
+function handOff(path: string, y: number): void {
   try {
-    sessionStorage.setItem(`${SCROLL_KEY}:${window.location.pathname}`, String(Math.round(scrollY)))
+    sessionStorage.setItem(`${SCROLL_KEY}:${path}`, String(Math.round(y)))
   } catch {
-    // A tab with site data blocked. The reload is still correct; it just starts at the top.
+    // A tab with site data blocked. The navigation is still correct; it starts at the top.
   }
+}
+
+function rememberScroll(): void {
+  // Not the top. Recording a zero is indistinguishable from recording nothing, and it overwrites
+  // a position something else deliberately handed to the load that is about to happen — which is
+  // exactly what a back-triggered reload does, since the page it leaves is at the top.
+  if (scrollY < 4) return
+  handOff(window.location.pathname, scrollY)
 }
 
 function restoreScroll(): void {
@@ -412,13 +465,18 @@ function swappable(root: ParentNode): boolean {
  * and better than being wrong.
  */
 async function swapFrom(html: string, url: string): Promise<boolean> {
-  let next: Document
-  try {
-    next = new DOMParser().parseFromString(html, 'text/html')
-  } catch {
-    return false
-  }
+  const next = parseDocument(html)
+  if (!next) return false
   if (!swappable(document) || !swappable(next)) return false
+  /**
+   * Where the reader is, because this update is not supposed to move them anywhere.
+   *
+   * The holes are replaced one at a time, so for a moment the document is shorter than it was and
+   * the browser clamps the scroll to fit what is left — then the content comes back and the
+   * position does not. From the reader's side, pressing a button at the bottom of a page threw
+   * them to the top and back.
+   */
+  const y = Math.round(scrollY)
 
   /**
    * The layout's own `<slot>` elements, not the region wrappers inside them.
@@ -428,23 +486,6 @@ async function swapFrom(html: string, url: string): Promise<boolean> {
    * in would have left the old payload beside new nodes — a description of a render that is no
    * longer on the page, which is the kind of stale that looks like it works.
    */
-  /**
-   * An out-of-order answer arrives unfilled, and a parsed document runs no scripts.
-   *
-   * The regions of a streamed response are not inside their holes on the wire: each one is a
-   * `<template data-w="…">` after the shell, and the inline filler moves it to the anchor comment
-   * left in the hole. `DOMParser` executes nothing, so the holes of a document parsed this way are
-   * empty — and swapping them in would have emptied every region on the page, which is exactly
-   * what it did to the dashboard.
-   *
-   * So the same move is made here, against the inert document, before anything is read out of it.
-   */
-  for (const carrier of next.querySelectorAll('template[data-w]')) {
-    const hole = next.querySelector(`slot[name="${carrier.getAttribute('data-w') ?? ''}"]`)
-    if (hole) hole.replaceChildren((carrier as HTMLTemplateElement).content)
-    carrier.remove()
-  }
-
   const holes = [...document.querySelectorAll('slot[name]')]
   if (!holes.length) return false
   const incoming = holes.map((hole) => next.querySelector(`slot[name="${hole.getAttribute('name') ?? ''}"]`))
@@ -456,11 +497,13 @@ async function swapFrom(html: string, url: string): Promise<boolean> {
     hole.innerHTML = (incoming[index] as Element).innerHTML
   })
   if (next.title) document.title = next.title
-  window.history.replaceState(null, '', url)
+  window.history.replaceState({ ...((window.history.state ?? {}) as object) }, '', url)
+  here = new URL(url, window.location.href)
   regionsHeld = await adoptRegions()
   state.regions = regionsHeld.length
   wireIntents()
   wireControls()
+  keepAt(y)
   return true
 }
 
@@ -585,11 +628,27 @@ function paintStats(): void {
       case 'stage':
         element.textContent = state.stage
         break
+      case 'boot':
+        element.textContent = state.readyAt ? `${state.readyAt}ms to interactive` : state.stage
+        break
+      case 'staged':
+        element.textContent = state.staged.length
+          ? state.staged.map((url) => new URL(url).pathname).join(' · ')
+          : 'nothing staged'
+        break
+      case 'nav':
+        element.textContent = `${state.nav.staged} staged · ${state.nav.cold} cold${
+          state.nav.lastMs ? ` · last ${state.nav.lastMs}ms` : ''
+        }`
+        break
       default:
         break
     }
   }
 }
+
+/** The poll is started once per page load, not once per swap: a second one paints the same nodes. */
+let polling = false
 
 async function wireRuntimeReadouts(): Promise<void> {
   const stats = document.querySelectorAll('[data-weft-stat]')
@@ -599,7 +658,10 @@ async function wireRuntimeReadouts(): Promise<void> {
     paintStats()
     // Polled rather than pushed: a delta arriving is not an event the application asked for, and
     // a subscription nobody unsubscribes from outlives the element it was painting.
-    window.setInterval(paintStats, 500)
+    if (!polling) {
+      polling = true
+      window.setInterval(paintStats, 500)
+    }
   }
   for (const node of resident) node.textContent = await describeResident()
   for (const node of forget) {
@@ -754,7 +816,7 @@ async function open(): Promise<Wire> {
     {
       kind: 'RESIDENT',
       header: {
-        warp: '1.2.0',
+        warp: WARP_VERSION,
         ir: document.documentElement.dataset.weftIr ?? '2.4.0',
         forms: 'html,delta,patch',
         transport: 'stream',
@@ -764,6 +826,445 @@ async function open(): Promise<Wire> {
   if (regionsHeld.length) await post([{ kind: 'HELD', header: client.held() }])
 
   return { send: post, client }
+}
+
+// ── navigation ───────────────────────────────────────────────────────────────────────
+
+/**
+ * A page you have not gone to yet, fetched and painting nothing.
+ *
+ * Every layer this needed already existed and none of them were pointed at a link. An epoch is
+ * data resolved and unpainted; the resident store keeps templates across visits; and the swap is
+ * the same one a control that changes the query has always done. What was missing was the notion
+ * of a staged *route*: regions are keyed by slot on the page you are on, so tomorrow's prices
+ * could be staged into today's page and a different page could not.
+ *
+ * `createStaging` is that notion one level up, keyed by URL. The document is fetched on hover,
+ * parsed, and held; the click commits it, and the commit is a DOM swap rather than a request. So
+ * what a navigation costs after the hover is what a swap costs, and the reader's scroll position,
+ * their place in the tab order and the channel they are on all survive it.
+ *
+ * Every failure is a real navigation rather than a wrong one: a bad status, a redirect the server
+ * decided on, a document that is not this application's, an answer that arrived too long ago.
+ */
+interface StagedPage {
+  document: Document
+  /** Where the answer came from. A guard's redirect is a decision about the URL, so it wins. */
+  url: string
+}
+
+/** Hover intent. Below this a pointer crossing a nav on its way elsewhere prefetches the lot. */
+const HOVER_MS = 65
+
+const routes = createStaging<StagedPage>({
+  load: async (url, abort) => {
+    const response = await fetch(url, {
+      signal: abort,
+      credentials: 'same-origin',
+      headers: { accept: 'text/html' },
+    }).catch(() => null)
+    if (!response?.ok) return null
+    if (!(response.headers.get('content-type') ?? '').includes('text/html')) return null
+    const next = parseDocument(await response.text())
+    if (!next?.querySelector('slot[name]')) return null
+    preloadStyles(next)
+    return { document: next, url: response.url || url }
+  },
+})
+
+/**
+ * Routes whose answer is *held*, which is what the readouts say and what a click can use.
+ *
+ * `routes.open` includes the ones still in flight, and a fetch that has started is not an answer
+ * that is ready: a click on one of those is handed back to the browser, not committed.
+ */
+function syncStaged(): void {
+  state.staged = routes.open.filter((url) => routes.state(url) === 'ready')
+}
+
+/** The URL the framework believes it is showing. `location` has already moved by `popstate`. */
+let here = typeof window === 'undefined' ? null : new URL(window.location.href)
+
+function linkFacts(link: HTMLAnchorElement): LinkFacts {
+  return {
+    href: link.href,
+    target: link.target,
+    rel: link.rel,
+    download: link.hasAttribute('download'),
+  }
+}
+
+function samePage(url: URL): boolean {
+  return url.pathname === window.location.pathname && url.search === window.location.search
+}
+
+/**
+ * Whether a link is worth fetching before it is clicked.
+ *
+ * A prefetch is a render the server performs for a page that may never be asked for, so the
+ * refusals are the ones where that cost is not the reader's to pay: `data-weft-prefetch="off"` on
+ * the link or the document, a connection the browser has told us to save data on, and 2G. On any
+ * of them the click still works — it waits for the answer instead of having it.
+ */
+function prefetchable(link: HTMLAnchorElement): boolean {
+  if (!navigable(linkFacts(link), window.location.href)) return false
+  if (link.dataset.weftPrefetch === 'off') return false
+  if (document.documentElement.dataset.weftPrefetch === 'off') return false
+  const connection = (navigator as { connection?: { saveData?: boolean; effectiveType?: string } }).connection
+  if (connection?.saveData) return false
+  if (connection?.effectiveType && connection.effectiveType.includes('2g')) return false
+  return !samePage(new URL(link.href, window.location.href))
+}
+
+function parseDocument(html: string): Document | null {
+  let next: Document
+  try {
+    next = new DOMParser().parseFromString(html, 'text/html')
+  } catch {
+    return null
+  }
+  /**
+   * An out-of-order answer arrives unfilled, and a parsed document runs no scripts.
+   *
+   * The regions of a streamed response are not inside their holes on the wire: each one is a
+   * `<template data-w="…">` after the shell, and the inline filler moves it to the anchor comment
+   * left in the hole. `DOMParser` executes nothing, so the holes of a document parsed this way are
+   * empty — and swapping them in would have emptied every region on the page, which is exactly
+   * what it did to the dashboard.
+   *
+   * So the same move is made here, against the inert document, before anything is read out of it.
+   */
+  for (const carrier of next.querySelectorAll('template[data-w]')) {
+    const hole = next.querySelector(`slot[name="${carrier.getAttribute('data-w') ?? ''}"]`)
+    if (hole) hole.replaceChildren((carrier as HTMLTemplateElement).content)
+    carrier.remove()
+  }
+  return next
+}
+
+function styleHrefs(from: Document): string[] {
+  return [...from.head.querySelectorAll('link[rel="stylesheet"]')].map((n) => (n as HTMLLinkElement).href)
+}
+
+/**
+ * The next page's stylesheet, fetched while it is staged and applied to nothing.
+ *
+ * `preload` rather than `stylesheet` is the whole point: a second page bundle appended as a
+ * stylesheet would apply its rules to the page being looked at, which is the one thing staging
+ * is not allowed to do. Preloaded, the bytes are in the cache and the commit is a cache hit.
+ */
+function preloadStyles(next: Document): void {
+  const have = new Set([
+    ...styleHrefs(document),
+    ...[...document.head.querySelectorAll('link[rel="preload"][as="style"]')].map(
+      (n) => (n as HTMLLinkElement).href,
+    ),
+  ])
+  for (const href of styleHrefs(next)) {
+    if (have.has(href)) continue
+    const link = document.createElement('link')
+    link.rel = 'preload'
+    link.as = 'style'
+    link.href = href
+    document.head.append(link)
+  }
+}
+
+/** The cascade the next page links, in place before it paints. */
+async function applyStyles(next: Document): Promise<void> {
+  const holding = new Map<string, HTMLLinkElement>()
+  for (const node of document.head.querySelectorAll('link[rel="stylesheet"]')) {
+    holding.set((node as HTMLLinkElement).href, node as HTMLLinkElement)
+  }
+  const wanted = styleHrefs(next)
+  const pending: Promise<unknown>[] = []
+  for (const href of wanted) {
+    if (holding.has(href)) continue
+    const link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = href
+    pending.push(
+      new Promise((resolve) => {
+        link.addEventListener('load', resolve, { once: true })
+        link.addEventListener('error', resolve, { once: true })
+      }),
+    )
+    document.head.append(link)
+  }
+  // Awaited, because painting the next page with the last one's stylesheet is precisely the
+  // flash this path exists to avoid. The bytes are already cached from the preload, so what is
+  // waited on is a task rather than a round trip.
+  await Promise.all(pending)
+  for (const [href, node] of holding) if (!wanted.includes(href)) node.remove()
+}
+
+function syncAttributes(target: Element, from: Element): void {
+  for (const attribute of from.attributes) target.setAttribute(attribute.name, attribute.value)
+  // `getAttributeNames` rather than the live map, which shrinks as it is read from.
+  for (const name of target.getAttributeNames()) {
+    if (!from.hasAttribute(name)) target.removeAttribute(name)
+  }
+}
+
+function syncHead(next: Document): void {
+  document.title = next.title
+  for (const node of next.head.querySelectorAll('meta[name]')) {
+    const name = node.getAttribute('name') as string
+    const held = document.head.querySelector(`meta[name="${CSS.escape(name)}"]`)
+    if (held) held.setAttribute('content', node.getAttribute('content') ?? '')
+    else document.head.append(document.importNode(node, true))
+  }
+}
+
+/**
+ * Put the reader back at a position, and again on the next frame if it did not take.
+ *
+ * The document has just been rewritten and its height is whatever layout has got to, so asking
+ * for a position past the bottom of a document that is momentarily short clamps it to the top —
+ * and the browser's own clamp lands *after* this runs, so checking once and finding nothing wrong
+ * still ends up at the top a frame later.
+ */
+function keepAt(y: number): void {
+  const land = (): void => window.scrollTo({ top: y, behavior: 'instant' as ScrollBehavior })
+  land()
+  requestAnimationFrame(() => {
+    if (Math.abs(scrollY - y) > 4) land()
+  })
+}
+
+function landAt(url: URL, y: number): void {
+  const anchor = url.hash ? document.getElementById(url.hash.slice(1)) : null
+  if (anchor) {
+    anchor.scrollIntoView()
+    return
+  }
+  keepAt(y)
+}
+
+/**
+ * Where the client is now, and what it is holding there.
+ *
+ * The server resolves a refresh by matching the path this client last registered against the
+ * same route table the document went through, so a navigation that did not re-register would ask
+ * for the new page and be answered from the old one. And the held map is keyed by slot, which is
+ * a name that belongs to a page: `only` says this is the whole of what is held, so the page that
+ * was left does not go on being refreshed and invalidated for.
+ */
+async function rebind(url: URL): Promise<void> {
+  // Set before anything can be sent, and whether or not a channel exists yet: every POST carries
+  // it, so a channel opened later by the page that has just arrived registers the right path.
+  location_ = url.pathname + url.search
+  const held = opening
+  if (!held) {
+    if (liveRegions) await wire()
+    return
+  }
+  const w = await held
+  await w.send([{ kind: 'HELD', header: w.client.held({ only: true }) }])
+}
+
+/**
+ * The commit: a staged page becomes the page, in one turn and with no request in it.
+ *
+ * The body is replaced rather than the holes, because a layout's own values — the title, the
+ * heading, whatever the route declared — are holes in the shell rather than slots in it, and a
+ * page swapped hole by hole would have kept the last one's chrome.
+ */
+async function commitPage(page: StagedPage, mode: 'push' | 'restore', y: number): Promise<number> {
+  const next = page.document
+  if (!next.body) return 0
+  const url = new URL(page.url, window.location.href)
+
+  await applyStyles(next)
+  syncHead(next)
+  syncAttributes(document.documentElement, next.documentElement)
+
+  if (mode === 'push') {
+    // Recorded against the entry being left, which is the only entry that can hold it.
+    const state_ = (window.history.state ?? {}) as Record<string, unknown>
+    window.history.replaceState({ ...state_, weftY: Math.round(scrollY) }, '')
+  }
+
+  syncAttributes(document.body, next.body)
+  document.body.replaceChildren(...document.importNode(next.body, true).childNodes)
+  if (mode === 'push') window.history.pushState({ weftY: 0 }, '', url.href)
+  here = url
+
+  // Everything the last page bound is pointing at nodes that are no longer in the document, and
+  // a signal declared by a page nobody is on is state with no owner.
+  writable.clear()
+  intentTargets.clear()
+  state.live = []
+  liveRegions = false
+  regionsHeld = await adoptRegions()
+  state.regions = regionsHeld.length
+  wireIntents()
+  wireControls()
+  await wireRuntimeReadouts()
+  const painted = performance.now()
+  landAt(url, y)
+  // After the number: rebinding is a POST, and what the click bought is a page that is on screen
+  // and interactive, not a round trip that happens to follow it.
+  await rebind(url)
+  return painted
+}
+
+/**
+ * A click is answered here only when the answer is already in hand.
+ *
+ * The alternative — wait for the fetch the hover started, then swap — makes a slow page *worse*
+ * than the browser would have made it. A document response streams: the shell paints, then each
+ * region as it arrives. A `fetch` of the same document has to be read to the last byte before
+ * there is anything to parse, so waiting on one means the reader sits on the page they asked to
+ * leave, with no address-bar spinner to say why. The demo's dashboard makes it obvious, because
+ * its slots are deliberately slow.
+ *
+ * So: staged, and this is instant. Not staged, and it is a real navigation, which is what a link
+ * has always cost — and the request in flight is dropped rather than raced.
+ */
+async function go(href: string, mode: 'push' | 'restore', y = 0): Promise<boolean> {
+  const url = new URL(href, window.location.href)
+  const key = stagingKey(url.href, window.location.href)
+  const started = performance.now()
+
+  if (!routes.ready(key)) {
+    routes.discard(key)
+    syncStaged()
+    state.nav = { ...state.nav, cold: state.nav.cold + 1 }
+    return false
+  }
+  const claimed = await routes.claim(key)
+  syncStaged()
+  if (!claimed.value) return false
+
+  const painted = await commitPage(claimed.value, mode, y)
+  if (!painted) return false
+  state.nav = { ...state.nav, staged: state.nav.staged + 1, lastMs: Math.round(painted - started) }
+  log('up', `NAV ${url.pathname}${url.search} ${state.nav.lastMs}ms`)
+  return true
+}
+
+/**
+ * Where a route change lands, and who decides.
+ *
+ * The link wins, then the application's config, then `top` — which is what a navigation has always
+ * done, and the reason it is the default rather than the clever option. `preserve` exists because
+ * on some pages the scroll position *is* the reader's place: a long list whose filter is in the
+ * URL, or a document with a chapter per route. Back and forward ignore both and restore the
+ * position recorded against the entry being returned to.
+ */
+function scrollFor(link?: HTMLAnchorElement | null): 'top' | 'preserve' {
+  const asked = link?.dataset.weftScroll ?? window.__weftScroll
+  return asked === 'preserve' ? 'preserve' : 'top'
+}
+
+async function navigate(href: string, scroll: 'top' | 'preserve' = scrollFor()): Promise<boolean> {
+  const y = scroll === 'preserve' ? Math.round(scrollY) : 0
+  if (await go(href, 'push', y)) return true
+  /**
+   * The same link, answered by the browser — and `preserve` has to mean the same thing there.
+   *
+   * A click on a route that was not staged is a real navigation, and a real navigation lands at
+   * the top of a new document. Without this, whether the reader kept their place depended on
+   * whether they happened to hover long enough first, which is a setting that works most of the
+   * time and is therefore worse than one that does not work at all.
+   */
+  const url = new URL(href, window.location.href)
+  if (y > 0) handOff(url.pathname, y)
+  window.location.assign(url.href)
+  return false
+}
+
+/**
+ * Links, answered by the framework only where the markup says it may.
+ *
+ * Delegated at the document rather than wired per link, because a region replaced by a delta
+ * brings new links with it and a listener attached per link is a listener that will be missed
+ * once. The click is taken on the bubble rather than on capture, so an application that calls
+ * `preventDefault` is not overruled by the framework it is running on.
+ */
+function wireNavigation(): void {
+  /**
+   * The framework restores the position, so the browser is asked to stop.
+   *
+   * Two mechanisms both trying to put the reader back is worse than either: the engine restores
+   * the position an entry had when it was left, and it does so *after* load — so a page that this
+   * runtime had already put back at 240 was quietly returned to the top a frame later, and
+   * `navigation.scroll` and a restored back position both looked like they did nothing. Taking it
+   * over means every path has to record, so leaving a page records where it was.
+   */
+  try {
+    window.history.scrollRestoration = 'manual'
+  } catch {
+    // An engine without the property. It restores its own way, and the re-land below still runs.
+  }
+  window.addEventListener('pagehide', rememberScroll)
+
+  let intent: number | null = null
+  const cancel = (): void => {
+    if (intent !== null) window.clearTimeout(intent)
+    intent = null
+  }
+  const consider = (event: Event): void => {
+    const link = (event.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null
+    if (!link || !prefetchable(link)) return
+    const href = link.href
+    cancel()
+    intent = window.setTimeout(() => {
+      // Asked again on the way out, not only on the way in. Clicking a link focuses it, so the
+      // click itself schedules one of these — and by the time it fires the page it names is the
+      // page you are on, which would stage the document you are already looking at.
+      const url = new URL(href, window.location.href)
+      if (samePage(url)) return
+      void routes.stage(stagingKey(url.href, window.location.href)).then(syncStaged)
+    }, HOVER_MS)
+  }
+
+  document.addEventListener('pointerover', consider, { passive: true })
+  document.addEventListener('pointerout', cancel, { passive: true })
+  // A keyboard reader and a touch reader never hover. Focus and the moment before a tap are the
+  // same signal by another name, and a tap has ~90ms of its own before the click lands.
+  document.addEventListener('focusin', consider, { passive: true })
+  document.addEventListener('touchstart', consider, { passive: true })
+
+  document.addEventListener('click', (event) => {
+    if (event.defaultPrevented) return
+    const modified = event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+    if (!plainClick({ modified, button: event.button })) return
+    const link = (event.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null
+    if (!link || !navigable(linkFacts(link), window.location.href)) return
+    const url = new URL(link.href, window.location.href)
+    // The same page again is a reload, and a reload is the browser's to do.
+    if (samePage(url)) return
+    event.preventDefault()
+    void navigate(url.href, scrollFor(link))
+  })
+
+  window.addEventListener('popstate', (event) => {
+    const url = new URL(window.location.href)
+    // A fragment on the page being looked at: the browser is scrolling, not navigating.
+    if (here && url.pathname === here.pathname && url.search === here.search) {
+      here = url
+      return
+    }
+    const y = ((event.state ?? {}) as { weftY?: number }).weftY ?? 0
+    void (async () => {
+      if (await go(url.href, 'restore', y)) return
+      /**
+       * Nothing staged for the entry being returned to, so it is loaded — streamed, the way the
+       * first visit was. What a reload loses is the position, because the browser restores scroll
+       * for a history traversal and this is a fresh navigation to the same URL.
+       *
+       * So the position recorded on that entry is handed to the same session storage a
+       * framework-caused reload already uses, and boot puts it back before the first paint.
+       */
+      // Written even when it is zero, so a position recorded on an earlier visit to this path
+      // cannot be restored over a page the reader left at the top: boot removes the key it reads,
+      // whatever it says.
+      handOff(url.pathname, y)
+      window.location.reload()
+    })()
+  })
 }
 
 // ── boot ─────────────────────────────────────────────────────────────────────────────
@@ -778,6 +1279,7 @@ async function boot(): Promise<void> {
   state.stage = 'intents'
   wireIntents()
   wireControls()
+  wireNavigation()
   await wireRuntimeReadouts()
   state.stage = 'ready'
   // A page with a live region wants the channel now; every other page opens one on first use.
@@ -789,6 +1291,7 @@ async function boot(): Promise<void> {
     await import(window.__weftClient)
   }
   state.stage = 'running'
+  state.readyAt = Math.round(performance.now())
 }
 
 void boot().catch((error: unknown) => {
