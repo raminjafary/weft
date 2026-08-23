@@ -17,7 +17,7 @@ without a harness and a wire format cannot be versioned retroactively.
 | What                              | Where                                                                                         | Status                                                              |
 | --------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | Template IR, `weft.template-ir/2` | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir`                         | 2.5.0 — children, instances in rows, derived values, contagion      |
-| Warp frames, `weft.warp/1`        | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                 | 1.2.0 — `ACK` moved to the down range, where its bytes actually go  |
+| Warp frames, `weft.warp/1`        | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                 | 1.5.0 — `WARM` asks at three grains, and `PLAN` answers one unasked |
 | Versioning contract               | [`spec/VERSIONING.md`](spec/VERSIONING.md)                                                    | Majors refuse, minors round-trip                                    |
 | What measurement changed          | [`spec/FINDINGS.md`](spec/FINDINGS.md)                                                        | Five reversed, two clarified, one gate that fired on its first run  |
 | Device and engine reality         | [`spec/baseline/devices.md`](spec/baseline/devices.md)                                        | Written before the numbers                                          |
@@ -33,6 +33,7 @@ without a harness and a wire format cannot be versioned retroactively.
 | Static documents, L0              | [`spec/kernel/static.md`](spec/kernel/static.md), `packages/weft`                             | A page that reads nothing is a file, proved by rendering it twice   |
 | Executors, waves, epochs          | [`spec/kernel/locus.md`](spec/kernel/locus.md), `packages/kernel`, `packages/client`          | DAG scheduling, CPU budgets, staged epochs with atomic commit       |
 | Stateless surgical updates        | [`spec/kernel/surgical.md`](spec/kernel/surgical.md), `packages/kernel`                       | `HELD` recovers a base, the delta is memoized by its transition     |
+| Authority                         | [`spec/kernel/authority.md`](spec/kernel/authority.md), `packages/kernel`                     | Capabilities by role, Ed25519 intents, single-use, deny by default  |
 | The plan layer                    | [`spec/plan/plan.md`](spec/plan/plan.md), `packages/plan`                                     | Plan DSL, validation against inferred effects, plugins, `weft why`  |
 | Benchmark harness                 | `packages/bench`                                                                              | All six axes measured                                               |
 | What is not built yet             | [`ROADMAP.md`](ROADMAP.md)                                                                    | The runtime, a docs site with a playground, a demo of every feature |
@@ -575,12 +576,49 @@ stages its guess, the server stages the truth into the same epoch and commits, a
 the ACK says so and the client discards the epoch — nothing painted, so nothing has to be
 un-painted.
 
+**Authority is two questions now, and they are asked in order.** A capability is a property of the
+caller — this reader holds `cart:checkout` — and a signature is a property of the call: this checkout
+was issued by a page this server rendered, for this reader, for this payload, minutes ago, and has
+not been used before. Neither substitutes for the other, so an intent may declare either or both.
+Deny by default and deny on failure: a grant source that throws is a refusal, because an authority
+check that fails open turns an outage into an escalation for every caller at once. A grant matching
+everything is refused where it is written, because it would make declaring a capability decorative —
+and the front door has the complete declared set from the manifest, so a capability an intent
+requires and no role grants fails the build rather than becoming a 403 nobody can explain.
+
+Signed intents are Ed25519 over a 263-byte token, verified against a pinned public key bundle, spent
+once — the nonce is a store lease nobody releases, so the record cannot outlive the token. The
+verifier holds public keys only, which makes the design's separable authority tier a config file
+rather than an aspiration. And the token cannot be rendered into a page: a cache key here is derived
+from what the compiler saw a fragment read, so a token in a region's bytes would be stored under a
+key that does not describe it and handed to the next reader. Minting is therefore its own
+uncacheable request, which costs a signed intent one round trip and costs it the no-JavaScript path —
+the only kind of mutation here that has to have JavaScript, and the refusal says so on a page rather
+than as raw JSON.
+
+**A client can now know about a route without asking for it.** `WARM plan=/checkout/*` extends the
+plan, and a `PLAN` frame answers with what a client would otherwise fetch a document to learn: the
+shell each route renders into, its regions, its stylesheet, the templates they need, and where its
+readers go next. The shell is the field that pays for the frame — a route in a different document
+cannot arrive as regions, and discovering that by staging it costs a round trip _and_ a server render
+that is thrown away. A `PLAN` also arrives unasked when a channel opens, which is the first frame in
+this protocol that does: a page has no route table to notice a gap in, and where its readers go next
+is a measurement only the server has. Before that, the profile's transitions only reached a client
+that had already staged something — never a first visit, the visit they help most.
+
+**And a slot cannot be sent somewhere its reads do not resolve.** `E_RENDER_LOCATION` compares the
+executor against the compiler's inferred read set at build time: a fragment on the `client` executor
+that reads identity, a cookie or a header is an island shipped to a browser with no request to
+resolve it, and one on a `svc:` executor that used `ctx.raw()` is a closure asked to cross a crash
+domain. Both halves already existed; only the meeting of them is new.
+
 ## What has to be true next
 
-1. **A capability model behind `CapabilityCheck`.** Intents declare capabilities and an
-   unchecked one is refused rather than allowed, which is honest and is not an implementation.
-2. **A bandwidth and loss model in the latency proxy.** It delays packets and nothing else, so
+1. **A bandwidth and loss model in the latency proxy.** It delays packets and nothing else, so
    it understates what a slow link does to an 18% byte difference.
+2. **Rate limiting in the authority tier.** The capability model and signed intents are built; a
+   limit is the one piece of that tier with nothing behind it, because what a limit counts against
+   is a deployment's decision and a kernel choosing would be guessing.
 3. **Incremental declarative-shadow-DOM parsing on real iOS, Android WebView, and WebKitGTK.**
    If the engines diverge the filler script becomes the primary path, which is survivable and
    changes what can be claimed.
