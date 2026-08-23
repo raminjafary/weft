@@ -83,8 +83,14 @@ function text(frame: ChannelFrame, key: string): string | undefined {
 
 export interface ChannelClient {
   apply(frames: readonly ChannelFrame[]): Promise<Applied>
-  /** The HELD header the server needs: what this client is showing, per slot. */
-  held(): Record<string, string>
+  /**
+   * The HELD header the server needs: what this client is showing, per slot.
+   *
+   * `only` says this is the whole of it, which is what a client that has navigated has to say —
+   * slot names belong to a page, so without it the previous page's regions stay in the server's
+   * map and are refreshed and invalidated as though somebody were still looking at them.
+   */
+  held(options?: { only?: boolean }): Record<string, string | boolean>
   /**
    * The INTENT frame to send, and — when `epoch` is given — the client's own guess staged into
    * that epoch first.
@@ -136,11 +142,14 @@ export function createChannelClient(options: ChannelClientOptions): ChannelClien
       }
     },
 
-    held() {
-      const out: Record<string, string> = {}
+    held(opts = {}) {
+      const out: Record<string, string | boolean> = {}
       for (const region of options.regions()) {
         out[region.slot] = `${region.adopted.template.version}-${region.base}`
       }
+      // Warp's `HELD_ONLY`, written out rather than imported: this package depends on nothing,
+      // which is what lets a page carry the runtime without carrying the codec.
+      if (opts.only) out.$only = true
       return out
     },
 
