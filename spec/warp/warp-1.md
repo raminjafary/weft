@@ -132,6 +132,18 @@ all. Measured in
 [the adoption spec](../client/adoption.md); 1,124 protocol bytes on a first visit against
 132 on a repeat.
 
+### `HELD`, and saying that this is all of it
+
+A `HELD` frame's headers are slot names, so anything the frame has to say about _itself_ needs a
+key no slot can have: `$` is reserved, and `$only` is the one that exists. Without it a `HELD`
+frame adds to what the server believes, which is right for a client telling it about one more
+region and wrong for a client that has **navigated** — slot names belong to a page, so the page
+that was left would go on being refreshed by a `REFRESH` that names no slots and told it was
+stale by invalidations about a page nobody is on. `$only` says this is the whole of what is held:
+the server clears the map, drops that connection's entries in the stale registry, and reads the
+new set. Added in Warp 1.3.0; an older server ignores it and merges, which is the behaviour it
+had before.
+
 What that path does not yet touch: the socket binding, `RESUME`, epochs and `COMMIT`,
 `STALE`, `NAV`, and the uplink frames. Version negotiation runs, but only against a client
 that agrees with the server, so the downgrade paths remain tested in isolation rather than

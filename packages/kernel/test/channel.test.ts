@@ -10,7 +10,7 @@ import {
 } from '@weft/ir'
 import { WARP_VERSION, frame, negotiate, residentFrame, str, type Frame } from '@weft/warp'
 import { createHub, serverCapabilities, type ChannelSink } from '../src/channel.ts'
-import { baseKey, DEFAULT_REFRESH_TTL, recordBase, selectForm } from '../src/refresh.ts'
+import { baseKey, DEFAULT_REFRESH_TTL, heldFrame, parseHeld, recordBase, selectForm } from '../src/refresh.ts'
 
 function hole(index: number, binding: string, extra: Partial<Hole> = {}): Hole {
   return { index, kind: 'text', escape: 'escape', binding, path: [index], ...extra }
@@ -111,6 +111,43 @@ test('closing a channel releases its stale holds, so an invalidation cannot addr
   hub.close('c1')
   assert.equal(hub.stale.connections, 0)
   assert.equal(hub.channels, 0)
+})
+
+test('a HELD frame adds to what the server believes this client is showing', async () => {
+  const hub = createHub({ store: memoryStore(), source: () => null })
+  const channel = hub.open(sink(), 'c1')
+  await hub.receive('c1', [heldFrame([{ slot: 'prices', tpl: 't1', base: 'b1' }])])
+  await hub.receive('c1', [heldFrame([{ slot: 'cart', tpl: 't2', base: 'b2' }])])
+  assert.deepEqual([...channel.held.keys()], ['prices', 'cart'])
+})
+
+test('a client that has navigated says what it holds, and the page it left goes with it', async () => {
+  // Slot names belong to a page. Without `only`, `sidebar` outlives the page it was on: a
+  // REFRESH naming no slots would refresh it, and an invalidation would tell this connection a
+  // region nobody is looking at went stale.
+  const hub = createHub({ store: memoryStore(), source: () => null })
+  const channel = hub.open(sink(), 'c1')
+  await hub.receive('c1', [
+    heldFrame([
+      { slot: 'body', tpl: 'page-a', base: 'b1' },
+      { slot: 'sidebar', tpl: 'aside', base: 's1' },
+    ]),
+  ])
+  hub.stale.hold('c1', 'sidebar', 'weft:/a:sidebar')
+  assert.equal(hub.stale.connections, 1)
+
+  await hub.receive('c1', [heldFrame([{ slot: 'body', tpl: 'page-b', base: 'b9' }], { only: true })])
+  assert.deepEqual([...channel.held.keys()], ['body'])
+  assert.equal(channel.held.get('body')?.tpl, 'page-b')
+  assert.equal(hub.stale.connections, 0, "the keys it held were the other page's")
+})
+
+test('the reserved key on a HELD frame is not a slot called $only', async () => {
+  const hub = createHub({ store: memoryStore(), source: () => null })
+  const channel = hub.open(sink(), 'c1')
+  await hub.receive('c1', [heldFrame([{ slot: 'body', tpl: 't', base: 'b' }], { only: true })])
+  assert.deepEqual([...channel.held.keys()], ['body'])
+  assert.deepEqual(parseHeld(heldFrame([], { only: true })), [])
 })
 
 test('base renders and memoized deltas expire, so a shared store does not grow forever', async () => {

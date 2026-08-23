@@ -7,7 +7,9 @@ import {
   type WireForm,
 } from '@weft/ir'
 import {
+  bool,
   frame,
+  HELD_ONLY,
   list,
   readResident,
   negotiate,
@@ -307,6 +309,17 @@ export function createHub(options: HubOptions): ChannelHub {
       }
 
       case 'HELD': {
+        /**
+         * A client that says this is everything it holds is a client that has gone somewhere
+         * else, and slot names belong to a page. Keeping the previous page's entries would
+         * refresh regions nobody is looking at and hand this connection STALE frames about
+         * them, so both the held map and what the stale registry believes it holds are dropped
+         * before the new set is read.
+         */
+        if (bool(f, HELD_ONLY)) {
+          record.held.clear()
+          stale.release(record.channel.id)
+        }
         for (const h of parseHeld(f as Frame)) record.held.set(h.slot, h)
         return []
       }
