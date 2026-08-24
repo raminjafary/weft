@@ -624,6 +624,36 @@ authority it would have been borrowing named. Every refusal degrades that one re
 fallback, in the `onExceed` vocabulary a slot already had, because a page that dies when one of five
 regions misbehaves has thrown away the isolation it paid a hop for. 10,888 B in an entry of its own.
 
+**And the shell that composes them is a plan, so a region is a slot.** `region('search').remote(…)`
+fills a hole, is dispatched in a wave, may be cached and degrades on a policy, because every one of
+those is something a slot already does. What a region adds is checked: a critical region cannot be
+remote, a local one may not carry a contract there is a compiler to disagree with, and a region
+consuming a signal the shell does not expose fails the build. The one thing the plan does **not** say
+is where a region runs — the design's sketch writes `.remote('svc:search')`, and a shell naming the
+tier would make rolling that region a redeploy of every shell that names it, which is the property
+the registry exists to provide.
+
+Two numbers come out of that. `hopsOf` and `weft why` state a route's fan-out, and it is a **floor**
+rather than an estimate — a region that fans out further is one this build has no view of, and the
+composite reports the real total at runtime. `W_HOP_COUNT` fires at 80% of the platform's subrequest
+ceiling, because the request that finds the ceiling is a 500 and not a slow page. And a remote
+region's cache class is still _derived_: the contract carries the region's reads in the same
+vocabulary a local fragment uses, the composite runs them through the same `cacheClassOf` and
+`varyOn`, and an undescribed region reads `opaque` — uncacheable and private — so a public document
+containing one fails the build rather than being advertised on the strength of a silence. Reads that
+moved without the version moving are refused too, because by then the header has already gone out.
+
+**A tier boundary is a URL, not a mechanism.** `topology('monolith' | 'split-render' |
+'edge-regional' | 'mesh', …)` produces a registry and a set of executors, and nothing above the
+registry can tell which name it was given — two of the four are the same code with a different
+address, and saying so is better than inventing a distinction. What a topology may not do is collapse
+quietly: a split with nowhere to send a region is `E_NO_TIER`, because a monolith reported as a split
+is a latency claim nobody can check. `verifyRegions` then compares the four facts that live in four
+places — what the plan declared, what the registry binds, what the deployment can reach, and what the
+region says it is serving right now — and a plan that says `remote` against a registry that binds it
+locally is an error rather than a warning, because the hop count and the document's cache class were
+both derived from the declaration.
+
 **And a slot cannot be sent somewhere its reads do not resolve.** `E_RENDER_LOCATION` compares the
 executor against the compiler's inferred read set at build time: a fragment on the `client` executor
 that reads identity, a cookie or a header is an island shipped to a browser with no request to

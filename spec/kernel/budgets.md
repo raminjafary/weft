@@ -11,17 +11,18 @@ the gate is the test that calls it. Rolldown, minified, brotli at quality 11 —
 
 ## The entries
 
-| Entry                | Covers                                                                              | Measured | Ceiling  | Where the ceiling comes from                                            |
-| -------------------- | ----------------------------------------------------------------------------------- | -------- | -------- | ----------------------------------------------------------------------- |
-| `entry-request.ts`   | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream   | 8,108 B  | 8,192 B  | The design's "target under 8 KB server-side"                            |
-| `entry-channel.ts`   | The above, plus surgical refresh, form selection, epochs, the stale registry        | 10,678 B | 12,288 B | No design figure. A watermark                                           |
-| `entry-intent.ts`    | The request path, plus intent dispatch, the two authority branches, method routing  | 9,457 B  | 10,240 B | No design figure. A watermark                                           |
-| `entry-authority.ts` | The above, plus the capability model and signed intents                             | 11,120 B | 12,288 B | No design figure. Its own, because the design calls this tier separable |
-| `entry-transport.ts` | The channel path, plus a live channel: negotiation, held state, push invalidation   | 13,283 B | 13,312 B | No design figure. A watermark, and 29 bytes of it are left              |
-| `entry-stage.ts`     | The above, plus a whole route staged over the channel: `WARM at=`, `NAV`            | 13,582 B | 14,336 B | No design figure. Its own, because it went past the watermark above     |
-| `entry-discover.ts`  | The above, plus lazy plan extension: `WARM plan=`, `PLAN`                           | 13,784 B | 15,360 B | No design figure. Its own, on the rule route staging established        |
-| `entry-region.ts`    | The request path, plus regions resolved through the registry and checked on arrival | 10,888 B | 11,264 B | No design figure. Its own, on the same rule                             |
-| `index.ts`           | Everything, including build-time validation and serialisation                       | 11,601 B | —        | Not a claim. Reported so the marginal split is checkable                |
+| Entry                     | Covers                                                                              | Measured | Ceiling  | Where the ceiling comes from                                            |
+| ------------------------- | ----------------------------------------------------------------------------------- | -------- | -------- | ----------------------------------------------------------------------- |
+| `entry-request.ts`        | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream   | 8,108 B  | 8,192 B  | The design's "target under 8 KB server-side"                            |
+| `entry-channel.ts`        | The above, plus surgical refresh, form selection, epochs, the stale registry        | 10,678 B | 12,288 B | No design figure. A watermark                                           |
+| `entry-intent.ts`         | The request path, plus intent dispatch, the two authority branches, method routing  | 9,457 B  | 10,240 B | No design figure. A watermark                                           |
+| `entry-authority.ts`      | The above, plus the capability model and signed intents                             | 11,120 B | 12,288 B | No design figure. Its own, because the design calls this tier separable |
+| `entry-transport.ts`      | The channel path, plus a live channel: negotiation, held state, push invalidation   | 13,303 B | 13,312 B | No design figure. A watermark, and **9 bytes** are left                 |
+| `entry-stage.ts`          | The above, plus a whole route staged over the channel: `WARM at=`, `NAV`            | 13,613 B | 14,336 B | No design figure. Its own, because it went past the watermark above     |
+| `entry-discover.ts`       | The above, plus lazy plan extension: `WARM plan=`, `PLAN`                           | 13,820 B | 15,360 B | No design figure. Its own, on the rule route staging established        |
+| `entry-region.ts`         | The request path, plus regions resolved through the registry and checked on arrival | 11,021 B | 11,264 B | No design figure. Its own, on the same rule                             |
+| `entry-region-channel.ts` | The transport plus composition: a region refreshed over a live channel              | 16,037 B | 16,384 B | No design figure. Its own, because neither of those two covers it       |
+| `index.ts`                | Everything, including build-time validation and serialisation                       | 11,601 B | —        | Not a claim. Reported so the marginal split is checkable                |
 
 On the client, same rule:
 
@@ -56,6 +57,15 @@ under `entry-stage.ts`: a deployment that never stages a route never imports it,
 the size it was. The same thing happened on the client, where routing `NAV` in the channel took that
 entry 86 bytes past its watermark and the frame moved to navigation's own module — which is also
 where a frame kind belongs, since the capability that introduced it is the one that should carry it.
+
+**The transport entry has nine bytes left, and that is the interesting number on this page.**
+Answering a `REFRESH` for a region needs a dispatch point, and a dispatch point lives in the shared
+file by definition — so the cost cannot be moved to an entry of its own however the capability is
+split. What could be moved was the mechanism: a table of handlers keyed by slot would have been a
+third dispatch shape in that file, so a region answers through the return type `SlotSource` already
+has, as a second shape rather than a second option, for **20 bytes**. Nine left is not headroom. The
+next thing that touches `channel.ts` either trims it or the watermark moves with a reason recorded
+here, and this paragraph is that decision being deferred once rather than silently.
 
 **Composition is the fifth time a capability argued with its own number rather than somebody
 else's.** `entry-region.ts` is the document request path plus region resolution and the arrival check,

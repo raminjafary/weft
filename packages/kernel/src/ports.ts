@@ -355,6 +355,22 @@ export interface RegionBinding {
 export interface RegionContract {
   id: string
   version: string
+  /**
+   * What the region's own compiler inferred it reads, in the same vocabulary a local fragment
+   * uses — and this is the field that makes a composed page cacheable at all.
+   *
+   * A cache class here is still derived and never declared. The derivation happens on the other
+   * side, where the code is, and the contract carries the *reads* rather than the conclusion: the
+   * composite runs them through the same `cacheClassOf`, `varyOn` and `requiresTtl` as everything
+   * else, so a region contributes to a document's `Vary` and to its strictest class exactly as a
+   * slot does.
+   *
+   * Absent means unknown, and unknown is not the same as nothing: an undeclared region reads
+   * `opaque`, which is uncacheable and private. A page that advertised itself as shareable on the
+   * strength of a region nobody had described would be the leak this whole mechanism exists to
+   * prevent.
+   */
+  reads?: readonly string[]
 }
 
 // ── render ───────────────────────────────────────────────────────────────────────────

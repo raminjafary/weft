@@ -1,7 +1,7 @@
 import { explain } from '@weft/ir'
 import { criticalPath, type DagNode, type ResolvedKey, schedule } from '@weft/kernel'
-import type { Plan } from './dsl.ts'
-import { validatePlan, type SlotFacts } from './validate.ts'
+import type { Plan, SlotSpec } from './dsl.ts'
+import { hopsOf, validatePlan, type SlotFacts } from './validate.ts'
 
 /**
  * `weft why` — the critical path as a first-class concept rather than something you
@@ -63,6 +63,21 @@ export function why(input: WhyInput): WhyReport {
       lines.push(`${head}${name.padEnd(18)}${cost}   ${note}${where}`)
     })
   })
+
+  const fan = hopsOf(plan)
+  if (fan.regions) {
+    lines.push('')
+    lines.push(
+      `regions        ${fan.regions} | remote ${fan.remote} | worst-case hops ${fan.hops}` +
+        (fan.remote ? '  (a floor: a region that fans out further adds its own)' : ''),
+    )
+    for (const spec of plan.slots.filter((s) => s.region)) {
+      const decl = spec.region as NonNullable<SlotSpec['region']>
+      const contract = decl.contract ? `${decl.contract.id}@${decl.contract.version}` : 'no contract'
+      const failure = decl.fallback ? `fallback ${decl.fallback}` : decl.optional ? 'optional' : 'placeholder'
+      lines.push(`               ${spec.name.padEnd(18)}${decl.locus.padEnd(8)}${contract}   ${failure}`)
+    }
+  }
 
   lines.push('')
   if (path.path.length) {

@@ -115,8 +115,13 @@ const LINE_CEILINGS: Record<string, number> = {
   'entry-discover.ts': 2700,
   // Composition: regions resolved through the registry and checked on arrival. The document path
   // plus `region.ts`, and its own ceiling because a deployment that composes nothing has no
-  // business carrying it.
-  'entry-region.ts': 2100,
+  // business carrying it. 2,100 was set before the contract carried a region's reads, which is
+  // what makes a composed page cacheable rather than uniformly private; it went one line over.
+  'entry-region.ts': 2200,
+  // The transport plus composition: what a gateway that serves both a channel and composed
+  // documents imports. Neither of the two entries above covers it, and charging it to either would
+  // mean a deployment paying for a capability it does not have.
+  'entry-region-channel.ts': 3100,
 }
 
 /** Code only. A comment is not work the kernel absorbed from a port. */

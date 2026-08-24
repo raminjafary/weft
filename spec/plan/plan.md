@@ -72,6 +72,7 @@ E_PLAN_INVALID — /cart
 | `W_TTL_UNDECLARED`       | reads the clock and declares no policy, so nothing is cached                                              |
 | `W_TTL_ON_STATIC`        | a TTL on a fragment that reads nothing and resolves at build time                                         |
 | `W_INCREMENTAL_NO_GRAPH` | `.incremental()` with no derived values, so the input hashing is pure overhead                            |
+| `W_HOP_COUNT`            | the fan-out is within 20% of the platform's subrequest ceiling, and a region that fans out adds its own   |
 
 `assertPlan()` reports every error at once. A build that surfaces one problem per run is a
 build people stop running.
@@ -175,6 +176,19 @@ makes an island a usable thing rather than a fragment that may read nothing.
 deployment. That is a trust boundary, and only the deployment knows where its own are: a framework
 guessing would either refuse a legitimate internal service or wave through a third-party one, and
 both are worse than saying so here.
+
+## Regions, and the one thing a plan does not say about them
+
+`region('search')` builds a slot, because a region fills a hole, is dispatched in a wave, may be
+cached and degrades on a policy — all of which are a slot's behaviour. What it adds is a locus, a
+contract, a CSP fragment, and what happens when the other end is having a bad afternoon.
+
+The locus is `local` or `remote` and never a target. The design's sketch writes
+`.remote('svc:search')`; a shell naming the tier would make rolling that region a redeploy of every
+shell that names it, so the plan declares the one thing the build needs — whether a boundary is
+crossed — and the registry decides which one. The whole of it is in
+[`../kernel/composition.md`](../kernel/composition.md), including where a remote region's cache class
+comes from, what `hopsOf` counts, and why the count is a floor.
 
 ## What this does not do yet
 

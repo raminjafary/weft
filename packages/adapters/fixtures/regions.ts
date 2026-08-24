@@ -13,7 +13,10 @@ const utf8 = new TextEncoder()
 
 export const search = {
   region: 'search',
-  contract: { id: 'search', version: '2.1.0' },
+  // The reads are part of the contract because a composite derives a cache class and a `Vary` from
+  // them before this region has answered. `route:q` is the query parameter below, in the same
+  // vocabulary the compiler uses for a local fragment's reads.
+  contract: { id: 'search', version: '2.1.0', reads: ['route:q'] },
   render(request: RegionRequest): string {
     const q = request.params?.q ?? ''
     return `<form role=search><input value="${q}"></form>`

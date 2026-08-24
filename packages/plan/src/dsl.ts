@@ -1,5 +1,5 @@
 import type { WireForm } from '@weft/ir'
-import { type ExceedPolicy, type PolicyClass } from '@weft/kernel'
+import { type ExceedPolicy, type PolicyClass, type RegionContract } from '@weft/kernel'
 
 /**
  * The plan.
@@ -113,6 +113,38 @@ export interface SlotSpec {
   form?: FormSpec
   incremental: boolean
   speculate: boolean | 'profile'
+  /** Set when this slot is a region: a fragment that may live on another deployment. */
+  region?: RegionDecl
+}
+
+/**
+ * What a shell declares about a region, which is everything except where it runs.
+ *
+ * Where it runs is the registry's, and the omission is deliberate rather than an oversight in
+ * transcribing the design — whose sketch writes `.remote('svc:search', contract.search)`. A shell
+ * naming the tier would make rolling that region a redeploy of every shell that names it, which is
+ * the property the registry port exists to provide. So the plan declares the one thing a *build*
+ * needs to know — whether this region crosses a boundary — and the deployment decides which one.
+ *
+ * `locus` is therefore not a target and not a hint. It is what the hop count is computed from, what
+ * the render-location check runs against, and what a startup check compares the registry with: a
+ * region declared `remote` whose registry entry says `inline` is a misconfiguration somebody should
+ * be told about rather than a silently faster page.
+ */
+export interface RegionDecl {
+  locus: 'local' | 'remote'
+  /** What this shell was built expecting the region to serve. */
+  contract?: RegionContract
+  /** Directives this region needs, merged into the document's policy and refused when they conflict. */
+  csp?: Record<string, readonly string[]>
+  /** Exposed signals this region consumes. Checked against what the shell exposes. */
+  consumes?: readonly string[]
+  /** A fragment rendered in this region's place when it fails. The design's `fallback('static:…')`. */
+  fallback?: string
+  /** Failure is invisible: an empty hole and nobody paged. `placeholder` with no placeholder. */
+  optional?: boolean
+  /** Ours, and in the first flush. A region that is `critical` may not be remote. */
+  critical?: boolean
 }
 
 export interface GuardSpec {
@@ -136,6 +168,15 @@ export interface Plan {
   shell?: string
   guards: GuardSpec[]
   slots: SlotSpec[]
+  /**
+   * Signals the shell offers its regions, by name — the design's `expose({ locale, cartCount })`,
+   * and deliberately the only channel between them.
+   *
+   * Declared here rather than discovered because the value of a single channel is that it can be
+   * checked: a region consuming a signal the shell does not expose is a build error, where the
+   * alternative is a region reading a global that happens to exist on one page and not on another.
+   */
+  exposes: string[]
   /**
    * The document's own policy. Per-slot `.cache()` decides what is stored; this decides what
    * the response advertises, and it is checked against the strictest class among the shell and
@@ -248,6 +289,123 @@ export function slot(name: string): SlotBuilder {
 }
 
 /**
+ * The region builder: the design's `shell(({ region }) => …)`, as an entry in the same plan
+ * everything else is in.
+ *
+ * A region is a slot. That is the whole implementation strategy and it is not a shortcut — a region
+ * fills a hole in the shell, is dispatched in a wave, may be cached, may be refreshed, and degrades
+ * on a policy, and every one of those is a slot's behaviour. What a region adds is where its code
+ * lives and what happens when the other end is having a bad afternoon, which is exactly what
+ * `RegionDecl` holds.
+ *
+ * The executor is the reserved name `region`, meaning *the registry decides*. A region slot with any
+ * other executor, and a non-region slot claiming this one, are both build errors: the point of the
+ * sentinel is that the two ways of saying where a render happens cannot both be in play for one
+ * slot.
+ */
+export interface RegionBuilder {
+  readonly spec: SlotSpec
+  /** This process renders it, from the named fragment. The monolith, and the default. */
+  local(fragment?: string): RegionBuilder
+  /** It crosses a deployment boundary. Which one is the registry's answer, not the shell's. */
+  remote(contract?: RegionContract): RegionBuilder
+  contract(id: string, version: string, reads?: readonly string[]): RegionBuilder
+  /** Rendered in its place when it fails. */
+  fallback(fragment: string): RegionBuilder
+  /** Failure is invisible. An empty hole, and nobody is paged. */
+  optional(): RegionBuilder
+  /** Directives this region needs. Merged into the document's, and refused when they contradict. */
+  csp(directives: Record<string, readonly string[]>): RegionBuilder
+  /** Exposed signals this region reads. Checked against what the shell exposes. */
+  consumes(...signals: string[]): RegionBuilder
+  /** Ours, and in the first flush. A remote region cannot be critical. */
+  critical(): RegionBuilder
+  fragment(id: string): RegionBuilder
+  stream(options?: { prio?: number }): RegionBuilder
+  buffered(): RegionBuilder
+  budget(spec: {
+    cpu?: string | number
+    js?: string | number
+    grow?: string | number
+    onExceed?: ExceedPolicy
+  }): RegionBuilder
+  cache(
+    cls: PolicyClass,
+    options?: {
+      ttl?: string | number
+      swr?: string | number
+      tags?: string[]
+      consistency?: 'eventual' | 'strong'
+    },
+  ): RegionBuilder
+  refresh(everyMs: number, options?: { when?: Condition }): RegionBuilder
+  form(spec: FormSpec): RegionBuilder
+  needs(...slots: string[]): RegionBuilder
+  incremental(): RegionBuilder
+  speculate(mode?: boolean | 'profile'): RegionBuilder
+}
+
+/** The reserved executor name meaning "the registry decides". */
+export const REGION_EXECUTOR = 'region'
+
+export function region(name: string): RegionBuilder {
+  const base = slot(name)
+  const spec = base.spec
+  spec.executor = REGION_EXECUTOR
+  const decl: RegionDecl = { locus: 'local' }
+  spec.region = decl
+
+  const b: RegionBuilder = {
+    spec,
+    local(fragment) {
+      decl.locus = 'local'
+      if (fragment) base.fragment(fragment)
+      return b
+    },
+    remote(contract) {
+      decl.locus = 'remote'
+      if (contract) decl.contract = contract
+      return b
+    },
+    contract(id, version, reads) {
+      decl.contract = { id, version, ...(reads ? { reads: [...reads].sort() } : {}) }
+      return b
+    },
+    fallback(fragment) {
+      decl.fallback = fragment
+      return b
+    },
+    optional() {
+      decl.optional = true
+      return b
+    },
+    csp(directives) {
+      decl.csp = { ...decl.csp, ...directives }
+      return b
+    },
+    consumes(...signals) {
+      decl.consumes = [...new Set([...(decl.consumes ?? []), ...signals])].sort()
+      return b
+    },
+    critical() {
+      decl.critical = true
+      return b
+    },
+    fragment: (id) => (base.fragment(id), b),
+    stream: (options) => (base.stream(options), b),
+    buffered: () => (base.buffered(), b),
+    budget: (input) => (base.budget(input), b),
+    cache: (cls, options) => (base.cache(cls, options), b),
+    refresh: (everyMs, options) => (base.refresh(everyMs, options), b),
+    form: (input) => (base.form(input), b),
+    needs: (...slots) => (base.needs(...slots), b),
+    incremental: () => (base.incremental(), b),
+    speculate: (mode) => (base.speculate(mode), b),
+  }
+  return b
+}
+
+/**
  * A guard is a plan-level declaration and it runs in phase A by construction. Nearly every
  * real instance of "I need to set a cookie mid-stream" is actually "I discovered too late
  * that I needed a guard", so moving guards to where the envelope is still open removes the
@@ -261,10 +419,12 @@ export function shell(fragment: string): ShellSpec {
   return { shell: fragment }
 }
 
-export type PlanEntry = SlotBuilder | GuardSpec | ShellSpec
+export type PlanEntry = SlotBuilder | RegionBuilder | GuardSpec | ShellSpec
 
 export interface PlanOptions {
   maxConcurrency?: number
+  /** Signals the shell exposes to its regions. The only channel between them. */
+  exposes?: readonly string[]
   /** The document's `Cache-Control`, validated against what the shell and its slots read. */
   cache?: {
     class: PolicyClass
@@ -298,6 +458,7 @@ export function plan(route: string, entries: readonly PlanEntry[] = [], options:
     route,
     guards,
     slots,
+    exposes: [...new Set(options.exposes ?? [])].sort(),
     maxConcurrency: options.maxConcurrency ?? 6,
     ...(shellFragment ? { shell: shellFragment } : {}),
     ...(options.cache

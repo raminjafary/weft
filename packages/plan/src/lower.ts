@@ -7,19 +7,25 @@ import {
   type Values,
 } from '@weft/ir'
 import {
+  createComposer,
+  regionEffects,
+  regionStream,
   type CachePolicy,
   type EnvelopeContext,
   type JobAddress,
   type KernelRoute,
   type KernelSlot,
   type Order,
+  type Ports,
   type PreloadLink,
+  type RegionRequest,
+  type RegionSpec,
   type RenderPort,
   type RenderContext,
   type RouteResolver,
 } from '@weft/kernel'
-import { PlanError, type CacheSpec, type Plan, type SlotSpec } from './dsl.ts'
-import { assertPlan, type ValidateContext } from './validate.ts'
+import { PlanError, type CacheSpec, type Plan, type RegionDecl, type SlotSpec } from './dsl.ts'
+import { assertPlan, cspOf, type ValidateContext } from './validate.ts'
 
 /**
  * The seam: a plan and some compiled fragments become a route.
@@ -91,6 +97,35 @@ export interface RouteBindings {
    * reused*, and a renderer that has never seen the previous values cannot answer the second.
    */
   render?: RenderPort
+  /**
+   * What this route's regions are composed against. Required only by a plan that declares one.
+   *
+   * The ports are the deployment's, and they are named here rather than taken from the kernel
+   * because composition happens *inside* a slot's render: from the kernel's point of view a region
+   * is a local async function, and the boundary is the executor the registry named one level in.
+   * That nesting is the design's claim that a tier boundary is a port implementation and not a
+   * second render path, so it is worth being able to see it in the types.
+   */
+  regions?: RegionBindings
+}
+
+export interface RegionBindings {
+  ports: Ports
+  /**
+   * What a region is told about this request beyond the route and its params — the templates the
+   * client holds, an epoch it is being staged into. A function of the params, because a region
+   * request has to survive a serialisation and a closure does not.
+   */
+  request?(params: Record<string, string>): RegionRequest
+  /**
+   * The bytes behind a region's declared degradation, by region name.
+   *
+   * One home for both loci, and it is not the slot binding: a remote region has no local binding by
+   * construction, and putting a fallback there would mean the one thing a shell most wants to
+   * declare about a remote region had nowhere to live. The plan names the fragment, so a typo is a
+   * build error; the bytes are the deployment's, the same way a placeholder's always were.
+   */
+  degraded?: Record<string, { fallback?: Uint8Array; placeholder?: Uint8Array }>
 }
 
 function policyOf(spec: CacheSpec | undefined): CachePolicy | undefined {
@@ -136,6 +171,31 @@ function incrementalRender(fragment: FragmentSource, memo: SegmentMemo): (values
     }).bytes
 }
 
+/**
+ * How a slot's values become bytes: its own memo when it is incremental, the render port when the
+ * deployment bound one, and the IR renderer otherwise. One function, because a region renders the
+ * same way a slot does — the difference between them is where, not how.
+ */
+function paintOf(
+  spec: SlotSpec,
+  binding: SlotBinding,
+  renderer?: RenderPort,
+): (values: Values) => Uint8Array | Promise<Uint8Array> {
+  const { fragment } = binding
+  const memo = spec.incremental ? createSegmentMemo() : null
+  if (memo) return incrementalRender(fragment, memo)
+  if (renderer) {
+    return (values: Values) =>
+      renderer.render({
+        slot: spec.name,
+        template: fragment.entry,
+        values,
+        ...(fragment.resolve ? { resolve: fragment.resolve } : {}),
+      })
+  }
+  return (values: Values) => renderTemplate(fragment.entry, values, fragment.resolve)
+}
+
 function slotOf(
   spec: SlotSpec,
   binding: SlotBinding,
@@ -144,18 +204,7 @@ function slotOf(
 ): KernelSlot {
   const { fragment } = binding
   const policy = policyOf(spec.cache)
-  const memo = spec.incremental ? createSegmentMemo() : null
-  const paint = memo
-    ? incrementalRender(fragment, memo)
-    : renderer
-      ? (values: Values) =>
-          renderer.render({
-            slot: spec.name,
-            template: fragment.entry,
-            values,
-            ...(fragment.resolve ? { resolve: fragment.resolve } : {}),
-          })
-      : (values: Values) => renderTemplate(fragment.entry, values, fragment.resolve)
+  const paint = paintOf(spec, binding, renderer)
   return {
     name: spec.name,
     id: fragment.entry.id,
@@ -174,6 +223,92 @@ function slotOf(
 }
 
 /**
+ * A region, lowered.
+ *
+ * Three things are decided here and each of them is the honest answer to a question the composite
+ * cannot answer for itself.
+ *
+ * **What the kernel is told the slot reads.** For a local region, what the compiler inferred. For a
+ * remote one, what the contract carries — and `regionEffects` turns an absent contract into
+ * `opaque`, which is uncacheable and private, because a document that advertised itself as
+ * shareable on the strength of a region nobody had described is the leak the whole design exists to
+ * prevent.
+ *
+ * **Which executor the kernel sees.** `inline`, always, and that is not a lie: the slot's render
+ * *is* a local async function. The boundary is one level in, where the composer dispatches through
+ * the executor the registry named, and that is where the budget and the degradation belong — so
+ * neither is passed to the kernel, or a breach would be reported twice with two different meanings.
+ *
+ * **What a failure produces.** The composer's, from the declaration: `optional()` is a placeholder
+ * with nothing behind it, `fallback(...)` is bytes the binding supplied.
+ */
+function regionSlotOf(
+  spec: SlotSpec,
+  decl: RegionDecl,
+  route: string,
+  params: Record<string, string>,
+  regions: RegionBindings,
+  binding: SlotBinding | undefined,
+  renderer?: RenderPort,
+): KernelSlot {
+  const remote = decl.locus === 'remote'
+  const policy = policyOf(spec.cache)
+  const degraded = regions.degraded?.[spec.name]
+  const regionSpec: RegionSpec = {
+    region: spec.name,
+    onExceed: decl.fallback ? 'fallback' : 'placeholder',
+    ...(spec.budget?.cpuMs !== undefined ? { cpuBudgetMs: spec.budget.cpuMs } : {}),
+    ...(decl.contract ? { contract: decl.contract } : {}),
+    ...(degraded?.fallback ? { fallback: degraded.fallback } : {}),
+    ...(degraded?.placeholder ? { placeholder: degraded.placeholder } : {}),
+  }
+
+  // Hoisted, because an incremental region's memo has to outlive one render to be a memo.
+  const paint = binding ? paintOf(spec, binding, renderer) : undefined
+
+  return {
+    name: spec.name,
+    id: remote ? `region:${spec.name}` : (binding as SlotBinding).fragment.entry.id,
+    version: remote
+      ? (decl.contract?.version ?? 'unversioned')
+      : (binding as SlotBinding).fragment.entry.version,
+    effects: remote ? regionEffects(decl.contract) : (binding as SlotBinding).fragment.entry.effects,
+    needs: [...spec.needs],
+    prio: spec.prio,
+    executor: 'inline',
+    ...(policy ? { policy } : {}),
+    render: async (ctx) => {
+      const composer = createComposer({
+        ports: regions.ports,
+        // A local region goes through the composer too, and through the registry with it. That is
+        // what makes moving it a registry write rather than a redeploy: nothing here knows or cares
+        // which of the two it is, and the same check runs over the frames either way.
+        ...(binding && paint
+          ? {
+              local: {
+                [spec.name]: async () =>
+                  regionStream({ region: spec.name, hops: 0 }, [
+                    {
+                      kind: 'HTML',
+                      header: { s: spec.name },
+                      body: await paint(await binding.values(ctx, params)),
+                    },
+                  ]),
+              },
+            }
+          : {}),
+      })
+      const outcome = await composer.compose(regionSpec, {
+        route,
+        params,
+        ...regions.request?.(params),
+      })
+      return outcome.bytes
+    },
+  }
+}
+
+/**
  * Which executors need a name rather than a function. `inline` runs on the request thread and
  * `client` does not run on the server at all; everything else is another crash domain, and a
  * closure does not cross one.
@@ -187,6 +322,36 @@ export function lowerPlan(plan: Plan, context: ValidateContext, bindings: RouteB
 
   for (const spec of plan.slots) {
     const binding = bindings.slots[spec.name]
+    if (spec.region) {
+      if (!bindings.regions) {
+        throw new PlanError(
+          'E_NO_REGION_BINDINGS',
+          `${plan.route}: region '${spec.name}' has nothing to compose against. Pass \`regions: { ports }\``,
+        )
+      }
+      // A remote region has no local render by definition, and a local one is a slot like any
+      // other. Both are legitimate; a *remote* region with a binding is not, because two answers
+      // to "what renders this" is how a page ends up showing the wrong one.
+      if (spec.region.locus === 'remote' && binding) {
+        throw new PlanError(
+          'E_REGION_BOUND_LOCALLY',
+          `${plan.route}: region '${spec.name}' is remote and has a local binding, so two things claim to render it`,
+        )
+      }
+      if (spec.region.locus === 'local' && !binding) {
+        throw new PlanError(
+          'E_SLOT_UNBOUND',
+          `${plan.route}: region '${spec.name}' is local and has no binding, so this process has nothing to render it with`,
+        )
+      }
+      if (spec.region.fallback && !bindings.regions.degraded?.[spec.name]?.fallback) {
+        throw new PlanError(
+          'E_REGION_FALLBACK_UNBOUND',
+          `${plan.route}: region '${spec.name}' declares fallback '${spec.region.fallback}' and \`regions.degraded\` supplies no bytes for it`,
+        )
+      }
+      continue
+    }
     if (!binding) {
       throw new PlanError(
         'E_SLOT_UNBOUND',
@@ -211,6 +376,10 @@ export function lowerPlan(plan: Plan, context: ValidateContext, bindings: RouteB
 
   const order = bindings.order ?? orderOf(plan)
   const documentPolicy = policyOf(plan.cache)
+  // Merged once, at lowering, because it is a property of the plan rather than of the request —
+  // and written in phase A, where a header can still be written. A policy per region is not
+  // possible: there is one document and one header, which is why a conflict is a build error.
+  const csp = cspOf(plan)
 
   return async (params) => {
     const route: KernelRoute = {
@@ -225,20 +394,42 @@ export function lowerPlan(plan: Plan, context: ValidateContext, bindings: RouteB
       order,
       maxConcurrency: plan.maxConcurrency,
       slots: plan.slots.map((spec) =>
-        slotOf(spec, bindings.slots[spec.name] as SlotBinding, params, bindings.render),
+        spec.region
+          ? regionSlotOf(
+              spec,
+              spec.region,
+              plan.route,
+              params,
+              bindings.regions as RegionBindings,
+              bindings.slots[spec.name],
+              bindings.render,
+            )
+          : slotOf(spec, bindings.slots[spec.name] as SlotBinding, params, bindings.render),
       ),
       ...(bindings.shell.resolve ? { resolve: bindings.shell.resolve } : {}),
       ...(bindings.critical ? { critical: bindings.critical } : {}),
       ...(documentPolicy ? { policy: documentPolicy } : {}),
-      ...(plan.guards.length || bindings.envelope
-        ? { envelope: (ctx: EnvelopeContext) => runPhaseA(plan, bindings, ctx) }
+      ...(plan.guards.length || bindings.envelope || Object.keys(csp).length
+        ? { envelope: (ctx: EnvelopeContext) => runPhaseA(plan, bindings, csp, ctx) }
         : {}),
     }
     return route
   }
 }
 
-async function runPhaseA(plan: Plan, bindings: RouteBindings, ctx: EnvelopeContext): Promise<void> {
+async function runPhaseA(
+  plan: Plan,
+  bindings: RouteBindings,
+  csp: Record<string, string[]>,
+  ctx: EnvelopeContext,
+): Promise<void> {
+  const directives = Object.entries(csp)
+  if (directives.length) {
+    ctx.setHeader(
+      'content-security-policy',
+      directives.map(([name, values]) => `${name} ${values.join(' ')}`).join('; '),
+    )
+  }
   for (const guard of plan.guards) {
     const handler = bindings.guards?.[guard.name] as GuardHandler
     if (await handler(ctx)) continue

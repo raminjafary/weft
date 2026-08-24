@@ -30,6 +30,9 @@ export interface ManifestRegistry extends Registry {
    * the port can tell the difference.
    */
   roll(binding: RegionBinding): void
+  /** Narrowed from the port's optional, possibly-async shape: a manifest is a map and answers now. */
+  region(name: string): RegionBinding | undefined
+  regions(): readonly string[]
 }
 
 export interface ManifestOptions {

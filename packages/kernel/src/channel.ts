@@ -86,7 +86,29 @@ export interface SlotRequest {
   channel: Channel
 }
 
-export type SlotSource = (request: SlotRequest) => Promise<SlotRender | null> | SlotRender | null
+/**
+ * A slot this channel does not render: frames somebody else produced, ready to go down the wire.
+ *
+ * It is a second shape of `SlotSource` answer rather than a second option on the hub, and that is
+ * the byte budget deciding an interface again. A table of handlers keyed by slot would be a third
+ * dispatch mechanism in a file with 29 bytes of headroom; a union on a return type that is already
+ * being branched on is a few. What produces these frames — the composer, for a region on another
+ * deployment — is charged to its own entry, and a channel that serves no region carries none of it.
+ *
+ * `paint` is the one frame that changes what the reader sees, so it is the one an epoch stages.
+ * Everything in `also` is what a client needs in order to apply it — a template it does not hold, a
+ * stylesheet, a module — and none of that paints, so it travels immediately even inside an epoch.
+ * A region deciding that split itself is right: only the side that produced the frames knows which
+ * of them is the picture.
+ */
+export interface SlotFrames {
+  paint?: Frame
+  also?: readonly Frame[]
+}
+
+export type SlotSource = (
+  request: SlotRequest,
+) => Promise<SlotRender | SlotFrames | null> | SlotRender | SlotFrames | null
 
 /** What a `WARM` asked about at one grain, and everything a handler needs to answer it. */
 export interface WarmRequest {
@@ -484,9 +506,13 @@ export function createHub(options: HubOptions): ChannelHub {
   async function serveSlot(
     record: ChannelRecord,
     slot: string,
-    source: SlotRender,
+    source: SlotRender | SlotFrames,
     remember: boolean,
-  ): Promise<{ frame: Frame }> {
+  ): Promise<SlotFrames & { frame?: Frame }> {
+    // Frames from elsewhere are already the smallest form their producer could send: it was given
+    // what this client holds and made the choice on its own side. Choosing again here would mean
+    // re-deriving a delta against a template this process does not have.
+    if (!('ir' in source)) return source
     const held = record.held.get(slot)
     const result = await surgicalRefresh({
       slot,
@@ -537,8 +563,11 @@ export function createHub(options: HubOptions): ChannelHub {
         continue
       }
       const result = await serveSlot(record, slot, source, true)
-      if (epoch) record.epochs.stage(epoch, slot, result.frame)
-      else out.push(result.frame)
+      const paint = result.frame ?? result.paint
+      out.push(...(result.also ?? []))
+      if (!paint) continue
+      if (epoch) record.epochs.stage(epoch, slot, paint)
+      else out.push(paint)
     }
 
     if (epoch && str(f, 'commit') !== undefined) {

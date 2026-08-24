@@ -1,8 +1,10 @@
+import type { EffectSet } from '@weft/ir'
 import {
   createBinaryDecoder,
   encodeStream,
   frame,
   isUnknown,
+  list,
   num,
   str,
   type AnyFrame,
@@ -73,6 +75,19 @@ export interface RegionAnnouncement {
   hops: number
 }
 
+/**
+ * The effect set a composite uses for a region, which is where a region's cache class comes from.
+ *
+ * Derived on the other side and carried in the contract, never declared here — the composite runs
+ * the region's reads through the same `cacheClassOf` and `varyOn` as a local fragment's. A region
+ * that described nothing reads `opaque`: uncacheable, private, and therefore unable to make the
+ * document containing it look shareable. Unknown is not nothing.
+ */
+export function regionEffects(contract?: RegionContract): EffectSet {
+  const reads = contract?.reads ? [...contract.reads].sort() : ['opaque']
+  return { reads, writes: [], envelope: [], residency: 'server' }
+}
+
 export interface RegionFrames {
   announced: RegionAnnouncement
   /** Markup for the shell's hole: the bodies of the region's own `HTML` frames, in order. */
@@ -122,10 +137,11 @@ export function readRegion(region: string, bytes: Uint8Array, contract?: RegionC
 
   const version = str(first, 'version')
   const id = str(first, 'contract')
+  const reads = list(first, 'reads')
   const announced: RegionAnnouncement = {
     region,
     hops: num(first, 'hops') ?? 0,
-    ...(id && version ? { contract: { id, version } } : {}),
+    ...(id && version ? { contract: { id, version, ...(reads.length ? { reads } : {}) } } : {}),
     ...(str(first, 'rev') ? { revision: str(first, 'rev') as string } : {}),
   }
 
@@ -136,6 +152,20 @@ export function readRegion(region: string, bytes: Uint8Array, contract?: RegionC
       `serves ${id ?? '(none)'}@${version ?? '(none)'} and this shell was built against ` +
         `${contract.id}@${contract.version}. A contract checked in CI closes the window before a ` +
         `deploy; this is the window after one`,
+    )
+  }
+
+  // The reads are the half of a contract that decides a *header*, so a version that matched while
+  // the reads had changed underneath it would be worse than a mismatch: the composite has already
+  // advertised the document's class and `Vary` from what the contract said. A region whose reads
+  // moved without its version moving is refused for that reason, and the page keeps the answer it
+  // already committed to.
+  if (contract?.reads && !sameReads(contract.reads, reads)) {
+    throw new RegionError(
+      'E_REGION_CONTRACT',
+      region,
+      `reads ${reads.join(', ') || '(none stated)'} and this shell derived a cache class and a ` +
+        `Vary from ${[...contract.reads].sort().join(', ')} before the region answered`,
     )
   }
 
@@ -177,6 +207,12 @@ export function readRegion(region: string, bytes: Uint8Array, contract?: RegionC
   return { announced, html: join(html), frames, ...(error ? { error } : {}) }
 }
 
+function sameReads(a: readonly string[], b: readonly string[]): boolean {
+  const left = [...a].sort()
+  const right = [...b].sort()
+  return left.length === right.length && left.every((read, i) => read === right[i])
+}
+
 /** Slot names a frame claims, from the one header every frame that addresses a slot uses. */
 function slotsNamed(f: Frame): string[] {
   const s = str(f, 's')
@@ -208,6 +244,9 @@ export function announceRegion(announcement: RegionAnnouncement): Frame {
     hops: announcement.hops,
     ...(announcement.contract
       ? { contract: announcement.contract.id, version: announcement.contract.version }
+      : {}),
+    ...(announcement.contract?.reads?.length
+      ? { reads: [...announcement.contract.reads].sort().join(',') }
       : {}),
     ...(announcement.revision ? { rev: announcement.revision } : {}),
   })

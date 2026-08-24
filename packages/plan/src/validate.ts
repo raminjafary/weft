@@ -1,6 +1,6 @@
 import { cacheClassOf, requiresTtl, type EffectSet, type WireForm } from '@weft/ir'
 import { type Consistency, type DagNode, PlanGraphError, schedule, W_CPU_BUDGET_ADVISORY } from '@weft/kernel'
-import { PlanError, type Plan, type SlotSpec } from './dsl.ts'
+import { PlanError, REGION_EXECUTOR, type Plan, type RegionDecl, type SlotSpec } from './dsl.ts'
 
 /**
  * The plan is checked against what the compiler inferred, never the other way around.
@@ -48,6 +48,14 @@ export interface ValidateContext {
   /** Executor names the deployment actually binds. `inline` and `client` always exist. */
   executors?: readonly string[]
   store?: { consistency: Consistency; name: string }
+  /**
+   * How many subrequests one request may make where this is deployed, so a fan-out that is about
+   * to hit a platform ceiling is a warning at build time rather than a 500 under load.
+   *
+   * The default is Workers' documented 50. It is a property of the platform rather than of the
+   * plan, which is why it is context and not a plan field.
+   */
+  subrequestCeiling?: number
 }
 
 const EXECUTOR_PREFIXES = ['pool:', 'binding:', 'svc:']
@@ -73,6 +81,12 @@ export function validatePlan(plan: Plan, context: ValidateContext): Diagnostics 
     checkExecutor(spec, context, errors)
     checkBudget(spec, warnings)
     if (facts) checkRenderLocation(spec, facts, errors)
+    if (spec.region) checkRegion(spec, spec.region, plan, errors)
+
+    // A remote region's fragment is not this build's to have. Its reads, its version and its holes
+    // are on the other side, and what stands in for them is the contract plus the check on arrival
+    // — so the absence is expected here rather than a plan naming something that does not exist.
+    if (!facts && spec.region?.locus === 'remote') continue
 
     if (!facts) {
       errors.push({
@@ -105,11 +119,124 @@ export function validatePlan(plan: Plan, context: ValidateContext): Diagnostics 
       else throw error
     }
 
+  const fan = hopsOf(plan)
+  const ceiling = context.subrequestCeiling ?? 50
+  if (fan.hops >= ceiling * 0.8) {
+    warnings.push({
+      code: 'W_HOP_COUNT',
+      message:
+        `${plan.route} crosses ${fan.hops} deployment boundaries on one request against a ceiling of ` +
+        `${ceiling}, and a region that fans out further adds its own`,
+    })
+  }
+  cspOf(plan, errors)
+
   // Last, so a whole-plan complaint never masks the specific slot that is wrong.
   const shell = checkShell(plan, context, errors)
   checkDocument(plan, shell, context, errors)
 
   return { errors, warnings }
+}
+
+/**
+ * What a region may declare, and the three combinations that contradict themselves.
+ *
+ * All three are the same mistake in different clothes: a declaration about a region that could only
+ * be true if the region were somewhere other than where it says it is.
+ */
+function checkRegion(spec: SlotSpec, decl: RegionDecl, plan: Plan, errors: Issue[]): void {
+  if (decl.critical && decl.locus === 'remote') {
+    errors.push({
+      code: 'E_REGION_CRITICAL_REMOTE',
+      slot: spec.name,
+      message:
+        'is critical and remote. Critical means it is in the first flush, and the first flush is ' +
+        'the thing a gateway can do without a hop — that is the whole reason the shells live there',
+    })
+  }
+  if (decl.locus === 'local' && decl.contract) {
+    errors.push({
+      code: 'E_REGION_CONTRACT_LOCAL',
+      slot: spec.name,
+      message:
+        'is local and declares a contract. A contract is what stands in for a compiler this build ' +
+        'does not have; here it does have one, and a second description of the same fragment can ' +
+        'only ever disagree with it',
+    })
+  }
+  for (const signal of decl.consumes ?? []) {
+    if (!plan.exposes.includes(signal)) {
+      errors.push({
+        code: 'E_NOT_EXPOSED',
+        slot: spec.name,
+        message: `consumes '${signal}', which ${plan.route} does not expose (it exposes ${plan.exposes.join(', ') || 'nothing'})`,
+      })
+    }
+  }
+}
+
+/**
+ * The fan-out, as a number the build states rather than a number a deployment discovers.
+ *
+ * Every hop is latency, and the design is blunt about it: a naive split of a page full of cheap
+ * fragments loses to a monolith. So the count is reported for every plan and warned about when it
+ * approaches the platform's subrequest ceiling — before it approaches it, because the request that
+ * finds the ceiling is a 500 rather than a slow page.
+ *
+ * What this can and cannot see is worth being exact about. It counts the boundaries *this* plan
+ * crosses. A region that fans out further is one this build has no view of — its own plan counts
+ * its own — and the composite reports the real total at runtime from what each region announces.
+ * The build-time number is therefore a floor, and it is a floor rather than an estimate.
+ */
+export interface HopCount {
+  regions: number
+  remote: number
+  /** Boundaries this plan crosses on one request. A floor: a region that fans out further adds its own. */
+  hops: number
+}
+
+export function hopsOf(plan: Plan): HopCount {
+  const regions = plan.slots.filter((s) => s.region)
+  const remote = regions.filter((s) => s.region?.locus === 'remote')
+  return { regions: regions.length, remote: remote.length, hops: remote.length }
+}
+
+/**
+ * The regions' CSP directives, merged, and the one shape of disagreement that is not a union.
+ *
+ * A policy is per document — there is one header — so a shell composing regions has to reconcile
+ * what each of them needs. Two regions naming different hosts for the same directive is a union and
+ * not a conflict. `'none'` beside anything else is the conflict, because it is the one value that
+ * means *and nothing else*, and merging it by union would silently turn a region's refusal to load
+ * anything into permission to load somebody else's host.
+ */
+export function cspOf(plan: Plan, errors: Issue[] = []): Record<string, string[]> {
+  const merged: Record<string, Set<string>> = {}
+  const sources: Record<string, string[]> = {}
+  for (const spec of plan.slots) {
+    for (const [directive, values] of Object.entries(spec.region?.csp ?? {})) {
+      merged[directive] ??= new Set()
+      sources[directive] ??= []
+      sources[directive].push(spec.name)
+      for (const value of values) merged[directive].add(value)
+    }
+  }
+  const out: Record<string, string[]> = {}
+  // Sorted by directive, so the header two builds produce for one plan is the same string and a
+  // policy change is a legible diff rather than a reordering.
+  for (const [directive, values] of Object.entries(merged).sort(([a], [b]) => (a < b ? -1 : 1))) {
+    const list = [...values].sort()
+    if (list.length > 1 && list.some((v) => v === "'none'")) {
+      errors.push({
+        code: 'E_CSP_CONFLICT',
+        message:
+          `${directive} is declared as 'none' and as ${list.filter((v) => v !== "'none'").join(', ')} ` +
+          `by ${(sources[directive] as string[]).join(', ')}. There is one header, and 'none' means and nothing else`,
+      })
+    }
+    out[directive] = list
+  }
+  return out
 }
 
 /**
@@ -179,6 +306,14 @@ function checkDocument(
 
   const offenders: string[] = []
   for (const spec of plan.slots) {
+    // A remote region has no facts here by construction, and its reads are the contract's. An
+    // undeclared one reads `opaque`, which is private — so a public document containing a region
+    // nobody described is refused rather than advertised on the strength of a silence.
+    if (spec.region?.locus === 'remote') {
+      const reads = spec.region.contract?.reads
+      if (!reads || reads.includes('identity') || reads.includes('opaque')) offenders.push(spec.name)
+      continue
+    }
     const facts = context.facts[spec.fragment ?? spec.name]
     if (facts && cacheClassOf(facts.effects) === 'private') offenders.push(spec.name)
   }
@@ -202,6 +337,25 @@ function checkDocument(
 
 function checkExecutor(spec: SlotSpec, context: ValidateContext, errors: Issue[]): void {
   const target = spec.executor
+  // The two ways of saying where a render happens may not both be in play for one slot: a region's
+  // executor is the registry's answer, and a slot naming the sentinel without being a region has
+  // named an executor nothing will ever bind.
+  if (target === REGION_EXECUTOR || spec.region) {
+    if (!spec.region) {
+      errors.push({
+        code: 'E_UNKNOWN_EXECUTOR',
+        slot: spec.name,
+        message: `names the reserved executor '${REGION_EXECUTOR}', which only a region may use`,
+      })
+    } else if (target !== REGION_EXECUTOR) {
+      errors.push({
+        code: 'E_REGION_EXECUTOR',
+        slot: spec.name,
+        message: `is a region and names executor '${target}'. Where a region runs is the registry's answer, so the two would disagree`,
+      })
+    }
+    return
+  }
   const bound = new Set(['inline', 'client', ...(context.executors ?? [])])
   if (bound.has(target)) return
   if (

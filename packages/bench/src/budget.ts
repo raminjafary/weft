@@ -102,6 +102,14 @@ export const BUDGETS: ByteBudget[] = [
       'no design figure; its own entry, because a deployment that composes nothing should not carry the check that makes composing safe',
   },
   {
+    id: 'kernel-region-channel',
+    label: 'Server kernel plus a region on another deployment, refreshed over a live channel',
+    entry: kernelSrc('entry-region-channel.ts'),
+    limit: 16 * 1024,
+    limitNote:
+      'no design figure; its own entry, because neither the transport nor composition alone covers it',
+  },
+  {
     id: 'discover-route',
     label: 'Navigation plus what the client knows about routes it has not been to',
     entry: src('entry-discover.ts'),
