@@ -81,6 +81,23 @@ export const FRAMES = {
    * be holding one. 0x06 is retired rather than reused: see `RETIRED`.
    */
   ACK: { code: 0x22, dir: 'down' },
+
+  /**
+   * A region announcing itself, and the only frame a composed region is allowed to open with.
+   *
+   * A shell composing regions from other deployments has the problem every micro-frontend
+   * orchestrator has: the frames arriving from the other end are somebody else's, and nothing in a
+   * length prefix says whose. `WARP` cannot answer it — that frame is the composite's negotiation
+   * with its client, and a region sending one would be negotiating on the shell's behalf. So a
+   * region says who it is instead: the name the shell asked for, the contract it believes it
+   * serves, and the revision serving it.
+   *
+   * The name is what makes the splice checkable. A region may write into its own hole and nowhere
+   * else, and a frame naming a sibling's slot is refused rather than forwarded — which is the
+   * security half of "passing component names over the wire", and the reason this is a frame the
+   * protocol has rather than a header a gateway remembers to check.
+   */
+  REGION: { code: 0x23, dir: 'down' },
 } as const satisfies Record<string, { code: number; dir: Direction }>
 
 /**

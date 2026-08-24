@@ -257,6 +257,17 @@ export const STATIONS: readonly Station[] = [
     group: 'locus',
   },
   {
+    id: 'composition',
+    title: 'Composition',
+    shows:
+      'A region on another deployment, and the check that decides whether its frames may touch this page',
+    control:
+      'Where the region runs, and how badly it behaves — every option is a real module over a real boundary',
+    covers: ['kernel/composition.md'],
+    status: 'live',
+    group: 'locus',
+  },
+  {
     id: 'epochs',
     title: 'Epochs',
     shows: 'Data arrived, resolved, and painting nothing',

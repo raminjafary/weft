@@ -161,6 +161,11 @@ export function validateTemplate(ir: TemplateIR): ValidationResult {
 
   const provable = new Set(derivableForms(ir.holes))
   for (const f of ir.forms) {
+    // `remote` is the one form whose equivalence cannot be proven from this template's holes,
+    // because the bytes are not this deployment's: a region renders on the other side of a tier
+    // boundary and answers with its own frames, in its own forms. What replaces the proof is the
+    // check on arrival — a region announces itself, may write only into its own hole, and may not
+    // send a frame that is somebody else's to send. See `spec/kernel/composition.md`.
     if (f === 'remote') continue
     if (!provable.has(f)) {
       fail(

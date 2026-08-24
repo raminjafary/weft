@@ -606,6 +606,24 @@ this protocol that does: a page has no route table to notice a gap in, and where
 is a measurement only the server has. Before that, the profile's transitions only reached a client
 that had already staged something — never a first visit, the visit they help most.
 
+**A region is a fragment that lives somewhere else, and nothing new runs it.** A shell says
+`search`; the registry says what `search` is — this process, a service binding, another pod — and the
+region runs on that executor, which was already a crash domain and already a budget boundary. What
+comes back is Warp frames, because that is what every render here already produces, so there is no
+translation layer at a tier boundary. **The same region composed in-process and over a binding
+produces byte-identical markup**, which is the test that fails first if the collapsed monolith ever
+becomes a special case rather than the default. Rolling a region to a new revision is a registry
+write: two services on two ports, one `roll`, no rebuild of the shell between the assertions.
+
+The part that is genuinely new is the check. Frames arriving from another deployment are somebody
+else's and a length prefix does not say whose, so a region opens with `REGION` naming **itself** —
+not the name it was asked for, which is what makes a registry entry pointing `search` at the
+recommendations deployment refusable — and then may write only into its own hole. A frame naming a
+sibling's slot is `E_REGION_ESCAPE`; a `SHELL`, a `COOKIE` or a `PLAN` is `E_REGION_FRAME` with the
+authority it would have been borrowing named. Every refusal degrades that one region to its declared
+fallback, in the `onExceed` vocabulary a slot already had, because a page that dies when one of five
+regions misbehaves has thrown away the isolation it paid a hop for. 10,888 B in an entry of its own.
+
 **And a slot cannot be sent somewhere its reads do not resolve.** `E_RENDER_LOCATION` compares the
 executor against the compiler's inferred read set at build time: a fragment on the `client` executor
 that reads identity, a cookie or a header is an island shipped to a browser with no request to

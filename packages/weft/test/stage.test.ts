@@ -150,5 +150,9 @@ test('a client that has not negotiated cannot be staged for, because no form cou
 
 test('the hello a client sends is the version this build speaks', () => {
   const hello = readResident(residentFrame({ warp: WARP_VERSION, ir: TEMPLATE_IR_VERSION }))
-  assert.equal(hello.warp, '1.5.0', 'WARM carrying a route arrived in 1.4.0; a plan prefix is 1.5.0')
+  assert.equal(
+    hello.warp,
+    '1.6.0',
+    'WARM carrying a route arrived in 1.4.0; a plan prefix is 1.5.0; a region announcing itself is 1.6.0',
+  )
 })

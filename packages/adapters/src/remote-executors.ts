@@ -1,6 +1,16 @@
 import { Worker } from 'node:worker_threads'
-import { fileURLToPath } from 'node:url'
-import type { JobAddress, KernelExecutor, RenderJob, RenderOutcome, TelemetryPort } from '@weft/kernel'
+import { regionStream } from '@weft/kernel'
+import { workerEntry } from './worker-pool.ts'
+import type {
+  JobAddress,
+  KernelExecutor,
+  RegionContract,
+  RegionRequest,
+  RenderJob,
+  RenderOutcome,
+  TelemetryPort,
+} from '@weft/kernel'
+import type { Frame } from '@weft/warp'
 
 /**
  * The three executor kinds that were declared and had nothing behind them: `isolate`, `binding`
@@ -16,9 +26,9 @@ import type { JobAddress, KernelExecutor, RenderJob, RenderOutcome, TelemetryPor
  * What differs between them is what the other side *is*, and each difference costs something
  * stated rather than discovered.
  */
-// The same entry the pool uses, resolved the same way: `.ts` because Node strips the types and
-// this repository runs the framework from source as often as from a build.
-const ENTRY = fileURLToPath(new URL('./worker-entry.ts', import.meta.url))
+// The same entry the pool uses, resolved the same way — by what is actually next to this file,
+// because running from source and running from a build are two different files.
+const ENTRY = workerEntry(import.meta.url)
 
 function addressed(job: RenderJob, kind: string): JobAddress {
   if (!job.address) {
@@ -275,12 +285,14 @@ export interface RenderServiceOptions {
   root?: string
 }
 
-export function renderService(options: RenderServiceOptions = {}): (request: Request) => Promise<Response> {
-  const root = options.root ?? new URL('./', import.meta.url).href
+/**
+ * Modules resolved by name and kept, because both services below answer many requests and the
+ * first import is the expensive one. A fresh registry per render is what `isolate` is for, and it
+ * is deliberately not what a service does.
+ */
+function loader(root: string): (module: string) => Promise<Record<string, unknown>> {
   const loaded = new Map<string, Promise<Record<string, unknown>>>()
-  const utf8 = new TextEncoder()
-
-  const load = (module: string): Promise<Record<string, unknown>> => {
+  return (module) => {
     let pending = loaded.get(module)
     if (!pending) {
       pending = import(module.startsWith('.') ? new URL(module, root).href : module) as Promise<
@@ -290,6 +302,12 @@ export function renderService(options: RenderServiceOptions = {}): (request: Req
     }
     return pending
   }
+}
+
+export function renderService(options: RenderServiceOptions = {}): (request: Request) => Promise<Response> {
+  const root = options.root ?? new URL('./', import.meta.url).href
+  const load = loader(root)
+  const utf8 = new TextEncoder()
 
   return async (request) => {
     try {
@@ -308,6 +326,105 @@ export function renderService(options: RenderServiceOptions = {}): (request: Req
       // 500 rather than a thrown error: the caller degrades a slot on a bad status and hangs on a
       // socket that closed without one.
       return new Response((error as Error).message, { status: 500 })
+    }
+  }
+}
+
+/**
+ * What a module has to export to be a region: the name it serves, and how to render it.
+ *
+ * `region` is here rather than taken from the request, and that is the whole security property.
+ * The composer checks the name a region announces against the name it asked for, so a registry
+ * entry pointing `search` at the recommendations deployment is refused — `E_REGION_ESCAPE` — by
+ * the shell rather than rendered into the wrong hole. A service that echoed back whatever it was
+ * asked would make that check unfalsifiable, which is the same class of mistake as a manifest
+ * that spelled its own intent ids.
+ */
+export interface RegionRenderer {
+  region: string
+  contract?: RegionContract
+  /** Frames for a client, or markup — which is announced as one `HTML` frame for this region. */
+  render(request: RegionRequest): Promise<Frame[] | Uint8Array | string> | Frame[] | Uint8Array | string
+}
+
+export interface RegionServiceOptions {
+  /** Resolves a relative module specifier. Defaults to the adapters directory. */
+  root?: string
+  /** The build answering, announced on every region it serves. */
+  revision?: string
+  /** Regions this service composes itself, so a nested tier is a tree rather than a special case. */
+  hops?: number
+}
+
+/**
+ * The other side of a composed region: the design's render tier, as something a `fetch` can reach.
+ *
+ * It is the same handler shape as `renderService` and answers a different thing — frames rather
+ * than bytes — because a region is not markup. A region that only had markup to send could not
+ * tell a client which templates it needs, which module to load, or that the client already holds
+ * the template and should be given the changed values instead. The frames are the protocol the
+ * composite already speaks to its client, which is the claim the design makes about tier
+ * boundaries: there is no translation layer, because the internal protocol *is* the wire protocol.
+ */
+export function regionService(options: RegionServiceOptions = {}): (request: Request) => Promise<Response> {
+  const root = options.root ?? new URL('./', import.meta.url).href
+  const load = loader(root)
+  const utf8 = new TextEncoder()
+
+  return async (request) => {
+    let asked = '(unnamed)'
+    try {
+      const job = (await request.json()) as {
+        slot?: string
+        module: string
+        export: string
+        props?: RegionRequest
+      }
+      asked = job.slot ?? asked
+      const exports = await load(job.module)
+      const renderer = exports[job.export] as RegionRenderer | undefined
+      if (!renderer || typeof renderer.render !== 'function' || typeof renderer.region !== 'string') {
+        return new Response(
+          `E_NOT_A_REGION: ${job.module}#${job.export} does not export { region, render }`,
+          { status: 422 },
+        )
+      }
+      const result = await renderer.render(job.props ?? {})
+      const frames = Array.isArray(result)
+        ? result
+        : [
+            {
+              kind: 'HTML' as const,
+              header: { s: renderer.region },
+              body: typeof result === 'string' ? utf8.encode(result) : result,
+              bodyIsText: typeof result === 'string',
+            },
+          ]
+      return new Response(
+        regionStream(
+          {
+            region: renderer.region,
+            hops: options.hops ?? 0,
+            ...(renderer.contract ? { contract: renderer.contract } : {}),
+            ...(options.revision ? { revision: options.revision } : {}),
+          },
+          frames,
+        ) as BodyInit,
+        { headers: { 'content-type': 'application/weft-warp' } },
+      )
+    } catch (error) {
+      // A region that failed says so in its own frames rather than in a status, because the
+      // composite degrades a region on a named reason and can only guess at a 500. The status is
+      // 200 for the same reason an ERROR frame is not an exception: this answer is well-formed.
+      return new Response(
+        regionStream({ region: asked, hops: options.hops ?? 0 }, [
+          {
+            kind: 'ERROR' as const,
+            header: { s: asked, code: 'E_REGION_FAILED', reason: (error as Error).message },
+          },
+        ]) as BodyInit,
+        { headers: { 'content-type': 'application/weft-warp' } },
+      )
     }
   }
 }

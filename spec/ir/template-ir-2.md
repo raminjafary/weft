@@ -220,6 +220,11 @@ Derived, never declared by hand. `html`, `bundle`, `split`, and `patch` are alwa
 available. `delta` additionally requires every hole to be value-projectable, which a
 structural `slot` hole is not — declaring it anyway is `E_FORM_UNPROVABLE`.
 
+`remote` is the exception, and it is exempt rather than special-cased: the bytes are not this
+deployment's, so no property of these holes could prove an equivalence about them. A region
+renders on the other side of a tier boundary and answers in its own forms. What stands in for the
+proof is the check on arrival — see [the composition spec](../kernel/composition.md).
+
 ## Payloads
 
 ```jsonc

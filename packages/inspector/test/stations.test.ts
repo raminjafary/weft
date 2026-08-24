@@ -120,3 +120,38 @@ test('every fragment the stations render compiles, and the document leaves the b
     'and a prop binding, which is what the controls station is about',
   )
 })
+
+/**
+ * Every live station, run.
+ *
+ * The checks above assert that a live station has a handler; none of them asserted that the
+ * handler works, and the gap hid a real one — the worker-pool station's address pointed at a
+ * module path that does not exist, so the station that exists to show a budget being *enforced*
+ * was showing a module-not-found instead. A station is a claim that runs, so the gate is that it
+ * runs.
+ *
+ * Controls are left at their defaults: this is a smoke test over the page a visitor gets first,
+ * not an assertion about what each station measures.
+ */
+test('every live station renders its three parts with its controls at their defaults', async () => {
+  await app()
+  const failures: string[] = []
+  for (const [id, handler] of Object.entries(HANDLERS)) {
+    try {
+      const parts = await handler({ query: () => undefined } as never)
+      for (const which of ['panel', 'body', 'readout'] as const) {
+        const content = parts[which]
+        if (content === undefined) continue
+        const html =
+          typeof content === 'function' ? await content({ query: () => undefined } as never) : content
+        if (!html.length) failures.push(`${id}: ${which} is empty`)
+        // The failure mode this test was written for: a station that runs, renders, and reports a
+        // module it could not import where the number was supposed to be.
+        if (html.includes('Cannot find module')) failures.push(`${id}: ${which} reports a missing module`)
+      }
+    } catch (error) {
+      failures.push(`${id}: ${(error as Error).message}`)
+    }
+  }
+  assert.deepEqual(failures, [])
+})

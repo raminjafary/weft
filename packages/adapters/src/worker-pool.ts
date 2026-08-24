@@ -1,4 +1,5 @@
 import { Worker } from 'node:worker_threads'
+import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { type KernelExecutor, type RenderJob, type RenderOutcome, type TelemetryPort } from '@weft/kernel'
 
@@ -60,7 +61,24 @@ interface Slot {
   reserved: boolean
 }
 
-const ENTRY = fileURLToPath(new URL('./worker-entry.ts', import.meta.url))
+/**
+ * The module a worker starts on, resolved by what is next to this file rather than by which of the
+ * two it was written as.
+ *
+ * This package runs from source as often as from a build, and those are two different files: `.ts`
+ * beside these sources, `.js` beside the compiled ones. A worker entry is resolved by the runtime
+ * and not by a bundler, so a hard-coded extension is right in exactly one of the two cases — and
+ * the case it was wrong in was the built one, where the pool could not start a worker at all and
+ * reported it as the render failing. Every test imports these sources, so nothing noticed.
+ */
+export const WORKER_ENTRY = workerEntry(import.meta.url)
+
+export function workerEntry(from: string): string {
+  const ts = fileURLToPath(new URL('./worker-entry.ts', from))
+  return existsSync(ts) ? ts : fileURLToPath(new URL('./worker-entry.js', from))
+}
+
+const ENTRY = WORKER_ENTRY
 
 export function workerPool(options: WorkerPoolOptions = {}): WorkerPool {
   const size = options.size ?? 4

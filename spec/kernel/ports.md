@@ -47,21 +47,21 @@ enforcement as a dev-time check.
 
 ## The thirteen
 
-| Port         | Status              | Notes                                                                             |
-| ------------ | ------------------- | --------------------------------------------------------------------------------- |
-| `store`      | Interface + 2 impls | `memoryStore` (L1), `tieredStore` (composition)                                   |
-| `flags`      | Interface + 1 impl  | `staticFlags`; `axes()` is mandatory, not optional                                |
-| `session`    | Interface + 1 impl  | `cookieSession`                                                                   |
-| `executor`   | Interface + 4 impls | `inline`, `deferred`, `client`, and a real `pool` of worker threads               |
-| `telemetry`  | Interface + 1 impl  | `collectingTelemetry`                                                             |
-| `transport`  | Interface + 1 impl  | `nodeTransport`, for 103                                                          |
-| `scheduler`  | Interface + 2 impls | `prioScheduler` is the kernel's own rule, named; `fifoScheduler` keeps plan order |
-| `assets`     | Interface + 1 impl  | `weftAssets`, and the kernel asks it when the route named no critical links       |
-| `render`     | Interface + 1 impl  | `irRenderer`; the plan binds it, so `remote` is another implementation not a path |
-| `registry`   | Interface + 1 impl  | `manifestRegistry`; resolves an opaque intent id to its implementation            |
-| `config`     | Interface + 2 impls | `envConfig` under a prefix, `staticConfig` for a Worker's `env`                   |
-| `db`         | Interface + 1 impl  | `boundedDb`: a name, a deadline, and the tags an access declared                  |
-| `deployment` | Interface + 2 impls | `hostDeployment` reads whatever the host calls a revision; `staticDeployment`     |
+| Port         | Status              | Notes                                                                              |
+| ------------ | ------------------- | ---------------------------------------------------------------------------------- |
+| `store`      | Interface + 2 impls | `memoryStore` (L1), `tieredStore` (composition)                                    |
+| `flags`      | Interface + 1 impl  | `staticFlags`; `axes()` is mandatory, not optional                                 |
+| `session`    | Interface + 1 impl  | `cookieSession`                                                                    |
+| `executor`   | Interface + 4 impls | `inline`, `deferred`, `client`, and a real `pool` of worker threads                |
+| `telemetry`  | Interface + 1 impl  | `collectingTelemetry`                                                              |
+| `transport`  | Interface + 1 impl  | `nodeTransport`, for 103                                                           |
+| `scheduler`  | Interface + 2 impls | `prioScheduler` is the kernel's own rule, named; `fifoScheduler` keeps plan order  |
+| `assets`     | Interface + 1 impl  | `weftAssets`, and the kernel asks it when the route named no critical links        |
+| `render`     | Interface + 1 impl  | `irRenderer`; the plan binds it, so `remote` is another implementation not a path  |
+| `registry`   | Interface + 1 impl  | `manifestRegistry`; an opaque intent id to its code, a region name to a deployment |
+| `config`     | Interface + 2 impls | `envConfig` under a prefix, `staticConfig` for a Worker's `env`                    |
+| `db`         | Interface + 1 impl  | `boundedDb`: a name, a deadline, and the tags an access declared                   |
+| `deployment` | Interface + 2 impls | `hostDeployment` reads whatever the host calls a revision; `staticDeployment`      |
 
 Thirteen declared, thirteen implemented, and ten of them bound by the front door with no
 configuration at all. A port that does not exist refuses with a named error and does not
@@ -111,6 +111,22 @@ declarations, which are types and cost nothing, and the request path came back t
 The wrapper is one function. `withServices(ctx, ports)` spreads the deployment's services onto the
 context the kernel handed in, and cannot add to what it tracks — so a loader gains a database and
 a settings table and still cannot smuggle an unkeyed read into a render.
+
+## Registry: two questions with the same shape and different lifetimes
+
+`intent(id)` answers what an opaque id names, because the client never carries the name of server
+code. `region(name)` answers where a region lives, because a shell says `search` and something has to
+say what `search` is. They sit behind one port because they are the same operation — a name the caller
+cannot resolve, resolved by something the deployment configured — and they are separate methods
+because their lifetimes are not the same. An intent id is derived from code and changes when the code
+does; a region binding is operational and changes when somebody rolls a tier.
+
+The region half is what makes the design's topologies configuration rather than modes. A binding
+naming `inline` is the monolith; one naming `binding:` or `svc:` is a tier boundary. `roll(binding)`
+points a name somewhere else without rebuilding the shell that composes it, which is the sentence the
+port exists for — and a registry that cannot answer regions at all refuses `E_NO_REGION_REGISTRY`
+rather than being approximated by a table compiled into the shell, because a compiled table makes a
+roll a redeploy. The whole of composition is [`composition.md`](composition.md).
 
 ## SchedulerPort: the kernel's own rule, named
 

@@ -94,6 +94,14 @@ export const BUDGETS: ByteBudget[] = [
     limitNote: 'no design figure; its own entry, on the same rule route staging established',
   },
   {
+    id: 'kernel-region',
+    label: 'Server kernel plus a page composed out of regions on other deployments',
+    entry: kernelSrc('entry-region.ts'),
+    limit: 11 * 1024,
+    limitNote:
+      'no design figure; its own entry, because a deployment that composes nothing should not carry the check that makes composing safe',
+  },
+  {
     id: 'discover-route',
     label: 'Navigation plus what the client knows about routes it has not been to',
     entry: src('entry-discover.ts'),

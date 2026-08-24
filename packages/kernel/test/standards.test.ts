@@ -113,6 +113,10 @@ const LINE_CEILINGS: Record<string, number> = {
   'entry-authority.ts': 2500,
   // Lazy plan extension, on top of route staging. The whole capability is one module.
   'entry-discover.ts': 2700,
+  // Composition: regions resolved through the registry and checked on arrival. The document path
+  // plus `region.ts`, and its own ceiling because a deployment that composes nothing has no
+  // business carrying it.
+  'entry-region.ts': 2100,
 }
 
 /** Code only. A comment is not work the kernel absorbed from a port. */

@@ -209,7 +209,7 @@ export const workerPoolStation: StationHandler = async (ctx) => {
   const where = ctx.query('where') ?? 'pool'
 
   const address = {
-    module: new URL('../../../packages/adapters/fixtures/renderers.ts', import.meta.url).pathname,
+    module: new URL('../../../../adapters/fixtures/renderers.ts', import.meta.url).pathname,
     export: 'spin',
     props: { ms: spin },
   }

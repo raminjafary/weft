@@ -62,6 +62,7 @@ without knowing what the frame means.
 |                  |                                                | `ERROR` 0x1f            | a named failure                     |
 |                  |                                                | `REDIRECT` 0x20         | in-band redirect, after the seal    |
 |                  |                                                | `COOKIE` 0x21           | non-HttpOnly cookie, after the seal |
+|                  |                                                | `REGION` 0x23           | a composed region announcing itself |
 
 `REDIRECT` and `COOKIE` arrived in 1.1.0 and are layer three of the envelope design: what a
 sealed response can still carry in its body. Neither is a substitute for the real thing. A
@@ -71,6 +72,23 @@ the envelope is sealed.
 
 The frame sketch in the design notes uses positional shorthand (`SLOT s12 open prio=1`).
 The canonical encoding is all `key=value`; the shorthand is for prose.
+
+### `REGION`, and why a region cannot open with `WARP`
+
+Added in 1.6.0, and it exists because of who is speaking rather than what is being said. A shell that
+composes regions from other deployments receives frames that are somebody else's, and a length prefix
+does not say whose. `WARP` cannot answer that: it is the composite's negotiation with its client, and
+a region sending one would be settling a version for frames it does not send.
+
+So a region says who it is instead — `REGION region=search contract=search version=2.1.0 rev=search-42
+hops=0` — and the name is the region's own rather than the one it was asked for, which is what makes
+the composite's check falsifiable. Everything after it must name that region or a slot inside it, and
+the kinds a region may send are a stated list with a stated reason for each refusal. Both are in
+[the composition spec](../kernel/composition.md).
+
+The version rule pays here in a place it was not designed for: a region on a later minor sending a
+frame this shell has no name for is stepped over by length, so a tier boundary tolerates skew in the
+same way a connection does.
 
 ## Transport bindings
 

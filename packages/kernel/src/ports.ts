@@ -303,6 +303,58 @@ export interface Registry {
   intent(id: string): Promise<Intent | undefined> | Intent | undefined
   /** Every registered id. For `weft why`, and for refusing a build whose wiring names nothing. */
   intents(): readonly string[]
+  /**
+   * A region name to the deployment serving it. Optional, because a deployment that composes
+   * nothing has no regions to resolve, and a registry that cannot answer refuses by name —
+   * `E_NO_REGION_REGISTRY` — rather than being approximated by a table somewhere else.
+   *
+   * This is the indirection the design's topology rests on. A shell names a region; what is
+   * behind that name is a registry entry, so rolling a region to a new revision is a registry
+   * write rather than a shell redeploy — and a checked-in file, a KV namespace and a control
+   * plane are all legitimate answers with different failure modes, which is what makes it a
+   * port rather than a constant.
+   */
+  region?(name: string): Promise<RegionBinding | undefined> | RegionBinding | undefined
+  /** Every region this registry can resolve. For a build report, and for `weft verify`. */
+  regions?(): readonly string[]
+}
+
+/**
+ * What a region's name resolves to: somewhere to run it, something to run, and what the shell
+ * believes it will get back.
+ *
+ * The whole of the difference between the design's four topologies is in `executor`. A binding
+ * naming `inline` is the monolith — the default, and the best-tested path, because it is the same
+ * path every other slot takes. One naming `binding:` or `svc:` is a tier boundary, which is also a
+ * crash domain and a place a budget becomes a deadline. Nothing above this has to know which.
+ */
+export interface RegionBinding {
+  /** The name the shell used, which is the only name a client or a sibling region ever sees. */
+  region: string
+  /** The bound executor that reaches it. `inline` for a region this process renders itself. */
+  executor: string
+  /**
+   * Module and export on the other side. Required by every executor that is not this thread,
+   * for the reason `JobAddress` exists at all: a closure does not cross a crash domain.
+   */
+  address?: JobAddress
+  /** The revision currently serving it. A roll is a write here, and it appears in the trace. */
+  revision?: string
+  /** What the shell expects this deployment to serve. A mismatch degrades rather than renders. */
+  contract?: RegionContract
+}
+
+/**
+ * What a region promises, as an id and a version.
+ *
+ * Cross-boundary contracts are not novel — Module Federation checks published types in CI. What
+ * is checked here is narrower: the version the deployment is *actually serving right now*, stated
+ * by the region itself in its own `REGION` frame, against what the shell was built expecting. CI
+ * against a published type closes the window before a deploy; this closes the one after it.
+ */
+export interface RegionContract {
+  id: string
+  version: string
 }
 
 // ── render ───────────────────────────────────────────────────────────────────────────
