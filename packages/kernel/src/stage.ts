@@ -1,5 +1,5 @@
 import { frame, str, type Frame } from '@weft/warp'
-import type { Channel, SlotRender, WarmHandler } from './channel.ts'
+import type { Channel, SlotFrames, SlotRender, WarmHandler } from './channel.ts'
 import type { StorePort, TelemetryPort } from './ports.ts'
 import { surgicalRefresh, type RefreshTtl } from './refresh.ts'
 
@@ -39,7 +39,17 @@ export interface StagedRoute {
   css?: string
   /** Routes worth staging from the target once it is committed. A profile's own numbers. */
   next?: readonly string[]
-  slots?: Record<string, SlotRender>
+  /**
+   * What each of the target's regions is, either as something to render here or as frames somebody
+   * else produced.
+   *
+   * The second shape is a region on another deployment, and it is the same union a refresh already
+   * branches on rather than a second mechanism. Frames from elsewhere are already the smallest form
+   * their producer could send — the region was told what this client holds and chose on its own side
+   * — so choosing again here would mean re-deriving a delta against a template this process does not
+   * have. What the stage adds is the epoch, on the one frame that paints.
+   */
+  slots?: Record<string, SlotRender | SlotFrames>
   /** Why the client is being sent to the document, when it is. */
   why?: string
 }
@@ -104,6 +114,21 @@ export function createStager(options: StageOptions): RouteStager {
     ]
 
     for (const [slot, source] of Object.entries(staged.slots)) {
+      /**
+       * A region from another deployment, staged as it arrived.
+       *
+       * Everything it sent that paints carries the epoch, so a commit flips this region with all the
+       * others; everything that does not — a template, a stylesheet, a module — travels immediately,
+       * because holding back the thing a frame needs in order to apply would only delay the frame.
+       * The region decided that split itself, which is right: only the side that produced the frames
+       * knows which of them is the picture.
+       */
+      if (!('ir' in source)) {
+        if (source.also) out.push(...source.also)
+        if (source.paint) out.push({ ...source.paint, header: { ...source.paint.header, epoch } })
+        options.telemetry?.measure('channel.stage', 1, { slot, form: 'region', at: request.path })
+        continue
+      }
       // The base this client holds for the *same slot on the page it is on*, which is only usable
       // when the template is the same one — and `surgicalRefresh` checks exactly that before it
       // diffs. Two categories of one route share a template; two different pages do not.

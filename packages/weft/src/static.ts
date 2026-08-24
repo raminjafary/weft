@@ -48,6 +48,7 @@ export type StaticRefusal =
   | 'L0_DEGRADED'
   | 'L0_STATUS'
   | 'L0_SET_COOKIE'
+  | 'L0_REGION'
   | 'L0_FAILED'
 
 export type StaticVerdict = { static: true } | { static: false; code: StaticRefusal; reason: string }
@@ -57,7 +58,13 @@ export interface StaticInput {
   module: RouteModule
   /** The layout. Its own reads are the document's exactly as a slot's are. */
   shell: CompiledFragment
-  slots: { name: string; fragment: CompiledFragment; declaration: SlotDeclaration; streams: boolean }[]
+  slots: {
+    name: string
+    /** Absent for a region rendered on another deployment, which is refused before it is read. */
+    fragment?: CompiledFragment
+    declaration: SlotDeclaration
+    streams: boolean
+  }[]
 }
 
 function readsOf(fragment: CompiledFragment): string[] {
@@ -85,7 +92,26 @@ export function staticVerdict(input: StaticInput): StaticVerdict {
     }
   }
 
+  /**
+   * A page composed out of another deployment's regions is not a file, and it is refused before
+   * anything is measured.
+   *
+   * The empirical half cannot settle this: two renders of a composed page could agree by accident
+   * because the region happened to answer identically twice, and a document written on that
+   * evidence would be a cache of somebody else's deployment. What the region reads is its own and
+   * it can be rolled without this build knowing, so the honest answer is structural.
+   */
+  const composed = slots.find((slot) => slot.declaration.region?.remote)
+  if (composed) {
+    return {
+      static: false,
+      code: 'L0_REGION',
+      reason: `region '${composed.name}' renders on another deployment, whose answer this build cannot prove invariant and whose revision can be rolled without rebuilding this page`,
+    }
+  }
+
   for (const fragment of [shell, ...slots.map((slot) => slot.fragment)]) {
+    if (!fragment) continue
     const reads = readsOf(fragment)
     if (reads.length) {
       return {

@@ -94,6 +94,14 @@ export const BUDGETS: ByteBudget[] = [
     limitNote: 'no design figure; its own entry, on the same rule route staging established',
   },
   {
+    id: 'kernel-render',
+    label: 'Server kernel plus a catalogue of fragments a client can ask for by opaque id',
+    entry: kernelSrc('entry-render.ts'),
+    limit: 14 * 1024,
+    limitNote:
+      'no design figure; its own entry, because a deployment whose clients cannot name a renderable should not carry the dispatch',
+  },
+  {
     id: 'kernel-region',
     label: 'Server kernel plus a page composed out of regions on other deployments',
     entry: kernelSrc('entry-region.ts'),
@@ -124,6 +132,14 @@ export const BUDGETS: ByteBudget[] = [
     limitNote: 'no design figure; a watermark with ~470 B of room, so the next addition argues with a number',
   },
   {
+    id: 'expose-route',
+    label: 'Channel route plus a shell signal reaching a region on this page',
+    entry: src('entry-expose.ts'),
+    limit: 5 * 1024,
+    limitNote:
+      'no design figure; its own entry, because a page that composes no region should not carry the exposed table',
+  },
+  {
     id: 'nav-route',
     label: 'Channel route plus instant navigation',
     entry: src('entry-nav.ts'),
@@ -144,8 +160,9 @@ export const BUDGETS: ByteBudget[] = [
     id: 'front-door',
     label: 'The boot module a page loads, runtime and codec included',
     entry: front('boot.ts'),
-    limit: 12 * 1024,
-    limitNote: 'no design figure; a watermark over what a page downloads, adoption to navigation',
+    limit: 13 * 1024,
+    limitNote:
+      'no design figure; a watermark over what a page downloads, adoption to composition. Moved from 12 KB when the exposed table landed — see spec/kernel/budgets.md',
   },
   {
     id: 'app-route',

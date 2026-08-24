@@ -165,6 +165,41 @@ test('a fan-out approaching the platform’s subrequest ceiling is a warning bef
   assert.match(warning?.message ?? '', /9 deployment boundaries/)
 })
 
+test('a tag on a remote region is a warning, because nothing on this side will ever fire it', () => {
+  // Push invalidation names connections holding a key, and a region's keys are the region's own. The
+  // composite holds a contract, so a tag declared here describes an invalidation that cannot happen.
+  const tagged = route([
+    region('search')
+      .remote({ id: 'search', version: '2.1.0' })
+      .cache('public', { ttl: '60s', tags: ['q'] }),
+  ])
+  const diagnostics = validatePlan(tagged.plan, { facts: tagged.facts })
+
+  const warning = diagnostics.warnings.find((w) => w.code === 'W_REGION_TAGS_UNREACHABLE')
+  assert.ok(warning, 'said rather than left as a silence')
+  assert.match(warning?.message ?? '', /Push invalidation stops at the boundary/)
+  assert.equal(
+    diagnostics.errors.some((e) => e.code === 'W_REGION_TAGS_UNREACHABLE'),
+    false,
+    'a warning and not an error: the region may well be invalidated on its own side',
+  )
+})
+
+test('a remote region with a refresh interval has the fallback, so nothing is warned about', () => {
+  const covered = route([
+    region('search')
+      .remote({ id: 'search', version: '2.1.0' })
+      .cache('public', { ttl: '60s', tags: ['q'] })
+      .refresh(30_000),
+  ])
+  const diagnostics = validatePlan(covered.plan, { facts: covered.facts })
+  assert.equal(
+    diagnostics.warnings.some((w) => w.code === 'W_REGION_TAGS_UNREACHABLE'),
+    false,
+    'the client polls, which is the design’s stated fallback for that whole tier',
+  )
+})
+
 test('a public document containing a region nobody described is refused, not advertised', () => {
   const undescribed = route(
     [region('search').remote({ id: 'search', version: '2.1.0' })],

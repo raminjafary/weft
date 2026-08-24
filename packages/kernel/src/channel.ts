@@ -84,6 +84,16 @@ export interface SlotRender {
 export interface SlotRequest {
   slot: string
   channel: Channel
+  /**
+   * The frame that asked, for a source that needs another header off it.
+   *
+   * The same field `WarmRequest` carries and for the same reason: a `REFRESH` asks *give me this
+   * slot's current state*, and a `REFRESH` carrying `r=<id>` asks *put this catalogue entry in this
+   * slot*. Both are answered by a slot source, and only the header tells them apart — so the header
+   * has to reach it. A table of handlers keyed by frame shape would be a second dispatch mechanism in
+   * this file, which is the thing its byte ceiling exists to prevent.
+   */
+  frame?: Frame
 }
 
 /**
@@ -557,7 +567,7 @@ export function createHub(options: HubOptions): ChannelHub {
     const out: Frame[] = []
 
     for (const slot of slots) {
-      const source = await options.source({ slot, channel: record.channel })
+      const source = await options.source({ slot, channel: record.channel, frame: f as Frame })
       if (!source) {
         out.push(errorFrame('E_NO_SUCH_SLOT', slot))
         continue

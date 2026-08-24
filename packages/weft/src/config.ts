@@ -6,10 +6,17 @@ import type {
   DbPort,
   DeploymentPort,
   KernelExecutor,
+  LimitPort,
+  RegionBinding,
+  Registry,
   StorePort,
   TelemetryPort,
 } from '@weft/kernel'
+import type { CountingLimitOptions } from '@weft/adapters'
 import type { AuthorityConfig } from './authority.ts'
+
+/** The one decision the `limits` port exists to refuse to make. See `WeftConfig.limits`. */
+export type CountedAgainst = CountingLimitOptions['counted']
 
 /**
  * The one file a deployment writes, and the only place it states what it binds.
@@ -47,6 +54,26 @@ export interface WeftConfig {
   executors?: Record<string, KernelExecutor>
   telemetry?: TelemetryPort
   /**
+   * Where each region a route composes actually is.
+   *
+   * The indirection the whole of composition rests on: a route says `search`, and this says what
+   * `search` is right now. Rolling a region to a new revision is a write here rather than a rebuild
+   * of every page that composes it — which is why it is a deployment's file and not a route's
+   * declaration, and why `weft verify` compares the two rather than assuming they agree.
+   *
+   * A region declared on a route with no binding here is `E_NO_SUCH_REGION` at startup, named by
+   * `weft verify` rather than found by a reader.
+   */
+  regions?: readonly RegionBinding[]
+  /**
+   * A registry that answers regions from somewhere live — a KV namespace, a control plane.
+   *
+   * `regions` above is the checked-in shape of the same port and is the right answer for most
+   * deployments. This is for the one where a roll is not a deploy: bound, it is asked first, and
+   * `regions` is what answers a name it does not resolve.
+   */
+  registry?: Registry
+  /**
    * Three ports a deployment may bind and most never have to.
    *
    * The defaults are real rather than stubs: settings come from `WEFT_`-prefixed environment
@@ -57,6 +84,19 @@ export interface WeftConfig {
   config?: ConfigPort
   deployment?: DeploymentPort
   db?: DbPort
+  /**
+   * What a call is counted against, and — only if you want to own it — how the counting is done.
+   *
+   * Two shapes, because there are two decisions and only one of them is usually yours. Supply
+   * `{ counted }` and the framework counts, in a fixed window, against the store this deployment
+   * already bound; `counted` is the part it will not guess at, since an address, a session and a
+   * subject are each wrong in some deployment. Supply a whole `LimitPort` — a gateway, a Redis
+   * script, a platform's own limiter — and nothing else changes.
+   *
+   * Unbound, an intent that declares a `limit` is `E_NO_RATE_LIMIT` and says so at startup. Refused
+   * rather than let through, because a limit nothing counts reads as a protection that is not there.
+   */
+  limits?: LimitPort | { counted: CountedAgainst }
   channel?: { path?: string }
   /**
    * Who may run an intent, and which intents need a token this deployment minted.
@@ -127,7 +167,10 @@ export interface ResolvedConfig extends Required<Pick<WeftConfig, 'srcDir' | 'ou
   config?: ConfigPort
   deployment?: DeploymentPort
   db?: DbPort
+  limits?: LimitPort | { counted: CountedAgainst }
   authority?: AuthorityConfig
+  regions: readonly RegionBinding[]
+  registry?: Registry
   /** The config file that produced this, for a message that has to name it. */
   file?: string
 }
@@ -180,7 +223,10 @@ export async function loadConfig(root: string, overrides: WeftConfig = {}): Prom
     ...(config.config ? { config: config.config } : {}),
     ...(config.deployment ? { deployment: config.deployment } : {}),
     ...(config.db ? { db: config.db } : {}),
+    ...(config.limits ? { limits: config.limits } : {}),
     ...(config.authority ? { authority: config.authority } : {}),
+    regions: config.regions ?? [],
+    ...(config.registry ? { registry: config.registry } : {}),
     ...(file ? { file } : {}),
   }
 }

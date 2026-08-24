@@ -5,8 +5,10 @@ import {
   createEpochs,
   createStaging,
   digest,
+  createExposure,
   createKnown,
   discoverFrame,
+  exposedFrames,
   navFrames,
   navigable,
   planFrames,
@@ -108,6 +110,31 @@ interface WeftState {
    * rather than rendering them, so a page can know about a subtree it will mostly not visit.
    */
   discover(prefix: string): Promise<string[]>
+  /**
+   * A shell value this page offers the regions inside it: `weft.exposed('locale')`.
+   *
+   * The whole of the channel between a shell and a region's client code, and it is deliberately
+   * read-only. A region is a fragment rendered by another deployment, running in a page it did not
+   * assemble — it cannot reach the shell's variables, and it must not reach for a global, because a
+   * global that exists on one page and not another is the coupling a composed page cannot afford.
+   *
+   * What comes back is a `Readable`, so it is in the signal graph: read it inside a derived value
+   * and a new value from the server recomputes exactly the nodes that read it. A name the shell does
+   * not expose is `E_NOT_EXPOSED` rather than `undefined`, which is the difference between a bug you
+   * find and a value that is quietly empty.
+   */
+  exposed(name: string): Readable<string>
+  /** Every name this page's shell exposes, in the order the server declared them. */
+  exposes: string[]
+  /**
+   * Ask the server for a catalogue entry, by opaque id or by the name its author gave it, and put the
+   * answer in a slot on this page: `weft.render('card.product', 'body', { sku: 'OIL-2L' })`.
+   *
+   * Resolves with the DOM writes it caused. Everything about *whether* the call is allowed is the
+   * server's — the entry's capabilities, its signature, its limit, and whether the slot is a hole on
+   * this route — because a gate the client could reason about is a gate the client could skip.
+   */
+  render(id: string, slot: string, params?: unknown): Promise<number>
 }
 
 declare global {
@@ -138,6 +165,11 @@ const state: WeftState = {
   navigate: (href, scroll) => navigate(href, scroll),
   known: [],
   discover: (prefix) => discover(prefix),
+  exposed: (name) => exposure.read(name),
+  render: (id, slot, params) => render(id, slot, params),
+  get exposes() {
+    return exposure.names
+  },
 }
 
 /**
@@ -151,6 +183,15 @@ const state: WeftState = {
  * of a page nobody clicked.
  */
 const known = createKnown()
+/**
+ * The shell values this page offers its regions, and what the server has said they are.
+ *
+ * Empty until the channel opens, and that is not a gap: a region's *first* render already had the
+ * values it consumes — the composite resolved them and handed them across the boundary, so the
+ * markup that arrived is correct. This table is for the second value and every one after it, and a
+ * shell value that changes needs a live channel by definition.
+ */
+const exposure = createExposure()
 /** True once a region declares itself refreshable, which is what decides whether to connect. */
 let liveRegions = false
 window.weft = state
@@ -900,6 +941,28 @@ async function refresh(slots?: readonly string[], at?: string): Promise<number> 
   return state.writes - before
 }
 
+/**
+ * A render intent: ask the server to put a catalogue entry in a slot on this page.
+ *
+ * `REFRESH` with a source named, which is what a render intent is — same answer, same forms, same
+ * epoch semantics, and the same surgical ladder, so an entry whose template this client already holds
+ * comes back as the changed values and nothing else. That last property is the whole reason this is a
+ * frame and not a `fetch` that returns markup.
+ *
+ * `id` is the opaque id the build derived, or the entry's declared name for markup a person wrote —
+ * the server accepts either and what travels is still the id. What this cannot do is decide the slot
+ * is real: that is the server's, because the server knows the route.
+ */
+async function render(id: string, slot: string, params: unknown = {}): Promise<number> {
+  const w = await wire()
+  const before = state.writes
+  await w.send([
+    { kind: 'REFRESH', header: { s: slot, r: id }, body: new TextEncoder().encode(JSON.stringify(params)) },
+  ])
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  return state.writes - before
+}
+
 function encodeUp(frames: readonly ChannelFrame[]): Uint8Array<ArrayBuffer> {
   const encoded = frames.map((f) => warpFrame(f.kind as FrameKind, f.header, f.body, true)) as Frame[]
   return new Uint8Array(encodeStream(encoded))
@@ -927,6 +990,16 @@ const routeNav = navFrames((nav) => {
   }
   pending.set(nav.epoch, nav)
 })
+
+/**
+ * The shell's exposed values, arriving.
+ *
+ * One frame with a body when the channel opens — the whole set, which is what makes it a set nothing
+ * on the wire can add to — and one small frame per name afterwards, when something an exposed value
+ * is derived from has been written. Routed here rather than in the channel client for the reason
+ * `NAV` and `PLAN` are: a page that composes no region should not carry the table.
+ */
+const routeExposed = exposedFrames(exposure, (line) => log('down', line))
 
 /**
  * The plan, extended — and the two things a page does with it the moment it arrives.
@@ -991,6 +1064,7 @@ async function open(): Promise<Wire> {
     onFrame: (frame, applied) => {
       routeNav(frame, applied)
       routePlan(frame)
+      routeExposed(frame)
     },
     onAck: (ack) => {
       log('down', `ACK ${ack.intent} ok=${ack.ok}${ack.code ? ` ${ack.code}` : ''}`)

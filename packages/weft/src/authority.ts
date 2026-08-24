@@ -144,6 +144,24 @@ export async function resolveAuthority(
   const declared = [...new Set(intents.entries.flatMap((entry) => entry.capabilities))]
   const signed = intents.entries.filter((entry) => entry.signed).map((entry) => entry.id)
 
+  /**
+   * A limit nothing counts, said at startup.
+   *
+   * Outside the `config` branch below because rate limiting is not part of `authority` in the config
+   * — it is a port, since what a call is counted against is a deployment's decision and not a role
+   * table. What it shares with the other two is the failure mode: a declaration nothing enforces,
+   * refused at request time with a 501, which is correct and is the wrong moment to find out.
+   */
+  const limited = intents.entries.filter((entry) => entry.limit)
+  if (limited.length && !ports.limits) {
+    diagnostics.push(
+      `W_NO_RATE_LIMIT: ${limited.map((entry) => entry.name).join(', ')} declare a limit and no limits ` +
+        `port is bound, so every call is E_NO_RATE_LIMIT. Bind weft.config.ts's \`limits\` — ` +
+        `countingLimits({ store, counted }) in @weft/adapters, where \`counted\` is the decision a ` +
+        `kernel cannot make for you`,
+    )
+  }
+
   if (!config) {
     /**
      * Nothing bound, and the dispatch already refuses what declares authority — with a 501 at
@@ -232,8 +250,10 @@ export async function resolveAuthority(
        */
       if (verifier.replayScope === 'process') {
         diagnostics.push(
-          `W_REPLAY_PROCESS_LOCAL: a spent nonce is remembered in '${store.name}', which is process-scoped, ` +
-            `so a signed intent is single-use per process rather than per deployment`,
+          `W_REPLAY_PROCESS_LOCAL: a spent nonce is remembered in '${store.name}', whose leases are ` +
+            `process-scoped, so a signed intent is single-use per process rather than per deployment. ` +
+            `sharedLeases(store, { dir }) in @weft/adapters makes it per machine; a networked lease ` +
+            `makes it per deployment`,
         )
       }
     } else if (signer) {

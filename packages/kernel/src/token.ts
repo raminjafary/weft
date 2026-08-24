@@ -20,8 +20,11 @@ import type { StorePort } from './ports.ts'
  * - **A token is not a capability.** Both are checked, in that order, and neither substitutes for
  *   the other. A signature says the server issued this call; a grant says this caller may make it.
  * - **Replay protection is exactly as strong as the store's lease.** A nonce is spent by taking a
- *   lease nobody releases, so a `process`-scoped store gives per-process protection and says so —
- *   `replayScope` reports it rather than leaving a deployment to assume the stronger reading.
+ *   lease nobody releases, so a store whose leases are process-scoped gives per-process protection
+ *   and says so — `replayScope` reports it rather than leaving a deployment to assume the stronger
+ *   reading. It reads the store's `leaseScope`, which is deliberately a different field from `scope`:
+ *   how far a lease is agreed and how far an entry may travel are two questions, and a deployment
+ *   should not have to make its cache shared in order to make its nonces single-use.
  * - **A token without `p` binds no payload.** It says "this reader may run this intent before this
  *   time", which is weaker than it looks: the quantity can be edited. Minting with the payload is
  *   the one that makes a token a receipt.
@@ -163,7 +166,10 @@ export function createIntentVerifier(options: VerifierOptions): IntentVerifier {
   const skew = options.skewMs ?? 5_000
 
   return {
-    replayScope: options.store.scope,
+    // The lease's scope and not the store's, because a nonce is a lease: a process-local cache that
+    // takes shared leases gives per-deployment single-use, and reading `scope` here would have
+    // reported the cache's reach instead of the guarantee's.
+    replayScope: options.store.leaseScope ?? options.store.scope,
     kids: Object.keys(options.keys),
 
     async verify(request) {

@@ -26,6 +26,7 @@ import { join, relative, sep } from 'node:path'
  *   app/slots/<name>.tsx        fills the layout hole of that name on every route
  *   app/fragments/<name>.tsx    reusable, referenced by name from a route's slots
  *   app/intents/**.ts           intents. The manifest is generated from this directory
+ *   app/renderables/**.ts       fragments a client may ask for by opaque id. Same derivation
  *   app/styles.css              appended after the framework's stylesheet
  */
 export interface DiscoveredRoute {
@@ -60,6 +61,16 @@ export interface Discovered {
   slots: DiscoveredNamed[]
   fragments: DiscoveredNamed[]
   intents: string[]
+  /**
+   * The catalogue: modules exporting fragments a client may ask to have rendered.
+   *
+   * A separate directory from `intents/` because they are separate questions with the same shape —
+   * one writes and one renders — and because what is in this directory is *reachable by a client*.
+   * A fragment under `fragments/` is a thing a page composes; one named here is a thing a browser can
+   * ask for, and the difference should be visible in the file tree rather than in a declaration
+   * somewhere.
+   */
+  renderables: string[]
   styles?: string
   /** `app/client.ts`, served after the framework's own boot has adopted the page. */
   client?: string
@@ -224,6 +235,9 @@ export async function discover(root: string, srcDir = 'app'): Promise<Discovered
     slots: await named('slots'),
     fragments: await named('fragments'),
     intents: (await walk(join(base, 'intents'))).filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts')),
+    renderables: (await walk(join(base, 'renderables'))).filter(
+      (f) => f.endsWith('.ts') && !f.endsWith('.d.ts'),
+    ),
     ...((await exists(styles)) ? { styles } : {}),
     ...((await exists(client)) ? { client } : {}),
   }

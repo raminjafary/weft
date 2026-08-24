@@ -26,6 +26,23 @@ export interface BuildReport {
   templates: number
   routes: { pattern: string; slots: number; markupBytes: number; styles: string[]; live: string[] }[]
   intents: { id: string; name: string; module: string }[]
+  /**
+   * The catalogue: what a client on this deployment may ask to have rendered, and by what.
+   *
+   * In the report for the same reason the intents are, and one reason stronger — this is the set a
+   * *browser* can name, so it is the set somebody reviewing a deployment most needs to be able to see
+   * without reading the application.
+   */
+  renderables: {
+    id: string
+    name: string
+    by: string
+    module: string
+    capabilities: string[]
+    signed: boolean
+  }[]
+  /** Every region a route composes, and where this deployment's registry says it is. */
+  regions: { region: string; route: string; locus: string; where: string }[]
   assets: { href: string; bytes: number; immutable: boolean }[]
   /** L0: the documents that were resolved here rather than per request, and what each one costs. */
   static: { pattern: string; file: string; bytes: number }[]
@@ -91,6 +108,12 @@ export async function build(root: string, overrides: WeftConfig = {}): Promise<B
     join(out, 'intents.json'),
     `${JSON.stringify({ entries: app.intents.entries, names: app.intents.names }, null, 2)}\n`,
   )
+  // Its own file rather than a section of the one above, because it is a different question with a
+  // different audience: `intents.json` is what may be written, and this is what may be asked for.
+  await writeFile(
+    join(out, 'catalogue.json'),
+    `${JSON.stringify({ entries: app.catalogue.entries, names: app.catalogue.names }, null, 2)}\n`,
+  )
 
   // Every revved file, at the path it is served from, so the directory can be uploaded as it is.
   const assets: BuildReport['assets'] = []
@@ -138,6 +161,20 @@ export async function build(root: string, overrides: WeftConfig = {}): Promise<B
       live: Object.keys(route.live),
     })),
     intents: app.intents.entries.map((e) => ({ id: e.id, name: e.name, module: e.module })),
+    renderables: app.catalogue.entries.map((e) => ({
+      id: e.id,
+      name: e.name,
+      by: e.by,
+      module: e.module,
+      capabilities: e.capabilities,
+      signed: e.signed,
+    })),
+    regions: (app.regions?.regions ?? []).map((status) => ({
+      region: status.region,
+      route: status.route,
+      locus: status.declared,
+      where: status.bound?.executor ?? 'unresolved',
+    })),
     assets,
     static: prerendered.documents.map((d) => ({ pattern: d.pattern, file: d.file, bytes: d.bytes })),
     refused: prerendered.refused,
@@ -276,6 +313,26 @@ export function formatReport(report: BuildReport): string {
       lines.push(`  intent ${intent.id}  ${intent.name.padEnd(18)} ${intent.module}`)
     }
   }
+  if (report.renderables.length) {
+    lines.push('')
+    for (const entry of report.renderables) {
+      lines.push(
+        `  render ${entry.id}  ${entry.name.padEnd(18)} ${entry.by.padEnd(24)}` +
+          `${entry.capabilities.join(',') || '—'}${entry.signed ? '  signed' : ''}`,
+      )
+    }
+  }
+  if (report.regions.length) {
+    lines.push('')
+    for (const region of report.regions) {
+      lines.push(
+        `  region ${region.region.padEnd(16)} ${region.locus.padEnd(8)} ${region.where.padEnd(20)} ${region.route}`,
+      )
+    }
+    // Printed rather than left to a command nobody runs: the registry is a deployment's and can be
+    // written to without anybody rebuilding, so the build states what it saw and `weft verify` gates.
+    lines.push(`  \`weft verify --probe\` asks each one what it is serving right now`)
+  }
   if (report.diagnostics.length) {
     lines.push('')
     lines.push(`  ${report.diagnostics.length} type diagnostics — escape elision fell back to escaping:`)
@@ -283,7 +340,7 @@ export function formatReport(report: BuildReport): string {
   }
   lines.push('')
   lines.push(
-    `  wrote ${report.outDir}/ — ir, routes.json, intents.json, assets/, ${STATIC_DIR}/, report.json`,
+    `  wrote ${report.outDir}/ — ir, routes.json, intents.json, catalogue.json, assets/, ${STATIC_DIR}/, report.json`,
   )
   lines.push('')
   return lines.join('\n')

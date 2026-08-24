@@ -62,6 +62,9 @@ test('the pages that read nothing are files, and the rest say why they are not',
       '/app/ordinary/:category': 'L0_PARAMS',
       '/live/race/:order': 'L0_PARAMS',
       '/app/cart': 'L0_READS',
+      // Not measured twice: what a region on another deployment reads is its own, and the registry
+      // can be rolled without this build knowing, so two identical renders would prove nothing.
+      '/app/composed': 'L0_REGION',
       '/app/dashboard': 'L0_OUT_OF_ORDER',
       '/app/feed': 'L0_READS',
     },

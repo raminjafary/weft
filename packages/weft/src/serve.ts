@@ -3,10 +3,12 @@ import { access, readFile } from 'node:fs/promises'
 import { basename, dirname, join, relative } from 'node:path'
 import { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
+import { frame, str, type Frame } from '@weft/warp'
 import {
   boundedDb,
   channelHandlers,
   cookieSession,
+  countingLimits,
   envConfig,
   hostDeployment,
   irRenderer,
@@ -16,11 +18,15 @@ import {
   staticFlags,
 } from '@weft/adapters'
 import {
+  channelRegions,
+  createComposer,
+  readsFor,
   createEnvelope,
   createHub,
   createIntentDispatch,
   createIntentRouter,
   createKernel,
+  createRenderDispatch,
   createReads,
   createRouter,
   createExtender,
@@ -33,12 +39,18 @@ import {
   type ChannelHub,
   type DiscoveredRoute,
   type Kernel,
+  type ChannelRegions,
   type Ports,
   type RenderContext,
   type RouteResolver,
+  type SlotFrames,
   type SlotRender,
+  type EnvelopeContext,
+  type RegionSpec,
+  type SlotRequest,
   type StorePort,
 } from '@weft/kernel'
+import { verifyRegions, type VerifyReport } from '@weft/plan'
 import {
   browserModule,
   buildAssets,
@@ -53,7 +65,9 @@ import { discover, type Discovered } from './convention.ts'
 import { loadConfig, type ResolvedConfig, type WeftConfig } from './config.ts'
 import { devtoolsFor } from './devtools.ts'
 import { resolveAuthority, serveToken, TOKEN_PATH, type Authority } from './authority.ts'
-import { loadIntents, type IntentManifest } from './intents.ts'
+import { loadIntents, moduleIdOf, type IntentManifest } from './intents.ts'
+import { loadCatalogue, type Catalogue } from './renderables.ts'
+import { regionRegistry } from './regions.ts'
 import { services } from './context.ts'
 import {
   createRecorder,
@@ -91,6 +105,14 @@ export interface App {
   discovered: Discovered
   compiled: CompiledApp
   intents: IntentManifest
+  /**
+   * The catalogue: fragments a client may ask for by opaque id, generated from `app/renderables/`.
+   *
+   * Empty for an application with no such directory, which is most of them — and empty means the
+   * registry answers no renderable at all, so a client naming one is `E_NO_SUCH_RENDERABLE` rather
+   * than reaching something that happened to be compiled.
+   */
+  catalogue: Catalogue
   routes: GeneratedRoute[]
   store: StorePort
   hub: ChannelHub
@@ -112,6 +134,20 @@ export interface App {
    */
   documents: Map<string, ServedDocument>
   diagnostics: string[]
+  /**
+   * What this deployment resolved about its own regions, or null for one that composes none.
+   *
+   * Run at startup rather than at build time because none of it is knowable at build time: a
+   * registry is a deployment's and can be written to without anybody rebuilding. What is here is the
+   * half that needs no network — a name nothing resolves, a tier nobody bound, a plan and a registry
+   * that disagree about whether a boundary is crossed. The half that needs one is `weft verify`.
+   */
+  regions: VerifyReport | null
+  /**
+   * Everything a reader should be told before the first request rather than by a 501 in front of
+   * somebody. Authority's refusals, and a region nothing can resolve.
+   */
+  warnings: string[]
   mode: Mode
   /**
    * What this process is recording, and what the last recording decided.
@@ -133,6 +169,14 @@ export interface App {
   /** The live-slot keys a set of write tags reaches, for a notify that has to name keys. */
   keysFor(tags: readonly string[]): string[]
   /**
+   * Re-derive every connection's exposed shell values and tell whoever's changed.
+   *
+   * On the app rather than inside the hub because both intent bindings have to call it, and the
+   * channel's dispatch is the only one the hub can see. A form post that left every open page's
+   * exposed values stale would be push invalidation working on one binding out of two.
+   */
+  republishExposed(except?: string): Promise<void>
+  /**
    * Who may run an intent here, and which intents need a token this deployment minted.
    *
    * Resolved once and shared by both bindings on purpose: a capability enforced over the channel
@@ -146,6 +190,15 @@ export interface Connection {
   path: string
   /** The channel connection's own cookie header, verbatim. */
   cookie: string
+  /**
+   * Routes this connection has been *told about*, by pattern.
+   *
+   * Held so a description can be scored. A client asks to stage a route it has not been to only
+   * because it was described one — a client with no description does not know the shell matches — so
+   * a `WARM at=` for a pattern in this set is a description that paid, and one for a pattern outside
+   * it is a hover on a link the page had anyway.
+   */
+  described?: Set<string>
 }
 
 export interface Serving {
@@ -153,6 +206,15 @@ export interface Serving {
   app: App
   close(): Promise<void>
 }
+
+const utf8 = new TextEncoder()
+
+/**
+ * Which frame kinds change what the reader sees. The same set `region-channel.ts` uses, and the same
+ * reason: everything else is what a client needs in order to apply one of these, so it travels
+ * immediately even inside an epoch.
+ */
+const PAINTS = new Set<Frame['kind']>(['HTML', 'DELTA', 'DATA', 'PATCH'])
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -232,9 +294,49 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
    * this point there is no table yet — one late binding rather than a 103 pointing at a URL that
    * will not exist.
    */
+  /**
+   * The limiter, from whichever half the config supplied.
+   *
+   * A config that supplies `counted` is supplying the only decision a framework cannot make, and
+   * the counting is then the framework's — over the store above, which is the store everything else
+   * on this deployment already shares. A config that supplies a whole port owns both, which is what
+   * a gateway or a platform limiter is.
+   */
+  const limits =
+    config.limits && 'check' in config.limits
+      ? config.limits
+      : config.limits
+        ? countingLimits({ store, counted: config.limits.counted })
+        : undefined
+
   const configPort = config.config ?? envConfig()
+  /**
+   * The registry, bound once and for both of its jobs.
+   *
+   * `ports.registry` used to be the one declared port nothing here bound, on the grounds that the
+   * intent dispatch had its own and regions had no front door. Regions have one now, and a region
+   * name has to resolve through a port rather than through a table compiled into the page that
+   * composes it — otherwise rolling a region is a redeploy of every shell that names it, which is
+   * the property the port exists to provide.
+   */
+  /**
+   * The catalogue, resolved late for the same reason the asset table is.
+   *
+   * The registry answers renderables, the catalogue's region-served entries are composed through the
+   * ports, and the ports carry the registry. One late binding rather than three constructors that
+   * each want the other two — and it is a `let` in one file rather than an indirection anyone else
+   * has to know about.
+   */
+  let catalogue: Catalogue = { entries: [], byId: new Map(), names: {} }
+  const registry = regionRegistry(intents.registry, {
+    regions: config.regions,
+    ...(config.registry ? { registry: config.registry } : {}),
+    renderable: (id) => catalogue.byId.get(id),
+    renderables: () => [...catalogue.byId.keys()],
+  })
   const ports: Ports = {
     store,
+    registry,
     session: cookieSession({ cookie: config.session.cookie }),
     flags: staticFlags({ axes: config.flags }),
     executors: config.executors,
@@ -247,6 +349,9 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
       hostDeployment({ config: configPort, ...(mode === 'dev' ? { environment: 'development' } : {}) }),
     db: config.db ?? boundedDb(config.telemetry ? { telemetry: config.telemetry } : {}),
     ...(config.telemetry ? { telemetry: config.telemetry } : {}),
+    // Unbound on purpose. An intent that declares a limit is refused by name until a deployment
+    // says what a call is counted against, because a kernel choosing would be guessing.
+    ...(limits ? { limits } : {}),
   }
   // Published before the route modules render: a station page's loader may read what this
   // deployment bound, and a page about the ports is a page about *these* ports.
@@ -309,6 +414,55 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   })
   setAssets(assets)
 
+  /**
+   * One region of one route, composed for a channel.
+   *
+   * Built per call rather than held, because a `Composer` accumulates the outcomes it produced — it
+   * is what `composer.hops` counts — and one shared across every connection would be a page's hop
+   * count growing forever.
+   *
+   * The same function answers a refresh and a stage, and the only difference is the request handed
+   * in. That is deliberate: a region refreshed over the channel and the same region staged as part
+   * of a route have to reach the same deployment with the same budget and the same contract, and a
+   * second composition site is where those two would drift.
+   */
+  const composeRegion = (route: GeneratedRoute): ChannelRegions =>
+    channelRegions({
+      composer: createComposer({ ports }),
+      regions: route.remote,
+      route: () => route.pattern,
+    })
+
+  /**
+   * The catalogue, built now that there is something to compose a region-served entry with.
+   *
+   * A renderable named by a region goes through the same composer a slot does — the same registry
+   * resolution, the same arrival check, the same declared degradation — because "which deployment
+   * renders this" is one question and it should not have two answers. What the entry supplies that a
+   * slot does not is the params, which reach the region as an ordinary render request.
+   */
+  catalogue = await loadCatalogue({
+    root,
+    files: discovered.renderables,
+    compiled,
+    ports,
+    moduleIdOf: (file) => moduleIdOf(root, file),
+    compose: async (region, request) => {
+      const spec: RegionSpec = { region, onExceed: 'placeholder' }
+      const composer = createComposer({ ports })
+      const outcome = await composer.compose(spec, {
+        params: (request.params ?? {}) as Record<string, string>,
+        ...(request.held ? { held: request.held } : {}),
+        ...(request.epoch ? { epoch: request.epoch } : {}),
+      })
+      const also = outcome.frames.filter((f) => !PAINTS.has(f.kind))
+      const paint =
+        outcome.frames.find((f) => PAINTS.has(f.kind)) ??
+        (outcome.bytes.length ? frame('HTML', { s: request.slot }, outcome.bytes, true) : undefined)
+      return { ...(paint ? { paint } : {}), ...(also.length ? { also } : {}) }
+    },
+  })
+
   const at = new Map<string, Connection>()
   // Which live slots carry which tag. A connection is recorded as holding the key its slot
   // source returned, so an invalidation can only reach it if something names that key — and the
@@ -335,12 +489,26 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
    * is a diagnostic, because the dispatch already refuses by name and a warning at startup is
    * where somebody can act on it.
    */
+  /**
+   * The region checks that need no network, run before the first request.
+   *
+   * A composed page that cannot resolve one of its regions fails at request time with a named
+   * error, which is correct and late: the name is wrong in a config file, and the person who can
+   * fix it is looking at a terminal. So the resolvable half is checked here and printed, and
+   * `weft verify` is the same function with a probe and an exit code — a gate rather than a notice.
+   */
+  const composing = routes.map((route) => route.plan).filter((plan) => plan.slots.some((s) => s.region))
+  const regionReport = composing.length
+    ? await verifyRegions(composing, { registry, executors: Object.keys(config.executors) })
+    : null
+
   const authority = await resolveAuthority(config.authority, intents, store, ports)
   const dispatch = createIntentDispatch({
     registry: intents.registry,
     store,
     ...(authority.model ? { capabilities: authority.model.check } : {}),
     ...(authority.verifier ? { verify: authority.verifier } : {}),
+    ...(limits ? { limits } : {}),
   })
 
   /**
@@ -371,7 +539,7 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   const stager = createStager({
     store,
     ...(config.telemetry ? { telemetry: config.telemetry } : {}),
-    resolve: async ({ path, channel }) => {
+    resolve: async ({ path, channel, epoch }) => {
       const target = routeAt(path)
       if (!target) return null
       const from = here(channel)
@@ -386,13 +554,23 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
       }
 
       const connection = at.get(channel.id)
+      /**
+       * A description that paid.
+       *
+       * Counted only when this connection was told about the target: a client asks to stage a route it
+       * has not been to because it was described one — it has no other way to know the shell matches —
+       * so a stage of a described pattern is the description being used. A stage of an undescribed one
+       * is a hover on a link the page had anyway, and counting it would make every description look
+       * successful.
+       */
+      if (connection?.described?.has(target.value.pattern)) recorder?.followed(target.value.pattern)
       const ctx = channelContext(
         new URL(path, 'http://weft.local'),
         target.params,
         connection?.cookie ?? '',
         ports,
       )
-      const slots: Record<string, SlotRender> = {}
+      const slots: Record<string, SlotRender | SlotFrames> = {}
       for (const [name, region] of Object.entries(target.value.regions)) {
         slots[name] = {
           ir: region.fragment.entry,
@@ -401,6 +579,32 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
           key: region.key,
           prefer: 'delta',
         }
+      }
+      /**
+       * The target's remote regions, composed as part of staging it.
+       *
+       * Without this a staged route arrived with its holes from other deployments empty, and the
+       * reader saw a page assemble itself after the commit — which is the one thing staging exists to
+       * prevent. Each region is told the epoch it is being staged into, so it knows the answer is not
+       * going to paint yet and can decide its own frame split accordingly.
+       */
+      const compose = composeRegion(target.value)
+      for (const [name, spec] of Object.entries(target.value.remote)) {
+        // The region's declared reads, resolved through this channel's own context — the same
+        // derivation a document request does, so a staged region renders against the values the page
+        // it is being staged for would have rendered against.
+        const reads = await readsFor(ctx, spec.contract)
+        const frames = await compose({
+          slot: name,
+          channel,
+          request: {
+            route: target.value.pattern,
+            params: target.params,
+            ...(epoch ? { epoch } : {}),
+            ...(reads ? { reads } : {}),
+          },
+        })
+        if (frames) slots[name] = frames
       }
       const next = decided ? transitions()[target.value.pattern] : undefined
       return {
@@ -439,6 +643,23 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     }
   }
 
+  /**
+   * Whether a route is worth describing, from what the last recording saw.
+   *
+   * Absent from the decision means unmeasured, and unmeasured keeps the behaviour it had — the same
+   * rule delivery follows, so a recording of last Tuesday cannot quietly turn discovery off for a
+   * route it never saw.
+   */
+  const worthDescribing = (pattern: string): boolean =>
+    decided?.discover.find((d) => d.route === pattern)?.describe ?? true
+
+  /** A route described to this connection, recorded so the description can be scored later. */
+  const noteDescribed = (channel: { id: string }, patterns: readonly string[]): void => {
+    const connection = at.get(channel.id)
+    if (connection) connection.described = new Set([...(connection.described ?? []), ...patterns])
+    for (const pattern of patterns) recorder?.described(pattern)
+  }
+
   const discovery = createExtender({
     ...(config.telemetry ? { telemetry: config.telemetry } : {}),
     resolve: ({ prefix, channel }) => {
@@ -452,23 +673,106 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
        */
       if (prefix === undefined) {
         if (!from) return null
-        const patterns = [from.value.pattern, ...(transitions()[from.value.pattern] ?? [])]
+        // This page, always — it is where the connection is. Then where the profile says its readers
+        // go, minus any the recording says are described and never followed.
+        const patterns = [
+          from.value.pattern,
+          ...(transitions()[from.value.pattern] ?? []).filter(worthDescribing),
+        ]
         const found = patterns
           .map((pattern) => routes.find((route) => route.pattern === pattern))
           .filter((route): route is GeneratedRoute => route !== undefined)
+        noteDescribed(
+          channel,
+          found.map((route) => route.pattern),
+        )
         return { prefix: from.value.pattern, routes: found.map((route) => describe(route, shell)) }
       }
       // `/checkout/*` and `/checkout` ask the same thing. The star is how the design spells it.
       const under = prefix.replace(/\/?\*$/, '')
+      // A prefix somebody *asked* about is described whatever the recording says. The measurement is
+      // about what this deployment volunteers, and a question is not a volunteer.
       const found = routes.filter((route) => route.pattern.startsWith(under))
       if (!found.length) return null
+      noteDescribed(
+        channel,
+        found.map((route) => route.pattern),
+      )
       return { prefix, routes: found.map((route) => describe(route, shell)) }
     },
   })
 
+  /**
+   * What each connection was last told the shell exposes.
+   *
+   * Held so a change can be sent as a change. Recomputing the exposed set after a mutation and
+   * sending all of it would work and would also send a `SIGNAL` for every name on every write, which
+   * turns the one channel between a shell and its regions into a firehose the regions have to filter.
+   */
+  const exposedTo = new Map<string, Record<string, string>>()
+
+  /**
+   * The shell's declaration, as the frame that carries it.
+   *
+   * One frame with a body rather than one per name: this is the whole set at once, it is sent once
+   * per connection, and a frame per name would be a frame per name. A `SIGNAL` with no `name` header
+   * is the declaration; one with a name is a single value changing. The client tells them apart the
+   * same way.
+   */
+  const declareExposed = async (channel: { id: string }): Promise<Frame[]> => {
+    const from = here(channel)
+    if (!from) return []
+    const values = await from.value.exposed(from.params)
+    if (!Object.keys(values).length) return []
+    exposedTo.set(channel.id, values)
+    return [frame('SIGNAL', {}, utf8.encode(JSON.stringify(values)), true)]
+  }
+
+  /**
+   * Exposed values that changed, told to the connections showing them.
+   *
+   * A shell signal changes because something wrote what it is derived from, and the only thing here
+   * allowed to write is an intent — so this runs after one, for the same reason a `STALE` does. What
+   * it deliberately does not do is re-render anything: an exposed value is a shell value, the shell
+   * is cheap, and a region decides for itself what a new value means for its own markup.
+   */
+  const republishExposed = async (except?: string): Promise<void> => {
+    for (const [id, previous] of exposedTo) {
+      if (id === except) continue
+      const from = here({ id })
+      if (!from) continue
+      const values = await from.value.exposed(from.params)
+      const changed = Object.entries(values).filter(([name, value]) => previous[name] !== value)
+      if (!changed.length) continue
+      exposedTo.set(id, values)
+      // Through the channel rather than the hub: the hub's own broadcast is `notify`, which is about
+      // cache keys, and a shell value is not one — nobody holds it as an entry.
+      await hub.get(id)?.send(changed.map(([name, v]) => frame('SIGNAL', { name, v })))
+    }
+  }
+
+  /**
+   * The render-intent dispatch, sharing every gate with the intent one.
+   *
+   * The same capability check, the same verifier, the same limiter — bound from the same place, so a
+   * capability enforced on a mutation and not on a render would be a capability with a documented way
+   * around it. What this adds over the intent dispatch is the catalogue, and the catalogue is the
+   * registry's.
+   */
+  const renders = createRenderDispatch({
+    registry,
+    ...(authority.model ? { capabilities: authority.model.check } : {}),
+    ...(authority.verifier ? { verify: authority.verifier } : {}),
+    ...(limits ? { limits } : {}),
+  })
+
   const hub = createHub({
     store,
-    source: liveSource(routes, at, ports),
+    source: liveSource(routes, at, ports, composeRegion, {
+      renders,
+      names: catalogue.names,
+      ports,
+    }),
     /**
      * The real dispatch, with the framework's own live keys folded into what it dropped.
      *
@@ -481,6 +785,9 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
       run: async (id, raw, ctx, credentials) => {
         const outcome = await dispatch.run(id, raw, ctx, credentials)
         if (!outcome.ok) return outcome
+        // A shell value a region reads may be derived from what this intent just wrote, and a region
+        // has no other way to hear about it: the exposed set is the only channel there is.
+        await republishExposed()
         const extra = keysFor(outcome.invalidated)
         return { ...outcome, dropped: [...new Set([...outcome.dropped, ...extra])] }
       },
@@ -504,7 +811,12 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     },
     templates: (version) => compiled.templates.find((t) => t.version === version),
     warm: { at: stager, plan: discovery.warm },
-    onOpen: discovery.open,
+    // The two things a connection is told without asking, in one place: the part of the plan it has
+    // no way to know it is missing, and the shell values its regions are allowed to read.
+    onOpen: async (channel) => [
+      ...((await discovery.open(channel)) ?? []),
+      ...(await declareExposed(channel)),
+    ],
   })
 
   return {
@@ -512,6 +824,7 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     discovered,
     compiled,
     intents,
+    catalogue,
     routes,
     store,
     hub,
@@ -522,12 +835,20 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     // says what it is, and folding a different kind of warning into it would make that heading lie.
     // Authority's warnings live on `authority.diagnostics` and are printed as their own.
     diagnostics: compiled.diagnostics,
+    regions: regionReport,
+    warnings: [
+      ...authority.diagnostics,
+      ...(regionReport?.errors ?? []).map(
+        (issue) => `${issue.code}: region '${issue.slot}' — ${issue.message}. \`weft verify\` is the gate`,
+      ),
+    ],
     authority,
     mode,
     ports,
     recorder,
     decided,
     keysFor,
+    republishExposed,
   }
 }
 
@@ -549,20 +870,116 @@ function liveSource(
   routes: GeneratedRoute[],
   at: Map<string, Connection>,
   ports: Ports,
-): (request: { slot: string; channel: { id: string } }) => Promise<SlotRender | null> {
+  composeRegion: (route: GeneratedRoute) => ChannelRegions,
+  catalogue: {
+    renders: ReturnType<typeof createRenderDispatch>
+    /** Declared name to opaque id, so markup a person wrote can name an entry. */
+    names: Record<string, string>
+    ports: Ports
+  },
+): (request: SlotRequest) => Promise<SlotRender | SlotFrames | null> {
   const router = createRouter(routes.map((route) => ({ pattern: route.pattern, value: route })))
-  return async ({ slot, channel }) => {
+  return async ({ slot, channel, frame: asked }) => {
     const connection = at.get(channel.id)
     if (!connection) return null
     const url = new URL(connection.path, 'http://weft.local')
     const matched = router.match(url)
     if (!matched) return null
+    const ctx = channelContext(url, matched.params, connection.cookie, ports)
+
+    /**
+     * A render intent: `REFRESH s=<slot> r=<id>`, which is the same question with a source named.
+     *
+     * Two checks live here rather than in the dispatch, because both are route knowledge and a
+     * channel has none. The slot has to be a hole on the page this connection is showing — a
+     * catalogue entry rendered into a slot that is not on the page is a frame the client refuses
+     * anyway, and refusing it here says why. And the id may be the entry's declared name, because
+     * markup a person wrote has to be able to name one; what travels on the wire is still the id.
+     */
+    const named = asked ? str(asked, 'r') : undefined
+    if (named) {
+      if (!matched.value.holes.includes(slot)) {
+        return {
+          also: [
+            frame('ERROR', {
+              code: 'E_NO_SUCH_SLOT',
+              detail: `${matched.value.pattern} has no hole '${slot}'. Its holes are ${matched.value.holes.join(', ')}`,
+            }),
+          ],
+        }
+      }
+      const outcome = await catalogue.renders.run(
+        {
+          id: catalogue.names[named] ?? named,
+          slot,
+          raw: asked?.body ? (JSON.parse(new TextDecoder().decode(asked.body)) as unknown) : {},
+          ctx,
+          ...(channel.held.get(slot) ? { held: [channel.held.get(slot)?.tpl as string] } : {}),
+          ...(str(asked as Frame, 'epoch') ? { epoch: str(asked as Frame, 'epoch') as string } : {}),
+        },
+        // The gates run against an envelope context, because a capability check resolves a subject
+        // and a verifier reads a token. The entry's own loader gets `ctx` above, which cannot write.
+        renderContextFor(url, matched.params, connection.cookie, catalogue.ports),
+      )
+      if (outcome.ok) return outcome.source as SlotRender | SlotFrames
+      return {
+        also: [
+          frame('ERROR', {
+            code: outcome.code ?? 'E_RENDER_FAILED',
+            detail: outcome.detail ?? '',
+            s: slot,
+          }),
+        ],
+      }
+    }
+    /**
+     * A region on another deployment, refreshed.
+     *
+     * Asked before this route's own slots, because the two name spaces are the same one: a hole is
+     * either filled from here or from somewhere else, never both — the plan layer refuses a remote
+     * region with a local binding — so whichever answers first is the only one that can.
+     *
+     * There is no `live` gate on this branch, and that is not an oversight. `live` says "this
+     * process may re-render the slot under a reader", which is a statement about a fragment this
+     * process holds. A region's freshness is the region's own business; refusing to ask it would be
+     * this deployment deciding something it has no view of.
+     */
+    const spec = matched.value.remote[slot]
+    if (spec) {
+      const reads = await readsFor(ctx, spec.contract)
+      return composeRegion(matched.value)({
+        slot,
+        channel,
+        request: { route: matched.value.pattern, params: matched.params, ...(reads ? { reads } : {}) },
+      })
+    }
     const live = matched.value.live[slot]
     if (!live) return null
-    const ctx = channelContext(url, matched.params, connection.cookie, ports)
     const values = await live.load(ctx, matched.params)
     return { ir: live.fragment.entry, values, resolve: live.fragment.resolve, key: live.key, prefer: 'delta' }
   }
+}
+
+/**
+ * The envelope context a render intent's *gates* run against.
+ *
+ * A channel has no request, so this builds one from what the connection said — the same inputs
+ * `channelContext` uses. It is an envelope context and not a render one because a capability check
+ * resolves a subject and a verifier reads a token, and both of those are things a request that can
+ * still be refused does. Nothing in it reaches the entry's own loader.
+ */
+function renderContextFor(
+  url: URL,
+  params: Record<string, string>,
+  cookie: string,
+  ports: Ports,
+): EnvelopeContext {
+  const life = lifecycle()
+  const envelope = createEnvelope(life)
+  life.to('envelope')
+  const headers = new Headers()
+  if (cookie) headers.set('cookie', cookie)
+  return envelopeContext(createReads(requestFacts(new Request(url, { headers }), params), ports), envelope)
 }
 
 /**
@@ -601,6 +1018,9 @@ export async function serveApp(app: App): Promise<Serving> {
     ports: app.ports,
     ...(app.authority.model ? { capabilities: app.authority.model.check } : {}),
     ...(app.authority.verifier ? { verify: app.authority.verifier } : {}),
+    // Both bindings or neither. A limit enforced over the channel and not over the POST path is a
+    // limit with a documented way around it, which is the same argument capabilities make.
+    ...(app.ports.limits ? { limits: app.ports.limits } : {}),
     returnTo: (request) => request.headers.get('referer') ?? '/',
   })
 
@@ -641,6 +1061,9 @@ export async function serveApp(app: App): Promise<Serving> {
       )
     }
     const tags = [...new Set(intents.entries.flatMap((entry) => entry.writes))]
+    // Both bindings again: a form post that left every open page's exposed values stale would be the
+    // channel binding quietly being the only one that works.
+    await app.republishExposed()
     if (tags.length) await hub.invalidate(tags, 'a form post wrote it')
     const keys = keysFor(tags)
     if (keys.length) await hub.notify(keys, 'a form post wrote it')

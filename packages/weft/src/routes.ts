@@ -1,10 +1,11 @@
 import { pathToFileURL } from 'node:url'
-import { baseRenderId, clientOwned, clientView, readsOf, type Values } from '@weft/ir'
+import { baseRenderId, clientOwned, clientView, readsOf, render, type Values } from '@weft/ir'
 import {
   createRouter,
   recordBase,
   type KernelSlot,
   type Ports,
+  type RegionSpec,
   type RenderContext,
   type RouteEntry,
   type RouteResolver,
@@ -16,9 +17,12 @@ import {
   guard as guardSpec,
   lowerPlan,
   plan as buildPlan,
+  region as regionSpec,
+  regionSpecOf,
   shell as shellSpec,
   slot as slotSpec,
   type Plan,
+  type RegionBuilder,
   type RouteBindings,
   type SlotBinding,
   type SlotFacts,
@@ -27,7 +31,13 @@ import { composedIn, slotHoles, type CompiledApp, type CompiledFragment } from '
 import { withServices } from './context.ts'
 import type { Decisions, Recorder, SlotDecision } from './profile.ts'
 import type { Discovered, DiscoveredRoute } from './convention.ts'
-import type { CacheDeclaration, RouteModule, SlotDeclaration } from './route.ts'
+import type {
+  BudgetDeclaration,
+  CacheDeclaration,
+  RegionDeclaration,
+  RouteModule,
+  SlotDeclaration,
+} from './route.ts'
 import { staticVerdict, type StaticVerdict } from './static.ts'
 import type { ExceedPolicy } from './types.ts'
 import type { ResolvedConfig } from './config.ts'
@@ -62,6 +72,24 @@ export interface GeneratedRoute {
    * be produced — and the gate for that is whether the route was asked for at all.
    */
   regions: Record<string, LiveSlot>
+  /**
+   * Regions of this route that render on another deployment, by slot name, as the composer needs them.
+   *
+   * Carried on the route because a region is composed on three paths and only one of them is the
+   * document request: a refresh over the channel and a route being staged both have to reach the same
+   * region with the same budget, the same contract and the same declared degradation. The derivation
+   * is the plan layer's — `regionSpecOf` — so nothing here can disagree with what the document did.
+   */
+  remote: Record<string, RegionSpec>
+  /**
+   * The shell values this route offers its regions, resolved for a set of params.
+   *
+   * The one channel between a shell and the regions inside it, read from the same `shellValues` the
+   * document rendered with rather than from a second source — so what a region is handed over the
+   * channel is what the page it is part of actually shows. Empty for a route that exposes nothing,
+   * which is every route until one says otherwise.
+   */
+  exposed(params: Record<string, string>): Promise<Record<string, string>>
   /** The document this route is rendered into. Two routes share regions only if they share it. */
   shell: { id: string; version: string }
   /** The title, resolved for a set of params, so a staged route can carry the one it will show. */
@@ -160,11 +188,28 @@ function cacheOf(
  * own flush, which is a question about milliseconds — and the declaration loses that one, because
  * the declaration was a guess and this is a measurement.
  */
-function applyPlacement(
-  builder: ReturnType<typeof slotSpec>,
-  declaration: SlotDeclaration,
-  decided?: SlotDecision,
-): ReturnType<typeof slotSpec> {
+/**
+ * The placement a slot and a region share, which is all of it except where the render happens.
+ *
+ * Structural rather than over `SlotBuilder`, because a region builder deliberately has no
+ * `executor` method: a region's executor is the reserved name meaning *the registry decides*, and a
+ * builder that could also be handed a tier would be two answers to one question. Everything else —
+ * delivery, cache, budget, refresh, form, needs — is identical, which is the point the plan layer
+ * makes by building a region out of a slot in the first place.
+ */
+interface Placeable {
+  stream(options?: { prio?: number }): unknown
+  buffered(): unknown
+  cache(...args: Parameters<ReturnType<typeof slotSpec>['cache']>): unknown
+  incremental(): unknown
+  budget(spec: BudgetDeclaration): unknown
+  refresh(everyMs: number): unknown
+  form(spec: NonNullable<SlotDeclaration['form']>): unknown
+  needs(...slots: string[]): unknown
+  executor?(target: string): unknown
+}
+
+function applyPlacement(builder: Placeable, declaration: SlotDeclaration, decided?: SlotDecision): void {
   const stream = declaration.stream
   if (decided?.delivery === 'stream') builder.stream(decided.prio === undefined ? {} : { prio: decided.prio })
   else if (decided?.delivery === 'buffered') builder.buffered()
@@ -176,11 +221,35 @@ function applyPlacement(
   const cache = cacheOf(declaration.cache)
   if (cache) builder.cache(...cache)
   if (declaration.incremental) builder.incremental()
-  if (declaration.executor) builder.executor(declaration.executor)
+  // A region has no `executor` method by construction and generateOne refuses the combination by
+  // name before it gets here, so this cannot silently drop one.
+  if (declaration.executor) builder.executor?.(declaration.executor)
   if (declaration.budget) builder.budget(declaration.budget)
   if (declaration.refresh !== undefined) builder.refresh(every(declaration.refresh))
   if (declaration.form) builder.form(declaration.form)
   if (declaration.needs?.length) builder.needs(...declaration.needs)
+}
+
+/**
+ * A region, as the plan layer's builder, from what the route declared.
+ *
+ * The one thing this does *not* transcribe is where the region runs. `remote` says a boundary is
+ * crossed and the contract says what the shell expects to find on the far side; which deployment
+ * that is comes from `weft.config.ts`, so rolling a region is a write there rather than a rebuild
+ * here. That omission is the whole reason the registry is a port.
+ */
+function regionOf(name: string, region: RegionDeclaration): RegionBuilder {
+  const builder = regionSpec(name)
+  if (region.remote) {
+    builder.remote(typeof region.remote === 'object' ? region.remote : undefined)
+  } else {
+    builder.local()
+  }
+  if (region.fallback) builder.fallback(region.fallback)
+  if (region.optional) builder.optional()
+  if (region.csp) builder.csp(region.csp)
+  if (region.consumes?.length) builder.consumes(...region.consumes)
+  if (region.critical) builder.critical()
   return builder
 }
 
@@ -397,7 +466,7 @@ function wrapSlot(
   name: string,
   pattern: string,
   params: Record<string, string>,
-  fragment: CompiledFragment,
+  fragment: CompiledFragment | undefined,
   captured: WeakMap<object, Map<string, Values>>,
   expose: readonly string[],
   live: boolean,
@@ -450,8 +519,16 @@ function wrapSlot(
        * fell back to sending the region's HTML — the delta path only started working on the
        * second interaction, which is the one nobody measures and everybody notices.
        */
-      if (live && values) await recordBase(store, fragment.entry, values)
-      const script = values ? adoptScript(name, fragment, values, { expose, live }) : null
+      if (live && fragment && values) await recordBase(store, fragment.entry, values)
+      /**
+       * A remote region ships no adopt payload from here, and that is the right silence.
+       *
+       * Adoption binds a template this process compiled to markup this process rendered. A region's
+       * markup came from another deployment along with its own templates, in its own frames — so the
+       * payload that binds it is the region's to send, and one written here would describe a
+       * template this process has never seen.
+       */
+      const script = fragment && values ? adoptScript(name, fragment, values, { expose, live }) : null
       const tail = utf8.encode(script ? `</div>${script}` : '</div>')
       const out = new Uint8Array(open.length + bytes.length + tail.length)
       out.set(open, 0)
@@ -559,8 +636,29 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
   // Every layout hole is filled, in document order. `body` is the route's own file; anything
   // else is the route's declaration, then a global `app/slots/<name>.tsx`, then empty markup —
   // because an unfilled hole is a build error in the plan layer and silence is worse than a box.
-  const declarations: Record<string, { declaration: SlotDeclaration; fragment: CompiledFragment }> = {}
+  const declarations: Record<string, { declaration: SlotDeclaration; fragment?: CompiledFragment }> = {}
   for (const name of holes) {
+    /**
+     * A region that renders somewhere else has no local fragment, and that is not a gap to fill.
+     *
+     * Every other branch below resolves a slot to compiled bytes-producer in this process. A remote
+     * region's producer is another deployment, so there is nothing here to name — what stands in for
+     * it is the contract, which is where its reads and therefore the document's cache class come
+     * from. Anything that reaches for a fragment past this point has to cope with its absence, and
+     * the type says so rather than a comment.
+     */
+    const asked = module_.slots?.[name]
+    if (asked?.region?.remote) {
+      if (asked.executor) {
+        throw new GenerateError(
+          'E_REGION_EXECUTOR',
+          `${route.pattern} slot '${name}' is a region and names executor '${asked.executor}'. A ` +
+            `region's executor is the registry's answer, so declaring one here is two answers to one question`,
+        )
+      }
+      declarations[name] = { declaration: asked }
+      continue
+    }
     if (name === 'body' && (page || body)) {
       // A declared body wins, and is the only way a route with no `.tsx` renders anything: a page
       // whose content is markup rather than a template should not need an empty template file.
@@ -613,13 +711,17 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
       const decided = options.profile?.routes
         .find((r) => r.route === route.pattern)
         ?.slots.find((s) => s.slot === name)
-      return applyPlacement(slotSpec(name).fragment(fragment.entry.id), declaration, decided)
+      const builder = declaration.region ? regionOf(name, declaration.region) : slotSpec(name)
+      if (fragment) builder.fragment(fragment.entry.id)
+      applyPlacement(builder, declaration, decided)
+      return builder
     }),
   ]
 
   const plan = buildPlan(route.pattern, entries, {
     maxConcurrency: module_.maxConcurrency ?? options.maxConcurrency,
     ...(module_.document ? { cache: module_.document } : {}),
+    ...(module_.exposes?.length ? { exposes: module_.exposes } : {}),
   })
 
   // Values captured on the way through, so the adopt payload is derived from the render that
@@ -630,30 +732,56 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
   const slots: Record<string, SlotBinding> = {}
   const live: Record<string, LiveSlot> = {}
   const regions: Record<string, LiveSlot> = {}
+  /**
+   * The bytes behind a region's declared degradation, resolved once here rather than per failure.
+   *
+   * A `fallback` names a fragment and the plan layer refuses a name nothing supplies bytes for, so
+   * this is where the name becomes bytes: rendered with no values, because a fallback that needed a
+   * loader would need the loader that just failed.
+   */
+  const degraded: Record<string, { fallback?: Uint8Array; placeholder?: Uint8Array }> = {}
   for (const name of holes) {
     const { declaration, fragment } = declarations[name] as (typeof declarations)[string]
     const values = valuesOf(declaration, options.ports)
-    slots[name] = {
-      fragment: { entry: fragment.entry, resolve: fragment.resolve },
-      values: async (ctx, params) => {
-        const resolved = await values(ctx, params)
-        const per = captured.get(ctx as unknown as object) ?? new Map<string, Values>()
-        per.set(name, resolved)
-        captured.set(ctx as unknown as object, per)
-        return resolved
-      },
-      ...(declaration.placeholder
-        ? { placeholder: utf8.encode(declaration.placeholder) }
-        : { placeholder: utf8.encode('<p class="weft-skeleton"></p>') }),
+    if (declaration.region) {
+      const named = declaration.region.fallback
+      const found = named ? compiled.fragments[`fragment:${named}`] : undefined
+      if (named && !found) {
+        throw new GenerateError(
+          'E_NO_SUCH_FRAGMENT',
+          `${route.pattern} region '${name}' declares fallback '${named}', and app/fragments/${named}.tsx does not exist`,
+        )
+      }
+      degraded[name] = {
+        ...(found ? { fallback: render(found.entry, {} as Values, found.resolve) } : {}),
+        ...(declaration.placeholder ? { placeholder: utf8.encode(declaration.placeholder) } : {}),
+      }
     }
-    const region: LiveSlot = {
-      fragment,
-      load: values,
-      key: `weft:${route.pattern}:${name}`,
-      tags: declaration.cache?.tags ?? [],
+    // A remote region has no local binding by construction, and the plan layer refuses one that
+    // does: two things claiming to render a slot is worse than one of them being somewhere else.
+    if (fragment) {
+      slots[name] = {
+        fragment: { entry: fragment.entry, resolve: fragment.resolve },
+        values: async (ctx, params) => {
+          const resolved = await values(ctx, params)
+          const per = captured.get(ctx as unknown as object) ?? new Map<string, Values>()
+          per.set(name, resolved)
+          captured.set(ctx as unknown as object, per)
+          return resolved
+        },
+        ...(declaration.placeholder
+          ? { placeholder: utf8.encode(declaration.placeholder) }
+          : { placeholder: utf8.encode('<p class="weft-skeleton"></p>') }),
+      }
+      const region: LiveSlot = {
+        fragment,
+        load: values,
+        key: `weft:${route.pattern}:${name}`,
+        tags: declaration.cache?.tags ?? [],
+      }
+      regions[name] = region
+      if (declaration.live) live[name] = region
     }
-    regions[name] = region
-    if (declaration.live) live[name] = region
   }
 
   // Cascade order: the layout's, then every fragment this page renders — including the ones it
@@ -661,6 +789,9 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
   const rendered = new Set<CompiledFragment>([layout])
   for (const name of holes) {
     const fragment = (declarations[name] as (typeof declarations)[string]).fragment
+    // A remote region's stylesheet is its own, and it travels with its frames rather than in this
+    // page's bundle. A composite that inlined it would be shipping bytes it cannot version.
+    if (!fragment) continue
     rendered.add(fragment)
     for (const child of composedIn(compiled, fragment)) rendered.add(child)
   }
@@ -731,7 +862,17 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     )
   }
 
-  const resolver = lowerPlan(plan, { facts, executors: Object.keys(options.config.executors) }, bindings)
+  const composes = plan.slots.some((slot) => slot.region)
+  const resolver = lowerPlan(
+    plan,
+    { facts, executors: Object.keys(options.config.executors) },
+    {
+      ...bindings,
+      // Only when the route composes one. A plan with no region needs no ports here, and passing
+      // them anyway would make every route look like a composite in `weft why`.
+      ...(composes ? { regions: { ports: options.ports, degraded } } : {}),
+    },
+  )
   const order = module_.order
   /**
    * Slots whose budget is a function of the request, and the declared one they override.
@@ -790,6 +931,23 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     }
   }
 
+  const exposes = plan.exposes
+  const exposed = async (params: Record<string, string>): Promise<Record<string, string>> => {
+    if (!exposes.length) return {}
+    const values = (await bindings.shellValues?.(params)) ?? ({} as Values)
+    const record = values as unknown as Record<string, unknown>
+    // Stringified for the reason the server side stringifies them: these cross a serialisation on
+    // their way to another deployment, and a value that was a number in one topology and a string in
+    // the other is a bug that only shows up in one of them.
+    return Object.fromEntries(exposes.map((name) => [name, String(record[name] ?? '')]))
+  }
+
+  const remote: Record<string, RegionSpec> = {}
+  for (const spec of plan.slots) {
+    if (!spec.region || spec.region.locus !== 'remote') continue
+    remote[spec.name] = regionSpecOf(spec, spec.region, degraded[spec.name])
+  }
+
   return {
     pattern: route.pattern,
     plan,
@@ -797,6 +955,8 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     module: module_,
     live,
     regions,
+    remote,
+    exposed,
     shell: { id: layout.entry.id, version: layout.entry.version },
     titleFor: (params) => {
       const resolved = typeof head === 'function' ? head(params) : (head ?? {})
@@ -808,12 +968,15 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
       pattern: route.pattern,
       module: module_,
       shell: layout,
-      slots: holes.map((name) => ({
-        name,
-        fragment: (declarations[name] as (typeof declarations)[string]).fragment,
-        declaration: (declarations[name] as (typeof declarations)[string]).declaration,
-        streams: plan.slots.find((slot) => slot.name === name)?.delivery === 'stream',
-      })),
+      slots: holes.map((name) => {
+        const held = declarations[name] as (typeof declarations)[string]
+        return {
+          name,
+          ...(held.fragment ? { fragment: held.fragment } : {}),
+          declaration: held.declaration,
+          streams: plan.slots.find((slot) => slot.name === name)?.delivery === 'stream',
+        }
+      }),
     }),
   }
 }

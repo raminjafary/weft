@@ -1,5 +1,5 @@
 import type { Values } from '@weft/ir'
-import type { EnvelopeContext, RenderContext } from '@weft/kernel'
+import type { EnvelopeContext, RegionContract, RenderContext } from '@weft/kernel'
 import type { LoaderContext } from './context.ts'
 import type { ExceedPolicy, PolicyClass, WireForm } from './types.ts'
 
@@ -49,6 +49,37 @@ export type BudgetFor = (request: { params: Record<string, string>; query: URLSe
   onExceed?: ExceedPolicy
 }
 
+/**
+ * A slot that is a fragment living somewhere else.
+ *
+ * The front door's half of composition, and it declares the same three things the plan layer's
+ * `region()` builder does: whether this region crosses a boundary, what the shell was built
+ * expecting it to serve, and what the reader gets when it is having a bad afternoon. What it
+ * deliberately does not declare is *where* — a shell naming the tier would make rolling that region
+ * a redeploy of every shell that names it, so the deployment says where in `weft.config.ts` and the
+ * route says only that there is a boundary.
+ */
+export interface RegionDeclaration {
+  /**
+   * It crosses a deployment boundary, and what the shell expects to find on the other side.
+   *
+   * `true` declares the boundary and describes nothing, which is legal and expensive: an
+   * undescribed region reads `opaque`, so the document containing it is uncacheable and private.
+   * Unknown is not nothing.
+   */
+  remote?: boolean | RegionContract
+  /** A fragment rendered in this region's place when it fails, by name under `app/fragments/`. */
+  fallback?: string
+  /** Failure is invisible: an empty hole and nobody paged. */
+  optional?: boolean
+  /** Directives this region needs. Merged into the document's one policy, and refused on conflict. */
+  csp?: Record<string, readonly string[]>
+  /** Shell signals this region reads. Checked against `defineRoute({ exposes })`. */
+  consumes?: string[]
+  /** Ours, and in the first flush. A remote region may not be critical: the flush cannot wait. */
+  critical?: boolean
+}
+
 export interface SlotDeclaration {
   /**
    * Which fragment renders it, by name under `app/fragments/`. Omitted for the `body` slot,
@@ -79,6 +110,8 @@ export interface SlotDeclaration {
    * STALE frame for exactly the connections showing it.
    */
   live?: boolean
+  /** This slot is a region: a fragment that may render on another deployment. */
+  region?: RegionDeclaration
 }
 
 export interface HeadDeclaration {
@@ -147,8 +180,24 @@ export interface RouteModule {
    * and nothing else does. This is for a value the browser needs for a reason the template cannot
    * show, and everything not listed stays on the server, where a value with no reason to travel
    * belongs.
+   *
+   * Not to be confused with `exposes` below, which is one letter away and a different mechanism:
+   * this decides which of a *slot's* values reach that slot's own client code, and that decides
+   * which of the *shell's* values reach a region's.
    */
   expose?: string[]
+  /**
+   * Shell values this page offers its regions, by name — the design's `expose({ locale, cartCount })`.
+   *
+   * Deliberately the only channel between a shell and the regions inside it, and deliberately
+   * declared rather than discovered: the value of a single channel is that it can be checked, so a
+   * region declaring `consumes: ['locale']` on a page that exposes nothing is a build error rather
+   * than a region reading a global that happens to exist on one page and not on another.
+   *
+   * A name here has to be a value the shell actually renders with, because that is what is sent —
+   * the value at render time in the document, and a `SIGNAL` frame afterwards whenever it changes.
+   */
+  exposes?: string[]
 }
 
 /** Identity, typed. The build reads the object; nothing here runs on a request. */

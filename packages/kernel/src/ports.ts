@@ -1,5 +1,6 @@
 import type { CacheClass, Resolver, TemplateIR, Values } from '@weft/ir'
 import type { Intent } from './intent.ts'
+import type { Renderable } from './render-intent.ts'
 
 /**
  * The ports. One active implementation each, and the kernel knows nothing else about the
@@ -26,8 +27,9 @@ export type PortName =
   | 'config'
   | 'db'
   | 'deployment'
+  | 'limits'
 
-/** Thirteen ports are declared. Seven are load-bearing today; the rest refuse rather than pretend. */
+/** Fourteen ports are declared. None of them is approximated: an unbound one refuses by name. */
 export const PORTS: readonly PortName[] = [
   'render',
   'store',
@@ -42,6 +44,7 @@ export const PORTS: readonly PortName[] = [
   'config',
   'db',
   'deployment',
+  'limits',
 ]
 
 export class PortError extends Error {
@@ -118,6 +121,22 @@ export interface StorePort {
   invalidate(tags: string[]): Promise<string[]>
   /** Stampede lease. A null return means somebody else holds it and this caller should wait or serve stale. */
   lease(key: string, ttlMs: number): Promise<Lease | null>
+  /**
+   * How far a *lease* is remembered, when that is not how far an entry travels.
+   *
+   * `scope` above answers "who can read what this holds", and a tiered store refuses to write a
+   * private entry to a shared tier on the strength of it. A lease answers a different question — how
+   * many processes agree that somebody already took this — and the two were the same field until
+   * something needed them to differ.
+   *
+   * What needed it: replay. A nonce is spent by taking a lease nobody releases, so replay protection
+   * is exactly as wide as the lease, and a deployment that wanted per-deployment single-use had to
+   * make its whole *cache* shared to get it — which is a much larger decision, made for a reason that
+   * has nothing to do with caching. Split, a process-local cache can take shared leases, which is
+   * what `sharedLeases` in `@weft/adapters` does. Absent, it is `scope`, which is what every store
+   * that has one answer for both means.
+   */
+  readonly leaseScope?: Scope
   /** `waitUntil` on Workers, a task queue on Node. Revalidation happens after the response, or not at all. */
   revalidateAfterResponse(task: () => Promise<void>): void
 }
@@ -317,6 +336,21 @@ export interface Registry {
   region?(name: string): Promise<RegionBinding | undefined> | RegionBinding | undefined
   /** Every region this registry can resolve. For a build report, and for `weft verify`. */
   regions?(): readonly string[]
+  /**
+   * An opaque id to a fragment a client may ask to have rendered — the design's module catalogue.
+   *
+   * The third question this port answers, and the one that makes "rendering as a service, by passing
+   * component names over the wire" safe rather than alarming: the name on the wire is opaque and
+   * derived, so it discloses no server code, and what is behind it is a registry entry rather than a
+   * table compiled into the page — so an entry can be served by this process today and by a region on
+   * another deployment tomorrow without the client knowing either way.
+   *
+   * Optional, and an absent implementation is `E_NO_CATALOGUE` rather than an empty catalogue. A
+   * deployment that offers nothing renderable should refuse the question, not answer it with silence.
+   */
+  renderable?(id: string): Promise<Renderable | undefined> | Renderable | undefined
+  /** Every renderable id. For a build report, and so a page can be told what it may ask for. */
+  renderables?(): readonly string[]
 }
 
 /**
@@ -478,6 +512,79 @@ export interface RequestFacts {
   params: Record<string, string>
 }
 
+// ── limits ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * How often one caller may do something, and the one decision this port exists to refuse to make.
+ *
+ * The design puts rate limiting in the authority tier and it belongs there — but it is the piece of
+ * that tier a kernel cannot implement, because the whole question is *what a call is counted
+ * against*. An address is wrong behind a proxy and wrong for mobile carriers. A session is wrong for
+ * an unauthenticated API. A subject is wrong for the calls made before anybody signs in. Which of
+ * the three is right is a property of the deployment, and a kernel picking one would be guessing
+ * with a straight face.
+ *
+ * So an intent declares how much traffic it can take — that is its own business, and a mutation that
+ * writes to a payment provider knows something the deployment does not. And the port decides who is
+ * being counted. Neither half can be inferred from the other, which is why this is a port and not a
+ * number in a config file.
+ *
+ * Unbound, an intent that declares a limit is `E_NO_RATE_LIMIT` rather than unlimited — the same
+ * argument as an unchecked capability, one step further along: a limit nothing enforces reads as a
+ * protection that is not there.
+ */
+export interface LimitPort {
+  readonly name: string
+  /**
+   * Whether this call may proceed. Called before the signature is verified, because it is the
+   * cheapest of the three checks and the one that protects the other two: a caller hammering with
+   * forged tokens should be turned away before an Ed25519 verification is done on their behalf.
+   */
+  check(request: LimitRequest): Promise<LimitDecision> | LimitDecision
+}
+
+/** What an intent said about its own capacity. How much, over how long, and nothing about whom. */
+export interface IntentLimit {
+  /** Calls allowed inside the window. */
+  max: number
+  /** The window, in milliseconds. */
+  windowMs: number
+}
+
+/**
+ * What the port is told, which is exactly the three things the design says a limit can be counted
+ * against and nothing else.
+ *
+ * Not the whole request, deliberately. A port handed `RequestFacts` could count against anything —
+ * a path, a query string, the body — and a limit counted against something nobody can enumerate is
+ * a limit nobody can reason about. An address, a session and a subject are the three; a header, a
+ * cookie and `subject` are how each of them is reached, through the same tracked read surface a
+ * fragment uses rather than around it.
+ */
+export interface LimitRequest {
+  /** The intent's opaque id, which is what travelled on the wire. */
+  id: string
+  /** Its declared name, for a message somebody has to read. */
+  intent: string
+  limit: IntentLimit
+  /** The subject, when there is one. Resolved once here rather than by every implementation. */
+  subject: string | null
+  /** For counting against an address, which is a header behind every real proxy. */
+  header(key: string): string | undefined
+  /** For counting against a session, which is where an unauthenticated caller has an identity. */
+  cookie(key: string): string | undefined
+}
+
+export type LimitDecision =
+  | { ok: true; remaining?: number }
+  | {
+      ok: false
+      /** What the call was counted against, for a log. Never for the caller: it identifies them. */
+      counted: string
+      /** Milliseconds until the window rolls, when the implementation can say. */
+      retryAfterMs?: number
+    }
+
 export interface Ports {
   store: StorePort
   flags: FlagPort
@@ -492,6 +599,7 @@ export interface Ports {
   config?: ConfigPort
   db?: DbPort
   deployment?: DeploymentPort
+  limits?: LimitPort
 }
 
 export function requestFacts(request: Request, params: Record<string, string> = {}): RequestFacts {

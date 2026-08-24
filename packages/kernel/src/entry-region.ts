@@ -12,7 +12,7 @@
  * for it once and can be measured against a number of its own.
  */
 export * from './entry-request.ts'
-export { createComposer, readRegion, announceRegion, regionStream, RegionError } from './region.ts'
+export { createComposer, readRegion, readsFor, announceRegion, regionStream, RegionError } from './region.ts'
 export type {
   Composer,
   ComposeOptions,

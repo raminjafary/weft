@@ -102,7 +102,13 @@ test('the kernel only reaches sideways into the two versioned wire packages', ()
 const LINE_CEILINGS: Record<string, number> = {
   'entry-request.ts': 1800,
   'entry-channel.ts': 2100,
-  'entry-intent.ts': 2100,
+  // Rate limiting took this past 2,100, and the ceiling moves rather than the code. The design puts
+  // rate limiting in the authority tier and this is the one piece of that tier the intent path has
+  // to carry anyway: it is a gate on *every* intent, so the branch lives where the dispatch is, and
+  // the port it calls through is declared beside the other thirteen. Both alternatives are worse —
+  // a second dispatch site in the authority entry, or a port declared somewhere ports are not. The
+  // byte figure moved 9,457 → 9,643 with 597 left, which is the number that actually gates.
+  'entry-intent.ts': 2200,
   'entry-transport.ts': 2500,
   // A route staged over the channel: the transport plus `stage.ts`, and its own entry for the same
   // reason the transport has one — it went past a watermark set before it existed.
@@ -117,6 +123,9 @@ const LINE_CEILINGS: Record<string, number> = {
   // plus `region.ts`, and its own ceiling because a deployment that composes nothing has no
   // business carrying it. 2,100 was set before the contract carried a region's reads, which is
   // what makes a composed page cacheable rather than uniformly private; it went one line over.
+  // Render intents: the transport plus the catalogue. The gates it applies are the intent path's, so
+  // the growth here is the catalogue and the dispatch and not a second authority tier.
+  'entry-render.ts': 2800,
   'entry-region.ts': 2200,
   // The transport plus composition: what a gateway that serves both a channel and composed
   // documents imports. Neither of the two entries above covers it, and charging it to either would

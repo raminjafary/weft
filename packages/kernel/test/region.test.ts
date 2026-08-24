@@ -176,6 +176,24 @@ test('every downlink frame is either one a region sends or one with a stated rea
   assert.deepEqual(unclassified, [])
 })
 
+test('an unscoped SIGNAL is the composite’s, so a region sending one is an escape', () => {
+  // The one frame kind a region may send that does not address a slot. Left unchecked it would let a
+  // region write a value its siblings read, which is the coupling the exposed set exists instead of.
+  assert.throws(
+    () => readRegion('search', answer('search', [frame('SIGNAL', { name: 'locale', v: 'ar' })])),
+    /E_REGION_ESCAPE.*SIGNAL naming no slot/s,
+  )
+})
+
+test('a region’s own signal is allowed once it says whose it is', () => {
+  const read = readRegion(
+    'search',
+    answer('search', [frame('SIGNAL', { s: 'search', name: 'query', v: 'sumac' })]),
+  )
+  assert.equal(read.frames.length, 1)
+  assert.equal(read.frames[0]?.kind, 'SIGNAL')
+})
+
 test('a region that could send a SHELL could replace the page it is part of', () => {
   assert.throws(
     () => readRegion('search', answer('search', [frame('SHELL', { route: '/evil' })])),

@@ -96,7 +96,7 @@ export async function dev(
       return serving.url
     },
     get warnings() {
-      return serving.app.authority.diagnostics
+      return serving.app.warnings
     },
     close: async () => {
       closing = true

@@ -11,6 +11,7 @@ import {
   type Frame,
   type FrameKind,
 } from '@weft/warp'
+import type { Reads } from './context.ts'
 import { degrade, inlineExecutor, type ExceedPolicy, type KernelExecutor } from './executor.ts'
 import type { Ports, RegionBinding, RegionContract } from './ports.ts'
 
@@ -183,6 +184,26 @@ export function readRegion(region: string, bytes: Uint8Array, contract?: RegionC
     const why = REFUSED[f.kind]
     if (why) throw new RegionError('E_REGION_FRAME', region, `sent ${f.kind}: ${why}`)
 
+    /**
+     * A `SIGNAL` that names no slot is the composite's, and a region may not send one.
+     *
+     * Every other frame a region sends addresses a slot, so the check below is enough for it. A
+     * signal does not: it carries a name out of a namespace the shell also writes into, which is
+     * how a shell offers `locale` to the regions inside it. An unscoped one arriving from a region
+     * would let that region set a value its siblings read — the exact coupling the exposed set
+     * exists instead of, arriving through the back door.
+     *
+     * So a region's signals have to say whose they are, and then the escape check does the rest.
+     */
+    if (f.kind === 'SIGNAL' && !str(f, 's')) {
+      throw new RegionError(
+        'E_REGION_ESCAPE',
+        region,
+        `sent a SIGNAL naming no slot. An unscoped signal is the composite's — it is how a shell ` +
+          `exposes a value to its regions — so a region's own must carry s=${region}`,
+      )
+    }
+
     for (const name of slotsNamed(f)) {
       if (name !== region && !name.startsWith(`${region}:`)) {
         throw new RegionError(
@@ -262,10 +283,71 @@ export interface RegionRequest {
   /** The route the composite is serving. A region renders per route like every other fragment. */
   route?: string
   params?: Record<string, string>
+  /**
+   * The reads the region's contract declared, resolved for this request by the composite.
+   *
+   * Keyed by the read as the contract spells it — `cookie:currency`, `route:q`, `locale` — because
+   * that is the vocabulary both sides already share and it is the one that cannot be ambiguous: a
+   * bare `currency` could be a cookie or a header, and the two are different cache axes.
+   *
+   * A region is *given* its reads rather than taking them, and that is the whole reason a composed
+   * page can be cached. The composite resolved these before the render in order to derive the
+   * document's key, class and `Vary`; handing the same values across the boundary is what makes the
+   * region's answer a function of them. A region that went and read the request itself would be
+   * reading something this document's key does not describe.
+   */
+  reads?: Record<string, string>
   /** Template versions the client already holds, so a region can answer with a delta. */
   held?: readonly string[]
   /** Set when the composite is staging rather than painting. A region does not decide this. */
   epoch?: string
+  /**
+   * Shell signals this region declared it consumes, at their current values.
+   *
+   * The only channel between a shell and the regions inside it, and it is one-way by construction:
+   * a region is handed what it asked for and has no way to write back. What it may ask for is
+   * checked at build time against what the shell exposes, so a name here is a name the shell said
+   * it would supply.
+   */
+  exposed?: Record<string, string>
+}
+
+/**
+ * A region's declared reads, resolved through the same context a local fragment's would be.
+ *
+ * Through the context and not around it, which is the load-bearing detail: reading `cookie:currency`
+ * here taints the composite exactly as a local fragment reading it would, so the document's key and
+ * `Vary` describe the region's reads whether the region is in this process or across a socket. A
+ * composite that resolved these off the raw request would produce a page whose key did not describe
+ * what rendered it, which is the one failure the whole effect graph exists to prevent.
+ */
+export async function readsFor(
+  ctx: Reads,
+  contract?: RegionContract,
+): Promise<Record<string, string> | undefined> {
+  if (!contract?.reads?.length) return undefined
+  const out: Record<string, string> = {}
+  for (const read of contract.reads) {
+    if (read.startsWith('cookie:')) out[read] = ctx.cookie(read.slice(7)) ?? ''
+    else if (read.startsWith('header:')) out[read] = ctx.header(read.slice(7)) ?? ''
+    else if (read.startsWith('route:')) {
+      const key = read.slice(6)
+      out[read] = ctx.param(key) ?? ctx.query(key) ?? ''
+    } else if (read.startsWith('flag:')) out[read] = String(await ctx.flag(read.slice(5)))
+    else if (read === 'locale') out[read] = ctx.locale()
+    else if (read === 'device') out[read] = ctx.device()
+    else if (read === 'identity') out[read] = (await ctx.user()) ?? ''
+    // `time` and `opaque` resolve to nothing on purpose: the clock is a TTL rather than a value,
+    // and `opaque` is the absence of a description. Neither is something to hand over.
+    else if (read !== 'time' && read !== 'opaque') {
+      throw new RegionError(
+        'E_UNRESOLVABLE_READ',
+        contract.id,
+        `declares the read '${read}', which is not one this composite can resolve for it`,
+      )
+    }
+  }
+  return out
 }
 
 /**

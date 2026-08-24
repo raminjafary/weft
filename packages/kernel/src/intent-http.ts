@@ -117,6 +117,11 @@ export function serveIntent(options: ServeIntentOptions): IntentServer {
       // The envelope is still open, so a real status, a real Set-Cookie and a redirect a
       // crawler will follow are all still available. This is the moment they exist in.
       if (!outcome.ok) envelope.status(statusFor(outcome.code))
+      // The one header a 429 has to carry to be actionable. Seconds, rounded up, because that is
+      // what `Retry-After` is defined in and a zero would tell a caller to come straight back.
+      if (outcome.retryAfterMs !== undefined) {
+        envelope.header('retry-after', String(Math.max(1, Math.ceil(outcome.retryAfterMs / 1000))))
+      }
       const wantsHtml = (request.headers.get('accept') ?? '').includes('text/html')
       if (outcome.ok && wantsHtml && !envelope.redirected) {
         envelope.redirect(options.returnTo?.(request) ?? request.headers.get('referer') ?? '/', 303)
@@ -164,7 +169,10 @@ function statusFor(code: string | undefined): number {
     case 'E_NO_CAPABILITY_CHECK':
     case 'E_NO_VERIFIER':
     case 'E_NO_ED25519':
+    case 'E_NO_RATE_LIMIT':
       return 501
+    case 'E_RATE_LIMITED':
+      return 429
     case 'E_INTENT_INPUT':
       return 422
     // Unsigned and expired are both "authenticate and try again", which is what 401 means and

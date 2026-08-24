@@ -1,4 +1,4 @@
-import { defineConfig, generateSigningKeys } from 'weft'
+import { bindingExecutor, bySession, defineConfig, generateSigningKeys, regionService } from 'weft'
 
 /**
  * A signing key, generated on boot.
@@ -18,9 +18,58 @@ const dev = await generateSigningKeys()
  * else is the default: an in-process store, a cookie session, and `inline` as the only executor.
  * That is a real single-process deployment, and it is what the hand-written server bound too.
  */
+/**
+ * The search deployment, as this deployment reaches it.
+ *
+ * A binding rather than a URL, because a demo that needed a second process running would be a demo
+ * that is usually broken — and the point being made is not that a socket works. `bindingExecutor` is
+ * a real crash-domain boundary either way: the region is serialised to a job, posted, and answered
+ * with a Warp stream that the composite checks frame by frame before any of it reaches the page.
+ * Swapping this line for `svcExecutor({ url })` is the whole difference between the two topologies.
+ */
+const searchTier = bindingExecutor({
+  binding: regionService({
+    root: new URL('./app/lib/', import.meta.url).href,
+    revision: 'search-42',
+  }),
+  name: 'binding:search',
+  // A budget on a boundary is a deadline on waiting. The other end cannot be killed from here.
+  timeoutMs: 500,
+})
+
 export default defineConfig({
   port: 4173,
   flags: { 'new-cart': ['off', 'on'] },
+  executors: { 'binding:search': searchTier },
+  /**
+   * What a call is counted against, which is the one thing a kernel refuses to guess.
+   *
+   * A session here, because that is what this demo has: nothing signs you in, and an address on a
+   * laptop is one address. A deployment behind a CDN would write `byAddress()`; one where every
+   * caller has a subject would write `bySubject()`. All three are one line, and choosing between
+   * them is a property of the deployment rather than of the intent.
+   *
+   * Supplying `counted` and nothing else means the framework counts, against the store this
+   * deployment already bound. A deployment with its own limiter — a gateway, a Redis script — passes
+   * a `LimitPort` here instead and nothing else changes.
+   */
+  limits: { counted: bySession('sid') },
+  /**
+   * Where `search` is, which is the one fact a page composing it deliberately does not state.
+   *
+   * Point `export` at `searchAhead` and reload: the region announces a contract this shell was not
+   * built against, the arrival check refuses it, and the page shows its declared fallback with the
+   * versions named. Nothing is rebuilt in between, which is the property the registry exists for.
+   */
+  regions: [
+    {
+      region: 'search',
+      executor: 'binding:search',
+      address: { module: './search-region.ts', export: 'search' },
+      contract: { id: 'search', version: '2.1.0', reads: ['route:q'] },
+      revision: 'search-42',
+    },
+  ],
   /**
    * The nav, stated rather than derived.
    *
@@ -60,5 +109,6 @@ export default defineConfig({
     { href: '/app/dashboard', label: 'Dashboard' },
     { href: '/app/article', label: 'Article' },
     { href: '/live/race/out-of-order', label: 'Streaming race' },
+    { href: '/app/composed', label: 'Composed' },
   ],
 })

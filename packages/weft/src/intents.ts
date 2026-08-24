@@ -1,7 +1,7 @@
 import { relative, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { intentId } from '@weft/compiler'
-import type { Intent, IntentRoute, Registry } from '@weft/kernel'
+import type { Intent, IntentLimit, IntentRoute, Registry } from '@weft/kernel'
 
 /**
  * The intent manifest, generated from a directory.
@@ -25,6 +25,8 @@ export interface ManifestEntry {
   capabilities: string[]
   /** Reachable only with a token this deployment minted. See `spec/kernel/authority.md`. */
   signed: boolean
+  /** How much traffic this mutation says it can take. What it is counted against is the port's. */
+  limit?: IntentLimit
 }
 
 export interface IntentManifest {
@@ -77,6 +79,7 @@ export async function loadIntents(root: string, files: readonly string[]): Promi
         writes: [...(value.writes ?? [])],
         capabilities: [...(value.capabilities ?? [])],
         signed: value.signed === true,
+        ...(value.limit ? { limit: value.limit } : {}),
       })
       names[declared] = id
       byId.set(id, value)

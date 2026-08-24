@@ -21,6 +21,19 @@ function skuOf(raw: unknown): string {
 export const addToCart = defineIntent<{ sku: string; qty: number; fail?: boolean }>({
   name: 'cart.add',
   writes: ['cart'],
+  /**
+   * How much of this the deployment can take, and deliberately not from whom.
+   *
+   * An intent knows what it costs — this one is cheap, a mutation that called a payment provider
+   * would not be — and that knowledge belongs next to the code that spends it. What a call is
+   * counted against is the other half and it is not here: an address, a session and a subject are
+   * all wrong in some deployment, so `weft.config.ts` decides and this file cannot.
+   *
+   * Delete the `limits` line in the config and every call becomes `E_NO_RATE_LIMIT` with the
+   * missing port named, which is the same shape as deleting a grant: the framework refuses, and the
+   * config is where the answer lives.
+   */
+  limit: { max: 20, windowMs: 10_000 },
   input: (raw) => {
     const body = raw as { qty?: unknown; fail?: unknown }
     const qty = Number(body.qty ?? 1)

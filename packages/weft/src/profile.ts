@@ -27,7 +27,15 @@ import { dirname, join } from 'node:path'
  * **It expires.** A profile is a description of a deployment at a moment: the data grew, the
  * database moved, the page changed. An old profile is worse than none, because it looks current.
  */
-export const PROFILE_VERSION = '1'
+/**
+ * Bumped to '2' when a recording started counting discoveries.
+ *
+ * A minor addition to the format is still a format change, and the reader's rule is that a profile
+ * from a different version is ignored rather than half-read — because a decision made from fields
+ * that are not there is a decision made from zero, and zero here means "described and never
+ * followed", which is the opposite of the truth for a recording that never counted.
+ */
+export const PROFILE_VERSION = '2'
 
 export interface SlotObservation {
   /** Renders observed. A hit is not a render, which is why this is not the request count. */
@@ -46,6 +54,22 @@ export interface RouteObservation {
   slots: Record<string, SlotObservation>
   /** Which route a reader came from, by pattern, and how often. What a nav should stage. */
   from: Record<string, number>
+  /**
+   * Times this route was *described* to a client that had not been to it, and times a description
+   * was then used.
+   *
+   * The measurement that decides whether describing a subtree is worth it, and the reason it has to
+   * be a measurement: a `PLAN` frame is bytes spent on a page nobody may click, and whether that pays
+   * is the same question as whether a route is worth staging, with the same answer. Nothing recorded
+   * it until now, so the handshake described what the transition table said and no number ever came
+   * back to say whether the describing helped.
+   *
+   * `described` counts descriptions handed out. `followed` counts the ones where the client
+   * subsequently asked for that route — a `WARM at=`, which is only possible *because* it had been
+   * described, since a client with no description does not know the shell matches.
+   */
+  described: number
+  followed: number
 }
 
 export interface Profile {
@@ -68,6 +92,17 @@ export const MIN_STREAM_BYTES = 512
 /** A transition seen at least this often, and this much of a route's departures, is worth staging. */
 export const MIN_TRANSITIONS = 4
 export const MIN_SHARE = 0.15
+/** How many times a route has to have been described before the number says anything. */
+export const MIN_DESCRIBED = 8
+/**
+ * How often a description has to be followed to be worth sending.
+ *
+ * Lower than `MIN_SHARE` on purpose, and the asymmetry is the point: a description is a line in a
+ * frame the connection was already getting, and what it buys when it is followed is a round trip
+ * *and* a server render of a page nobody clicked. Staging is the expensive one — it runs loaders — so
+ * it needs a higher bar. Describing is cheap enough that being wrong four times out of five still pays.
+ */
+export const MIN_FOLLOW_SHARE = 0.2
 
 interface Sample {
   ms: number[]
@@ -78,6 +113,15 @@ interface Sample {
 export interface Recorder {
   /** A document request arrived for this route. */
   request(route: string, from?: string): void
+  /**
+   * This route was described to a client that had not been to it, in a `PLAN` frame.
+   *
+   * Recorded per described route rather than per frame, because the decision is per route: a
+   * handshake that describes four routes of which one is ever followed should describe one.
+   */
+  described(route: string): void
+  /** A described route was then asked for. The half that says whether the describing paid. */
+  followed(route: string): void
   /** A slot rendered, which means the store did not already have it. */
   render(route: string, slot: string, ms: number, bytes: number): void
   /** A slot the store answered for. */
@@ -99,14 +143,20 @@ export function createRecorder(now: () => number = () => Date.now()): Recorder {
   const started = now()
   const routes = new Map<
     string,
-    { requests: number; from: Map<string, number>; slots: Map<string, Sample> }
+    {
+      requests: number
+      from: Map<string, number>
+      slots: Map<string, Sample>
+      described: number
+      followed: number
+    }
   >()
   let renders = 0
 
   const of = (route: string): NonNullable<ReturnType<typeof routes.get>> => {
     let held = routes.get(route)
     if (!held) {
-      held = { requests: 0, from: new Map(), slots: new Map() }
+      held = { requests: 0, from: new Map(), slots: new Map(), described: 0, followed: 0 }
       routes.set(route, held)
     }
     return held
@@ -143,6 +193,12 @@ export function createRecorder(now: () => number = () => Date.now()): Recorder {
     hit(route, slot) {
       sample(route, slot).hits++
     },
+    described(route) {
+      of(route).described++
+    },
+    followed(route) {
+      of(route).followed++
+    },
     profile() {
       const out: Profile['routes'] = {}
       for (const [route, held] of routes) {
@@ -157,7 +213,13 @@ export function createRecorder(now: () => number = () => Date.now()): Recorder {
             hits: found.hits,
           }
         }
-        out[route] = { requests: held.requests, slots, from: Object.fromEntries(held.from) }
+        out[route] = {
+          requests: held.requests,
+          slots,
+          from: Object.fromEntries(held.from),
+          described: held.described,
+          followed: held.followed,
+        }
       }
       return { version: PROFILE_VERSION, recordedAt: now(), forMs: now() - started, routes: out }
     },
@@ -191,8 +253,28 @@ export interface RouteDecision {
   stage: string[]
 }
 
+export interface DiscoverDecision {
+  route: string
+  /** Whether describing this route to a client that has not been to it is worth the bytes. */
+  describe: boolean
+  described: number
+  followed: number
+  because: string
+}
+
 export interface Decisions {
   routes: RouteDecision[]
+  /**
+   * Which routes are worth describing before anybody looks at them.
+   *
+   * The one thing about discovery that was never a measurement. A `PLAN` frame describes routes a
+   * client has not been to, and whether that pays is not knowable from a file tree — so the recording
+   * counts descriptions handed out against descriptions followed, and a route nobody follows stops
+   * being described. Routes with too few descriptions to say are absent rather than defaulted, and
+   * `describe` is `true` for them wherever a caller has to choose: an unmeasured route keeps the
+   * behaviour it had, which is the same rule delivery follows.
+   */
+  discover: DiscoverDecision[]
   /** Slots the profile saw too little of to say anything about. */
   thin: { route: string; slot: string; renders: number }[]
   /** What a profile cannot decide here, and why. Printed rather than left as a silence. */
@@ -269,6 +351,7 @@ export function decide(profile: Profile): Decisions {
   return {
     routes,
     thin,
+    discover: discoveries(profile),
     refused: [
       {
         what: 'chunk packing',
@@ -279,11 +362,44 @@ export function decide(profile: Profile): Decisions {
         why: 'a template is data here, not code. There is no per-template function to hint: the renderer walks pre-encoded segments, so the hot code is the renderer and it is hot on every page already',
       },
       {
+        what: 'whether a subtree is worth describing before anybody has looked at it *at all*',
+        why: 'a recording can say whether a description was followed, which is what `discover` above decides. What it cannot say is anything about a prefix no client has ever asked about and no transition points at — there is no observation to make, and inventing one would be the guess this whole layer exists instead of',
+      },
+      {
         what: 'a cache key',
         why: 'keys come from what the compiler saw a fragment read, and a profile is not a compiler. This is the one extension point the design refuses on purpose',
       },
     ],
   }
+}
+
+/**
+ * Whether describing a route pays, per route, from what the recording saw.
+ *
+ * Two numbers and one ratio, and the interesting half is what it refuses to decide: a route described
+ * fewer than `MIN_DESCRIBED` times gets no entry at all, so a caller falls back to describing it. An
+ * unmeasured route keeps the behaviour it had — the same rule delivery follows, and the reason a
+ * recording of last Tuesday cannot quietly turn a feature off.
+ */
+function discoveries(profile: Profile): DiscoverDecision[] {
+  const out: DiscoverDecision[] = []
+  for (const [route, observed] of Object.entries(profile.routes)) {
+    const described = observed.described ?? 0
+    const followed = observed.followed ?? 0
+    if (described < MIN_DESCRIBED) continue
+    const share = followed / described
+    out.push({
+      route,
+      describe: share >= MIN_FOLLOW_SHARE,
+      described,
+      followed,
+      because:
+        share >= MIN_FOLLOW_SHARE
+          ? `${followed} of ${described} descriptions were followed, and a description that is followed saves a round trip and a server render`
+          : `${followed} of ${described} descriptions were followed, which is under ${Math.round(MIN_FOLLOW_SHARE * 100)}%: the bytes buy nothing here`,
+    })
+  }
+  return out.sort((a, b) => b.described - a.described)
 }
 
 /** Where readers of this route go next, when enough of them go to the same place. */
@@ -379,6 +495,16 @@ export function formatProfile(profile: Profile, decisions: Decisions): string {
     }
     if (route.stage.length) {
       lines.push(`    readers arrive from ${route.stage.join(', ')} often enough to stage this route`)
+    }
+    lines.push('')
+  }
+
+  if (decisions.discover.length) {
+    lines.push('  what is worth describing before anybody looks at it')
+    for (const decision of decisions.discover) {
+      lines.push(
+        `    ${decision.route.padEnd(26)} ${decision.describe ? 'describe' : 'skip    '} ${decision.because}`,
+      )
     }
     lines.push('')
   }

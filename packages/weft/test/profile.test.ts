@@ -9,6 +9,7 @@ import {
   createRecorder,
   decide,
   likelyNext,
+  MIN_DESCRIBED,
   MIN_SAMPLES,
   readProfile,
   type Profile,
@@ -132,9 +133,101 @@ test('a transition seen often enough is worth staging, and a rare one is not', (
   assert.deepEqual(likelyNext(profile), { '/app/feed': ['/app/cart'] })
 })
 
+test('a description that is followed often enough is worth sending, and a rare one is not', () => {
+  // The one thing about discovery that was never a measurement. A `PLAN` frame describes routes a
+  // client has not been to; whether that pays is not in the file tree, so the recording counts
+  // descriptions handed out against descriptions used.
+  const recorder = createRecorder(clock())
+  for (let i = 0; i < MIN_DESCRIBED; i++) {
+    recorder.described('/checkout')
+    recorder.described('/legal/terms')
+  }
+  for (let i = 0; i < 4; i++) recorder.followed('/checkout')
+  recorder.followed('/legal/terms')
+
+  const decisions = decide(recorder.profile())
+  const checkout = decisions.discover.find((d) => d.route === '/checkout')
+  const terms = decisions.discover.find((d) => d.route === '/legal/terms')
+
+  assert.equal(checkout?.describe, true, 'half the descriptions were used')
+  assert.match(checkout?.because ?? '', /saves a round trip and a server render/)
+  assert.equal(terms?.describe, false, 'one in eight is not worth the bytes')
+  assert.match(terms?.because ?? '', /the bytes buy nothing here/)
+})
+
+test('a route described too few times decides nothing, so an unmeasured one keeps describing', () => {
+  // The same rule delivery follows: a recording of last Tuesday cannot quietly turn a feature off for
+  // a route it barely saw.
+  const recorder = createRecorder(clock())
+  for (let i = 0; i < MIN_DESCRIBED - 1; i++) recorder.described('/checkout')
+
+  assert.deepEqual(decide(recorder.profile()).discover, [])
+})
+
 test('what a profile refuses to decide is printed rather than left as a silence', () => {
   const refused = decide(recorded({})).refused.map((r) => r.what)
-  assert.deepEqual(refused, ['chunk packing', 'V8 compile hints', 'a cache key'])
+  assert.deepEqual(refused, [
+    'chunk packing',
+    'V8 compile hints',
+    // Discovery is now two halves: whether a description was *followed* is measured and decided, and
+    // whether a prefix nobody has ever asked about is worth describing has no observation behind it.
+    // Both are stated, because half a capability that reads as none is worse than the whole refusal.
+    'whether a subtree is worth describing before anybody has looked at it *at all*',
+    'a cache key',
+  ])
+})
+
+test('a real recording counts the descriptions it hands out and the ones a client uses', async () => {
+  // End to end, because the two halves are recorded in two places: the extender describes when a
+  // channel opens, and the stager is what says a description was used.
+  const { TEMPLATE_IR_VERSION } = await import('@weft/ir')
+  const { frame, residentFrame, WARP_VERSION } = await import('@weft/warp')
+  const serving = await serveApp(await createApp(ROOT, { mode: 'dev', port: 0, profile: true }))
+  servers.push(serving)
+  const recorder = serving.app.recorder as NonNullable<typeof serving.app.recorder>
+
+  const id = 'described'
+  serving.app.at.set(id, { path: '/app/feed', cookie: '' })
+  serving.app.hub.open({ binding: 'socket', open: true, send: () => {}, close: () => {} }, id)
+  await serving.app.hub.receive(id, [
+    residentFrame({ warp: WARP_VERSION, ir: TEMPLATE_IR_VERSION, forms: ['html', 'delta'] }),
+  ])
+
+  const described = serving.app.at.get(id)?.described
+  assert.ok(described?.has('/app/feed'), 'the connection was told about the page it is on')
+  assert.equal(
+    recorder.profile().routes['/app/feed']?.described,
+    1,
+    'and the recording counted the description',
+  )
+
+  await serving.app.hub.receive(id, [frame('WARM', { at: '/app/feed', epoch: 'n-1' })])
+  assert.equal(
+    recorder.profile().routes['/app/feed']?.followed,
+    1,
+    'staging a described route is that description being used',
+  )
+})
+
+test('a stage of a route nobody described is a hover on a link, not a description that paid', async () => {
+  const { TEMPLATE_IR_VERSION } = await import('@weft/ir')
+  const { frame, residentFrame, WARP_VERSION } = await import('@weft/warp')
+  const serving = await serveApp(await createApp(ROOT, { mode: 'dev', port: 0, profile: true }))
+  servers.push(serving)
+  const recorder = serving.app.recorder as NonNullable<typeof serving.app.recorder>
+
+  const id = 'undescribed'
+  // No RESIDENT, so nothing was described — and the connection is registered, so the stage resolves.
+  serving.app.at.set(id, { path: '/app/feed', cookie: '' })
+  serving.app.hub.open({ binding: 'socket', open: true, send: () => {}, close: () => {} }, id)
+  await serving.app.hub.receive(id, [
+    residentFrame({ warp: WARP_VERSION, ir: TEMPLATE_IR_VERSION, forms: ['html', 'delta'] }),
+  ])
+  // `/app/cart` shares the feed's shell but is not in the demo's transition table, so it was never
+  // described. Counting this would make every description look successful.
+  await serving.app.hub.receive(id, [frame('WARM', { at: '/app/cart', epoch: 'n-2' })])
+
+  assert.equal(recorder.profile().routes['/app/cart']?.followed ?? 0, 0)
 })
 
 test('a recording of real traffic decides the demo plan, and the plan is generated from it', async () => {

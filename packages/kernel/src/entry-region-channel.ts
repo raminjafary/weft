@@ -10,6 +10,7 @@ export * from './entry-transport.ts'
 export {
   createComposer,
   readRegion,
+  readsFor,
   announceRegion,
   regionStream,
   regionEffects,

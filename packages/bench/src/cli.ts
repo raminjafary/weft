@@ -22,7 +22,7 @@ import { renderMarkdown, comparison } from './report.ts'
 import { run } from './runner.ts'
 import { SCENARIOS, scenario as scenarioById } from './workloads/index.ts'
 import { stringify } from '@weft/ir'
-import type { EngineName } from './measure/browser.ts'
+import { ENGINES_UNAVAILABLE, type EngineName } from './measure/browser.ts'
 
 const BUILT_IN: Candidate[] = [segmentsCandidate, stringSsrCandidate, blockingSsrCandidate]
 
@@ -55,6 +55,28 @@ function parseArgs(argv: string[]): { command: string; flags: Record<string, str
 function p50(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b)
   return sorted[Math.floor(sorted.length / 2)] ?? NaN
+}
+
+/**
+ * Engine names, with the ones this harness cannot run refused by name.
+ *
+ * `spec/baseline/devices.md` says no claim about iOS is honest until it runs on a device, and until
+ * now that was a paragraph. Asking for `--engines ios` fell through to Playwright and failed with a
+ * message about a browser type — which reads like a missing dependency rather than a missing device.
+ * It refuses here instead, saying what is actually absent.
+ */
+function enginesFrom(value: string | undefined, fallback: EngineName[]): EngineName[] {
+  const asked = csv(value) ?? fallback
+  for (const engine of asked) {
+    const missing = ENGINES_UNAVAILABLE[engine]
+    if (missing) {
+      throw new Error(
+        `E_NO_DEVICE_ENGINE: '${engine}' needs ${missing}. Run --engines chromium,firefox,webkit and ` +
+          `read the proxy table in the report: a webkit number is never an iOS number`,
+      )
+    }
+  }
+  return asked as EngineName[]
 }
 
 function csv(value: string | undefined): string[] | undefined {
@@ -116,7 +138,8 @@ run flags
   --from PATH       the page nav starts every click from (default /)
   --to PATHS        which links nav clicks (default every internal link on --from)
   --engines         chromium,firefox,webkit (browser axes; requires playwright)
-                    webkit is the closest proxy for an iOS webview and is never an iOS number
+                    webkit is the closest proxy for an iOS webview and is never an iOS number.
+                    ios and android are declared and refused: what is missing is a device
   --out DIR         where to write the report (default results/)
   --no-strict       measure even if the wire forms disagree
 `
@@ -152,7 +175,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'slots') {
-    const engines = (csv(flags.engines) ?? ['chromium', 'firefox', 'webkit']) as EngineName[]
+    const engines = enginesFrom(flags.engines, ['chromium', 'firefox', 'webkit'])
     let failed = false
 
     process.stdout.write(
@@ -232,7 +255,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'nav') {
-    const engines = (csv(flags.engines) ?? ['chromium']) as EngineName[]
+    const engines = enginesFrom(flags.engines, ['chromium'])
     for (const engine of engines) {
       const report = await measureNavigation({
         root: flags.app ?? positional[0] ?? 'demo',
@@ -248,7 +271,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'decode') {
-    const engines = (csv(flags.engines) ?? ['chromium']) as EngineName[]
+    const engines = enginesFrom(flags.engines, ['chromium'])
     for (const engine of engines) {
       const measured = await measureDecode(engine, Number(flags.rows ?? 400), Number(flags.iterations ?? 40))
       process.stdout.write(formatDecode(measured))
@@ -257,7 +280,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'client') {
-    const engines = (csv(flags.engines) ?? ['chromium', 'firefox', 'webkit']) as EngineName[]
+    const engines = enginesFrom(flags.engines, ['chromium', 'firefox', 'webkit'])
     // `derived` is in the default set because the client-owned half of a derived value
     // is only observable in a real engine.
     const scenarios = (csv(flags.scenarios) ?? ['cart', 'feed', 'derived', 'composed']).map(scenarioById)
@@ -339,7 +362,12 @@ async function main(): Promise<number> {
 main().then(
   (code) => process.exit(code),
   (error: unknown) => {
-    process.stderr.write(`${(error as Error).stack ?? (error as Error).message}\n`)
+    const message = error instanceof Error ? error.message : String(error)
+    // A named refusal is the message and nothing else. A stack under `E_NO_DEVICE_ENGINE: … needs a
+    // real iOS device` says the harness is broken, when what it is doing is declining to guess.
+    process.stderr.write(
+      /^E_[A-Z_]+/.test(message) ? `\n  ${message}\n\n` : `${(error as Error).stack ?? message}\n`,
+    )
     process.exit(1)
   },
 )

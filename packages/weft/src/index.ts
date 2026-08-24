@@ -98,6 +98,7 @@ export {
   type BudgetDeclaration,
   type BudgetFor,
   type CacheDeclaration,
+  type RegionDeclaration,
   type RouteLoad,
   type RouteModule,
   type SlotDeclaration,
@@ -108,7 +109,19 @@ export { ageOf, decide, likelyNext, MIN_SAMPLES, SLOW_MS } from './profile.ts'
 export type { Decisions, Profile, RouteDecision, SlotDecision } from './profile.ts'
 export { listHole, slotHoles, type CompiledFragment } from './compile.ts'
 export { adoptScript, type AdoptOptions } from './routes.ts'
-export { defineConfig, type WeftConfig } from './config.ts'
+export { defineConfig, type WeftConfig, type CountedAgainst } from './config.ts'
+/**
+ * The catalogue: what a browser may ask to have rendered, and nothing else.
+ *
+ * A directory rather than a flag on a fragment, because the set of things a *client* can name is a
+ * security boundary and it should be visible in the file tree. See `spec/kernel/authority.md`.
+ */
+export {
+  defineRenderable,
+  type CatalogueEntry,
+  type RenderableDeclaration,
+  type RenderableLoad,
+} from './renderables.ts'
 /**
  * Authority, from the front door.
  *
@@ -118,8 +131,59 @@ export { defineConfig, type WeftConfig } from './config.ts'
  * verifier behind it are the kernel's.
  */
 export { generateSigningKeys, TOKEN_PATH, type AuthorityConfig } from './authority.ts'
+/**
+ * Rate limiting, which is one port and one decision.
+ *
+ * `countingLimits` counts; `counted` decides whose traffic this is, and that is the half the kernel
+ * refuses to guess at. The three functions beside it are the three answers the design names —
+ * an address, a session, a subject — written out, because a port whose only documentation is its
+ * type is a port everybody implements slightly wrong once.
+ */
+export { byAddress, bySession, bySubject, countingLimits } from '@weft/adapters'
+export type { CountingLimitOptions } from '@weft/adapters'
+/**
+ * Leases more than one process agrees about, which is what replay protection is made of.
+ *
+ * A nonce is spent by taking a lease nobody releases, so a signed intent is single-use exactly as far
+ * as the lease reaches. Wrapping the store makes that a machine rather than a process, and leaves the
+ * cache where it was. See `spec/kernel/authority.md`.
+ */
+export { sharedLeases } from '@weft/adapters'
+export type { SharedLeaseOptions } from '@weft/adapters'
+export type { StorePort } from '@weft/kernel'
+export type { IntentLimit, LimitDecision, LimitPort, LimitRequest } from '@weft/kernel'
 export type { Grant, Grants, Decision, CapabilityModel, IntentClaims } from '@weft/kernel'
 export { defineIntent } from '@weft/kernel'
 export type { Intent, IntentContext, IntentResult, RenderContext, EnvelopeContext } from '@weft/kernel'
 export type { Values } from '@weft/ir'
 export type { LoaderContext, Services } from './context.ts'
+/**
+ * Composition, from the front door.
+ *
+ * A route declares that a slot is a region and says nothing about where it is; a deployment says
+ * where. Both halves have to be reachable from `weft` or the front door does not offer composition
+ * at all — an application would have to import the kernel and the adapters to compose a page, which
+ * is the gap this framework's own demo exists to find.
+ *
+ * `regionService` is the *other* side, and it belongs here for the reason the design's protocol
+ * claim rests on: both ends of a tier boundary run this framework, so serving a region is a module
+ * you export rather than a gateway you write. `topology` is the four named shapes as one field.
+ */
+export { bindingExecutor, regionService, svcExecutor, topology } from '@weft/adapters'
+export type {
+  BoundFetch,
+  RegionRenderer,
+  RegionServiceOptions,
+  Topology,
+  TopologyName,
+  TopologyOptions,
+  TopologyRegion,
+} from '@weft/adapters'
+export type {
+  JobAddress,
+  KernelExecutor,
+  RegionBinding,
+  RegionContract,
+  RegionRequest,
+  Registry,
+} from '@weft/kernel'

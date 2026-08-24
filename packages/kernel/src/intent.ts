@@ -1,5 +1,5 @@
 import type { EnvelopeContext } from './context.ts'
-import type { Registry, StorePort } from './ports.ts'
+import type { IntentLimit, LimitPort, Registry, StorePort } from './ports.ts'
 import type { IntentVerifier } from './token.ts'
 
 /**
@@ -72,6 +72,17 @@ export interface Intent<I = unknown> {
   signed?: boolean
   /** Parse and validate the raw payload. Throwing here is `E_INTENT_INPUT`, a 422, not a 500. */
   input?(raw: unknown): I
+  /**
+   * How much traffic this mutation can take, over how long.
+   *
+   * What it deliberately cannot say is *whose* traffic. An intent knows what it costs — a mutation
+   * that calls a payment provider knows something the deployment does not — and the deployment knows
+   * what a caller is, which is the `limits` port's job. Neither half is derivable from the other.
+   *
+   * Declared and unenforceable is `E_NO_RATE_LIMIT`, for the same reason an unchecked capability is
+   * refused rather than allowed: a limit nothing counts reads as a protection that is not there.
+   */
+  limit?: IntentLimit
   /** Invalidate every declared tag on success without naming them again. */
   invalidatesAll?: boolean
   run(ctx: IntentContext, input: I): Promise<IntentResult | void> | IntentResult | void
@@ -105,6 +116,12 @@ export interface IntentDispatchOptions {
    * one that reads as open.
    */
   verify?: IntentVerifier
+  /**
+   * Required as soon as any intent declares a limit. Same argument again, and this is the one where
+   * the kernel could not have a default even if it wanted one: what a call is counted against is a
+   * property of the deployment.
+   */
+  limits?: LimitPort
 }
 
 /** What the caller presented that is not the payload. Credentials travel beside it, never in it. */
@@ -126,6 +143,14 @@ export interface IntentOutcome {
   /** Named refusal, when it did not run or failed. */
   code?: string
   detail?: string
+  /**
+   * Milliseconds until this call is worth making again. Set only by a limit that could say.
+   *
+   * On the field rather than in the detail because both bindings have somewhere to put it — a
+   * `Retry-After` header on a 429, a header on the `ACK` — and a caller that had to parse a sentence
+   * to find out when to come back would be parsing a sentence somebody will one day reword.
+   */
+  retryAfterMs?: number
   invalidated: string[]
   /** Keys the store actually dropped. What a channel turns into STALE frames. */
   dropped: string[]
@@ -139,6 +164,50 @@ export function createIntentDispatch(options: IntentDispatchOptions): IntentDisp
       const intent = await options.registry.intent(id)
       if (!intent) {
         return refusal(id, null, 'E_NO_SUCH_INTENT', `no intent is registered under ${id}`)
+      }
+
+      /**
+       * The limit before either of them, because it is the cheapest and it protects both.
+       *
+       * A caller hammering a signed intent with forged tokens should be turned away before this
+       * process does an Ed25519 verification on their behalf, and before a capability check reaches
+       * whatever a deployment resolves a subject from. So the order is capacity, then authenticity,
+       * then authority — each one more expensive than the last, and each one only reached because
+       * the one before it passed.
+       */
+      if (intent.limit) {
+        if (!options.limits) {
+          return refusal(
+            id,
+            intent.name,
+            'E_NO_RATE_LIMIT',
+            `${intent.name} declares a limit of ${intent.limit.max} per ${intent.limit.windowMs}ms and ` +
+              `no limits port is bound. What a call is counted against is a deployment's decision`,
+          )
+        }
+        const decision = await options.limits.check({
+          id,
+          intent: intent.name,
+          limit: intent.limit,
+          subject: await base.user(),
+          // Through the context rather than around it: a limit counted against a cookie has read
+          // that cookie, and the read surface is the only thing in this framework that knows.
+          header: (key) => base.header(key),
+          cookie: (key) => base.cookie(key),
+        })
+        if (!decision.ok) {
+          // What the call was counted against is not said back to the caller: it identifies them,
+          // and telling somebody which bucket they are in is telling them how to leave it.
+          return {
+            ...refusal(
+              id,
+              intent.name,
+              'E_RATE_LIMITED',
+              `${intent.limit.max} per ${intent.limit.windowMs}ms`,
+            ),
+            ...(decision.retryAfterMs === undefined ? {} : { retryAfterMs: decision.retryAfterMs }),
+          }
+        }
       }
 
       /**

@@ -7,6 +7,7 @@ import { loadBuild } from './build.ts'
 import { loadConfig } from './config.ts'
 import { discover } from './convention.ts'
 import { dev, RESTART_CODE } from './dev.ts'
+import { regionProbe, verifyRegions } from '@weft/plan'
 import { decide, formatProfile, readProfile } from './profile.ts'
 import { createApp, serveApp } from './serve.ts'
 import { DEVTOOLS_PATH } from './devtools.ts'
@@ -21,12 +22,14 @@ const HELP = `weft — a folder is an application
   weft routes [dir]       the route table, as the file tree produced it
   weft why <route> [dir]  what the generated plan says about a route, and where each fact came from
   weft profile [dir]      what a recording decided about delivery, and what it refuses to decide
+  weft verify [dir]       what this deployment's registry says about every region a route composes
 
 Options
   --port <n>              default 3000, or PORT
   --host <name>           default localhost
   --devtools              dev only: this application's routes, effect sets, keys and bytes
   --profile               record what every render costs, and plan the next build from it
+  --probe                 verify only: ask each remote region what it is serving right now
   --template <name>       create only: minimal | app   (default app)
   --no-types              skip the type checker. Escape elision falls back to escaping
 `
@@ -211,6 +214,51 @@ async function main(): Promise<number> {
     }
     out(changes.length ? `  what this changes\n${changes.join('\n')}\n\n` : '  the plan already agrees\n\n')
     return 0
+  }
+
+  if (command === 'verify') {
+    /**
+     * The four facts in four places, compared where the answers are.
+     *
+     * A route says a region is remote. The config says where it is. This deployment says which
+     * executors it binds. The region itself says what it is serving. Every pair of those can
+     * disagree, and none of the disagreements is knowable at build time — a registry can be written
+     * to without anybody rebuilding, which is the whole reason it is a port.
+     *
+     * `--probe` is the one that needs the network, and it is the window CI cannot close: a contract
+     * test against a published type says what was true when the type was published, and this says
+     * what is true at the moment of the deploy. Without it the command is still worth running,
+     * because three of the four comparisons need nothing but this process.
+     */
+    const app = await createApp(root, { ...overrides, mode: 'dev' })
+    const composing = app.routes.map((route) => route.plan).filter((p) => p.slots.some((s) => s.region))
+    if (!composing.length) {
+      out('\n  no route composes a region, so there is nothing here to disagree\n\n')
+      return 0
+    }
+    const report = await verifyRegions(
+      composing,
+      {
+        ...(app.ports.registry ? { registry: app.ports.registry } : {}),
+        executors: Object.keys(app.config.executors),
+      },
+      flags.probe === true ? regionProbe(app.ports) : undefined,
+    )
+    out(`\n  route              region          locus   where               serving\n${report.text}`)
+    if (!report.errors.length) {
+      out(
+        `  ${report.regions.length} region(s) agree` +
+          `${flags.probe === true ? ', including what each one says it is serving right now' : ', and nothing was asked what it is serving — add --probe'}\n\n`,
+      )
+      return 0
+    }
+    // A non-zero exit is the whole point of this being a command rather than a function: a deploy
+    // step that cannot fail is a deploy step nobody reads the output of.
+    process.stderr.write(
+      `\n  ${report.errors.length} disagreement(s). A plan declared remote is a plan whose hop count, ` +
+        `cache class and render location were all decided on that basis\n\n`,
+    )
+    return 1
   }
 
   process.stderr.write(`unknown command: ${command}\n\n${HELP}`)

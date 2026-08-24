@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { Buffer } from 'node:buffer'
+import process from 'node:process'
 import { test } from 'node:test'
 import { cookieSession, memoryStore, staticFlags } from '@weft/adapters'
 import { createCapabilityModel, covers, grantsOf, roleGrants, AuthorityError } from '../src/authority.ts'
@@ -208,6 +210,65 @@ test('a token minted for this intent, this reader and this payload verifies once
   const again = await verifier.verify({ id: 'c1', token, raw: payload, subject: 'u42' })
   assert.equal(again.ok, false)
   assert.equal(!again.ok && again.code, 'E_INTENT_REPLAYED')
+})
+
+test('a token spent in one process is spent as far as a second process is concerned', async () => {
+  /**
+   * The claim `replayScope` makes, asserted across a real process boundary.
+   *
+   * Everything above verifies twice against one `memoryStore`, which proves a Map remembers — and a
+   * Map was never the thing in question. Behind a load balancer the second call lands somewhere else,
+   * and until a store's leases were shared this framework had no arrangement in which that was
+   * refused. So the second verifier here is genuinely a second process, and it has the public key and
+   * the lease directory and nothing else in common with the first.
+   */
+  const { mkdtemp, rm } = await import('node:fs/promises')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { execFile } = await import('node:child_process')
+  const { promisify } = await import('node:util')
+  const { fileURLToPath } = await import('node:url')
+  const { sharedLeases } = await import('@weft/adapters')
+  const run = promisify(execFile)
+
+  const dir = await mkdtemp(join(tmpdir(), 'weft-replay-'))
+  try {
+    const { signer, publicKey } = await keys()
+    const spki = Buffer.from(await crypto.subtle.exportKey('spki', publicKey)).toString('base64')
+    const store = sharedLeases(memoryStore(), { dir })
+    const verifier = createIntentVerifier({ keys: { k1: publicKey }, store })
+    assert.equal(verifier.replayScope, 'shared', 'and it says so, which is what a deployment reads')
+
+    const payload = { sku: 'RICE-5K', qty: 2 }
+    const token = await signer.mint({ intent: 'c1', subject: 'u42', payload })
+    const first = await verifier.verify({ id: 'c1', token, raw: payload, subject: 'u42' })
+    assert.equal(first.ok, true)
+
+    const kernel = fileURLToPath(new URL('../src/', import.meta.url))
+    const adapters = fileURLToPath(new URL('../../adapters/src/', import.meta.url))
+    const script = `
+      import { createIntentVerifier } from '${kernel}token.ts'
+      import { memoryStore } from '${adapters}memory-store.ts'
+      import { sharedLeases } from '${adapters}shared-leases.ts'
+      const key = await crypto.subtle.importKey('spki', Buffer.from(${JSON.stringify(spki)}, 'base64'),
+        { name: 'Ed25519' }, false, ['verify'])
+      const store = sharedLeases(memoryStore(), { dir: ${JSON.stringify(dir)} })
+      const verifier = createIntentVerifier({ keys: { k1: key }, store })
+      const out = await verifier.verify({
+        id: 'c1', token: ${JSON.stringify(token)},
+        raw: ${JSON.stringify(payload)}, subject: 'u42',
+      })
+      process.stdout.write(out.ok ? 'ok' : out.code)
+    `
+    const { stdout } = await run(process.execPath, ['--input-type=module', '--eval', script])
+    assert.equal(
+      stdout.trim(),
+      'E_INTENT_REPLAYED',
+      'a second process refuses the token the first one spent, which is the whole point',
+    )
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
 })
 
 test('a payload written in another key order is the same payload', async () => {

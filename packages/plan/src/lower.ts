@@ -8,6 +8,7 @@ import {
 } from '@weft/ir'
 import {
   createComposer,
+  readsFor,
   regionEffects,
   regionStream,
   type CachePolicy,
@@ -242,6 +243,57 @@ function slotOf(
  * **What a failure produces.** The composer's, from the declaration: `optional()` is a placeholder
  * with nothing behind it, `fallback(...)` is bytes the binding supplied.
  */
+/**
+ * What the composer is told about a region, derived from the plan rather than declared twice.
+ *
+ * Exported because a region is composed on more than one path — a document request, a refresh over
+ * the channel, a route being staged — and the second caller that built this by hand would be the
+ * first one to disagree with the plan about a budget or a fallback. There is one derivation and
+ * three callers, which is the arrangement in which they cannot drift.
+ */
+export function regionSpecOf(
+  spec: SlotSpec,
+  decl: RegionDecl,
+  degraded?: { fallback?: Uint8Array; placeholder?: Uint8Array },
+): RegionSpec {
+  return {
+    region: spec.name,
+    onExceed: decl.fallback ? 'fallback' : 'placeholder',
+    ...(spec.budget?.cpuMs !== undefined ? { cpuBudgetMs: spec.budget.cpuMs } : {}),
+    ...(decl.contract ? { contract: decl.contract } : {}),
+    ...(degraded?.fallback ? { fallback: degraded.fallback } : {}),
+    ...(degraded?.placeholder ? { placeholder: degraded.placeholder } : {}),
+  }
+}
+
+/**
+ * The shell signals a region asked for, at the values this render has.
+ *
+ * Stringified, and that is not laziness. These cross a serialisation on their way to another
+ * deployment, so a region that received the number `3` in a monolith and the string `"3"` over a
+ * binding would have a bug that appears in one topology and not the other — which is the whole class
+ * of thing the byte-identical assertion between the two exists to catch. The read vocabulary makes
+ * the same choice for the same reason.
+ *
+ * Intersected with what the shell exposes rather than trusted: validation already refuses a region
+ * consuming something outside the exposed set, so this cannot narrow a legal declaration — what it
+ * does is make the runtime unable to widen one, which is the half a build check cannot enforce.
+ */
+function exposedTo(
+  decl: RegionDecl,
+  exposes: readonly string[],
+  values: Values,
+): Record<string, string> | undefined {
+  if (!decl.consumes?.length) return undefined
+  const out: Record<string, string> = {}
+  const record = values as unknown as Record<string, unknown>
+  for (const name of decl.consumes) {
+    if (!exposes.includes(name)) continue
+    out[name] = String(record[name] ?? '')
+  }
+  return Object.keys(out).length ? out : undefined
+}
+
 function regionSlotOf(
   spec: SlotSpec,
   decl: RegionDecl,
@@ -250,18 +302,11 @@ function regionSlotOf(
   regions: RegionBindings,
   binding: SlotBinding | undefined,
   renderer?: RenderPort,
+  exposed?: Record<string, string>,
 ): KernelSlot {
   const remote = decl.locus === 'remote'
   const policy = policyOf(spec.cache)
-  const degraded = regions.degraded?.[spec.name]
-  const regionSpec: RegionSpec = {
-    region: spec.name,
-    onExceed: decl.fallback ? 'fallback' : 'placeholder',
-    ...(spec.budget?.cpuMs !== undefined ? { cpuBudgetMs: spec.budget.cpuMs } : {}),
-    ...(decl.contract ? { contract: decl.contract } : {}),
-    ...(degraded?.fallback ? { fallback: degraded.fallback } : {}),
-    ...(degraded?.placeholder ? { placeholder: degraded.placeholder } : {}),
-  }
+  const regionSpec = regionSpecOf(spec, decl, regions.degraded?.[spec.name])
 
   // Hoisted, because an incremental region's memo has to outlive one render to be a memo.
   const paint = binding ? paintOf(spec, binding, renderer) : undefined
@@ -298,9 +343,15 @@ function regionSlotOf(
             }
           : {}),
       })
+      // Resolved through this context, so reading a cookie on the region's behalf taints the
+      // composite exactly as a local fragment reading it would. A region is given its reads rather
+      // than taking them, and that is what makes a composed page cacheable at all.
+      const reads = await readsFor(ctx, decl.contract)
       const outcome = await composer.compose(regionSpec, {
         route,
         params,
+        ...(reads ? { reads } : {}),
+        ...(exposed ? { exposed } : {}),
         ...regions.request?.(params),
       })
       return outcome.bytes
@@ -382,10 +433,13 @@ export function lowerPlan(plan: Plan, context: ValidateContext, bindings: RouteB
   const csp = cspOf(plan)
 
   return async (params) => {
+    // Hoisted, because the regions below may need it: a shell signal a region consumes is one of
+    // these values, and the exposed set is the only channel between the two.
+    const shellValues = (await bindings.shellValues?.(params)) ?? {}
     const route: KernelRoute = {
       path: plan.route,
       template: bindings.shell.entry,
-      values: (await bindings.shellValues?.(params)) ?? {},
+      values: shellValues,
       shell: {
         id: bindings.shell.entry.id,
         version: bindings.shell.entry.version,
@@ -403,6 +457,7 @@ export function lowerPlan(plan: Plan, context: ValidateContext, bindings: RouteB
               bindings.regions as RegionBindings,
               bindings.slots[spec.name],
               bindings.render,
+              exposedTo(spec.region, plan.exposes, shellValues),
             )
           : slotOf(spec, bindings.slots[spec.name] as SlotBinding, params, bindings.render),
       ),

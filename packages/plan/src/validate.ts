@@ -81,7 +81,7 @@ export function validatePlan(plan: Plan, context: ValidateContext): Diagnostics 
     checkExecutor(spec, context, errors)
     checkBudget(spec, warnings)
     if (facts) checkRenderLocation(spec, facts, errors)
-    if (spec.region) checkRegion(spec, spec.region, plan, errors)
+    if (spec.region) checkRegion(spec, spec.region, plan, errors, warnings)
 
     // A remote region's fragment is not this build's to have. Its reads, its version and its holes
     // are on the other side, and what stands in for them is the contract plus the check on arrival
@@ -144,7 +144,7 @@ export function validatePlan(plan: Plan, context: ValidateContext): Diagnostics 
  * All three are the same mistake in different clothes: a declaration about a region that could only
  * be true if the region were somewhere other than where it says it is.
  */
-function checkRegion(spec: SlotSpec, decl: RegionDecl, plan: Plan, errors: Issue[]): void {
+function checkRegion(spec: SlotSpec, decl: RegionDecl, plan: Plan, errors: Issue[], warnings: Issue[]): void {
   if (decl.critical && decl.locus === 'remote') {
     errors.push({
       code: 'E_REGION_CRITICAL_REMOTE',
@@ -172,6 +172,33 @@ function checkRegion(spec: SlotSpec, decl: RegionDecl, plan: Plan, errors: Issue
         message: `consumes '${signal}', which ${plan.route} does not expose (it exposes ${plan.exposes.join(', ') || 'nothing'})`,
       })
     }
+  }
+
+  /**
+   * Cache tags on a remote region, which nothing on this side can ever fire.
+   *
+   * Push invalidation names connections holding a *key*, and a region's keys are the region's own —
+   * the composite holds a contract. So a tag declared here describes an invalidation that will not
+   * happen: this deployment can drop its own copy of the region's bytes, and it has no way to learn
+   * that the region's data changed. The design's stated fallback for that whole tier is the client's
+   * declared refresh interval, and a region with tags and no interval has neither.
+   *
+   * A warning rather than an error, because a tag on a remote region is not a contradiction — the
+   * region may genuinely be invalidated by that tag on its own side, and this composite simply cannot
+   * see it. What would be wrong is leaving it as a silence: a page whose author declared tags and got
+   * neither mechanism should be told which one they are missing, and told it here rather than by a
+   * region that never updates in production.
+   */
+  if (decl.locus === 'remote' && spec.cache?.tags?.length && !spec.refresh) {
+    warnings.push({
+      code: 'W_REGION_TAGS_UNREACHABLE',
+      slot: spec.name,
+      message:
+        `is remote and declares the tag${spec.cache.tags.length === 1 ? '' : 's'} ` +
+        `${spec.cache.tags.join(', ')}. Push invalidation stops at the boundary — the composite holds ` +
+        `a contract, not this region's keys — so nothing here will ever fire ${spec.cache.tags.length === 1 ? 'it' : 'them'}. ` +
+        `Declare a refresh interval, which is the design's stated fallback for that tier`,
+    })
   }
 }
 

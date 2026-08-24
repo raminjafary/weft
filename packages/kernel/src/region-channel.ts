@@ -24,7 +24,20 @@ export interface ChannelRegionOptions {
   route?(channel: Channel): string | undefined
 }
 
-export type ChannelRegions = (request: { slot: string; channel: Channel }) => Promise<SlotFrames | null>
+export type ChannelRegions = (asked: {
+  slot: string
+  channel: Channel
+  /**
+   * Anything the caller knows that a channel does not.
+   *
+   * A refresh knows the route this connection is on and the reads the region's contract declared; a
+   * route being staged knows a *different* route, its params, and the epoch the answer is being
+   * staged into. Both are the same composition with a different request, which is why this is one
+   * field rather than two functions — a second one would be a second place for a budget or a
+   * contract to be applied slightly differently.
+   */
+  request?: RegionRequest
+}) => Promise<SlotFrames | null>
 
 /**
  * Answers a `REFRESH` for a region, or nothing when the slot is not one — which is what lets a
@@ -32,7 +45,7 @@ export type ChannelRegions = (request: { slot: string; channel: Channel }) => Pr
  * other.
  */
 export function channelRegions(options: ChannelRegionOptions): ChannelRegions {
-  return async ({ slot, channel }) => {
+  return async ({ slot, channel, request: asked }) => {
     const spec = options.regions[slot]
     if (!spec) return null
 
@@ -43,6 +56,7 @@ export function channelRegions(options: ChannelRegionOptions): ChannelRegions {
     const request: RegionRequest = {
       ...(options.route?.(channel) ? { route: options.route(channel) as string } : {}),
       ...(held ? { held: [held.tpl] } : {}),
+      ...asked,
     }
 
     const outcome = await options.composer.compose(spec, request)
