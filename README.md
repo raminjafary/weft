@@ -14,30 +14,31 @@ record of what measurement did to the design.
 versioned formats everything else depends on, because the speed claim is unfalsifiable
 without a harness and a wire format cannot be versioned retroactively.
 
-| What                              | Where                                                                                         | Status                                                              |
-| --------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Template IR, `weft.template-ir/2` | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir`                         | 2.5.0 — children, instances in rows, derived values, contagion      |
-| Warp frames, `weft.warp/1`        | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                 | 1.5.0 — `WARM` asks at three grains, and `PLAN` answers one unasked |
-| Versioning contract               | [`spec/VERSIONING.md`](spec/VERSIONING.md)                                                    | Majors refuse, minors round-trip                                    |
-| What measurement changed          | [`spec/FINDINGS.md`](spec/FINDINGS.md)                                                        | Five reversed, two clarified, one gate that fired on its first run  |
-| Device and engine reality         | [`spec/baseline/devices.md`](spec/baseline/devices.md)                                        | Written before the numbers                                          |
-| Template compiler                 | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler` | TSX to IR, on Oxc, type-driven escape elision, components any shape |
-| Client runtime                    | [`spec/client/adoption.md`](spec/client/adoption.md), `packages/client`                       | Adoption, surgical deltas, resident templates over Warp             |
-| Signal graph                      | [`spec/client/signals.md`](spec/client/signals.md), `packages/client`                         | Linked edges, bitflag status, push-pull with a lazy check           |
-| Effect inference                  | [`spec/compiler/effects.md`](spec/compiler/effects.md), `packages/compiler`                   | Reads inferred, cache class derived, ambient reads banned           |
-| Route streaming                   | [`spec/kernel/streaming.md`](spec/kernel/streaming.md), `packages/kernel`                     | Slots streamed in order or fastest-first                            |
-| Routing                           | [`spec/kernel/routing.md`](spec/kernel/routing.md), `packages/kernel`, `packages/plan`        | A URL matches a plan; the plan lowers to a route; `serve()` runs it |
-| Request lifecycle                 | [`spec/kernel/lifecycle.md`](spec/kernel/lifecycle.md), `packages/kernel`                     | A state machine, two-phase envelope, 103 Early Hints, deferral      |
-| Ports                             | [`spec/kernel/ports.md`](spec/kernel/ports.md), `packages/kernel`, `packages/adapters`        | Thirteen declared, seven implemented, the rest refuse by name       |
-| Runtime cache keys                | [`spec/kernel/cache.md`](spec/kernel/cache.md), `packages/kernel`                             | Reads resolved into a key; no setter exists anywhere                |
-| Static documents, L0              | [`spec/kernel/static.md`](spec/kernel/static.md), `packages/weft`                             | A page that reads nothing is a file, proved by rendering it twice   |
-| Executors, waves, epochs          | [`spec/kernel/locus.md`](spec/kernel/locus.md), `packages/kernel`, `packages/client`          | DAG scheduling, CPU budgets, staged epochs with atomic commit       |
-| Stateless surgical updates        | [`spec/kernel/surgical.md`](spec/kernel/surgical.md), `packages/kernel`                       | `HELD` recovers a base, the delta is memoized by its transition     |
-| Authority                         | [`spec/kernel/authority.md`](spec/kernel/authority.md), `packages/kernel`                     | Capabilities by role, Ed25519 intents, single-use, deny by default  |
-| The plan layer                    | [`spec/plan/plan.md`](spec/plan/plan.md), `packages/plan`                                     | Plan DSL, validation against inferred effects, plugins, `weft why`  |
-| Benchmark harness                 | `packages/bench`                                                                              | All six axes measured                                               |
-| What is not built yet             | [`ROADMAP.md`](ROADMAP.md)                                                                    | The runtime, a docs site with a playground, a demo of every feature |
-| React Router 7 candidate          | [`benchmarks/rr7`](benchmarks/rr7)                                                            | The phase-zero gate, tuned and default shapes                       |
+| What                              | Where                                                                                          | Status                                                                                         |
+| --------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Template IR, `weft.template-ir/2` | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir`                          | 2.5.0 — children, instances in rows, derived values, contagion                                 |
+| Warp frames, `weft.warp/1`        | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                  | 1.5.0 — `WARM` asks at three grains, and `PLAN` answers one unasked                            |
+| Versioning contract               | [`spec/VERSIONING.md`](spec/VERSIONING.md)                                                     | Majors refuse, minors round-trip                                                               |
+| What measurement changed          | [`spec/FINDINGS.md`](spec/FINDINGS.md)                                                         | Five reversed, two clarified, one gate that fired on its first run                             |
+| Device and engine reality         | [`spec/baseline/devices.md`](spec/baseline/devices.md)                                         | Written before the numbers                                                                     |
+| Template compiler                 | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler`  | TSX to IR, on Oxc, type-driven escape elision, components any shape                            |
+| Client runtime                    | [`spec/client/adoption.md`](spec/client/adoption.md), `packages/client`                        | Adoption, surgical deltas, resident templates over Warp                                        |
+| Signal graph                      | [`spec/client/signals.md`](spec/client/signals.md), `packages/client`                          | Linked edges, bitflag status, push-pull with a lazy check                                      |
+| Effect inference                  | [`spec/compiler/effects.md`](spec/compiler/effects.md), `packages/compiler`                    | Reads inferred, cache class derived, ambient reads banned                                      |
+| Route streaming                   | [`spec/kernel/streaming.md`](spec/kernel/streaming.md), `packages/kernel`                      | Slots streamed in order or fastest-first                                                       |
+| Routing                           | [`spec/kernel/routing.md`](spec/kernel/routing.md), `packages/kernel`, `packages/plan`         | A URL matches a plan; the plan lowers to a route; `serve()` runs it                            |
+| Request lifecycle                 | [`spec/kernel/lifecycle.md`](spec/kernel/lifecycle.md), `packages/kernel`                      | A state machine, two-phase envelope, 103 Early Hints, deferral                                 |
+| Ports                             | [`spec/kernel/ports.md`](spec/kernel/ports.md), `packages/kernel`, `packages/adapters`         | Fourteen declared, fourteen implemented, eleven bound by the front door                        |
+| Runtime cache keys                | [`spec/kernel/cache.md`](spec/kernel/cache.md), `packages/kernel`                              | Reads resolved into a key; no setter exists anywhere                                           |
+| Static documents, L0              | [`spec/kernel/static.md`](spec/kernel/static.md), `packages/weft`                              | A page that reads nothing is a file, proved by rendering it twice                              |
+| Executors, waves, epochs          | [`spec/kernel/locus.md`](spec/kernel/locus.md), `packages/kernel`, `packages/client`           | DAG scheduling, CPU budgets, staged epochs with atomic commit                                  |
+| Stateless surgical updates        | [`spec/kernel/surgical.md`](spec/kernel/surgical.md), `packages/kernel`                        | `HELD` recovers a base, the delta is memoized by its transition                                |
+| Authority                         | [`spec/kernel/authority.md`](spec/kernel/authority.md), `packages/kernel`                      | Capabilities by role, Ed25519 intents single-use across processes, render intents, rate limits |
+| The plan layer                    | [`spec/plan/plan.md`](spec/plan/plan.md), `packages/plan`                                      | Plan DSL, validation against inferred effects, plugins, `weft why`                             |
+| Composition                       | [`spec/kernel/composition.md`](spec/kernel/composition.md), `packages/kernel`, `packages/weft` | A region declared on a route, placed by the config, `weft verify`                              |
+| Benchmark harness                 | `packages/bench`                                                                               | All six axes measured                                                                          |
+| What is not built yet             | [`ROADMAP.md`](ROADMAP.md)                                                                     | The runtime, a docs site with a playground, a demo of every feature                            |
+| React Router 7 candidate          | [`benchmarks/rr7`](benchmarks/rr7)                                                             | The phase-zero gate, tuned and default shapes                                                  |
 
 ## Running it
 
@@ -68,6 +69,7 @@ app/
   fragments/<name>.tsx  a component, referenced by name from a route's slots
   slots/<name>.tsx      fills the layout hole of that name on every route
   intents/**.ts         mutations. The manifest is generated from this directory
+  renderables/**.ts     fragments a client may ask for by opaque id. Same derivation
   styles.css            linked on every page, after the framework's own
   lib/**                anything else your application imports. Not read by the framework
 public/                 served as written, and again at a URL carrying its digest
@@ -85,12 +87,27 @@ weft routes         # the route table, as the file tree produced it
 weft why /          # the plan the framework generated for a route
 weft dev --profile  # record what every render costs, and plan the next run from it
 weft profile        # what the recording decided about delivery, and what it refuses to decide
+weft verify --probe # ask every region what contract it is serving right now, and exit non-zero
 ```
 
 A route declares placement and data and deliberately cannot declare a cache key: keys come from
 what the compiler saw a fragment read, so `public` on a fragment that reads identity fails the
 build with the read named. `weft build` writes the plan to `routes.json`, which is what makes a
 generated one reviewable.
+
+**A slot may be a region: a fragment another deployment renders.** The route says a boundary is
+crossed and what it expects to find on the other side; `weft.config.ts` says which deployment, so
+rolling a region is a write there rather than a rebuild of every page composing it. The other side is
+a module — `{ region, contract, render }` — because both ends run this framework, which is the design's
+claim about tier boundaries with nothing between it and the reader. `weft verify` compares the route,
+the config, this deployment's executors and what the region says it is serving, and exits non-zero when
+any two of the four disagree.
+
+**A directory decides what a browser may ask to have rendered.** `app/renderables/` is the catalogue: an
+entry there is addressable by an opaque id derived from its module and export, with schema-validated
+params, the capability check and the signature the same intents get, and a rate limit. Everything under
+`app/fragments/` stays what a page composes — making those one set would turn every component into a
+public endpoint taking arbitrary props.
 
 **A page that reads nothing is a file.** `weft build` renders every route through the real kernel
 twice — under two requests differing in cookies, locale, device, headers, query, flags and a clock
@@ -521,7 +538,7 @@ warnings, each naming the read or the slot that caused it — including the one 
 promises in its strongest terms: `.cache('public')` on a fragment that reads identity fails
 the build, naming `identity`.
 
-**Ports replace, plugins extend.** Thirteen ports declared and thirteen implemented, ten of them
+**Ports replace, plugins extend.** Fourteen ports declared and fourteen implemented, eleven of them
 bound by the front door with no configuration at all. The last three were the interesting ones,
 because building them decided something. `config` is settings from an environment or a Worker
 binding, and a setting is deliberately **not** a tracked read — it is a property of the deployment,
@@ -596,6 +613,27 @@ uncacheable request, which costs a signed intent one round trip and costs it the
 the only kind of mutation here that has to have JavaScript, and the refusal says so on a page rather
 than as raw JSON.
 
+**Spent once is now spent across processes.** "As strong as the store's lease" was true and useless
+while every store here was process-local: `W_REPLAY_PROCESS_LOCAL` was a warning nobody could act on.
+The fix was to notice that a store answers two different questions with one field — where an entry may
+travel, and how many processes agree a lease is taken — so they are two fields now, and
+`sharedLeases(store, { dir })` makes the second one a machine without pretending the cache is shared.
+The test that says so mints a token, spends it, and hands it to a genuinely separate process, which
+refuses it. Across machines still needs a networked lease, and the port is where it goes.
+
+**A limit is a port because the interesting half is not the counting.** An intent says how much traffic
+it can take; what a call is counted against — an address, a session, a subject — is the deployment's,
+because each of those is wrong somewhere. Declared and unenforceable is `E_NO_RATE_LIMIT`, not
+unlimited, and it is said at startup rather than as a 501 in front of a reader.
+
+**A client can also ask for a render.** Every intent is a mutation; a render intent is the other thing
+an opaque id can address, and it reuses all three gates rather than growing a second set. What it adds
+is the catalogue, which is why it waited for the registry: an id has to resolve to a _place_, and with a
+port behind it an entry can be served by this process today and by another deployment tomorrow without
+the client knowing either way. It travels as a `REFRESH` with a source named, so an entry whose template
+the client holds comes back as changed values — which is the whole reason to do it over a channel
+instead of fetching markup.
+
 **A client can now know about a route without asking for it.** `WARM plan=/checkout/*` extends the
 plan, and a `PLAN` frame answers with what a client would otherwise fetch a document to learn: the
 shell each route renders into, its regions, its stylesheet, the templates they need, and where its
@@ -648,11 +686,30 @@ moved without the version moving are refused too, because by then the header has
 registry can tell which name it was given — two of the four are the same code with a different
 address, and saying so is better than inventing a distinction. What a topology may not do is collapse
 quietly: a split with nowhere to send a region is `E_NO_TIER`, because a monolith reported as a split
-is a latency claim nobody can check. `verifyRegions` then compares the four facts that live in four
+is a latency claim nobody can check. `weft verify` then compares the four facts that live in four
 places — what the plan declared, what the registry binds, what the deployment can reach, and what the
 region says it is serving right now — and a plan that says `remote` against a registry that binds it
 locally is an error rather than a warning, because the hop count and the document's cache class were
-both derived from the declaration.
+both derived from the declaration. It is a command with an exit code rather than a function somebody
+remembers to call, `--probe` is the half that asks the running region, and the half that needs no
+network also runs at startup and prints with the banner: a name is wrong in a config file, and the
+person who can fix it is looking at a terminal.
+
+**All of it is reachable from a route now.** `slots: { search: { region: { remote: … } } }` is the whole
+declaration, and `weft.config.ts` says which deployment serves it — so the framework's own demo, which
+imports `weft` and nothing else, composes a page from another deployment. That was the test of whether
+composition had a front door at all: a page there that needed the kernel would have been a page the
+front door could not express.
+
+Two things had to be built to make that honest. A region is **given** its declared reads, resolved
+through the same context a local fragment's go through, so reading a cookie on the region's behalf
+taints the composite exactly as a local read would and the document's key describes what actually
+rendered it. And the **exposed set** now routes: the shell values a region declared it consumes reach
+its server render across the boundary, and reach its client code as a signal — one table, declared by
+the shell in the frame that arrives when a channel opens, replacing rather than merging, so nothing on
+the wire can add a name. Closing that half also closed a hole: `SIGNAL` was the one frame a region may
+send that addresses no slot, so an unscoped one from a region could have set a value its siblings read.
+It is `E_REGION_ESCAPE` now, and a region's own signals carry its name.
 
 **And a slot cannot be sent somewhere its reads do not resolve.** `E_RENDER_LOCATION` compares the
 executor against the compiler's inferred read set at build time: a fragment on the `client` executor
@@ -664,9 +721,12 @@ domain. Both halves already existed; only the meeting of them is new.
 
 1. **A bandwidth and loss model in the latency proxy.** It delays packets and nothing else, so
    it understates what a slow link does to an 18% byte difference.
-2. **Rate limiting in the authority tier.** The capability model and signed intents are built; a
-   limit is the one piece of that tier with nothing behind it, because what a limit counts against
-   is a deployment's decision and a kernel choosing would be guessing.
-3. **Incremental declarative-shadow-DOM parsing on real iOS, Android WebView, and WebKitGTK.**
+2. **Incremental declarative-shadow-DOM parsing on real iOS, Android WebView, and WebKitGTK.**
    If the engines diverge the filler script becomes the primary path, which is survivable and
-   changes what can be claimed.
+   changes what can be claimed. `--engines ios` is declared and refuses by name: what is missing is a
+   device, not code, and webkit is a desktop proxy with nothing honest to fall back to.
+3. **A lease over something networked.** Single-use per machine is built and proved across processes;
+   per deployment behind a load balancer is a `lease` over Redis, a Durable Object or an advisory lock,
+   and the port is already the shape it plugs into.
+4. **The docs site and its playground.** The only item on the roadmap with no code behind it, and the
+   compiler is already ready for it — `compileFiles` needs a virtual file system and nothing else.

@@ -190,12 +190,13 @@ crossed — and the registry decides which one. The whole of it is in
 [`../kernel/composition.md`](../kernel/composition.md), including where a remote region's cache class
 comes from, what `hopsOf` counts, and why the count is a floor.
 
+`regionSpecOf` derives what the composer is told from the plan, and it is exported because a region is
+composed on three paths — a document request, a refresh over the channel, a route being staged. The
+second caller that built that by hand would have been the first to disagree with the plan about a budget
+or a fallback, so there is one derivation and three callers.
+
 ## What this does not do yet
 
-- **Nothing generates a plan.** `lowerPlan` turns one into a route (see
-  [routing](../kernel/routing.md)) and `factsFrom` derives its inputs from compiler output, but
-  the plan and its bindings are still written by hand. Generating them from a file convention or
-  a profile is phase 8.
 - **No byte budget enforcement.** `budget({ js, grow })` is parsed and stored. The measurement
   exists in `@weft/bench`; the two are not wired together.
 - **No scoped registration.** Fastify-style per-subtree plugin encapsulation is not

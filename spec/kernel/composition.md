@@ -284,11 +284,24 @@ it buys throughput.
 
 ## Measured
 
-`entry-region.ts` — the document request path plus resolution and the check — is **11,021 B brotli**
+`entry-region.ts` — the document request path plus resolution and the check — is **11,246 B brotli**
 against a stated 11,264 B ceiling. `entry-region-channel.ts` — the transport plus composition, which
-is what a gateway serving both actually imports — is **16,037 B** against 16,384. Both are their own
+is what a gateway serving both actually imports — is **16,268 B** against 16,384. Both are their own
 entries on the rule route staging established: a deployment that composes nothing never imports
 either, and its request path is the size it was.
+
+`readsFor` cost 155 bytes on the first of those and 143 on the second, taking the region entry from 243
+bytes of headroom to **18**. It is worth what it cost: without it a region's declared reads reached the
+key derivation and not the region, so a contract could say `route:q` and the region would render as if
+it had not been told — a page whose key described something other than what rendered it.
+
+On the client, the exposed table is `entry-expose.ts` at **4,368 B** against 5,120, and it took the
+front door past a watermark set before composition existed: 12 KB → 13 KB, measured at 12,540. That
+watermark has moved four times and this is the fifth; what it covers is now stated as _adoption to
+composition_. The trims that were available were taken first — a named error class the client package
+has no other instance of, two header aliases, and the prose out of a message that ships to every
+reader — for 164 bytes. The remainder is the mechanism, and a page that composes nothing can still
+build a boot module without it, which is what the entry is for.
 
 Two costs landed on entries this capability is not in. The `REGION` frame kind moved every entry
 carrying the frame table a few bytes — the channel 10,669 → 10,678, the front door 12,223 → 12,227 —
@@ -297,21 +310,162 @@ dispatch point in a shared file and could not be moved anywhere. The transport w
 bytes left. That is recorded rather than resolved: the next thing to touch `channel.ts` either trims
 it or moves the watermark with a reason, and it should know that before it starts.
 
+## Composition from the front door
+
+Everything above was reachable by importing the kernel, the plan layer and the adapters and wiring a
+composer by hand. That is the right way for the plan layer's own tests, whose subject _is_ the
+composer, and it was a gap in the framework: `demo/` depends on `weft` alone, so a page there that
+needed the kernel was a page the front door could not express.
+
+A route says a slot is a region. It says nothing about where.
+
+```ts
+// app/routes/app/composed.data.ts
+slots: {
+  search: {
+    region: {
+      remote: { id: 'search', version: '2.1.0', reads: ['route:q'] },
+      fallback: 'degraded',
+      consumes: ['currency'],
+    },
+    budget: { cpu: '250ms' },
+  },
+},
+exposes: ['currency', 'cartCount'],
+```
+
+A deployment says where.
+
+```ts
+// weft.config.ts
+executors: { 'binding:search': bindingExecutor({ binding: regionService({ root }), timeoutMs: 500 }) },
+regions: [{ region: 'search', executor: 'binding:search',
+            address: { module: './search-region.ts', export: 'search' },
+            contract: { id: 'search', version: '2.1.0', reads: ['route:q'] } }],
+```
+
+And the other side is a module rather than a service somebody writes, which is the protocol claim with
+nothing between it and the reader:
+
+```ts
+export const search: RegionRenderer = {
+  region: 'search',
+  contract: { id: 'search', version: '2.1.0', reads: ['route:q'] },
+  render: (request) => markupFor(request.reads?.['route:q'], request.exposed?.currency),
+}
+```
+
+**A region is given its reads rather than taking them**, and that is what makes a composed page
+cacheable at all. `readsFor` resolves the contract's reads through the _same context_ a local
+fragment's go through — so reading `cookie:currency` on the region's behalf taints the composite
+exactly as a local fragment reading it would, and the document's key and `Vary` describe the region's
+reads whether it is in this process or across a socket. A composite that resolved them off the raw
+request would produce a page whose key did not describe what rendered it, which is the one failure the
+whole effect graph exists to prevent.
+
+`ports.registry` was the last declared port nothing bound. It is bound now, and it answers three
+questions with three lifetimes: an intent id derived from code, a region binding somebody rolls, and a
+catalogue entry a client may name.
+
+## `weft verify`
+
+The four facts in four places, compared where the answers are, with an exit code.
+
+```
+$ weft verify demo --probe
+
+  route              region          locus   where               serving
+  /app/composed     search          remote  binding:search      search@2.1.0  rev search-42
+
+  1 region(s) agree, including what each one says it is serving right now
+```
+
+`--probe` is the half that needs the network and it is the window CI cannot close: a contract test
+against a published type says what was true when the type was published, and this says what is true at
+the moment of the deploy. Without it the command is still worth running, because three of the four
+comparisons need nothing but this process.
+
+The resolvable half also runs at **startup**, printed with the banner. A composed page that cannot
+resolve one of its regions fails at request time with a named error, which is correct and late: the
+name is wrong in a config file and the person who can fix it is looking at a terminal. `weft build`
+prints a line per region for the same reason, and says which command gates it.
+
+## The exposed set, routed
+
+`expose()` was declared and checked and nothing routed it — a contract nobody could breach because
+nobody could use it. Both directions work now, and they are two mechanisms because they answer two
+questions.
+
+**Server side.** The names a region declared it consumes are resolved from the shell's own values and
+handed across the boundary in the region's request. Stringified, like a read, and for the same reason:
+these cross a serialisation, so a region that received the number `3` in a monolith and the string
+`"3"` over a binding would have a bug that appears in one topology and not the other — which is the
+class of thing the byte-identical assertion between the two exists to catch. Intersected with what the
+shell exposes rather than trusted: validation already refuses a region consuming something outside the
+set, and this makes the runtime unable to widen one.
+
+**Client side.** A region's client code runs in a page it did not assemble. It cannot reach the shell's
+variables — they are in another deployment's module graph — and it must not reach for a global, because
+a global that exists on one page and not another is the coupling a composed page cannot afford. So
+there is one table, and `weft.exposed('currency')` reads it. What comes back is a `Readable`, so it is
+in the signal graph: a new value recomputes exactly the nodes that read it. There is no write side, and
+that asymmetry is the design's — a shell offers values, it does not host a bus.
+
+The table's _set_ comes from one frame, and that is the security property. A `SIGNAL` with a body and
+no name is the shell's declaration, sent when the connection opens for the same reason `PLAN` is: the
+client cannot ask a question it does not know it has. It **replaces** rather than merges, so nothing on
+the wire can add a name — and a name the shell has stopped exposing stops being readable rather than
+keeping the last value anybody saw. A `SIGNAL` naming something outside the set is refused and
+_reported_: a dropped one looks exactly like one that never arrived.
+
+A page with no channel is not missing anything. A region's first render already had the values it
+consumes — the composite resolved them and handed them over, so the markup that arrived is correct —
+and a shell value that _changes_ needs a live channel by definition. Changes are sent after an intent,
+one frame per value that moved, on both bindings: a form post that left every open page's exposed
+values stale would be push invalidation working on one binding out of two.
+
+### One frame kind, two namespaces, and a hole that had to be closed
+
+A region may send `SIGNAL` — its own client state is its own business. But a signal carries a name out
+of a namespace the _shell_ also writes into, and every other frame a region sends addresses a slot, so
+the escape check had nothing to check. An unscoped `SIGNAL` arriving from a region would have let it
+set a value its siblings read: the exact coupling the exposed set exists instead of, arriving through
+the back door.
+
+So an unscoped `SIGNAL` is the composite's, and a region's own must carry `s=<region>` — at which point
+the check that was already there does the rest. `E_REGION_ESCAPE`.
+
+## A region staged as part of a route
+
+`WARM at=` used to answer with regions from this deployment's plan only, so a staged route arrived with
+its remote holes empty and the reader watched them assemble after the commit — which is the one thing
+staging exists to prevent. They are composed now, and told the epoch they are being staged into, so a
+region knows the answer is not going to paint yet and can split its own frames accordingly.
+
+`StagedRoute.slots` became the union a refresh already branches on rather than a second mechanism:
+frames from elsewhere are the smallest form their producer could choose, because it is the side holding
+the template, so choosing again here would mean re-deriving a delta against a template this process
+does not have. The one thing the stage adds is the epoch, on the one frame that paints.
+
+The same union made a remote region **refreshable over the channel** from the front door. There is no
+`live` gate on that path, deliberately: `live` says _this process may re-render this slot under a
+reader_, which is a statement about a fragment this process holds. A region's freshness is the region's
+own business, and refusing to ask it would be this deployment deciding something it has no view of.
+
 ## What this does not do yet
 
-- **`expose()` is declared and checked, and nothing routes it yet.** A region consuming a signal the
-  shell does not expose is a build error, which is the half that makes the single channel worth
-  having. What is missing is the runtime: a shell signal does not yet reach a region's client code,
-  so today the declaration is a contract nobody can breach because nobody can use it.
 - **A `STALE` for a region's cache tag has nobody to tell.** The composite does not hold a region's
   cache keys — it holds a contract, and keys are the region's own — so push invalidation stops at the
   boundary. The client's own refresh interval is what covers it, which is the design's stated
   fallback for the whole invalidation tier and not a special case here.
-- **`weft verify` is a function and not yet a command.** `verifyRegions` and `regionProbe` do the
-  work; nothing in the CLI calls them, so a deploy is not gated on them yet.
+
+  What changed is that it is no longer a silence. A remote region that declares cache tags and no
+  refresh interval has _neither_ mechanism, and that is `W_REGION_TAGS_UNREACHABLE` at build time,
+  naming the tags and the fallback. A warning rather than an error, because a tag on a remote region is
+  not a contradiction — the region may well be invalidated by it on its own side, and this composite
+  simply cannot see that. What would be wrong is letting a page declare tags, get nothing, and find out
+  from a region that never updates in production.
+
 - **Nested regions are a tree in the numbers and not in the resolution.** A region's own regions are
   resolved by its own registry, which is right, but nothing yet reports the composite tree as one
   graph.
-- **A region cannot be staged as part of a route.** `WARM at=` answers with regions from this
-  deployment's plan; a composed region on another deployment is not part of that answer, so a staged
-  route arrives with its remote regions unfilled.

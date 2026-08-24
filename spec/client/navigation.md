@@ -288,9 +288,19 @@ staging may not do.
 
 **A discovery signal that is not a link or a hover.** `weft.discover` is called by an application
 that knows something the framework does not; nothing calls it on the framework's own initiative
-beyond the handshake. Whether a subtree is worth describing before anybody looks at it is the same
-kind of question as whether a route is worth staging, and the same answer applies: it is a
-measurement, and the recording that would support it does not record discoveries yet.
+beyond the handshake.
+
+What _is_ decided now is whether the handshake should describe a given route at all. The recording
+counts descriptions handed out against descriptions followed — a `WARM at=` for a pattern this
+connection was told about, which is the only way a client knows the shell matches — and a route under
+20% over at least eight descriptions stops being volunteered. An unmeasured route keeps describing, the
+same rule delivery follows, and a prefix somebody _asked_ about is answered whatever the recording says,
+because the measurement is about what this deployment volunteers. See
+[`../plan/profile.md`](../plan/profile.md).
+
+What is still refused, and stated as refused: a prefix no client has ever asked about and no transition
+points at has no observation behind it. There is nothing to count, and a number invented for it would be
+the guess the profile layer exists instead of.
 
 **Off-main-thread preparation.** Parsing the staged document happens on the main thread, in the
 `DOMParser` call inside the staging load, and it cannot move: `DOMParser` does not exist in a

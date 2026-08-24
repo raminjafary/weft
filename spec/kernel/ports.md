@@ -45,28 +45,46 @@ convention: `plugin-graph.ts`, because plugin ordering is inferred from static d
 belongs to the build, and `plugin-guard.ts`, because the design specifies declared-read
 enforcement as a dev-time check.
 
-## The thirteen
+## The fourteen
 
-| Port         | Status              | Notes                                                                              |
-| ------------ | ------------------- | ---------------------------------------------------------------------------------- |
-| `store`      | Interface + 2 impls | `memoryStore` (L1), `tieredStore` (composition)                                    |
-| `flags`      | Interface + 1 impl  | `staticFlags`; `axes()` is mandatory, not optional                                 |
-| `session`    | Interface + 1 impl  | `cookieSession`                                                                    |
-| `executor`   | Interface + 4 impls | `inline`, `deferred`, `client`, and a real `pool` of worker threads                |
-| `telemetry`  | Interface + 1 impl  | `collectingTelemetry`                                                              |
-| `transport`  | Interface + 1 impl  | `nodeTransport`, for 103                                                           |
-| `scheduler`  | Interface + 2 impls | `prioScheduler` is the kernel's own rule, named; `fifoScheduler` keeps plan order  |
-| `assets`     | Interface + 1 impl  | `weftAssets`, and the kernel asks it when the route named no critical links        |
-| `render`     | Interface + 1 impl  | `irRenderer`; the plan binds it, so `remote` is another implementation not a path  |
-| `registry`   | Interface + 1 impl  | `manifestRegistry`; an opaque intent id to its code, a region name to a deployment |
-| `config`     | Interface + 2 impls | `envConfig` under a prefix, `staticConfig` for a Worker's `env`                    |
-| `db`         | Interface + 1 impl  | `boundedDb`: a name, a deadline, and the tags an access declared                   |
-| `deployment` | Interface + 2 impls | `hostDeployment` reads whatever the host calls a revision; `staticDeployment`      |
+| Port         | Status              | Notes                                                                                   |
+| ------------ | ------------------- | --------------------------------------------------------------------------------------- |
+| `store`      | Interface + 2 impls | `memoryStore` (L1), `tieredStore` (composition)                                         |
+| `flags`      | Interface + 1 impl  | `staticFlags`; `axes()` is mandatory, not optional                                      |
+| `session`    | Interface + 1 impl  | `cookieSession`                                                                         |
+| `executor`   | Interface + 4 impls | `inline`, `deferred`, `client`, and a real `pool` of worker threads                     |
+| `telemetry`  | Interface + 1 impl  | `collectingTelemetry`                                                                   |
+| `transport`  | Interface + 1 impl  | `nodeTransport`, for 103                                                                |
+| `scheduler`  | Interface + 2 impls | `prioScheduler` is the kernel's own rule, named; `fifoScheduler` keeps plan order       |
+| `assets`     | Interface + 1 impl  | `weftAssets`, and the kernel asks it when the route named no critical links             |
+| `render`     | Interface + 1 impl  | `irRenderer`; the plan binds it, so `remote` is another implementation not a path       |
+| `registry`   | Interface + 1 impl  | An intent id to its code, a region name to a deployment, a catalogue id to a renderable |
+| `config`     | Interface + 2 impls | `envConfig` under a prefix, `staticConfig` for a Worker's `env`                         |
+| `db`         | Interface + 1 impl  | `boundedDb`: a name, a deadline, and the tags an access declared                        |
+| `deployment` | Interface + 2 impls | `hostDeployment` reads whatever the host calls a revision; `staticDeployment`           |
+| `limits`     | Interface + 1 impl  | `countingLimits` counts; `counted` is the decision it refuses to make for you           |
 
-Thirteen declared, thirteen implemented, and ten of them bound by the front door with no
+Fourteen declared, fourteen implemented, and eleven of them bound by the front door with no
 configuration at all. A port that does not exist refuses with a named error and does not
 approximate — which is what the three that were "declared only" did until they were built, and
 what any future one will do.
+
+`registry` was the last of the fourteen that the front door declared and did not bind. It is bound
+now, because composition acquired a front door: a route says a slot is a region and `weft.config.ts`
+says which deployment serves it, so the indirection has somewhere to live other than a test.
+
+`limits` is the fourteenth, and it is the clearest case for why these are ports rather than
+configuration. The implementation counts; what it cannot decide is _what a call is counted against_,
+because an address is wrong behind a proxy, a session is wrong for an unauthenticated API, and a
+subject is wrong for every call made before anybody signs in. A kernel picking one would be guessing
+with a straight face, so an intent that declares a limit and finds nothing bound is `E_NO_RATE_LIMIT`
+rather than unlimited.
+
+`store` grew a second scope field for a related reason. `scope` says who may read what a tier holds,
+and a tiered store refuses to write a private entry to a shared one on the strength of it; `leaseScope`
+says how many processes agree that somebody already took a lease. Those were one field until replay
+needed them to differ — a deployment should not have to make its cache shared in order to make its
+nonces single-use. `sharedLeases(store, { dir })` sets the second and leaves the first alone.
 
 ### The three that were declared only, and what they turned out to be
 

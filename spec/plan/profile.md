@@ -22,6 +22,8 @@ interesting case for a profile is a process that was killed.
 | `slots[].bytes`      | The largest render seen. A small region gains nothing from a flush |
 | `slots[].hits`       | Requests the store answered for                                    |
 | `routes[].from`      | Which pattern the reader came from, and how often                  |
+| `routes[].described` | Times this route was described to a client that had not been to it |
+| `routes[].followed`  | Times such a description was then used                             |
 
 **Where the numbers come from, and why not from telemetry.** A `TelemetryPort` sees `slot.render`
 with a slot name and no route, because the executor that emits it has no idea what page it is on —
@@ -41,10 +43,13 @@ reached by a DOM swap counts the same as one reached by a load.
 
 ## What it decides
 
-Delivery, and nothing else. A profile cannot move a fragment, change a cache class or touch a key:
-those belong to the compiler and the convention, and a recording of last Tuesday has no standing
-over any of them. Delivery it does have standing over, because the declaration was a guess and this
-is a measurement.
+Two things, and both are about **time**. A profile cannot move a fragment, change a cache class or
+touch a key: those belong to the compiler and the convention, and a recording of last Tuesday has no
+standing over any of them. What it does have standing over is delivery — whether a region is worth its
+own flush — and whether describing a route to a client that has not been to it is worth the bytes.
+Both were guesses in a declaration, and this is a measurement.
+
+### Whether a region is worth its own flush
 
 | Observation                                                  | Decision                                     |
 | ------------------------------------------------------------ | -------------------------------------------- |
@@ -67,6 +72,40 @@ exactly as the convention placed it and the report names it — and a slot that 
 hit is a slot whose delivery barely matters, so having nothing to say about it is the right answer
 rather than a gap.
 
+### Whether a route is worth describing
+
+The second decision, and the one thing about discovery that was never a measurement. A `PLAN` frame
+describes routes a client has not been to — every field in it is something the client would otherwise
+spend a request to learn, and the expensive one is the shell, because a link into a different document
+cannot be swapped in as regions and finding that out by asking costs a round trip _and_ a server render
+of a page nobody clicked.
+
+That is the case for describing. What was missing is the case against: bytes spent on a page nobody may
+open. It is the same question as whether a route is worth staging, with the same answer — it is a
+measurement — and nothing recorded it, so the handshake described whatever the transition table said
+and no number ever came back to say whether the describing helped.
+
+| Observation                                      | Decision                                      |
+| ------------------------------------------------ | --------------------------------------------- |
+| ≥ 20% of descriptions followed, over ≥ 8 of them | `describe`                                    |
+| Under 20%                                        | `skip` — the bytes buy nothing here           |
+| Fewer than 8 descriptions                        | nothing. An unmeasured route keeps describing |
+
+**Twenty percent, against staging's fifteen and four.** The asymmetry is the point: a description is a
+line in a frame the connection was already getting, and being wrong four times out of five still pays,
+because the one time it is right it saves a round trip and a render. Staging is the expensive one — it
+runs loaders — so it needs the higher bar.
+
+**A description is counted as followed only when this connection was told about it.** A client asks to
+stage a route it has not been to _because_ it was described one; it has no other way to know the shell
+matches. So a `WARM at=` for a described pattern is the description being used, and one for an
+undescribed pattern is a hover on a link the page had anyway — counting that would make every
+description look successful.
+
+**A prefix somebody asked about is described whatever the recording says.** The measurement is about
+what this deployment _volunteers_, in the unasked frame when a channel opens, and a question is not a
+volunteer. `weft.discover('/checkout/*')` is answered either way.
+
 ## What it refuses to decide
 
 Printed by `weft profile` rather than left as a silence, because two of these are in the design and
@@ -79,6 +118,13 @@ does not have, and packing chunks that do not exist is not a thing a profile can
 **V8 compile hints.** A template is data here, not code. There is no per-template function to hint:
 the renderer walks pre-encoded segments, so the hot code is the renderer and it is hot on every page
 already.
+
+**Whether a subtree is worth describing before anybody has looked at it _at all_.** The half above is
+measured: a description handed out and followed, or not. What has no observation behind it is a prefix
+no client has ever asked about and no transition points at — there is nothing to count, and inventing a
+number would be the guess this whole layer exists instead of. So half of the discovery question is a
+decision and half is a stated refusal, because a capability that is half built and reads as whole is
+worse than one that says which half.
 
 **A cache key.** Keys come from what the compiler saw a fragment read. A profile is not a compiler,
 and this is the one extension point the design refuses on purpose.
@@ -108,12 +154,10 @@ the recording: a region the store answers for is a region whose delivery hardly 
 
 ## What is not built
 
-**The transitions are recorded and reported, and nothing consumes them yet.** `likelyNext(profile)`
-inverts the table into "from this page, where next", which is exactly what a navigation wants to
-stage — and there is no channel from the server to the client runtime that carries a per-route
-hint. A layout hole would need every application's layout to have one; the prelude is one file for
-every route; a header is not readable by a document navigation. The frame that should carry it is
-`NAV`, which is the roadmap entry after this one.
+**The version is `2`.** Counting discoveries added two fields, and a minor addition to a format is
+still a format change — so an older profile is ignored rather than half-read. That matters more here
+than it usually would: a missing `described` reads as zero, and zero means "described and never
+followed", which is the _opposite_ of the truth for a recording that never counted.
 
 **`weft profile --apply` does not exist**, and deliberately: the profile is read at generation time,
 so the next `weft dev` or `weft build` already plans from it and `routes.json` shows the result.

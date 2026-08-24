@@ -108,10 +108,43 @@ No new port, no new record to expire: the lease _is_ the record, and it cannot o
 describes. A store that hands the same lease to somebody else is a store saying this token has
 already been used, which is the answer rather than an error.
 
-What that covers is what the store's scope covers, and the front door says so rather than leaving
-it to be assumed: a `process`-scoped store gives `W_REPLAY_PROCESS_LOCAL`, meaning single-use per
-process. On one machine that is the deployment; behind a load balancer it is not, and the fix is a
-shared store rather than a paragraph.
+What that covers is what the **lease** covers, and `replayScope` reports it rather than leaving it to
+be assumed. That used to read the store's `scope`, and the two are now separate fields — because they
+are separate questions. `scope` decides whether a private entry may be written to a tier, and a tiered
+store refuses on the strength of it. `leaseScope` decides how many processes agree that somebody
+already took this. Conflating them meant a deployment that wanted per-deployment single-use had to
+make its whole _cache_ shared to get it: a much larger decision, made for a reason that has nothing to
+do with caching.
+
+Split, a process-local cache can take shared leases. `sharedLeases(store, { dir })` in
+`@weft/adapters` is that: an exclusive create in a directory every process can see, which is atomic on
+a local filesystem, so exactly one caller gets the lease and the rest are told it is held. It replaces
+one method and leaves `scope` alone, because it does not make the cache shared.
+
+**What each arrangement actually gives, stated rather than implied.**
+
+| Store                                   | `replayScope` | Single-use across |
+| --------------------------------------- | ------------- | ----------------- |
+| `memoryStore()`                         | `process`     | one isolate       |
+| `sharedLeases(memoryStore(), { dir })`  | `shared`      | one machine       |
+| a lease over Redis, a Durable Object, … | `shared`      | the deployment    |
+
+The middle row is the one that was missing, and it is the deployment shape most Node applications
+have: several processes behind a local proxy, or a cluster. The bottom row is a `lease` over something
+networked — `SET NX PX`, an advisory lock — and the port is exactly where it plugs in. What the
+framework owed was an answer for the common case and a clear shape for the rest; a warning nobody
+could act on was neither. `W_REPLAY_PROCESS_LOCAL` now names the fix.
+
+The steal path is worth being exact about, because a filesystem lease has one. An expired marker left
+by a process that went away is taken over by whichever caller's `unlink` wins, and a caller that loses
+that race is told the lease is held. For a nonce that is unreachable: the lease's lifetime _is_ the
+token's, so a token whose lease has expired has already been refused on `x`. For a stampede lease it
+means wait or serve stale, which is what a contended lease means anyway.
+
+The assertion behind all of this is in a **second process**. Verifying twice against one store proves
+a `Map` remembers, and a `Map` was never the thing in question — so the test mints a token, spends it,
+and hands it to a genuinely separate process that has the public key and the lease directory and
+nothing else in common.
 
 ## A token cannot be rendered into a page
 
@@ -176,26 +209,140 @@ successful privilege escalation is silence.
 
 ## What this costs
 
-| Entry                | Covers                                                  | Measured | Ceiling |
-| -------------------- | ------------------------------------------------------- | -------- | ------- |
-| `entry-intent.ts`    | Intent dispatch, with the two authority branches in it  | 9,457 B  | 10,240  |
-| `entry-authority.ts` | The above, plus the capability model and signed intents | 11,127 B | 12,288  |
+| Entry                | Covers                                                   | Measured | Ceiling |
+| -------------------- | -------------------------------------------------------- | -------- | ------- |
+| `entry-intent.ts`    | Intent dispatch, with the three authority branches in it | 9,643 B  | 10,240  |
+| `entry-authority.ts` | The above, plus the capability model and signed intents  | 11,309 B | 12,288  |
+| `entry-render.ts`    | The transport, plus the catalogue: render intents        | 13,866 B | 14,336  |
 
 242 bytes of the growth is in the intent path: the branch that refuses an unverifiable signature and
 the two places a token is read off a request. The model and the token machinery — 1,670 bytes — are
 in an entry of their own, and a deployment whose intents declare no authority never imports it.
 
+Rate limiting added 186 bytes to the intent path and took the _line_ ceiling on that entry past 2,100.
+The ceiling moved rather than the code, and the reason is recorded with it: the limit is a gate on
+every intent, so its branch lives where the dispatch is, and the port it calls through is declared
+beside the other thirteen. Both alternatives are worse — a second dispatch site in the authority entry,
+or a port declared somewhere ports are not.
+
+Render intents are their own entry on the rule route staging established, and they share every gate
+with the intent path rather than measuring a second authority tier. What they cost the _channel_ is
+five bytes: `SlotRequest` gained the frame that asked, which is the field `WarmRequest` already carried
+for the same reason. The transport entry has four bytes left.
+
+## Render intents
+
+Every intent above is a _mutation_. A render intent is the other thing a client can address by opaque
+id: **put this catalogue entry in this slot**.
+
+The authority half needed nothing new. `createRenderDispatch` calls the same `CapabilityCheck`, the
+same `IntentVerifier` and the same `LimitPort`, in the same order and for the same reasons, because two
+gates that were supposed to be one gate are how the weaker of them is discovered. What it adds is the
+**catalogue**, and the catalogue is why this waited for phase 9: an id has to resolve to a _place_, and
+the thing that turns a name into a place is the registry port. Built before the registry existed it
+would have had one possible answer, and a catalogue with one answer is a function call with ceremony.
+
+**The catalogue is a directory, and that is the security boundary.** `app/renderables/**.ts` is what a
+_browser_ may name; `app/fragments/` is what a page composes. Making those one set would turn every
+component in an application into a public endpoint taking arbitrary props. The id is
+`intentId(module, export)` — the same six hex characters the compiler writes into a template's wiring —
+so nothing states an id twice, moving the file changes the wire, and the name on the wire discloses no
+server code.
+
+```ts
+export const productCard = defineRenderable<{ sku: string }>({
+  name: 'card.product',
+  fragment: 'product-card', // or: region: 'search', and the registry decides
+  input: (raw) => ({ sku: mustBeAProduct(raw) }), // params from a browser reach a *template*
+  limit: { max: 60, windowMs: 10_000 },
+  load: (ctx, { sku }) => valuesFor(sku),
+})
+```
+
+```ts
+weft.render('card.product', 'body', { sku: 'OIL-2L' })
+```
+
+**It is a `REFRESH` with a source named, not a frame of its own.** A refresh asks _give me this slot's
+current state_; a render intent asks _put this entry in it_. Same answer, same forms, same epoch
+semantics, and the same surgical ladder — an entry whose template the client already holds comes back
+as the changed values and nothing else, which is the entire reason to do this over a channel rather
+than as a fetch returning markup. A new frame kind would have cost every entry carrying the frame
+table a few bytes to say what a header says.
+
+| Refusal                | When                                                                       |
+| ---------------------- | -------------------------------------------------------------------------- |
+| `E_NO_CATALOGUE`       | No registry able to resolve a renderable is bound                          |
+| `E_NO_SUCH_RENDERABLE` | Nothing in the catalogue answers that id, and the refusal lists nothing    |
+| `E_RENDER_INPUT`       | The params did not validate. They came from a browser and reach a template |
+| `E_NO_SUCH_SLOT`       | The slot is not a hole on the page this connection is showing              |
+| `E_RENDER_FAILED`      | The entry threw. One hole degrades; the connection does not                |
+
+Two checks are the _caller's_ rather than the dispatch's, and both for the same reason: they are route
+knowledge and a channel has none. Whether the slot is a hole on this page, and whether the id is an
+entry's declared name rather than its id — markup a person wrote has to be able to name one, and what
+travels is still the id.
+
+**A render cannot write, and that is a type.** The gates run against an `EnvelopeContext`, because a
+capability check resolves a subject and a verifier reads a token; the entry's own loader gets a
+`RenderContext`, which has no envelope on it at all. Handing one context to both would have made a
+render intent a mutation wearing a different hat.
+
+## Rate limiting
+
+The design puts it in this tier, and it is the one piece of the tier a kernel cannot implement —
+because the whole question is _what a call is counted against_. An address is wrong behind a proxy. A
+session is wrong for an unauthenticated API. A subject is wrong for every call made before anybody
+signs in. Which is right is a property of the deployment, so it is a port.
+
+An intent declares how much traffic it can take; the port decides whose traffic this is. Neither half
+is derivable from the other, which is why splitting them is the whole design rather than a detail.
+
+```ts
+export const addToCart = defineIntent({
+  name: 'cart.add',
+  writes: ['cart'],
+  limit: { max: 20, windowMs: 10_000 },
+})
+```
+
+```ts
+// weft.config.ts — the decision the framework will not make for you
+limits: {
+  counted: bySession('sid')
+} // or byAddress(), or bySubject(), or a whole LimitPort
+```
+
+`byAddress`, `bySession` and `bySubject` are the three answers the design names, written out, because a
+port whose only documentation is its type is a port everybody implements slightly wrong once. Returning
+`null` means _not counted_ — a queue worker, a migration — and it is a decision rather than a hole: the
+honest place for an exemption is the function that decides who is being counted.
+
+The port is handed exactly those three things and not the request. A limiter given `RequestFacts` could
+count against a path, a query string, a body — and a limit counted against something nobody can
+enumerate is a limit nobody can reason about.
+
+**The limit is checked before the signature and before the grant.** Capacity is the cheapest of the
+three and it protects the other two: a caller hammering a signed intent with forged tokens should be
+turned away before this process does an Ed25519 verification on their behalf.
+
+| Refusal           | Status | When                                                                    |
+| ----------------- | ------ | ----------------------------------------------------------------------- |
+| `E_NO_RATE_LIMIT` | 501    | An intent declares a limit and no port is bound. Refused, not unlimited |
+| `E_RATE_LIMITED`  | 429    | Over the ceiling. Carries `Retry-After`, and never says what it counted |
+
+The refusal does not say what the call was counted against. That value identifies the caller, and
+telling somebody which bucket they are in is telling them how to leave it.
+
+`countingLimits` is a **fixed** window, named as one: the window is part of the key, so a bucket expires
+by being a different key and nothing has to sweep. What it costs is the boundary burst a fixed window
+always costs. A sliding window needs a read-modify-write against a store that can count atomically, and
+`StorePort` deliberately cannot — it has a lease, not a counter — so this is the honest limiter for the
+port that exists, and a deployment that needs a sliding one binds it.
+
 ## What this does not do
 
-- **No capability-gated renders or plugins.** The seam is on intents, which is where writes are.
-  The design's plugin capabilities are phase 9 work and would be a second gate with a second set of
-  failure modes.
-- **No render intents.** The client addresses an intent by opaque id, with schema-validated params
-  and a capability check — but every intent is a _mutation_. A catalogue of renderable fragments
-  addressable the same way is the module-catalogue half of the design, and it belongs with `remote`
-  in phase 9: it needs a registry resolving a region name to a deployment, which is one of the ports
-  still declared and unimplemented.
+- **No capability-gated renders or plugins.** The seam is on intents and on catalogue entries, which
+  is where writes and client-addressable renders are. The design's plugin capabilities would be a
+  third gate with a third set of failure modes.
 - **No delegation, and no token that mints tokens.** A token authorises one call.
-- **No rate limiting.** The design puts it in the authority tier and it is a port-shaped concern:
-  what a limit is counted against — an IP, a session, a subject — is a deployment's decision, and
-  the kernel would be guessing.
