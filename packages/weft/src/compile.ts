@@ -1,6 +1,7 @@
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import process from 'node:process'
 import { compileFiles } from '@weft/compiler'
 import type { Resolver, TemplateIR } from '@weft/ir'
 import type { Discovered } from './convention.ts'
@@ -50,9 +51,25 @@ export async function stageAssets(root: string, outDir: string): Promise<Record<
   const target = join(root, outDir, 'assets')
   await mkdir(target, { recursive: true })
   const staged: Record<string, string> = {}
+  /**
+   * Copied through a temporary name, and that is not caution for its own sake.
+   *
+   * `copyFile` truncates the destination and then writes it, so a second process compiling the same
+   * project at the same moment can read the file between those two steps and get nothing — which
+   * surfaces as `E_NO_FRAGMENT` on the framework's own markup fragment, a failure whose message
+   * describes a file the user did not write and cannot fix. Two `weft dev` processes on one project,
+   * a build beside a running server, and a test suite that starts several applications in parallel
+   * are all ordinary; this was flaky for the last of those roughly one run in eight.
+   *
+   * A rename within a directory is atomic, so a concurrent reader sees either the whole previous file
+   * or the whole new one. The temporary name carries the process id, so two writers cannot collide on
+   * it either.
+   */
   for (const name of ['layout.tsx', 'markup.tsx']) {
     const to = join(target, name)
-    await copyFile(join(ASSETS, name), to)
+    const staging = `${to}.${process.pid.toString(36)}.tmp`
+    await copyFile(join(ASSETS, name), staging)
+    await rename(staging, to)
     staged[name.replace(/\.tsx$/, '')] = to
   }
   // A tsconfig of their own. The type oracle asks the checker for the project a file belongs to,
