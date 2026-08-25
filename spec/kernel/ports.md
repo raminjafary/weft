@@ -84,7 +84,10 @@ rather than unlimited.
 and a tiered store refuses to write a private entry to a shared one on the strength of it; `leaseScope`
 says how many processes agree that somebody already took a lease. Those were one field until replay
 needed them to differ — a deployment should not have to make its cache shared in order to make its
-nonces single-use. `sharedLeases(store, { dir })` sets the second and leaves the first alone.
+nonces single-use. `sharedLeases(store, { dir })` and `redisLeases(store, { url })` both set the
+second and leave the first alone: one reaches every process on a machine over a directory, the other
+every instance of the deployment over a socket. Both wrap rather than replace, and only `lease`
+changes — see [`authority.md`](authority.md) for what each buys and where each one stops.
 
 ### The three that were declared only, and what they turned out to be
 

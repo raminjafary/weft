@@ -252,8 +252,8 @@ export async function resolveAuthority(
         diagnostics.push(
           `W_REPLAY_PROCESS_LOCAL: a spent nonce is remembered in '${store.name}', whose leases are ` +
             `process-scoped, so a signed intent is single-use per process rather than per deployment. ` +
-            `sharedLeases(store, { dir }) in @weft/adapters makes it per machine; a networked lease ` +
-            `makes it per deployment`,
+            `sharedLeases(store, { dir }) makes it per machine and redisLeases(store, { url }) makes ` +
+            `it per deployment, both in @weft/adapters`,
         )
       }
     } else if (signer) {

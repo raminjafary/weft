@@ -123,28 +123,53 @@ one method and leaves `scope` alone, because it does not make the cache shared.
 
 **What each arrangement actually gives, stated rather than implied.**
 
-| Store                                   | `replayScope` | Single-use across |
-| --------------------------------------- | ------------- | ----------------- |
-| `memoryStore()`                         | `process`     | one isolate       |
-| `sharedLeases(memoryStore(), { dir })`  | `shared`      | one machine       |
-| a lease over Redis, a Durable Object, … | `shared`      | the deployment    |
+| Store                                  | `replayScope` | Single-use across |
+| -------------------------------------- | ------------- | ----------------- |
+| `memoryStore()`                        | `process`     | one isolate       |
+| `sharedLeases(memoryStore(), { dir })` | `shared`      | one machine       |
+| `redisLeases(memoryStore(), { url })`  | `shared`      | the deployment    |
+| a Durable Object, an advisory lock, …  | `shared`      | the deployment    |
 
-The middle row is the one that was missing, and it is the deployment shape most Node applications
-have: several processes behind a local proxy, or a cluster. The bottom row is a `lease` over something
-networked — `SET NX PX`, an advisory lock — and the port is exactly where it plugs in. What the
-framework owed was an answer for the common case and a clear shape for the rest; a warning nobody
-could act on was neither. `W_REPLAY_PROCESS_LOCAL` now names the fix.
+The middle rows are the ones that were missing. `sharedLeases` covers the deployment shape most Node
+applications have — several processes behind a local proxy, or a cluster — and stops exactly where a
+filesystem does: two machines do not share that directory.
+
+`redisLeases(store, { url })` is the row past it, and it is `SET key token NX PX ttl` with nothing
+around it. One round trip, atomic, expiring on its own, against something outside every process
+taking part — which is the only thing that can answer "did anybody already take this" across a load
+balancer. It speaks RESP over a socket with no dependency, so Redis, Valkey and KeyDB are the same
+adapter; it is not a general-purpose client and does not want to be.
+
+Two details of it are load-bearing rather than incidental.
+
+**Release is a compare-and-delete, not a `DEL`.** A lease that expired and was taken by somebody else
+is somebody else's, and a late release deleting it would hand the same nonce out twice — the failure
+the lease exists to prevent, arriving from the cleanup path. The value is a token the caller
+generated and the delete is conditional on it.
+
+**A store that cannot be reached throws, and `verifyIntent` turns that into `E_REPLAY_UNKNOWN`.** Not
+`ok` with a note in a log: an outage is exactly when replaying a token is worth attempting, so a
+signed intent that proceeded on a maybe would be replayable for the length of one. Refusing during an
+outage is the weaker product and the stronger property.
 
 The steal path is worth being exact about, because a filesystem lease has one. An expired marker left
 by a process that went away is taken over by whichever caller's `unlink` wins, and a caller that loses
 that race is told the lease is held. For a nonce that is unreachable: the lease's lifetime _is_ the
 token's, so a token whose lease has expired has already been refused on `x`. For a stampede lease it
-means wait or serve stale, which is what a contended lease means anyway.
+means wait or serve stale, which is what a contended lease means anyway. Redis has no equivalent path:
+`PX` expires the key and `NX` is the whole decision.
 
 The assertion behind all of this is in a **second process**. Verifying twice against one store proves
 a `Map` remembers, and a `Map` was never the thing in question — so the test mints a token, spends it,
-and hands it to a genuinely separate process that has the public key and the lease directory and
-nothing else in common.
+and hands it to a genuinely separate process that has the public key and the connection string and
+nothing else in common. For the networked lease that second process shares no filesystem either, which
+is the whole difference between the last two rows.
+
+What a test can honestly say about Redis is bounded, and the tests say it. The server they run against
+is a stand-in that speaks RESP and implements `SET NX PX`, `GET`, `DEL` and the release script — it
+proves the client, the ordering and the agreement living outside every process, and it does not prove
+Redis. `WEFT_REDIS_URL` points the same tests at a real server, which is the only thing that can; it
+is opt-in because a suite that needs a daemon running is a suite people stop running.
 
 ## A token cannot be rendered into a page
 
