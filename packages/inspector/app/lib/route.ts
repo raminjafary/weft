@@ -48,18 +48,13 @@ async function part(id: string, ctx: RenderContext, which: keyof PageParts): Pro
 function notBuilt(id: string): string {
   const station = BY_ID[id]
   const refused = station?.status === 'refused'
-  const roadmap = station?.roadmap
   return `<div class="card"><h3>${refused ? 'Not built' : 'Page not written yet'}</h3>
     <p>${
       refused
         ? 'The capability does not exist. Rather than mock it, this page says so.'
         : 'The capability is built and measured; this page is not written yet. It is marked <code>planned</code> in the registry, and the registry is what the index reads.'
     }</p>
-    <p class="hint">Covers ${station?.covers.map((c) => `<code>spec/${c}</code>`).join(', ')}${
-      roadmap
-        ? ` · <a href="https://github.com/raminjafary/weft/blob/main/ROADMAP.md#${roadmap}">roadmap</a>`
-        : ''
-    }</p></div>`
+    <p class="hint">Covers ${station?.covers.map((c) => `<code>spec/${c}</code>`).join(', ')}</p></div>`
 }
 
 export function stationRoute(id: string): RouteModule {

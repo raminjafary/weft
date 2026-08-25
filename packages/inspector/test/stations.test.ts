@@ -62,11 +62,15 @@ test('a station marked live has a handler, and a handler belongs to a live stati
   )
 })
 
-test('a refused station names the roadmap entry that explains it', () => {
+test('a refused station is not also a running one, and still names the spec it is about', () => {
+  // Better an honest empty station than a mock, but not better than a dead end: a page saying a
+  // capability does not exist has to say which capability, and cannot quietly have a handler.
   for (const station of STATIONS.filter((s) => s.status === 'refused')) {
-    assert.ok(
-      station.roadmap,
-      `${station.id} is refused and does not say where the explanation is. Better an honest empty station than a mock, but not better than a dead end`,
+    assert.ok(station.covers.length, `${station.id} is refused and names no spec document`)
+    assert.equal(
+      Object.keys(HANDLERS).includes(station.id),
+      false,
+      `${station.id} claims the capability does not exist and has something registered to run`,
     )
   }
 })

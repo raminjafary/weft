@@ -43,7 +43,7 @@ watching one price list produce one delta computation rather than ten thousand.
 | `REFRESH`  | Recover, recompute, diff, memoize, emit. `epoch=` stages instead of sending; `commit` flips                                        |
 | `WARM`     | Send `TPL` for a named template. `E_NO_TEMPLATE_REGISTRY` when the hub was given none                                              |
 | `RESUME`   | Continue rather than restart: rebinding under the same channel id keeps the held map                                               |
-| `INTENT`   | `E_NO_INTENTS`. Declared as a frame, not yet dispatched — see [`ROADMAP.md`](../../ROADMAP.md)                                     |
+| `INTENT`   | Dispatched through the hub's intent dispatch, answered with `ACK`. A hub given none answers `E_NO_INTENTS`                         |
 
 ## Epochs, over the wire
 

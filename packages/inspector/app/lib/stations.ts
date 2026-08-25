@@ -10,8 +10,8 @@
  * `status` is the second half of the honesty. `live` means the mechanism runs when you open the
  * page — and the same test refuses to let a station claim it without a handler registered, so it
  * cannot be aspirational. `planned` means the capability is built and this page is not.
- * `refused` means the capability does not exist, and the page says so and links to the roadmap
- * entry rather than mocking it. Better an honest empty station than a mock.
+ * `refused` means the capability does not exist, and the page says so rather than mocking it.
+ * Better an honest empty station than a mock.
  */
 export type StationStatus = 'live' | 'planned' | 'refused'
 
@@ -25,8 +25,6 @@ export interface Station {
   /** Spec documents this station is the live version of. Checked for coverage. */
   covers: readonly string[]
   status: StationStatus
-  /** For `refused`: the roadmap heading that explains what is missing. */
-  roadmap?: string
   group: 'render' | 'client' | 'cache' | 'plan' | 'stream' | 'wire' | 'locus' | 'budget'
 }
 

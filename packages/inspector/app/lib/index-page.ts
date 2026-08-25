@@ -75,8 +75,8 @@ export function indexBody(): string {
     <p><span class="status" data-status="planned">planned</span> the capability is built and
     measured; this page is not written yet. <strong>${planned}</strong> stations.</p>
     <p><span class="status" data-status="refused">refused</span> the capability does not exist. The
-    page says so and links to the roadmap entry rather than mocking it — better an honest empty
-    station than a mock. <strong>${refused}</strong> stations.</p>
+    page says so rather than mocking it — better an honest empty station than a mock.
+    <strong>${refused}</strong> stations.</p>
     <p class="hint">Every station names the spec documents it is the live version of, and
     <a href="/spec">the coverage page</a> fails the build if a spec document has no station. That
     is what makes “not a subset” a promise rather than a claim.</p>
