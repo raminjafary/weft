@@ -18,7 +18,11 @@ import {
   createComposer,
   createHub,
   readRegion,
+  readRegionTree,
+  regionGraph,
+  regionProbeStream,
   regionStream,
+  treeHops,
   type ChannelSink,
   type KernelExecutor,
   type Ports,
@@ -445,4 +449,96 @@ test('a slot that is not a region is left to whoever else answers slots', async 
   const out = await hub.receive('c4', [frame('REFRESH', { s: 'prices' })])
 
   assert.equal(str(out[0] as Frame, 'code'), 'E_NO_SUCH_SLOT', 'a null answer is not an empty one')
+})
+
+/**
+ * A composite tree, which is the half of "hops are counted, not discovered" that was only a number.
+ *
+ * A region's own regions are resolved by its own registry — right, and the reason nothing above it
+ * could name them. So a region says what it composed when it is asked what it is, and the checks
+ * below are the ones that matter for a claim one deployment makes about another: the shape, the
+ * depth, the size, and whether the graph and the count are the same claim.
+ */
+test('a probed region answers with its subtree, and the tree and the hop count agree', () => {
+  const tree = [
+    { region: 'results', executor: 'binding:results', hops: 1, contract: 'results@1.0.0' },
+    { region: 'ads', executor: 'inline', hops: 0 },
+  ]
+  const bytes = regionProbeStream({ region: 'shelf', hops: 1 }, tree)
+
+  const read = readRegion('shelf', bytes, undefined)
+  assert.equal(read.announced.hops, 1, 'the count is still a header, because a page needs only that')
+  assert.equal(read.html.length, 0, 'a probe renders nothing')
+  assert.deepEqual(readRegionTree('shelf', bytes), tree)
+})
+
+test('a region that composes nothing answers with no subtree and no body', () => {
+  const bytes = regionProbeStream({ region: 'search', hops: 0 }, [])
+  assert.deepEqual(readRegionTree('search', bytes), [], 'an empty tree is an answer, not a silence')
+  assert.ok(bytes.length < 40, 'and a leaf pays no bytes for a shape it does not have')
+})
+
+test('a tree that does not add up to the number beside it is refused', () => {
+  // The number is what a plan's ceiling was checked against. Two claims about the same topology
+  // cannot disagree, and until a region could describe its shape there was nothing to disagree with.
+  const bytes = regionProbeStream({ region: 'shelf', hops: 1 }, [
+    { region: 'results', executor: 'binding:results', hops: 2 },
+  ])
+  assert.throws(
+    () => readRegionTree('shelf', bytes),
+    /E_REGION_TREE.*announced 1 hop\(s\) and a tree crossing 2/,
+  )
+})
+
+test('a subtree that is not a shape, is too deep, or is too big is refused rather than walked', () => {
+  assert.throws(() => readRegionTree('shelf', stream('{')), /E_REGION_TREE.*not JSON/)
+  assert.throws(() => readRegionTree('shelf', stream('{"region":"x"}')), /E_REGION_TREE.*not a list/)
+  assert.throws(() => readRegionTree('shelf', stream('[{"executor":"inline"}]')), /naming no region/)
+  assert.throws(
+    () => readRegionTree('shelf', stream('[{"region":"x","executor":"i"}]')),
+    /hop count of 'undefined'/,
+  )
+
+  // Nine tiers of one node each. A composite that walked an arbitrary depth on the strength of a
+  // length prefix is doing what every parser that trusted a nesting depth has done.
+  let deep = '[{"region":"n9","executor":"inline","hops":0}]'
+  for (let i = 8; i >= 1; i--) deep = `[{"region":"n${i}","executor":"inline","hops":0,"children":${deep}}]`
+  assert.throws(() => readRegionTree('shelf', stream(deep)), /E_REGION_TREE.*tiers deep/)
+
+  const wide = JSON.stringify(
+    Array.from({ length: 257 }, (_, i) => ({ region: `r${i}`, executor: 'inline', hops: 0 })),
+  )
+  assert.throws(() => readRegionTree('shelf', stream(wide)), /more than 256 regions/)
+})
+
+/** A hand-built answer, so a badly behaved region is something this test can produce. */
+function stream(body: string, hops = 0): Uint8Array {
+  return encodeStream([
+    { ...announceRegion({ region: 'shelf', hops }), body: utf8.encode(body), bodyIsText: true },
+  ]) as Uint8Array
+}
+
+test('what a composer composed is a graph, and a degraded region is a node that says so', async () => {
+  const composer = createComposer({
+    ports: ports([
+      { region: 'search', executor: 'inline' },
+      { region: 'recs', executor: 'inline' },
+    ]),
+    local: {
+      search: () =>
+        regionStream({ region: 'search', hops: 0, contract: { id: 'search', version: '2.1.0' } }, []),
+      recs: () =>
+        regionStream({ region: 'recs', hops: 0 }, [
+          frame('ERROR', { s: 'recs', code: 'E_UPSTREAM', reason: 'the model service is down' }),
+        ]),
+    },
+  })
+  await composer.compose({ region: 'search' })
+  await composer.compose({ region: 'recs' })
+
+  assert.deepEqual(regionGraph(composer.composed), [
+    { region: 'search', executor: 'inline', hops: 0 },
+    { region: 'recs', executor: 'inline', hops: 0, failed: 'E_UPSTREAM' },
+  ])
+  assert.equal(treeHops(regionGraph(composer.composed)), composer.hops)
 })

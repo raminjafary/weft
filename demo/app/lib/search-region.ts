@@ -1,4 +1,14 @@
-import type { RegionRenderer, RegionRequest } from 'weft'
+import {
+  bindingExecutor,
+  createComposer,
+  manifestRegistry,
+  probeRegions,
+  regionGraph,
+  regionService,
+  type ComposeOptions,
+  type RegionRenderer,
+  type RegionRequest,
+} from 'weft'
 
 /**
  * The other side of the boundary: a region, as a module.
@@ -20,10 +30,52 @@ import type { RegionRenderer, RegionRequest } from 'weft'
  */
 const CATALOGUE = ['sumac', 'barhi dates', 'ceylon tea', 'pomegranate molasses', 'freekeh']
 
+/**
+ * What this deployment composes, which is the half of composition a demo usually leaves out.
+ *
+ * `search` is a region to the page above it and a *composite* to the region below it, and nothing
+ * here is a second mechanism for that: the same composer, the same registry port, the same binding
+ * executor the shell used to reach this file. That is the claim being demonstrated — a tier is a
+ * tier, and the third one is not a special case of the second.
+ *
+ * These ports are this deployment's own. It has its own store, its own registry and its own
+ * executor, because it *is* another deployment: the fact that this demo runs it in one process is
+ * the binding executor's business and nobody else's.
+ */
+const rankingTier = bindingExecutor({
+  binding: regionService({ root: new URL('./', import.meta.url).href, revision: 'ranking-7' }),
+  name: 'binding:ranking',
+  timeoutMs: 300,
+})
+
+const ports: ComposeOptions['ports'] = {
+  executors: { 'binding:ranking': rankingTier },
+  registry: manifestRegistry([], {
+    regions: [
+      {
+        region: 'ranking',
+        executor: 'binding:ranking',
+        address: { module: './ranking-region.ts', export: 'ranking' },
+        contract: { id: 'ranking', version: '1.0.0', reads: ['route:q'] },
+        revision: 'ranking-7',
+      },
+    ],
+  }),
+}
+
 export const search: RegionRenderer = {
   region: 'search',
   contract: { id: 'search', version: '2.1.0', reads: ['route:q'] },
-  render(request: RegionRequest) {
+  /**
+   * What this region composes, asked rather than rendered.
+   *
+   * The recursive half of `weft verify --probe`: the page above asks `search` what it is serving,
+   * and `search` cannot answer for the tier under it without asking. The depth it was given is spent
+   * here, which is what stops two deployments composing each other from asking forever.
+   */
+  probe: (depth) => probeRegions(ports, ['ranking'], depth),
+
+  async render(request: RegionRequest) {
     /**
      * `reads` and not the query string, and the difference is the point.
      *
@@ -43,11 +95,32 @@ export const search: RegionRenderer = {
     const currency = request.exposed?.currency ?? ''
     const inCart = request.exposed?.cartCount ?? '0'
     const found = q ? CATALOGUE.filter((item) => item.includes(q.toLowerCase())) : CATALOGUE
-    return (
-      `<form role="search" data-region="search"><input name="q" value="${escape_(q)}"></form>` +
-      `<ul class="results">${found.map((item) => `<li>${escape_(item)}</li>`).join('')}</ul>` +
-      `<p class="hint" data-currency="${escape_(currency)}">rendered by the search deployment in ${escape_(currency)}, ${found.length} of ${CATALOGUE.length}, ${escape_(inCart)} in the cart</p>`
+
+    /**
+     * The tier below, composed the way the tier above composed this one.
+     *
+     * A composer per render and not one shared: `composed` and `hops` are a *page's*, and one
+     * instance held across requests would report a number belonging to whoever asked last. The
+     * ranking region's markup goes in this region's markup, and what it cost goes back with it —
+     * which is how the hop count above stops being a number this file declared.
+     */
+    const composer = createComposer({ ports })
+    const ranked = await composer.compose(
+      { region: 'ranking', onExceed: 'placeholder' },
+      q ? { reads: { 'route:q': q } } : {},
     )
+
+    return {
+      html:
+        `<form role="search" data-region="search"><input name="q" value="${escape_(q)}"></form>` +
+        `<ul class="results">${found.map((item) => `<li>${escape_(item)}</li>`).join('')}</ul>` +
+        new TextDecoder().decode(ranked.bytes) +
+        `<p class="hint" data-currency="${escape_(currency)}">rendered by the search deployment in ${escape_(currency)}, ${found.length} of ${CATALOGUE.length}, ${escape_(inCart)} in the cart</p>`,
+      // Measured rather than declared, which is the whole difference: a run where the ranking tier
+      // degraded reports the boundary it did not cross, because this is what happened and not what
+      // the topology says usually happens.
+      composed: regionGraph(composer.composed),
+    }
   },
 }
 
@@ -62,6 +135,7 @@ export const searchAhead: RegionRenderer = {
   region: 'search',
   contract: { id: 'search', version: '2.2.0', reads: ['route:q'] },
   render: (request) => search.render(request),
+  ...(search.probe ? { probe: search.probe.bind(search) } : {}),
 }
 
 function escape_(value: string): string {

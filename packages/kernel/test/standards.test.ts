@@ -156,6 +156,8 @@ const OFF_THE_REQUEST_PATH: Record<string, string> = {
   'plugin-guard.ts': 'dev-time: the design specifies declared-read enforcement as a dev check',
   'coalesce.ts':
     'opt-in: the kernel names the stampede seam, and the good version of the policy is store-specific',
+  'region-tree.ts':
+    'deploy-time: a subtree is announced when something asks what the topology is, and no request does',
 }
 
 function localImports(text: string): string[] {

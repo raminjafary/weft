@@ -1,4 +1,4 @@
-import { readRegion, type Ports, type RegionBinding, type Registry } from '@weft/kernel'
+import { readRegion, readRegionTree, type RegionBinding, type RegionNode, type Registry } from '@weft/kernel'
 import { REGION_EXECUTOR, type Plan } from './dsl.ts'
 import type { Issue } from './validate.ts'
 
@@ -33,7 +33,26 @@ export interface RegionStatus {
   bound?: RegionBinding
   /** What the region answered when it was asked, for a verification that probes. */
   serving?: { contract?: string; revision?: string; reads?: readonly string[] }
+  /** What it said it composes in turn. Empty for a leaf; absent for a region nobody asked. */
+  tree?: readonly RegionNode[]
   issues: Issue[]
+}
+
+/**
+ * One route's regions as a graph, which is the thing a hop count was standing in for.
+ *
+ * A plan can count the regions a route declares and it stops there, because what a region composes
+ * is resolved by *its* registry and this deployment has never seen it. So the graph is assembled
+ * from answers rather than from the plan: each tier is asked, each tier asks the tier below it, and
+ * what comes back is spliced in where it was asked for.
+ */
+export interface RouteGraph {
+  route: string
+  regions: readonly RegionNode[]
+  /** Every boundary this route crosses, through the whole tree rather than the first level of it. */
+  hops: number
+  /** What the plan counted, which sees only the regions the route itself declares. */
+  declared: number
 }
 
 export interface VerifyReport {
@@ -41,6 +60,8 @@ export interface VerifyReport {
   errors: Issue[]
   warnings: Issue[]
   text: string
+  /** Empty without `--probe`: a topology is what deployments answer, not what a plan says. */
+  graph: readonly RouteGraph[]
 }
 
 export async function verifyRegions(
@@ -109,17 +130,22 @@ export async function verifyRegions(
 
       if (!probe || !remote) continue
       try {
-        const announced = readRegion(spec.name, await probe(binding), undefined)
+        const bytes = await probe(binding)
+        const answer = readRegion(spec.name, bytes, undefined)
+        const announced = answer.announced
         status.serving = {
-          ...(announced.announced.contract
-            ? { contract: `${announced.announced.contract.id}@${announced.announced.contract.version}` }
+          ...(announced.contract
+            ? { contract: `${announced.contract.id}@${announced.contract.version}` }
             : {}),
-          ...(announced.announced.revision ? { revision: announced.announced.revision } : {}),
-          ...(announced.announced.contract?.reads ? { reads: announced.announced.contract.reads } : {}),
+          ...(announced.revision ? { revision: announced.revision } : {}),
+          ...(announced.contract?.reads ? { reads: announced.contract.reads } : {}),
         }
+        // What it composes in turn, as it resolved it. A leaf answers with an empty tree, which is a
+        // different answer from a region that was never asked — hence a field rather than a length.
+        status.tree = readRegionTree(spec.name, bytes)
         const expected = decl.contract
         if (expected) {
-          const serving = announced.announced.contract
+          const serving = announced.contract
           if (!serving || serving.id !== expected.id || serving.version !== expected.version) {
             status.issues.push({
               code: 'E_REGION_CONTRACT',
@@ -149,7 +175,77 @@ export async function verifyRegions(
   }
 
   const errors = regions.flatMap((r) => r.issues)
-  return { regions, errors, warnings: [], text: format(regions) }
+  const graph = probe ? graphOf(plans, regions) : []
+  const warnings = deeperThanPlanned(graph)
+  return { regions, errors, warnings, text: format(regions), graph }
+}
+
+/**
+ * The routes as trees, assembled out of what each tier answered about itself.
+ *
+ * Every node above the first level is spliced rather than resolved — a region two tiers down is a
+ * name in somebody else's registry, and this deployment could not resolve it if it tried. That is
+ * the property the graph is reporting, not a limitation of it.
+ */
+function graphOf(plans: readonly Plan[], regions: readonly RegionStatus[]): readonly RouteGraph[] {
+  const out: RouteGraph[] = []
+  for (const plan of plans) {
+    const mine = regions.filter((status) => status.route === plan.route)
+    if (!mine.length) continue
+    const nodes = mine.map((status): RegionNode => {
+      const remote = status.bound
+        ? status.bound.executor !== 'inline' && status.bound.executor !== REGION_EXECUTOR
+        : false
+      const under = (status.tree ?? []).reduce((n, node) => n + node.hops, 0)
+      const failure = status.issues.at(0)
+      return {
+        region: status.region,
+        executor: status.bound?.executor ?? 'unresolved',
+        hops: (remote ? 1 : 0) + under,
+        ...((status.serving?.revision ?? status.bound?.revision)
+          ? { revision: (status.serving?.revision ?? status.bound?.revision) as string }
+          : {}),
+        ...(status.serving?.contract ? { contract: status.serving.contract } : {}),
+        ...(failure ? { failed: failure.code } : {}),
+        ...(status.tree?.length ? { children: status.tree } : {}),
+      }
+    })
+    out.push({
+      route: plan.route,
+      regions: nodes,
+      hops: nodes.reduce((n, node) => n + node.hops, 0),
+      declared: mine.filter((status) => status.declared === 'remote').length,
+    })
+  }
+  return out
+}
+
+/**
+ * The one thing a graph can say that a plan cannot, said as a warning rather than left in a picture.
+ *
+ * `hopsOf(plan)` counts the regions a route declares, which is every boundary it can see: what a
+ * region composes is resolved by that region's registry, so a tier two deep is invisible to the
+ * build and to the ceiling the build checked. A route that turns out to cross more boundaries than
+ * it was planned to cross is not wrong — a region is entitled to compose regions, and this
+ * deployment does not own that decision — but it is the number the latency budget was written
+ * against, and finding it out from a graph is better than finding it out under load.
+ */
+function deeperThanPlanned(graph: readonly RouteGraph[]): Issue[] {
+  const out: Issue[] = []
+  for (const route of graph) {
+    if (route.hops <= route.declared) continue
+    const nested = route.regions.filter((node) => node.children?.length)
+    out.push({
+      code: 'W_REGION_TREE_DEEPER',
+      slot: nested.map((node) => node.region).join(', ') || route.route,
+      message:
+        `${route.route} crosses ${route.hops} boundaries and its plan counted ${route.declared}: ` +
+        `${nested.map((node) => `${node.region} composes ${(node.children ?? []).map((child) => child.region).join(', ')}`).join('; ')}. ` +
+        `A region composing regions is its own deployment's decision, and the ceiling this route was ` +
+        `checked against did not know about it`,
+    })
+  }
+  return out
 }
 
 function same(a: readonly string[], b: readonly string[]): boolean {
@@ -171,28 +267,4 @@ function format(regions: readonly RegionStatus[]): string {
     for (const issue of status.issues) lines.push(`      ${issue.code}: ${issue.message}`)
   }
   return `${lines.join('\n')}\n`
-}
-
-/**
- * A probe that asks a region what it is serving, through the executor the registry named.
- *
- * It is the composition path and not a second one: the same executor, the same address, the same
- * announcement — so a verification that passes is a verification of the thing that will actually
- * serve traffic. What it deliberately does not do is render: the request carries no route and no
- * params, because a region asked what it is has not been asked for a page.
- */
-export function regionProbe(ports: Ports): (binding: RegionBinding) => Promise<Uint8Array> {
-  return async (binding) => {
-    const executor = ports.executors[binding.executor]
-    if (!executor) {
-      throw new Error(`E_UNKNOWN_EXECUTOR: '${binding.executor}' is not bound, so nothing can ask`)
-    }
-    const outcome = await executor.run({
-      slot: binding.region,
-      ...(binding.address ? { address: { ...binding.address, props: { probe: true } } } : {}),
-      run: () => Promise.reject(new Error('E_REGION_NOT_LOCAL: a probe does not render here')),
-    })
-    if (outcome.failure) throw new Error(`${outcome.failure.code}: ${outcome.failure.message}`)
-    return outcome.bytes
-  }
 }

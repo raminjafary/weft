@@ -8,7 +8,7 @@ later means every client already in the field is unversioned.
 | ---------------- | -------------------- | ------- | ------------------------ |
 | Template IR      | `weft.template-ir/2` | 2.5.0   | `packages/ir`            |
 | Payloads (delta) | `weft.payload/2`     | 2.5.0   | `packages/ir`            |
-| Warp frames      | `weft.warp/1`        | 1.5.0   | `packages/warp`          |
+| Warp frames      | `weft.warp/1`        | 1.7.0   | `packages/warp`          |
 
 ## What each version component means
 
@@ -45,6 +45,32 @@ requires nothing resident on the client, which is why it is the fallback wheneve
 versions disagree: a version mismatch costs a form, never the page.
 
 ## Changelog
+
+### Warp 1.7.0 — a region says what it composes, when it is asked
+
+A `REGION` frame answering a **probe** carries the region's subtree in its body: a list of records —
+region, executor, hops, revision, contract, and the same again for anything under it. The body is
+JSON for the reason `PLAN`'s is, which is that a list of records is not a header set.
+
+Additive in the strictest sense: a reader that does not know about it reads the headers it always
+read and never opens the body, and no frame on the request path has one. A region is asked what it is
+only by `weft verify --probe`, and a region that composes nothing answers with no body at all.
+
+The frame's `hops` header remains what a composite reads while serving a page. Where both are present
+they are two claims about one topology and must agree — `E_REGION_TREE` if they do not, because the
+number is what a plan's ceiling was checked against.
+
+### Warp 1.6.0 — a region announces itself
+
+`REGION` (0x23), the frame a composed region must open with: the name it serves, the contract it
+believes it is serving, the revision serving it, and the boundaries it crossed on its own account.
+Recorded here late — the frame shipped with composition and this changelog did not follow it.
+
+It exists because of who is speaking rather than what is being said. Frames arriving from another
+deployment are somebody else's and a length prefix does not say whose; `WARP` cannot answer it,
+because that frame is the composite's negotiation with its client. See
+[the composition spec](kernel/composition.md) for the kinds a region may not send and why each one
+is somebody else's to send.
 
 ### Warp 1.5.0 — WARM asks about a plan, and PLAN answers unasked
 

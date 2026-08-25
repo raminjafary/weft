@@ -95,6 +95,18 @@ at 10,888 B against a stated 11,264. The interesting part is what it cost the en
 because the transport watermark has 29 bytes left rather than 51 and the next thing to touch the frame
 table should be told that before it starts rather than by a red test.
 
+**The composite graph is the case where a budget with 18 bytes left decided where code lives.**
+Reporting a composite as a tree needs a wire form, a parser, a bound on depth and a check that the
+graph and the hop count agree — call it 500 B, against an entry with eighteen. The first version put
+the reader in `region.ts` and measured 11,760: 496 over, and a watermark that would have moved a
+whole KB for a capability no request uses. The second put the parser in `region-tree.ts` and left
+`readRegion` holding the body: 11,295, still 31 over. The third asked what the request path actually
+needs and the answer was **nothing** — a page needs the hop count and the count is a header, so a
+subtree travels only in a probe's answer, and the module that writes one is the module that reads
+one. `entry-region.ts` is 11,246 B, unchanged to the byte, and `entry-region-channel.ts` is 16,268,
+also unchanged. A ceiling with no room left is what produced the better factoring; a ceiling that
+moved on request would have produced the first version.
+
 **The front door's watermark moved for the first time, from 12 KB to 13 KB.** The exposed table — the
 one channel between a shell and a region's client code — is 227 bytes that every page would otherwise
 carry for a capability most pages do not use. The trims that existed were taken first: a named error
@@ -218,4 +230,7 @@ ceilings are the commitment and `standards.test.ts` holds the measurements.
 
 A companion gate asserts every source file is reachable from some entry or named as off the
 request path, because a module that no ceiling applies to is a module that is invisible to
-both of these.
+both of these. Four modules are named there, each with the reason next to it: plugin ordering and
+declared-read enforcement are build- and dev-time, the coalescer is opt-in policy, and
+`region-tree.ts` is deploy-time — a region describes its shape when something asks what the topology
+is, and no request asks.

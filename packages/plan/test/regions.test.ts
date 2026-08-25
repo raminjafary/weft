@@ -8,7 +8,7 @@ import {
   type TemplateIR,
   type Values,
 } from '@weft/ir'
-import { createKernel, type Ports } from '@weft/kernel'
+import { createKernel, formatRegionGraph, regionProbe, type Ports } from '@weft/kernel'
 import {
   bindingExecutor,
   cookieSession,
@@ -25,7 +25,6 @@ import {
   lowerPlan,
   plan,
   region,
-  regionProbe,
   shell,
   slot,
   validatePlan,
@@ -539,4 +538,67 @@ test('a topology is a registry and a set of executors, and it can say which one 
     () => topology('mesh', { regions: [{ region: 'search', url: 'http://x/r' }] }),
     /E_NO_REGION_ADDRESS/,
   )
+})
+
+test('a composite is reported as one graph, assembled from what each tier answered about itself', async () => {
+  /**
+   * The last thing composition left as a number.
+   *
+   * A plan counts the regions a route declares, because what a region composes is resolved by that
+   * region's registry and this deployment has never seen the name. So the graph is not derived — it
+   * is asked for, one tier at a time, and spliced where it was asked. What that makes visible is a
+   * route crossing more boundaries than its plan counted, which no build could have known.
+   */
+  const ports: Ports = {
+    store: memoryStore(),
+    session: cookieSession({ cookie: 'sid' }),
+    flags: staticFlags({ axes: {} }),
+    executors: { 'binding:shelf': bindingExecutor({ binding: regionService({ revision: 'shelf-3' }) }) },
+  }
+  const registry = manifestRegistry([], {
+    regions: [
+      {
+        region: 'shelf',
+        executor: 'binding:shelf',
+        address: { module: REGIONS, export: 'shelf' },
+      },
+    ],
+  })
+
+  const report = await verifyRegions(
+    [shellWith([region('shelf').remote({ id: 'shelf', version: '1.0.0' })])],
+    { registry, executors: ['binding:shelf'] },
+    regionProbe(ports),
+  )
+
+  assert.deepEqual(report.errors, [])
+  const route_ = report.graph[0]
+  assert.equal(route_?.route, '/app')
+  assert.equal(route_?.declared, 1, 'what the plan could count')
+  assert.equal(route_?.hops, 2, 'and what the deployments answered')
+  assert.deepEqual(route_?.regions[0]?.children, [
+    { region: 'results', executor: 'binding:results', hops: 1, revision: 'results-9' },
+  ])
+
+  const deeper = report.warnings.find((w) => w.code === 'W_REGION_TREE_DEEPER')
+  assert.ok(
+    deeper,
+    'a route deeper than its plan is a warning, because the ceiling was checked against the plan',
+  )
+  assert.match(deeper?.message ?? '', /shelf composes results/)
+
+  const drawn = formatRegionGraph(route_?.regions ?? [])
+  assert.match(drawn, /└─ shelf\s+binding:shelf\s+2 hops\s+shelf@1\.0\.0\s+rev shelf-3/)
+  // Indented under it rather than listed beside it: the depth is the thing being reported.
+  assert.match(drawn, /\n {7}└─ results\s+binding:results\s+1 hop\s+rev results-9/)
+})
+
+test('without a probe there is no graph, because a topology is what deployments answer', async () => {
+  const report = await verifyRegions([shellWith([region('search').remote()])], {
+    registry: manifestRegistry([], {
+      regions: [{ region: 'search', executor: 'svc:search' }],
+    }),
+    executors: ['svc:search'],
+  })
+  assert.deepEqual(report.graph, [], 'a plan can say what a route declares and nothing about what answers')
 })

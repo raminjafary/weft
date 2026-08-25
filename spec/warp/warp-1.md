@@ -90,6 +90,13 @@ The version rule pays here in a place it was not designed for: a region on a lat
 frame this shell has no name for is stepped over by length, so a tier boundary tolerates skew in the
 same way a connection does.
 
+**The body form, added in 1.7.0.** A `REGION` frame answering a _probe_ carries the region's subtree
+in its body: what it composed, where each one ran, what each cost, and the same again underneath. It
+is JSON because a list of records is not a header set, which is the reason `PLAN`'s body is JSON too.
+Nothing on the request path has one — a page needs the hop count and the count is a header — so this
+is bytes that exist only when something asked what the topology is. Where a body and a `hops` header
+are both present they are two claims about one topology and are refused if they disagree.
+
 ## Transport bindings
 
 Warp is a logical channel with three bindings and one frame vocabulary:

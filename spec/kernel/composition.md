@@ -192,7 +192,8 @@ of them is the picture.
 ## What a region may say, and what it may not
 
 A region's answer is a Warp stream. It opens with `REGION` — added in Warp 1.6.0 — naming itself,
-its contract, its revision and the boundaries it crossed on its own account.
+its contract, its revision and the boundaries it crossed on its own account. Answering a probe, the
+same frame carries what it composes in its body: Warp 1.7.0, and the section below on the tree.
 
 It has to be the region's own name and not the one it was asked for. A service that echoed the
 requested name back would make the check below unfalsifiable, which is the same class of mistake as
@@ -278,9 +279,54 @@ count is a number the composite reports rather than something a deployment finds
 outcome carries `hops`, a region that reached a further deployment of its own says so in its
 announcement, and the total adds up through the tree. `composer.hops` is the page's.
 
+A tier that composes tiers reports what it **measured** rather than what it was configured with. A
+region service used to be handed its hop count as an option, which meant a nested tier that lost a
+region to a timeout still announced the boundary it turned out not to cross; a region whose own
+regions go through a composer returns them in `composed` and the count comes from what happened.
+
 The honest position on cost, unchanged from the design: decomposition is opt-in per region, the
 collapsed topology is the default, and a tier boundary buys a **failure** boundary more reliably than
 it buys throughput.
+
+## The tree, when something asks what the shape is
+
+The count answers "how much latency". It does not answer "made of what" — a composite could report
+three boundaries and nothing could say which three, because a region's own regions are resolved by
+_its_ registry and the name means nothing on this deployment. That is right, and it is why the graph
+is **asked for** rather than derived.
+
+`weft verify --probe` walks it. Each tier is asked what it is serving; a tier that is itself a
+composite asks the tiers below it and answers with its whole subtree, so what comes back is spliced
+where it was asked rather than re-resolved by somebody who could not resolve it. A region implements
+that with `probeRegions(ports, names, depth)` — the same registry, the same executors, the same
+announcement as a render, with no render.
+
+Four things are deliberate about how it travels.
+
+- **In the frame's body, not its headers.** A tree is a list of records and a header set is not one,
+  which is the reason the `PLAN` frame gives for the same choice.
+- **Only on a probe.** A page being rendered needs the count, and the count is a header. A subtree on
+  the request path would be bytes a composite has no parser for and would forward unread.
+- **Written and read in `region-tree.ts`, which no request entry imports.** Composition got its own
+  entry on the rule that a deployment composing nothing should not carry the check that makes
+  composing safe; this is that rule one level in, and it is why the graph costs the document path
+  **zero bytes** rather than a moved watermark.
+- **Bounded by whoever asked.** Two deployments composing each other is a cycle nothing here can see,
+  because the far side is somebody else's registry answering somebody else's question. So the depth
+  is spent by the caller and refused at zero with `E_REGION_TOO_DEEP` as a node in the graph — a walk
+  that stopped without saying so would read as complete.
+
+What arrives is one deployment's claim about another, so what is checked is the shape and the
+arithmetic: `E_REGION_TREE` for a subtree that is not a list, is more than 8 tiers deep, holds more
+than 256 regions, or **does not add up to the count in the same frame**. The last is the one worth
+having. `hops` was the whole of what a nested tier reported and therefore could not be contradicted;
+now the number and the graph are two claims about one topology, and a plan's ceiling was checked
+against the number.
+
+`W_REGION_TREE_DEEPER` is the one thing the graph can say that no build could. `hopsOf(plan)` counts
+the regions a route declares — every boundary it can see — so a route that turns out to cross more is
+not wrong, but it is not what the latency budget was written against either. A warning names the
+region, what it composes, and both numbers.
 
 ## Measured
 

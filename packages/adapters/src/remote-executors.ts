@@ -1,10 +1,11 @@
 import { Worker } from 'node:worker_threads'
-import { regionStream } from '@weft/kernel'
+import { regionProbeStream, regionStream, treeHops } from '@weft/kernel'
 import { workerEntry } from './worker-pool.ts'
 import type {
   JobAddress,
   KernelExecutor,
   RegionContract,
+  RegionNode,
   RegionRequest,
   RenderJob,
   RenderOutcome,
@@ -343,8 +344,36 @@ export function renderService(options: RenderServiceOptions = {}): (request: Req
 export interface RegionRenderer {
   region: string
   contract?: RegionContract
-  /** Frames for a client, or markup — which is announced as one `HTML` frame for this region. */
-  render(request: RegionRequest): Promise<Frame[] | Uint8Array | string> | Frame[] | Uint8Array | string
+  /**
+   * Frames for a client, or markup — which is announced as one `HTML` frame for this region.
+   *
+   * A region that composed regions of its own returns `RegionAnswer` instead, and what it puts in
+   * `composed` is what its *own* composer reported. That is the difference between a hop count a
+   * service was configured with and one it measured: the number below used to be an option on this
+   * service, which meant a nested tier that degraded to a fallback still announced the boundary it
+   * turned out not to cross.
+   */
+  render(
+    request: RegionRequest,
+  ): Promise<Frame[] | Uint8Array | string | RegionAnswer> | Frame[] | Uint8Array | string | RegionAnswer
+  /**
+   * What this region composes, answered without rendering it.
+   *
+   * The recursive half of `weft verify --probe`: a tier is asked what it is serving, and a tier that
+   * is itself a composite has to ask the tiers below it before it can answer. It is given the depth
+   * it has left to spend, and `probeRegions` in `@weft/plan` is this for a deployment whose regions
+   * come from a registry — which is every deployment running this framework.
+   */
+  probe?(depth: number): Promise<readonly RegionNode[]> | readonly RegionNode[]
+}
+
+/** A render, plus what it took to produce — the shape a region that composes regions answers with. */
+export interface RegionAnswer {
+  frames?: readonly Frame[]
+  /** Markup, when the region has no frames to send. Announced as one `HTML` frame for this region. */
+  html?: Uint8Array | string
+  /** The regions this render composed, as this region's own composer reported them. */
+  composed?: readonly RegionNode[]
 }
 
 export interface RegionServiceOptions {
@@ -352,7 +381,14 @@ export interface RegionServiceOptions {
   root?: string
   /** The build answering, announced on every region it serves. */
   revision?: string
-  /** Regions this service composes itself, so a nested tier is a tree rather than a special case. */
+  /**
+   * Boundaries this service crosses on its own account, for a region that reaches something this
+   * framework did not resolve — a fetch to another service, an upstream gateway.
+   *
+   * A region whose own regions go through a composer should return them in `composed` instead and
+   * let the count come from what happened. This is the declared fallback, and it is declared rather
+   * than measured, which is the thing a graph exists to make visible.
+   */
   hops?: number
 }
 
@@ -389,25 +425,57 @@ export function regionService(options: RegionServiceOptions = {}): (request: Req
           { status: 422 },
         )
       }
-      const result = await renderer.render(job.props ?? {})
-      const frames = Array.isArray(result)
-        ? result
-        : [
-            {
-              kind: 'HTML' as const,
-              header: { s: renderer.region },
-              body: typeof result === 'string' ? utf8.encode(result) : result,
-              bodyIsText: typeof result === 'string',
-            },
-          ]
+      const incoming = job.props ?? {}
+      const identity = {
+        region: renderer.region,
+        ...(renderer.contract ? { contract: renderer.contract } : {}),
+        ...(options.revision ? { revision: options.revision } : {}),
+      }
+
+      /**
+       * Asked what it is rather than for a page, which is a different answer and not a cheaper one.
+       *
+       * A probe that rendered would report a topology *and* run every loader behind it against a
+       * deployment nobody is serving traffic to yet — and a region that composes regions would
+       * compose them, which is a fan-out per verification. So this path renders nothing and asks the
+       * tier below the same question, one depth cheaper.
+       */
+      if (incoming.probe) {
+        const tree = renderer.probe ? await renderer.probe(incoming.probe.depth) : []
+        return new Response(regionProbeStream({ ...identity, hops: treeHops(tree) }, tree) as BodyInit, {
+          headers: { 'content-type': 'application/weft-warp' },
+        })
+      }
+
+      const result = await renderer.render(incoming)
+      const answer: RegionAnswer =
+        Array.isArray(result) || result instanceof Uint8Array || typeof result === 'string'
+          ? Array.isArray(result)
+            ? { frames: result }
+            : { html: result }
+          : result
+      const frames = answer.frames ?? [
+        {
+          kind: 'HTML' as const,
+          header: { s: renderer.region },
+          body:
+            typeof answer.html === 'string' ? utf8.encode(answer.html) : (answer.html ?? new Uint8Array()),
+          bodyIsText: typeof answer.html === 'string',
+        },
+      ]
+      /**
+       * The count and not the shape, on this path.
+       *
+       * Measured when there is something to measure from and declared when there is not — a service
+       * that composed regions announces the boundaries this render crossed rather than the number it
+       * was configured with. The *shape* is deliberately not here: a composite reading a page has no
+       * parser for a subtree and would be forwarding bytes nobody opens, so a graph travels when
+       * somebody asks for one, which is the branch above.
+       */
+      const composed = answer.composed ?? []
       return new Response(
         regionStream(
-          {
-            region: renderer.region,
-            hops: options.hops ?? 0,
-            ...(renderer.contract ? { contract: renderer.contract } : {}),
-            ...(options.revision ? { revision: options.revision } : {}),
-          },
+          { ...identity, hops: composed.length ? treeHops(composed) : (options.hops ?? 0) },
           frames,
         ) as BodyInit,
         { headers: { 'content-type': 'application/weft-warp' } },

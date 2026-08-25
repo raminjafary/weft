@@ -7,7 +7,8 @@ import { loadBuild } from './build.ts'
 import { loadConfig } from './config.ts'
 import { discover } from './convention.ts'
 import { dev, RESTART_CODE } from './dev.ts'
-import { regionProbe, verifyRegions } from '@weft/plan'
+import { verifyRegions } from '@weft/plan'
+import { formatRegionGraph, regionProbe } from '@weft/kernel'
 import { decide, formatProfile, readProfile } from './profile.ts'
 import { createApp, serveApp } from './serve.ts'
 import { DEVTOOLS_PATH } from './devtools.ts'
@@ -245,6 +246,30 @@ async function main(): Promise<number> {
       flags.probe === true ? regionProbe(app.ports) : undefined,
     )
     out(`\n  route              region          locus   where               serving\n${report.text}`)
+
+    /**
+     * The same regions as a tree, which is a different question and the one a hop count was
+     * standing in for.
+     *
+     * Printed only under `--probe`, because a topology is what deployments answer rather than what a
+     * plan declares: everything below the first level of this graph is a region resolved by another
+     * deployment's registry, and without asking, this process knows nothing about it. A route whose
+     * tree is one level deep prints one level deep, which is worth seeing — a monolith with three
+     * regions is a shape too.
+     */
+    if (report.graph.length) {
+      const trees = report.graph
+        .map(
+          (route) =>
+            `  ${route.route}  ${route.hops} boundar${route.hops === 1 ? 'y' : 'ies'}\n${formatRegionGraph(route.regions)}`,
+        )
+        .join('\n')
+      out(`\n  composed from\n${trees}\n`)
+    }
+    for (const warning of report.warnings) {
+      out(`\n  ${warning.code}: ${warning.message}\n`)
+    }
+
     if (!report.errors.length) {
       out(
         `  ${report.regions.length} region(s) agree` +

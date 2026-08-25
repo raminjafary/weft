@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { after, test } from 'node:test'
-import { createComposer, regionStream, type Ports, type RegionRequest } from '@weft/kernel'
+import {
+  createComposer,
+  probeRegions,
+  readRegion,
+  readRegionTree,
+  regionProbe,
+  regionStream,
+  type Ports,
+  type RegionRequest,
+} from '@weft/kernel'
 import {
   bindingExecutor,
   collectingTelemetry,
@@ -299,4 +308,65 @@ test('a region on a deployment that is not there degrades, and the composite is 
 
   assert.equal(outcome.failure?.code, 'E_SLOT_FAILED')
   assert.equal(outcome.bytes.length, 0, 'optional, so the hole is empty and the page is fine')
+})
+
+/**
+ * A tier that is itself a composite, over a real boundary in both directions.
+ *
+ * `shelf` resolves `results` through its own registry and runs it over its own binding, which is
+ * the arrangement the deployment above cannot see into: `results` is not a name it could resolve.
+ * So there are two things to check and they are different. On the render path the shelf reports a
+ * hop count it **measured** rather than one it was configured with. On the probe path it reports
+ * the **shape**, by asking the tier below the same question it was asked.
+ */
+function shelfPorts(): Ports {
+  return ports(
+    manifestRegistry([], {
+      regions: [
+        {
+          region: 'shelf',
+          executor: 'binding:shelf',
+          address: { module: './regions.ts', export: 'shelf' },
+          contract: { id: 'shelf', version: '1.0.0' },
+        },
+      ],
+    }),
+    { 'binding:shelf': bindingExecutor({ binding: regionService({ root: FIXTURES }) }) },
+  )
+}
+
+test('a region that composes a region reports the boundaries it crossed, not the ones it declared', async () => {
+  const composer = createComposer({ ports: shelfPorts() })
+  const outcome = await composer.compose({ region: 'shelf' })
+
+  assert.equal(outcome.failure, undefined)
+  assert.match(text.decode(outcome.bytes), /<section><ul><li>one<\/li><\/ul><\/section>/)
+  // One to reach the shelf, one for the shelf to reach the results tier. The second was invisible
+  // to this deployment until the shelf counted it, and it is counted rather than configured.
+  assert.equal(outcome.hops, 2)
+  assert.equal(composer.hops, 2)
+})
+
+test('a probed region asks the tier below it, so a composite answers as one graph', async () => {
+  const ports_ = shelfPorts()
+  const binding = ports_.registry?.region?.('shelf')
+  assert.ok(binding && 'executor' in binding)
+
+  const bytes = await regionProbe(ports_)(binding)
+  const answer = readRegion('shelf', bytes, undefined)
+
+  assert.equal(answer.html.length, 0, 'a probe is not a render, and a probe of a composite is not two')
+  assert.equal(answer.announced.contract?.id, 'shelf')
+  assert.deepEqual(readRegionTree('shelf', bytes), [
+    { region: 'results', executor: 'binding:results', hops: 1, revision: 'results-9' },
+  ])
+  assert.equal(answer.announced.hops, 1, 'and the count is what the shape adds up to')
+})
+
+test('the walk is bounded from the side that started it, so two tiers composing each other terminate', async () => {
+  // Depth is spent by whoever asked rather than trusted to every deployment in the chain. At zero
+  // the answer is a named node: a graph that stopped without saying so would read as complete.
+  const ports_ = shelfPorts()
+  const tree = await probeRegions(ports_, ['shelf'], 0)
+  assert.deepEqual(tree, [{ region: 'shelf', executor: 'unresolved', hops: 0, failed: 'E_REGION_TOO_DEEP' }])
 })

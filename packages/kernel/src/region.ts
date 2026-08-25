@@ -259,8 +259,15 @@ function join(parts: readonly Uint8Array[]): Uint8Array {
  * protocol, and a region service that had to hand-roll its announcement would be the first place
  * that stopped being true.
  */
+/**
+ * The frame has one more form than this function writes, and it is written somewhere else on
+ * purpose: a `REGION` frame answering a **probe** carries the region's subtree in its body, and both
+ * the writing and the reading of that live in `region-tree.ts`. A request path never sees one — a
+ * page needs the hop count and the count is a header — so the entry that composes documents does not
+ * carry the code for it, on the rule that gave composition its own entry in the first place.
+ */
 export function announceRegion(announcement: RegionAnnouncement): Frame {
-  return frame('REGION', {
+  const header = {
     region: announcement.region,
     hops: announcement.hops,
     ...(announcement.contract
@@ -270,7 +277,8 @@ export function announceRegion(announcement: RegionAnnouncement): Frame {
       ? { reads: [...announcement.contract.reads].sort().join(',') }
       : {}),
     ...(announcement.revision ? { rev: announcement.revision } : {}),
-  })
+  }
+  return frame('REGION', header)
 }
 
 /** A region's whole answer: the announcement, then its frames, as one Warp stream. */
@@ -301,6 +309,16 @@ export interface RegionRequest {
   held?: readonly string[]
   /** Set when the composite is staging rather than painting. A region does not decide this. */
   epoch?: string
+  /**
+   * Set when the region is being asked *what it is* rather than for a page.
+   *
+   * `weft verify --probe` is the only thing that sends it, and it carries a number because the
+   * answer is recursive: a region that composes regions of its own has to ask them the same
+   * question, and two deployments composing each other would otherwise ask forever. Each tier
+   * spends one and refuses at zero, which bounds the walk from the side that started it rather
+   * than trusting every deployment in the chain to have a limit of its own.
+   */
+  probe?: { depth: number }
   /**
    * Shell signals this region declared it consumes, at their current values.
    *
@@ -389,7 +407,12 @@ export interface RegionOutcome {
 }
 
 export interface ComposeOptions {
-  ports: Ports
+  /**
+   * Narrower than `Ports` on purpose: a composer needs a registry, somewhere to run, and somewhere
+   * to report — not a session or a store. It is what lets a *region* compose regions without
+   * assembling a deployment's whole port set to do it, which is the shape a nested tier has.
+   */
+  ports: Pick<Ports, 'registry' | 'executors' | 'telemetry'>
   /**
    * Regions this process renders itself, keyed by region name.
    *

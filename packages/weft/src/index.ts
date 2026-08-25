@@ -145,11 +145,12 @@ export type { CountingLimitOptions } from '@weft/adapters'
  * Leases more than one process agrees about, which is what replay protection is made of.
  *
  * A nonce is spent by taking a lease nobody releases, so a signed intent is single-use exactly as far
- * as the lease reaches. Wrapping the store makes that a machine rather than a process, and leaves the
- * cache where it was. See `spec/kernel/authority.md`.
+ * as the lease reaches. Wrapping the store widens that and leaves the cache where it was:
+ * `sharedLeases` reaches every process on one machine, over a directory; `redisLeases` reaches every
+ * instance of the deployment, over a socket. See `spec/kernel/authority.md` for what each one buys.
  */
-export { sharedLeases } from '@weft/adapters'
-export type { SharedLeaseOptions } from '@weft/adapters'
+export { redisLeases, sharedLeases } from '@weft/adapters'
+export type { LeasedStore, RedisLeaseOptions, SharedLeaseOptions } from '@weft/adapters'
 export type { StorePort } from '@weft/kernel'
 export type { IntentLimit, LimitDecision, LimitPort, LimitRequest } from '@weft/kernel'
 export type { Grant, Grants, Decision, CapabilityModel, IntentClaims } from '@weft/kernel'
@@ -172,6 +173,7 @@ export type { LoaderContext, Services } from './context.ts'
 export { bindingExecutor, regionService, svcExecutor, topology } from '@weft/adapters'
 export type {
   BoundFetch,
+  RegionAnswer,
   RegionRenderer,
   RegionServiceOptions,
   Topology,
@@ -179,11 +181,27 @@ export type {
   TopologyOptions,
   TopologyRegion,
 } from '@weft/adapters'
+export { manifestRegistry } from '@weft/adapters'
+/**
+ * The pieces a region that composes regions needs, which is the same set a shell needs.
+ *
+ * A tier composing a further tier is not a special case with its own machinery — it is this
+ * framework's composer, this framework's registry, and this framework's probe, running one level
+ * down. `regionGraph` turns what a composer did into the shape a tier hands upward, and
+ * `probeRegions` is what a region implements `probe` with so that `weft verify --probe` can report
+ * the whole composite as one graph rather than as a hop count.
+ */
+export { createComposer, formatRegionGraph, probeRegions, regionGraph } from '@weft/kernel'
 export type {
+  ComposeOptions,
+  Composer,
   JobAddress,
   KernelExecutor,
+  Ports,
   RegionBinding,
   RegionContract,
+  RegionNode,
+  RegionOutcome,
   RegionRequest,
   Registry,
 } from '@weft/kernel'

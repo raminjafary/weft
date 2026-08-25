@@ -7,7 +7,15 @@
  * asked for would make that check unfalsifiable.
  */
 import { frame, type Frame } from '@weft/warp'
-import type { RegionRequest } from '@weft/kernel'
+import {
+  createComposer,
+  probeRegions,
+  regionGraph,
+  type ComposeOptions,
+  type RegionRequest,
+} from '@weft/kernel'
+import { bindingExecutor, regionService, type RegionAnswer } from '../src/remote-executors.ts'
+import { manifestRegistry } from '../src/registry.ts'
 
 const utf8 = new TextEncoder()
 
@@ -71,3 +79,48 @@ export const broken = {
 }
 
 export const notARegion = { render: () => '<p>no name</p>' }
+
+/**
+ * A region that is itself a composite: the third tier, and the one that makes a graph a graph.
+ *
+ * It resolves `results` through its **own** registry and runs it over its own executor, which is
+ * the arrangement the composite above cannot see into — the name `results` means nothing on the
+ * deployment composing `shelf`. So the shelf answers for its own subtree: a hop count it measured
+ * on the render path, and the shape itself when something asks what it is.
+ */
+export const shelf = {
+  region: 'shelf',
+  contract: { id: 'shelf', version: '1.0.0' },
+  probe: (depth: number) => probeRegions(shelfPorts, ['results'], depth),
+  async render(): Promise<RegionAnswer> {
+    const composer = createComposer({ ports: shelfPorts })
+    const under = await composer.compose({ region: 'results', onExceed: 'placeholder' })
+    return {
+      frames: [
+        frame('HTML', { s: 'shelf' }, utf8.encode(`<section>${text.decode(under.bytes)}</section>`), true),
+      ],
+      composed: regionGraph(composer.composed),
+    }
+  },
+}
+
+const text = new TextDecoder()
+
+const shelfPorts: ComposeOptions['ports'] = {
+  executors: {
+    'binding:results': bindingExecutor({
+      binding: regionService({ root: new URL('./', import.meta.url).href, revision: 'results-9' }),
+      name: 'binding:results',
+    }),
+  },
+  registry: manifestRegistry([], {
+    regions: [
+      {
+        region: 'results',
+        executor: 'binding:results',
+        address: { module: './regions.ts', export: 'results' },
+        revision: 'results-9',
+      },
+    ],
+  }),
+}

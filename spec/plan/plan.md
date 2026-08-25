@@ -190,6 +190,14 @@ crossed — and the registry decides which one. The whole of it is in
 [`../kernel/composition.md`](../kernel/composition.md), including where a remote region's cache class
 comes from, what `hopsOf` counts, and why the count is a floor.
 
+`hopsOf` counts the regions a route declares, which is every boundary a build can see: what a region
+composes is resolved by _that_ region's registry, so a second tier is not a name this deployment could
+resolve. `verifyRegions(plans, context, probe)` is where the rest of it appears — with a probe it
+returns a `graph` per route, assembled from what each tier answered about itself, and
+`W_REGION_TREE_DEEPER` when a route turns out to cross more boundaries than its plan counted. That is
+not an error: a region composing regions is its own deployment's decision. It is the number the
+latency budget was written against, arriving from a command rather than from production.
+
 `regionSpecOf` derives what the composer is told from the plan, and it is exported because a region is
 composed on three paths — a document request, a refresh over the channel, a route being staged. The
 second caller that built that by hand would have been the first to disagree with the plan about a budget
