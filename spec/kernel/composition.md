@@ -498,19 +498,46 @@ The same union made a remote region **refreshable over the channel** from the fr
 reader_, which is a statement about a fragment this process holds. A region's freshness is the region's
 own business, and refusing to ask it would be this deployment deciding something it has no view of.
 
+## Invalidation, crossing the boundary
+
+This was a silence and the reason it gave was half right. "The composite does not hold a region's
+cache keys — it holds a contract, and keys are the region's own" is true, and it is a statement about
+**keys**. Nothing is dropped from any store here and nothing should be: the region's markup came down
+a wire, and this deployment has none of its entries. What the composite does hold is the answer to a
+different question — _which of my connections is showing that region_ — and telling them is exactly
+what a local `STALE` does.
+
+Two halves, and the second is the one that was missing.
+
+**`STALE` came off the refused list.** A region naming a sibling's slot is refused by the escape
+check like every other frame; a region naming **its own hole** is saying the only thing it is in a
+position to know. That is a region using the authority it has rather than borrowing one it does not.
+
+**The authority to say so is a deployment's decision, so it is a secret rather than a mechanism.**
+`POST /_weft/stale` with `{ region, reason }` and a `staleSecret` bound in `weft.config.ts` for that
+region. Three rules make it safe:
+
+| Rule                                                                                         | Refusal                |
+| -------------------------------------------------------------------------------------------- | ---------------------- |
+| A caller names a **region**, never a slot — a slot is a hole in a page the region cannot see | `E_STALE_REGION`       |
+| A region with no `staleSecret` cannot tell this composite anything at all                    | `E_NO_STALE_SECRET`    |
+| The secret presented has to be the one bound                                                 | `E_STALE_UNAUTHORISED` |
+
+The composite maps the region to the slots it fills across every route that composes it — reading
+the routes rather than assuming the slot name, so a page composing `search` into a hole called
+`results` works — and `ChannelHub.notifySlots` tells every connection whose `held` map names one of
+them. A connection on another page is showing none of those slots and is told nothing.
+
+**What decides "showing" is the client's own claim.** A region refresh records nothing on this side,
+and correctly so: what came back was frames the region chose, and the template and the base inside
+them are the region's. So the composite learns that a connection is showing a region the same way it
+learns anything about a client's state — by being told, in a `HELD` frame.
+
+And the fallback stays exactly where it was. A remote region that declares cache tags and no refresh
+interval has neither mechanism, and that is still `W_REGION_TAGS_UNREACHABLE` at build time — now
+with a third thing it could have instead, which is a deployment that is willing to hold a secret.
+
 ## What this does not do yet
-
-- **A `STALE` for a region's cache tag has nobody to tell.** The composite does not hold a region's
-  cache keys — it holds a contract, and keys are the region's own — so push invalidation stops at the
-  boundary. The client's own refresh interval is what covers it, which is the design's stated
-  fallback for the whole invalidation tier and not a special case here.
-
-  What changed is that it is no longer a silence. A remote region that declares cache tags and no
-  refresh interval has _neither_ mechanism, and that is `W_REGION_TAGS_UNREACHABLE` at build time,
-  naming the tags and the fallback. A warning rather than an error, because a tag on a remote region is
-  not a contradiction — the region may well be invalidated by it on its own side, and this composite
-  simply cannot see that. What would be wrong is letting a page declare tags, get nothing, and find out
-  from a region that never updates in production.
 
 - **Nested regions are a tree in the numbers and not in the resolution.** A region's own regions are
   resolved by its own registry, which is right, but nothing yet reports the composite tree as one

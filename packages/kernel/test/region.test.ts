@@ -164,6 +164,10 @@ test('every downlink frame is either one a region sends or one with a stated rea
     'CSS',
     'SLOT',
     'ERROR',
+    // A region naming its own hole is saying the only thing it is in a position to know: that what
+    // it served is no longer current. Which connections are showing that hole is the composite's
+    // answer, and naming a sibling's is still an escape.
+    'STALE',
   ])
   const unclassified: string[] = []
   for (const [kind, def] of Object.entries(FRAMES)) {
@@ -541,4 +545,15 @@ test('what a composer composed is a graph, and a degraded region is a node that 
     { region: 'recs', executor: 'inline', hops: 0, failed: 'E_UPSTREAM' },
   ])
   assert.equal(treeHops(regionGraph(composer.composed)), composer.hops)
+})
+
+test('a region may say its own hole is stale, and may not say a sibling’s is', () => {
+  const own = readRegion('search', answer('search', [frame('STALE', { s: 'search', reason: 'tag:index' })]))
+  assert.equal(own.frames.length, 1)
+  assert.equal(own.frames[0]?.kind, 'STALE')
+
+  assert.throws(
+    () => readRegion('search', answer('search', [frame('STALE', { s: 'cart' })])),
+    /E_REGION_ESCAPE/,
+  )
 })

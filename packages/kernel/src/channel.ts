@@ -237,6 +237,20 @@ export interface ChannelHub {
    * having push invalidation at all.
    */
   notify(keys: readonly string[], reason: string, options?: { except?: string }): Promise<number>
+  /**
+   * Tell every connection showing one of these slots that it is stale, by slot rather than by key.
+   *
+   * The path an invalidation takes when it crosses a tier boundary. `notify` above works from the
+   * keys a store dropped, which is right for everything this deployment rendered and impossible for
+   * anything it did not: a region holds its own keys and this composite holds a contract. What the
+   * composite does hold is the answer to "which of my connections is showing that region", and this
+   * is that answer turned into frames.
+   *
+   * It is deliberately not `invalidate`. Nothing is dropped from any store here, because there is
+   * nothing of the region's in this deployment's store to drop — the region's markup came down a
+   * wire. The client is told, and the client decides.
+   */
+  notifySlots(slots: readonly string[], reason: string, options?: { except?: string }): Promise<number>
   close(id: string, reason?: string): void
   readonly channels: number
   readonly stale: StaleRegistry
@@ -380,6 +394,8 @@ export function createHub(options: HubOptions): ChannelHub {
       }
       return notified
     },
+
+    notifySlots,
   }
 
   async function handle(record: ChannelRecord, f: AnyFrame): Promise<Frame[]> {
@@ -569,6 +585,32 @@ export function createHub(options: HubOptions): ChannelHub {
    * everything staged under that epoch at once — set both on one frame and you have an
    * optimistic update, which is a staged epoch committed immediately.
    */
+  /**
+   * A slot's worth of invalidation, told to whoever is showing that slot.
+   *
+   * `record.held` is what this connection says it is displaying, which is the only thing that
+   * decides whether an invalidation is any of its business. A connection showing none of these
+   * slots is not told, and a connection showing two is told twice — once per slot, because a
+   * client's decision about a stale region is per region.
+   */
+  async function notifySlots(
+    slots: readonly string[],
+    reason: string,
+    only: { except?: string } = {},
+  ): Promise<number> {
+    const wanted = new Set(slots)
+    let told = 0
+    for (const [id, record] of live) {
+      if (only.except === id) continue
+      const frames = [...record.held.keys()]
+        .filter((slot) => wanted.has(slot))
+        .map((slot) => frame('STALE', { s: slot, reason }))
+      if (!frames.length) continue
+      told += await record.channel.send(frames)
+    }
+    return told
+  }
+
   async function refresh(record: ChannelRecord, f: AnyFrame): Promise<Frame[]> {
     if (!record.negotiation) {
       return [

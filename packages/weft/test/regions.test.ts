@@ -335,3 +335,110 @@ test('a composed page is not a file, and the refusal names the reason rather tha
     'two renders could agree by accident; what the region reads is its own and can be rolled',
   )
 })
+
+// ── invalidation, crossing the boundary ──────────────────────────────────────────────
+
+/**
+ * The silence the composition spec described, and what closes it.
+ *
+ * A composite holds a contract and a region holds its own keys, so a `STALE` about them has nobody
+ * to send — that reason is about keys and it is still true, because nothing is dropped from any
+ * store here. What was missing is the other half: which of this composite's connections are showing
+ * that region, which only this side can answer.
+ *
+ * Every assertion here is about authority, because that is the whole of what was missing. A caller
+ * names a region and never a slot; a region with no configured secret cannot say anything at all;
+ * and a connection showing the region is told while a connection showing another page is not.
+ */
+async function open_(serving: Serving, at: string): Promise<{ id: string; frames: Frame[] }> {
+  const id = `c-${Math.random().toString(36).slice(2, 8)}`
+  const held = sink()
+  serving.app.at.set(id, { path: at, cookie: '' })
+  serving.app.hub.open(held, id)
+  await serving.app.hub.receive(id, [
+    residentFrame({ warp: WARP_VERSION, ir: TEMPLATE_IR_VERSION, forms: ['html', 'delta', 'patch'] }),
+  ])
+  return { id, frames: held.frames }
+}
+
+const SECRET = 'a-shared-secret-nobody-guesses'
+
+async function tellStale(
+  serving: Serving,
+  body: unknown,
+  headers: Record<string, string> = { authorization: `Bearer ${SECRET}` },
+): Promise<{ status: number; json: Record<string, unknown> }> {
+  const response = await fetch(new URL('/_weft/stale', serving.url), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...headers },
+    body: JSON.stringify(body),
+  })
+  return { status: response.status, json: (await response.json()) as Record<string, unknown> }
+}
+
+test('a region that has gone stale reaches the connections showing it, and nobody else', async () => {
+  const serving = await app({
+    executors: { 'binding:search': tier() },
+    regions: [binding({ staleSecret: SECRET })],
+  })
+
+  const showing = await open_(serving, '/app/composed?q=tea')
+  const elsewhere = await open_(serving, '/app/feed')
+  /**
+   * The client says what it is showing, and that claim is the only thing that decides whose
+   * business an invalidation is.
+   *
+   * Not a refresh: a *region* refresh records nothing on this side, and correctly so — what came
+   * back was frames the region chose, and the template and the base in them are the region's. So
+   * the composite learns that a connection is showing a region the same way it learns anything
+   * about a client's state, which is by being told.
+   */
+  await serving.app.hub.receive(showing.id, [frame('HELD', { search: 'tpl-base' })])
+
+  const before = showing.frames.length
+  const told = await tellStale(serving, { region: 'search', reason: 'tag:index' })
+  assert.equal(told.status, 200)
+  assert.deepEqual(told.json.slots, ['search'])
+  assert.equal(told.json.told, 1, 'one connection is showing it')
+
+  const pushed = showing.frames.slice(before).filter((f) => f.kind === 'STALE')
+  assert.equal(pushed.length, 1)
+  assert.equal(str(pushed[0] as Frame, 's'), 'search')
+  assert.equal(str(pushed[0] as Frame, 'reason'), 'tag:index')
+  assert.deepEqual(
+    elsewhere.frames.filter((f) => f.kind === 'STALE'),
+    [],
+    'a connection on another page is not showing that region and is not told',
+  )
+})
+
+test('a region with no configured secret cannot tell this deployment anything', async () => {
+  const serving = await app({
+    executors: { 'binding:search': tier() },
+    regions: [binding()],
+  })
+  const refused = await tellStale(serving, { region: 'search' })
+  assert.equal(refused.status, 403)
+  assert.equal(refused.json.code, 'E_NO_STALE_SECRET')
+})
+
+test('the wrong secret, an unknown region and a named slot are each refused by name', async () => {
+  const serving = await app({
+    executors: { 'binding:search': tier() },
+    regions: [binding({ staleSecret: SECRET })],
+  })
+
+  const wrong = await tellStale(serving, { region: 'search' }, { authorization: 'Bearer nope' })
+  assert.equal(wrong.status, 403)
+  assert.equal(wrong.json.code, 'E_STALE_UNAUTHORISED')
+
+  const unknown = await tellStale(serving, { region: 'checkout' })
+  assert.equal(unknown.status, 404)
+  assert.equal(unknown.json.code, 'E_NO_SUCH_REGION')
+
+  // A slot is a hole in a page the region cannot see. Naming one is the escape the REGION frame
+  // check refuses everywhere else, so it is refused here too — by having no other name to give.
+  const slot = await tellStale(serving, { reason: 'tag:index' })
+  assert.equal(slot.status, 400)
+  assert.equal(slot.json.code, 'E_STALE_REGION')
+})

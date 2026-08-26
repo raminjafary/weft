@@ -61,11 +61,24 @@ const REFUSED: Partial<Record<FrameKind, string>> = {
   PLAN: 'a plan is a route table, and a region knows one route on one deployment',
   NAV: 'only the side holding both shells can answer a staged route, and a region holds one',
   COMMIT: 'an epoch commits a whole page atomically, so the flip belongs to whoever owns the page',
-  STALE: 'push invalidation names connections, and a region holds none of this composite’s',
   REDIRECT: 'a region cannot move the page it is inside',
   COOKIE: 'a region cannot write to the composite’s reader',
   ACK: 'an intent’s answer belongs to the deployment that dispatched the intent',
 }
+
+/**
+ * `STALE` used to be on that list, and the reason it gave was half right.
+ *
+ * "Push invalidation names connections, and a region holds none of this composite's" — true, and
+ * not a reason to refuse the frame. A region naming a *sibling's* slot is refused by the escape
+ * check like everything else; a region naming **its own hole** is saying the only thing it is in a
+ * position to know, which is that what it served is no longer current. Which connections are
+ * showing that hole is the composite's to answer, and `ChannelHub.notifySlots` is that answer.
+ *
+ * What is still not a region's to send is the *drop*. Nothing leaves any store here: the region's
+ * markup came down a wire and this deployment has none of its keys. The client is told, and the
+ * client decides — which is the same contract a local `STALE` has.
+ */
 
 /** What a region said about itself, taken from the one frame it is allowed to open with. */
 export interface RegionAnnouncement {

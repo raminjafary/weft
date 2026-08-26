@@ -398,6 +398,20 @@ export interface RegionBinding {
   revision?: string
   /** What the shell expects this deployment to serve. A mismatch degrades rather than renders. */
   contract?: RegionContract
+  /**
+   * A shared secret this region's deployment presents when it has something to tell the composite.
+   *
+   * Push invalidation stops at a tier boundary for a structural reason: the composite holds a
+   * contract and the keys are the region's own, so a `STALE` about them has nobody to send. The
+   * missing half is not a protocol, it is an *authority* — who may tell this composite that a
+   * region it composes has gone stale. That is a deployment's decision, so it is a secret in a
+   * deployment's config rather than a mechanism in a framework.
+   *
+   * Absent, the endpoint refuses by name. A composite that never configured one cannot be told
+   * anything by anybody, which is the right default for something that reaches every open
+   * connection showing that region.
+   */
+  staleSecret?: string
 }
 
 /**

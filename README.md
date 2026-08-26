@@ -253,6 +253,14 @@ a tier boundary. **The same region composed in-process and over a binding produc
 markup**, which is the test that fails first if the collapsed monolith becomes a special case.
 Rolling a region is a registry write, not a redeploy of the shells that name it.
 
+**Invalidation crosses that boundary now, and what crosses it is authority rather than a key.** A
+composite holds a contract and the region holds its own keys, so there is nothing here to drop — but
+which connections are showing that region is a question only this side can answer. `POST /_weft/stale`
+with a secret bound for that region in `weft.config.ts`, naming the region and never a slot, and
+every connection whose `HELD` names the hole it fills is told. A region with no configured secret
+cannot tell this deployment anything, which is the right default for something that reaches every
+open page.
+
 The check is the part that is new. Frames from another deployment are somebody else's and a length
 prefix does not say whose, so a region opens with `REGION` naming **itself** — and may write only
 into its own hole. A sibling's slot is `E_REGION_ESCAPE`; a `SHELL`, `COOKIE` or `PLAN` is

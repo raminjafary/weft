@@ -67,6 +67,7 @@ import { discover, type Discovered } from './convention.ts'
 import { loadConfig, type ResolvedConfig, type WeftConfig } from './config.ts'
 import { devtoolsFor } from './devtools.ts'
 import { resolveAuthority, serveToken, TOKEN_PATH, type Authority } from './authority.ts'
+import { serveStale, STALE_PATH } from './stale.ts'
 import { loadIntents, moduleIdOf, type IntentManifest } from './intents.ts'
 import { loadCatalogue, type Catalogue } from './renderables.ts'
 import { regionRegistry } from './regions.ts'
@@ -1227,6 +1228,30 @@ export async function serveApp(app: App): Promise<Serving> {
      * whatever cache holds that render. `serveToken` says the whole of why. POST because a token
      * has no business in a URL, a log, or a referer.
      */
+    /**
+     * The one thing a region's deployment is allowed to tell this one.
+     *
+     * Push invalidation stops at a tier boundary structurally: this composite holds a contract and
+     * the keys are the region's own, so a `STALE` about them has nobody to send and the design's
+     * stated fallback is the client's own refresh interval. What was missing is not a protocol, it
+     * is an authority — who may say that a region this page composes has gone stale — and that is a
+     * deployment's decision, so it is a secret in `weft.config.ts` rather than a mechanism here.
+     *
+     * A caller names a **region**, never a slot, and this side works out which slots on which pages
+     * that region fills and which connections are showing them. Naming a slot would be a region
+     * reaching into a page it cannot see, which is the thing composition refuses everywhere else.
+     */
+    if (path === STALE_PATH) {
+      if (req.method !== 'POST') {
+        res.writeHead(405, { allow: 'POST', 'content-type': 'application/json' }).end('{"code":"E_METHOD"}')
+        return
+      }
+      const answer = await serveStale(incoming, { routes, hub, regions: app.config.regions })
+      res.writeHead(answer.status, Object.fromEntries(answer.headers))
+      res.end(await answer.text())
+      return
+    }
+
     if (path === TOKEN_PATH) {
       if (req.method !== 'POST') {
         res.writeHead(405, { allow: 'POST', 'content-type': 'application/json' }).end('{"code":"E_METHOD"}')
