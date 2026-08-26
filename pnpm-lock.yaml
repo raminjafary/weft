@@ -47,6 +47,9 @@ importers:
       typescript:
         specifier: 7.0.2
         version: 7.0.2
+      weft:
+        specifier: workspace:*
+        version: link:packages/weft
 
   benchmarks/rr7:
     dependencies:

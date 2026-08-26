@@ -46,7 +46,8 @@
     "playwright": "1.62.1",
     "prettier": "3.9.6",
     "rolldown": "1.2.5",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "weft": "workspace:*"
   },
   "workspaces": [
     "packages/*"
