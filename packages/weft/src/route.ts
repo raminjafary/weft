@@ -173,6 +173,21 @@ export interface RouteModule {
    */
   order?: 'in-order' | 'out-of-order' | ((params: Record<string, string>) => 'in-order' | 'out-of-order')
   /**
+   * Answer a conditional request for this page: a strong `ETag` over the bytes, and a 304 when the
+   * reader already holds them.
+   *
+   * Declared rather than derived, because it costs the one property this framework is built on. An
+   * entity tag is a digest of the entity and it has to be in the envelope — which is sealed before
+   * the first body byte — so the only way to have one is to hold the whole response back until it
+   * is complete. A page that streams cannot have an ETag, and a page that could have one is
+   * trading time-to-first-byte for a revalidation that costs no body bytes at all.
+   *
+   * That trade is worth taking on a page whose slots all buffer anyway. It is never worth taking
+   * silently, so declaring it on a route that streams is `E_ETAG_STREAMS` at build time rather than
+   * a quietly slower page.
+   */
+  etag?: boolean
+  /**
    * Extra value names to send to the browser.
    *
    * The framework already works out which values a client-owned derived expression reads and

@@ -111,7 +111,19 @@ export interface StorePort {
   readonly maxValueBytes: number
   readonly coherence: Coherence
   readonly scope: Scope
-  get(key: string): Promise<StoreEntry | null>
+  /**
+   * `stale: true` asks for an entry past its TTL rather than nothing.
+   *
+   * There is exactly one caller entitled to ask: a slot whose declared degradation is `stale`,
+   * whose render has just failed, and whose alternative is a placeholder. An expired entry **is**
+   * the last good render, so this needs no second key and no second write — the price of stale is
+   * paid only by the request that actually needs it.
+   *
+   * An entry that was *invalidated* is not recoverable this way and must not be. Expiry means "this
+   * may be out of date"; invalidation means "this is known to be wrong", and serving known-wrong
+   * bytes is worse than admitting the region is missing.
+   */
+  get(key: string, options?: { stale?: boolean }): Promise<StoreEntry | null>
   set(
     key: string,
     value: Uint8Array | ReadableStream<Uint8Array>,

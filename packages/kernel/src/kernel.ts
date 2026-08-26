@@ -304,10 +304,25 @@ export function createKernel(options: KernelOptions): Kernel {
           slot: slot.name,
           code: outcome.failure.code,
         })
+        /**
+         * `onExceed: 'stale'`, meant literally.
+         *
+         * The last good render of this slot is the expired entry under its own key — so there is no
+         * second key, no second write, and nothing on the success path pays for the possibility. The
+         * store is asked to read past the TTL exactly once, by the request that has already failed
+         * and whose only other answer is a placeholder. An *invalidated* entry is gone and stays
+         * gone: expiry means possibly out of date, invalidation means known to be wrong.
+         */
+        const policy = slot.onExceed ?? 'placeholder'
+        const last =
+          policy === 'stale' && resolved.key
+            ? await options.ports.store.get(resolved.key, { stale: true })
+            : null
         return degrade(
           {
             slot: slot.name,
-            policy: slot.onExceed ?? 'placeholder',
+            policy,
+            ...(last ? { stale: last.value } : {}),
             ...(slot.placeholder ? { placeholder: slot.placeholder } : {}),
           },
           outcome.failure,

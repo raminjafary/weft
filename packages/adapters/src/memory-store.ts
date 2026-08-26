@@ -68,16 +68,20 @@ export function memoryStore(options: MemoryStoreOptions = {}): MemoryStore {
     coherence: 'generation',
     scope: 'process',
 
-    async get(key) {
+    async get(key, read) {
       const slot = entries.get(key)
       if (!slot) return null
       const { ttlMs, storedAt } = slot.entry.meta
       if (ttlMs !== undefined && clock() - storedAt > ttlMs) {
-        drop(key)
-        return null
+        // Expired, and kept rather than dropped: an expired entry is the last good render, which
+        // is what a slot declaring `onExceed: 'stale'` asks for when its own render has failed.
+        // Nothing else is allowed to read it, and eviction reclaims it under pressure like any
+        // other entry — so the cost of keeping it is bounded by the same byte ceiling.
+        if (!read?.stale) return null
+      } else {
+        entries.delete(key)
+        entries.set(key, slot)
       }
-      entries.delete(key)
-      entries.set(key, slot)
       return slot.entry
     },
 

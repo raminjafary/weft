@@ -120,6 +120,64 @@ falls out of it rather than what was declared:
 `opaque.tsx` covers the no-key path, and `private.tsx` the identity path. Each of the three
 changes the answer rather than adding to it, which is why they are three files.
 
+## The third HTTP derivation, and where it can exist at all
+
+`Cache-Control` and `Vary` are derived from the effect signature. An `ETag` cannot be, and the
+reason is the same two-phase envelope the whole lifecycle is built on: a strong entity tag is a
+digest of the entity, and the envelope is sealed before the first body byte. There is no moment at
+which a streaming response knows what it is about to say.
+
+So the tag comes from the one layer that has not written the status line yet — the front door —
+and it costs the streaming property. A route declares it:
+
+```ts
+export default defineRoute({
+  etag: true,
+  document: { class: 'public', ttl: '10m' },
+  slots: { … },   // every one of them buffered
+})
+```
+
+and three rules make it honest rather than convenient:
+
+- **A page that streams cannot have one.** `orderOf` derives `out-of-order` from any slot that
+  asked to stream, so declaring both is `E_ETAG_STREAMS` at build time, naming the slots. The
+  alternative — quietly holding a streaming page back to digest it — would be the framework
+  trading away the property it is built on without saying so.
+- **A `no-store` response gets no tag.** A validator is a promise about a copy the client keeps,
+  and the response has just told it not to keep one. This is also why the declaration is usually
+  accompanied by a `document` policy: nothing is cached by accident here, so a page whose document
+  policy is absent is `no-store` and has nothing to validate.
+- **The digest is SHA-256 truncated to 128 bits**, not the cheap hash a base-render id uses. A
+  base-render collision costs a wire form; an entity-tag collision serves the wrong page to somebody
+  who asked whether their copy was current. L0's own tags moved to the same digest for the same
+  reason.
+
+What this buys is the whole body: a return visit to a conditional page is a 304 and nothing else.
+What it costs is time-to-first-byte on the miss, which is why it is a route's decision and not a
+default.
+
+## Serving the last good render
+
+`onExceed: 'stale'` means what it says now. The last good render of a slot is the **expired entry
+under that slot's own key**, so the policy needs no second key, no second write, and nothing on the
+success path: the store is asked to read past the TTL exactly once, by the request whose render has
+already failed and whose only other answer is a placeholder.
+
+`StorePort.get(key, { stale: true })` is that read, and it is the only caller entitled to make it.
+Two rules:
+
+- **An expired entry is invisible to an ordinary read.** `memoryStore` keeps it rather than dropping
+  it and returns null unless asked, and eviction reclaims it under the same byte ceiling as
+  everything else — so the cost of keeping it is bounded by a limit that already existed.
+- **An invalidated entry is not recoverable and must not be.** Expiry means _possibly_ out of date;
+  invalidation means _known to be wrong_. A tag drop takes the entry with it, and the region degrades
+  to its placeholder — because showing somebody bytes the deployment has already declared incorrect
+  is worse than showing them a region that is missing.
+
+A tiered store passes the flag down and does **not** promote what comes back: writing an expired
+entry into a fresher tier would hand stale bytes to the next reader who never asked for any.
+
 ## What this does not do yet
 
 - **L0 is built, and it is a document rather than a fragment.** A page whose every fragment
@@ -131,7 +189,11 @@ changes the answer rather than adding to it, which is why they are three files.
   and hands it the two things that decide a coalesce; `leaseCoalescer` is the implementation.
   Without one, two concurrent misses still render twice — which is opt-in because the good
   version is store-specific.
-- **No ETag.** `Cache-Control` and `Vary` are derived; the design's third HTTP-tier
-  derivation is not.
-- **No `stale-if-error`.** `onExceed: 'stale'` degrades to the placeholder because the
-  kernel does not yet hand the last cached value to `degrade()`.
+- **No `stale-if-error` on the wire.** The kernel serves the last good render itself, as above.
+  What it does not do is _advertise_ the directive, which would let an intermediary do the same
+  thing on its own copy — and that is a `CachePolicy` field and two lines in `cacheHeaders`, held
+  back only because the request path has 38 bytes of headroom and a directive nobody has asked for
+  is a poor way to spend them.
+- **A conditional response is a declaration rather than a derivation.** A route says `etag: true`;
+  nothing infers that a page whose slots all buffer would like to be conditional, because the
+  inference would be a framework deciding to hold somebody's page back.

@@ -179,6 +179,17 @@ is a framework that lies to you for a year.
 is no setter in the kernel, the plan DSL or the plugin surface, and that absence is the enforcement.
 `.cache('public')` on a fragment that reads identity fails the build with `identity` named.
 
+**A conditional page is one a route asked for.** An `ETag` is a digest of the whole entity and the
+envelope is sealed before the first byte, so a page that streams cannot carry one — and a framework
+that quietly held a streaming page back to digest it would be trading away the property it is built
+on. `etag: true` on a route whose slots all buffer gets a strong tag and a 304 that costs no body;
+the same declaration on a page that streams is `E_ETAG_STREAMS` with the streaming slots named.
+
+**`onExceed: 'stale'` means the last good render**, which is the expired entry under the slot's own
+key — no second key, no second write, and nothing on the success path. An entry that was
+_invalidated_ is not recoverable and must not be: expiry means possibly out of date, invalidation
+means known to be wrong, and only one of those is safe to show somebody.
+
 **A page that reads nothing is a file.** `weft build` renders every route through the real kernel
 twice — under two requests differing in cookies, locale, device, headers, query, flags and a clock
 ten years apart — and writes the byte-identical ones to `.weft/static/`. `weft start` answers those

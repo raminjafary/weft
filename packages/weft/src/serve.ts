@@ -4,6 +4,7 @@ import { basename, dirname, join, relative } from 'node:path'
 import { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import { patchPayload } from '@weft/ir'
+import { entityTag, matchesTag } from './entity.ts'
 import { frame, str, type Frame } from '@weft/warp'
 import {
   boundedDb,
@@ -1013,6 +1014,14 @@ function channelContext(
 export async function serveApp(app: App): Promise<Serving> {
   const { assets, at, authority, config, documents, intents, keysFor, recorder, routes, store, hub } = app
   const table = createRouter<RouteResolver>(routes.map((route) => route.entry))
+  /**
+   * Routes that answer a conditional request, by pattern.
+   *
+   * A set rather than a lookup into the route record, because this is consulted on the hot path for
+   * every request and the answer is build-time knowledge: which routes declared that they would
+   * rather be complete than early.
+   */
+  const conditional = new Set(routes.filter((route) => route.etag).map((route) => route.pattern))
 
   // The stylesheet a page the framework itself renders — a 404, a refused intent — links. There is
   // no bundle for a page that is not a route, so it borrows the first one's.
@@ -1222,13 +1231,12 @@ export async function serveApp(app: App): Promise<Serving> {
      * transition without asking the client to report one. A staged navigation sends a referer too,
      * so a page reached by a swap counts the same as a page reached by a load.
      */
-    if (recorder && (req.method === 'GET' || req.method === 'HEAD')) {
-      const matched = table.match(url)
-      if (matched) {
-        const referer = req.headers.referer
-        const from = referer ? patternOf(referer) : undefined
-        recorder.request(matched.pattern, from)
-      }
+    const readable = req.method === 'GET' || req.method === 'HEAD'
+    const matched = readable ? table.match(url) : null
+    if (recorder && matched) {
+      const referer = req.headers.referer
+      const from = referer ? patternOf(referer) : undefined
+      recorder.request(matched.pattern, from)
     }
 
     const kernel = kernelFor(res)
@@ -1256,6 +1264,37 @@ export async function serveApp(app: App): Promise<Serving> {
     // Which build answered. One header, on every document, because the alternative is a deploy
     // log and a guess — and during a rollout the two versions are the whole question.
     if (app.ports.deployment) out['x-weft-revision'] = app.ports.deployment.revision
+
+    /**
+     * A conditional answer, for a route that asked to be one.
+     *
+     * The digest has to be over the whole entity and the kernel's envelope is sealed before the
+     * first body byte, so the tag cannot come from in there — it comes from here, where the status
+     * line has not been written yet, and the price is that the body is held until it is complete.
+     * That is why the route declares it: `E_ETAG_STREAMS` refuses the combination that would make
+     * this a silent slowdown.
+     *
+     * `no-store` gets no tag. A validator is a promise about a copy the client keeps, and the
+     * response has just told it not to keep one.
+     */
+    if (matched && conditional.has(matched.pattern) && response.status === 200 && response.body) {
+      const stored = !/no-store/.test(String(out['cache-control'] ?? ''))
+      const whole = new Uint8Array(await response.arrayBuffer())
+      if (stored) {
+        const tag = await entityTag(whole)
+        out.etag = tag
+        if (matchesTag(req.headers['if-none-match'], tag)) {
+          // No content-length on a 304: it describes a body that is deliberately absent.
+          res.writeHead(304, out)
+          res.end()
+          return
+        }
+      }
+      res.writeHead(response.status, { ...out, 'content-length': String(whole.byteLength) })
+      res.end(req.method === 'HEAD' ? undefined : whole)
+      return
+    }
+
     res.writeHead(response.status, out)
     if (!response.body) {
       res.end()

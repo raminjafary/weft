@@ -2,7 +2,8 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { cookieSession, memoryStore, staticFlags } from '@weft/adapters'
 import { createKernel, createRouter, type Ports, type RouteResolver } from '@weft/kernel'
-import { fastHash, short, type TemplateIR } from '@weft/ir'
+import type { TemplateIR } from '@weft/ir'
+import { entityTag } from './entity.ts'
 import type { CompiledFragment } from './compile.ts'
 import type { ResolvedConfig } from './config.ts'
 import type { RouteModule, SlotDeclaration } from './route.ts'
@@ -387,7 +388,7 @@ export async function prerender(app: App): Promise<Prerendered> {
       path: route.pattern,
       file: fileFor(route.pattern),
       bytes: body.byteLength,
-      etag: `"${short(fastHash(Buffer.from(body).toString('base64')), 16)}"`,
+      etag: await entityTag(body),
       headers: headersFor(plain.headers),
       body,
     })

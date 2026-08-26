@@ -104,6 +104,12 @@ export interface GeneratedRoute {
    */
   static: StaticVerdict
   /**
+   * Whether this route answers conditional requests, which means the front door holds its response
+   * back until it is complete and digests it. Declared by the route, refused where it contradicts
+   * the plan's own delivery — see `E_ETAG_STREAMS`.
+   */
+  etag: boolean
+  /**
    * Stylesheets this route links, in cascade order: the page's own, and the one belonging to
    * every fragment it actually renders. A page links the CSS of the components on it and no
    * others, which is the same argument the design makes about templates one level up.
@@ -875,6 +881,25 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
   )
   const order = module_.order
   /**
+   * A conditional page has to be a complete one.
+   *
+   * `orderOf` in the plan layer already derives `out-of-order` from any slot that asked to stream,
+   * so this is the same fact seen from the other side: a route that declares an ETag and streams is
+   * asking for a digest of something that does not exist yet when the header has to be written.
+   * Refused where it is declared, with both halves named.
+   */
+  if (module_.etag) {
+    const streaming = plan.slots.filter((slot) => slot.delivery === 'stream').map((slot) => slot.name)
+    const asked = typeof order === 'string' ? order : undefined
+    if (streaming.length || asked === 'out-of-order') {
+      throw new Error(
+        `E_ETAG_STREAMS: ${route.pattern} declares etag and ${
+          streaming.length ? `streams ${streaming.join(', ')}` : 'declares out-of-order delivery'
+        }. An entity tag is a digest of the whole entity and the envelope is sealed before the first byte, so the two cannot both be true`,
+      )
+    }
+  }
+  /**
    * Slots whose budget is a function of the request, and the declared one they override.
    *
    * Collected here rather than looked up per request: the declaration is build-time knowledge,
@@ -953,6 +978,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     plan,
     entry: { pattern: route.pattern, value },
     module: module_,
+    etag: Boolean(module_.etag),
     live,
     regions,
     remote,

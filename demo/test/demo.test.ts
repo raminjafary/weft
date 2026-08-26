@@ -176,3 +176,48 @@ test('a route param is part of what a slot on a generated route is', async () =>
     await serving.close()
   }
 })
+
+/**
+ * The conditional page, and the two things it has to get right.
+ *
+ * A strong tag is a promise that the same tag means the same bytes, so the first assertion is that
+ * the tag is stable across two renders of a page whose slots all buffer. The second is the point of
+ * having one at all: a reader who already holds those bytes is told so, and no body travels.
+ *
+ * The index declares `etag: true`; nothing else in the demo does, which is what makes the third
+ * assertion meaningful — a streaming page does not quietly get one.
+ */
+test('a route that declared it answers a conditional request, and a streaming one does not', async () => {
+  const serving = await serveApp(await app())
+  const page = '/app/ordinary/pantry'
+  try {
+    const first = await fetch(new URL(page, serving.url))
+    const tag = first.headers.get('etag')
+    assert.ok(tag, 'the ordinary page declares etag: true')
+    assert.equal(first.headers.get('content-length'), String((await first.arrayBuffer()).byteLength))
+
+    const again = await fetch(new URL(page, serving.url))
+    assert.equal(again.headers.get('etag'), tag, 'the same bytes have to produce the same tag')
+    await again.arrayBuffer()
+
+    const conditional = await fetch(new URL(page, serving.url), { headers: { 'if-none-match': tag } })
+    assert.equal(conditional.status, 304)
+    assert.equal((await conditional.arrayBuffer()).byteLength, 0)
+
+    // `*` is "any representation you have", which for a page that exists is a match.
+    const any = await fetch(new URL(page, serving.url), { headers: { 'if-none-match': '*' } })
+    assert.equal(any.status, 304)
+    await any.arrayBuffer()
+
+    const stale = await fetch(new URL(page, serving.url), { headers: { 'if-none-match': '"nope"' } })
+    assert.equal(stale.status, 200)
+    assert.ok((await stale.text()).length > 0)
+
+    // The feed streams, and a streaming response cannot carry a digest of something unfinished.
+    const streamed = await fetch(new URL('/app/feed', serving.url))
+    assert.equal(streamed.headers.get('etag'), null)
+    await streamed.text()
+  } finally {
+    await serving.close()
+  }
+})

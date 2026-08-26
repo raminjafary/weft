@@ -40,11 +40,15 @@ export function tieredStore(tiers: readonly StorePort[], name = 'tiered'): Store
     ),
     maxValueBytes: Math.min(...ordered.map((t) => t.maxValueBytes)),
 
-    async get(key) {
+    async get(key, options) {
       for (let i = 0; i < ordered.length; i++) {
         const tier = ordered[i] as StorePort
-        const entry = await tier.get(key)
+        const entry = await tier.get(key, options)
         if (!entry) continue
+        // A stale read does not promote. The tier above holds a fresher answer or nothing, and
+        // writing an expired entry into it would make the next ordinary reader see stale bytes
+        // without asking for them.
+        if (options?.stale) return entry
         // A hit deep in the stack fills every tier above it, so the second reader is fast.
         for (let j = 0; j < i; j++) {
           const { storedAt: _storedAt, ...meta } = entry.meta

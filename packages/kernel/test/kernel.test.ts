@@ -392,3 +392,95 @@ test('an in-order response does not carry the filler, because it needs no fill m
   assert.equal(body.includes('window.__w='), false, 'nothing to fill, so nothing is paid for')
   assert.equal(body.includes('<!--w:'), false)
 })
+
+/**
+ * `onExceed: 'stale'`, and the three answers it has to give in order.
+ *
+ * The last good render is the expired entry under the slot's own key, which is why the policy needs
+ * no second key and nothing on the success path. The three cases are: an expired entry, which is
+ * served; no entry at all, which is the placeholder; and an entry that was *invalidated*, which is
+ * also the placeholder — expiry means possibly out of date and invalidation means known to be wrong,
+ * and only one of those is safe to show somebody.
+ */
+test('a slot that declared stale is served its last good render rather than a placeholder', async () => {
+  let now = 1_000
+  const store = memoryStore({ clock: () => now })
+  const kernel = createKernel({ ports: ports(store) })
+  const policy = { class: 'public' as const, ttlMs: 60_000 }
+  const failing = (): KernelSlot =>
+    slot('lines', [], {
+      policy,
+      onExceed: 'stale',
+      placeholder: utf8.encode('<p class="skeleton"></p>'),
+      render: async () => {
+        throw new Error('upstream down')
+      },
+    })
+
+  // A good render, which the store now holds.
+  await text(
+    await kernel.handle(
+      new Request('https://example.test/cart'),
+      await route([slot('lines', [], { policy })]),
+    ),
+  )
+
+  // Still fresh: an ordinary hit, and the failing render is never reached.
+  const fresh = await text(
+    await kernel.handle(new Request('https://example.test/cart'), await route([failing()])),
+  )
+  assert.match(fresh, /<p>lines<\/p>/)
+  assert.equal(kernel.trace?.degraded.length, 0)
+
+  // Past the TTL, and the render fails: the expired entry is exactly the last good render.
+  now += 120_000
+  const stale = await text(
+    await kernel.handle(new Request('https://example.test/cart'), await route([failing()])),
+  )
+  assert.match(stale, /<p>lines<\/p>/, 'the last good render, past its TTL')
+  assert.equal(kernel.trace?.degraded[0]?.slot, 'lines')
+
+  // Invalidated rather than expired: nothing to recover, so the region says it is missing. A
+  // second store, because the entry has to have carried the tag when it was written.
+  const tagged = memoryStore({ clock: () => now })
+  const second = createKernel({ ports: ports(tagged) })
+  const withTag = { ...policy, tags: ['everything'] }
+  await text(
+    await second.handle(
+      new Request('https://example.test/cart'),
+      await route([slot('lines', [], { policy: withTag })]),
+    ),
+  )
+  const held = Object.values(second.trace?.keys ?? {})
+    .map((resolved) => resolved.key)
+    .filter((key): key is string => Boolean(key))
+  assert.deepEqual(await tagged.invalidate(['everything']), held)
+  const dropped = await text(
+    await second.handle(
+      new Request('https://example.test/cart'),
+      await route([
+        slot('lines', [], {
+          policy: withTag,
+          onExceed: 'stale',
+          placeholder: utf8.encode('<p class="skeleton"></p>'),
+          render: async () => {
+            throw new Error('upstream down')
+          },
+        }),
+      ]),
+    ),
+  )
+  assert.match(dropped, /class="skeleton"/)
+})
+
+test('an expired entry is invisible to an ordinary read, and readable exactly once by name', async () => {
+  let now = 1_000
+  const store = memoryStore({ clock: () => now })
+  await store.set('k', utf8.encode('bytes'), { class: 'shared', ttlMs: 1_000, tags: ['t'] })
+  now += 5_000
+  assert.equal(await store.get('k'), null, 'an ordinary read must not see past a TTL')
+  assert.ok(await store.get('k', { stale: true }))
+  // An invalidated entry is gone for both readers.
+  await store.invalidate(['t'])
+  assert.equal(await store.get('k', { stale: true }), null)
+})

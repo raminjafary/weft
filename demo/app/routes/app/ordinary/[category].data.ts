@@ -44,6 +44,21 @@ export default defineRoute({
       'Add one to the cart. It is a form post to the same intent the cart page dispatches over a socket, so it works with JavaScript turned off — and switching category changes the content without changing the template.',
     status: 'live',
   },
+  /**
+   * The page answers a conditional request, which it can only do because every slot on it buffers.
+   *
+   * A digest has to be over the whole entity and the envelope is sealed before the first byte, so a
+   * page that streams cannot carry one — this page gave up arrival order already, and what it buys
+   * back is a return visit that costs a 304 and no body at all. Declaring this on a streaming page
+   * is `E_ETAG_STREAMS` rather than a page that quietly stopped streaming.
+   */
+  etag: true,
+  /**
+   * What the response itself advertises, which is a different question from what the store holds.
+   * Without it the document is `no-store` — nothing is cached by accident here — and a validator on
+   * a response the reader was told not to keep is a validator for nobody.
+   */
+  document: { class: 'public', ttl: '10m' },
   slots: {
     /**
      * Two ordinary links, and the pair is the whole demonstration.
@@ -104,6 +119,7 @@ export default defineRoute({
           <dt>Streaming order</dt><dd><code>in-order</code>, derived: no slot asked to stream</dd>
           <dt>Fill mechanism</dt><dd>none, so the out-of-order filler is not on the wire</dd>
           <dt>Cache class</dt><dd><code>public</code> — this fragment reads nothing but its route param</dd>
+          <dt>Conditional</dt><dd>a strong <code>ETag</code>: a return visit is a 304 and no body</dd>
           <dt>Writes</dt><dd>a form post to <code>/_weft/i/cart.add</code>, answered with a 303 back here</dd>
           <dt>JavaScript needed</dt><dd>none. Turn it off and the button still works</dd>
           <dt>Switching category</dt><dd>staged on hover, committed on click — <span data-weft-stat="nav" class="mono">no navigations yet</span></dd>
