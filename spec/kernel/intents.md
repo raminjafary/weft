@@ -95,17 +95,25 @@ same bug as not having push invalidation at all.
 travels down. See [`spec/VERSIONING.md`](../VERSIONING.md) — Warp 1.2.0. `0x06` is retired
 rather than reused.
 
-## What this does not do yet
+## What this does not do
 
-- **No render intents.** An intent is addressed by an opaque id, its params are validated and its
-  caller is checked — and every intent is a _mutation_. A catalogue of renderable fragments reached
-  the same way is the module-catalogue half of the design and belongs with `remote`: it needs the
-  registry port that resolves a region name to a deployment, which is still declared and
-  unimplemented.
+Two things this page said were missing have been built, and where they went is the point.
+
+- **Render intents exist, and they are not intents.** A catalogue of fragments a client may ask for
+  by opaque id is `createRenderDispatch` and `app/renderables/**`, and it is deliberately a separate
+  dispatch from this one: an intent is the only thing allowed to _write_, and a render is the one
+  thing that cannot. Sharing the path would have meant one gate answering two questions. It has its
+  own byte entry (`entry-render.ts`) for the same reason — a deployment whose clients cannot name a
+  renderable should not carry the dispatch.
+- **Delegation exists, and it is a signer method rather than an endpoint.** A token may be narrowed
+  once and the narrowed one is a leaf; see [`authority.md`](authority.md). What is still not exposed
+  is delegation over HTTP, because a path that narrows tokens is a path that spends them.
+
+What remains, and is deliberate:
+
 - **No generated intent table in the kernel.** `createIntentRouter` takes its routes by hand. The
   front door generates them from the `intents/` directory, and the manifest carries what each one
   declares — writes, capabilities, whether it is signed — because the closed-set check needs both
   halves in one place.
-- **No delegation.** A token authorises one call and cannot mint another.
-- **`EffectSet.writes` is still empty on fragments**, and correctly so — a fragment cannot
-  write. An intent's writes live on the intent.
+- **`EffectSet.writes` stays empty on fragments**, and correctly so — a fragment cannot write. An
+  intent's writes live on the intent.

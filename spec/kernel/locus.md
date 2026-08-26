@@ -202,4 +202,8 @@ entry below.
   around one render measures all of them — `RenderOutcome.cpuMs` is therefore absent on `inline`
   and `deferred`, which is the honest answer rather than a plausible number. On `pool:` it is
   present and the budget is spent in CPU: see above.
-- **No speculation.** `.speculate()` is recorded in the plan and read by nothing.
+- **Speculation is built, and it runs after the response.** `.speculate()` is read by
+  `createSpeculation`: a slot marked speculative is rendered into the store once the response has
+  been sent, so the next request for it is a hit. `speculate: 'profile'` hands the decision to the
+  recorder's own numbers rather than to a guess — see [`../plan/plan.md`](../plan/plan.md). What it
+  is not is a prediction of the _next route_; it is this route's slots, warmed.
