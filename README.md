@@ -466,10 +466,12 @@ and measures it over HTTP on the same axes.
 
 ## What has to be true next
 
-1. **A bandwidth and loss model in the latency proxy.** It delays packets and nothing else, so it
-   understates what a slow link does to an 18% byte difference.
-2. **Incremental declarative-shadow-DOM parsing on real iOS and Android WebView.** `--engines ios` is
-   declared and refuses by name: what is missing is a device, not code, and webkit is a desktop proxy
-   with nothing honest to fall back to.
-3. **A documentation site whose every example is live.** The compiler is ready for it — `compileFiles`
-   needs a virtual file system and nothing else.
+1. **The three things that need a real device.** Whether incremental declarative-shadow-DOM parsing
+   works on a given iOS version; what a host app's request interception does to first-byte timing;
+   and how often a backgrounded webview is evicted, and therefore what `RESUME` recovers in
+   practice. The harness half of this is built — `--devices` drives Android over CDP and iOS over
+   W3C WebDriver, and `weft-bench devices` says whether the driver answers — so what is missing is
+   hardware and not code. `--engines ios` keeps refusing by name until a device is configured,
+   because webkit is a desktop proxy with nothing honest to fall back to.
+2. **A documentation site whose every example is live.** The compiler is ready for it —
+   `compileFiles` needs a virtual file system and nothing else.
