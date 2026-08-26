@@ -36,6 +36,15 @@ export default fragment(({ title, description, css, runtime, heading, lede, nav,
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />
+        {/*
+          Declared here, in the head, rather than only in the stylesheet.
+
+          The palette below is chosen by `prefers-color-scheme`, but a browser that has not been told
+          the page handles dark paints its default white canvas first — so every refresh in dark mode
+          was a white frame, then the real background. This tag is read before the stylesheet is even
+          fetched, which is the only place early enough to prevent that frame rather than shorten it.
+        */}
+        <meta name="color-scheme" content="light dark" />
         <title>{title}</title>
         <meta name="description" content={description} />
         <link rel="stylesheet" href={css} />

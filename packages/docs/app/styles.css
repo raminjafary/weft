@@ -1,6 +1,10 @@
 /* The site's own stylesheet, appended after the framework's. */
 
 :root {
+  /* Both palettes exist below, so say so: this is what makes the scrollbars, form controls and the
+     canvas itself follow the theme instead of staying light under a dark page. The head carries the
+     same declaration, which is what stops the first frame being white. */
+  color-scheme: light dark;
   --ink: #14171a;
   --dim: #5b6570;
   --line: #dfe4e8;

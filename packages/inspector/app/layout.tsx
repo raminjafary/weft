@@ -58,6 +58,12 @@ export default fragment(
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width,initial-scale=1" />
+          {/*
+            This application is dark by default, with a light override below it. A browser that has
+            not been told so paints its white canvas first, so every refresh began with a white frame.
+            Read before the stylesheet is fetched, which is the only point early enough to stop it.
+          */}
+          <meta name="color-scheme" content="dark light" />
           <title>{title}</title>
           <meta name="description" content={description} />
           <link rel="stylesheet" href={css} />

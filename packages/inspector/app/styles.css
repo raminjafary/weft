@@ -7,6 +7,8 @@
  * string.
  */
 :root {
+  /* Dark first, light as the override below. Also what makes scrollbars and form controls follow. */
+  color-scheme: dark light;
   --bg: #0f1115;
   --panel: #161a21;
   --line: #232a35;
