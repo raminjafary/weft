@@ -96,6 +96,11 @@ webdriver lane instead of reporting a number with a hole in it. A W3C session is
 isolation the protocol offers, so a fresh context on that lane is a fresh app launch: an axis that
 opens a context per iteration is slow there, which is information about the lane.
 
+A driver that is not there is `E_DEVICE_UNREACHABLE`, naming the endpoint and, for the CDP lane, the
+`adb forward` that is usually missing. A raw connect error reads as a broken harness rather than a
+driver that is down, and the whole argument for these refusals is that a missing thing should say
+what is missing.
+
 Every measurement here serves on this machine's loopback and then tells a browser to go there. On a
 phone, loopback is the phone. So the lane needs a reverse tunnel — `adb reverse tcp:P tcp:P` for
 Android, an SSH reverse tunnel or the emulator's `10.0.2.2` alias otherwise — and `reachHost` is

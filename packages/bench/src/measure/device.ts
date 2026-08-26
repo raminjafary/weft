@@ -148,8 +148,26 @@ interface Response_<T> {
   value: T
 }
 
+/**
+ * A driver that is not there is named, not reported as `fetch failed`.
+ *
+ * The whole argument for this lane's refusals is that a missing thing should say what is missing.
+ * A `--devices` entry pointing at a port nothing is listening on is the commonest way to get one
+ * wrong, and the raw connect error reads as a broken harness rather than a driver that is down.
+ */
+async function reach(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init)
+  } catch (error) {
+    throw new Error(
+      `E_DEVICE_UNREACHABLE: ${url} did not answer (${error instanceof Error ? error.message : String(error)}). ` +
+        `Run 'weft-bench devices' to check the driver is up and the tunnel is open`, { cause: error },
+    )
+  }
+}
+
 async function call<T>(base: string, method: string, path: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${base}${path}`, {
+  const response = await reach(`${base}${path}`, {
     method,
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     headers: { 'content-type': 'application/json', accept: 'application/json' },
@@ -359,7 +377,15 @@ export async function openDevice(lane: DeviceLane, cdp: CdpConnector | null): Pr
       `E_NO_PLAYWRIGHT: the cdp lane for ${lane.device.id} drives the device through Playwright's connectOverCDP`,
     )
   }
-  return cdp.connectOverCDP(lane.device.endpoint)
+  try {
+    return await cdp.connectOverCDP(lane.device.endpoint)
+  } catch (error) {
+    throw new Error(
+      `E_DEVICE_UNREACHABLE: ${lane.device.id} at ${lane.device.endpoint} did not answer ` +
+        `(${error instanceof Error ? error.message : String(error)}). For an Android WebView this is ` +
+        `usually a missing 'adb forward tcp:PORT localabstract:webview_devtools_remote_<pid>'`, { cause: error },
+    )
+  }
 }
 
 /** Is the driver on the other end of this descriptor answering? The `devices` command's whole job. */

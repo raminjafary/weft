@@ -213,3 +213,13 @@ test('a driver that is not there is reported as down, not as a broken harness', 
   assert.equal(probe.ok, false)
   assert.ok(probe.detail.length > 0)
 })
+
+test('a lane pointed at nothing refuses by name rather than failing to fetch', async () => {
+  registerDevices([iosDevice('http://127.0.0.1:1')])
+  try {
+    const browser = await openDevice(laneFor('ios')!, null)
+    await assert.rejects(browser.newContext(), /E_DEVICE_UNREACHABLE/)
+  } finally {
+    registerDevices([])
+  }
+})
