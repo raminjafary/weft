@@ -59,6 +59,32 @@ stand in for what a page pays. The download figure is measured by `measureClient
 `budget({ js, grow })`, reported by `weft build` and committed as `weft.budget.json`, so a
 regression is a diff.
 
+## Refused after measuring: partial navigation across a layout chain
+
+Two routes under one nested layout already swap as regions, because they share a shell version. Two
+routes whose chains share only a prefix — `/guide/x` and `/tutorial/y`, which have `app/layout.tsx`
+in common and nothing below it — do not, and re-rendering only the layers below the change is the
+obvious next move.
+
+Measured on the documentation site, the outer layout is what such a navigation would avoid
+re-sending:
+
+| Page               | Document (brotli) | Outer layout (brotli) | Share |
+| ------------------ | ----------------- | --------------------- | ----- |
+| `/api/warp`        | 5,269 B           | 405 B                 | 7.7%  |
+| `/guide/fragments` | 2,845 B           | 403 B                 | 14.2% |
+| `/guide/layouts`   | 1,722 B           | 407 B                 | 23.6% |
+| `/tutorial/a-page` | 1,163 B           | 410 B                 | 35.3% |
+
+The layout is a constant ~405 bytes, so its share is large only where the document is small. Against
+that: a DOM boundary marker per layer in every document, plus client code to splice a subtree, in a
+navigation entry with 173 bytes of headroom — so it would need an entry of its own.
+
+**The decisive argument is where the saving lands.** A cross-chain link is staged on hover, so the
+document has already been fetched and parsed by the time anybody clicks. Partial-chain navigation
+would make a speculative fetch smaller and no interaction faster. It is the same shape as the
+off-main-thread decode below: a real saving, in a place nobody is waiting.
+
 ## Refused after measuring: decoding frames off the main thread
 
 > _"Off-main-thread rendering, client side. Nothing runs in a worker. What could be prepared

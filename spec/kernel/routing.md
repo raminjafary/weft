@@ -232,12 +232,20 @@ cases, including the one where `/docs` matches `/docs/*`.
 - **The server's table is still resolved at construction.** Lazy plan extension is about what the
   client knows, above; a server that discovered its own routes at request time is a different
   feature and nothing needs it.
-- **A chain nests documents, not routes.** `app/routes/docs/layout.tsx` wraps the subtree and its
-  holes are the subtree's boundaries, but a _route_ is still one leaf: there is no partial
-  navigation that re-renders the inner layout and keeps the outer one, because a staged navigation
-  swaps regions and the whole document is one of the things it can compare. Two routes sharing a
-  chain share a shell version, which is what makes their staged swap cheap; what does not exist is a
-  navigation that renders only the layers below the one that changed.
+- **A chain nests documents, not routes — and partial-chain navigation is refused after measuring.**
+  Two routes sharing a chain share a shell version, so a click between them is already a region
+  swap. What does not exist is a navigation between routes whose chains share only a _prefix_:
+  `/guide/x` to `/tutorial/y` has `app/layout.tsx` in common and nothing below it, so the shell
+  versions differ and the answer is a document.
+
+  Measured on the documentation site, the outer layout is a constant **403–410 compressed bytes** —
+  7.7% of an API page, 14% of a guide page, 35% of a short tutorial step. That is what such a
+  navigation could avoid re-sending. Against it: a DOM boundary marker per layer in every document,
+  plus client code to splice a subtree, in a navigation entry with 173 bytes of headroom. And the
+  saving lands in the wrong place — a cross-chain link is staged on _hover_, so the document has
+  already been fetched and parsed before the click, which is a swap either way. It would make a
+  speculative fetch smaller and no interaction faster. See [`../FINDINGS.md`](../FINDINGS.md).
+
 - **Params do not taint by themselves.** A fragment that should vary by `:sku` has to read
   `ctx.param('sku')`; matching a path does not put the param in any key. That is correct — a
   fragment that ignores the param renders the same bytes — and it is worth knowing, because a
