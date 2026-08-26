@@ -122,17 +122,60 @@ export function errorBody(code: string): string {
   )
 }
 
+/**
+ * The left column: the nine packages, with only the one you are reading opened.
+ *
+ * Listing all 326 codes on every page was the first version and it was wrong twice. It made the
+ * column 26kB of the page's 30kB — 87% of every one of 327 static files was a nav identical to the
+ * other 326 — and a 326-item list is not something anybody navigates anyway. The package a code
+ * belongs to is the axis that narrows it, so that is the one this opens.
+ *
+ * The current code is text rather than a link, the same way `guideContents` marks the page you are
+ * on: a nav whose current entry is still a link is a nav that lies about where you are. Built from
+ * `errorsByPackage()`, so this column and the index body cannot disagree about the set.
+ */
+export function errorsContents(current?: string): string {
+  const here = current ? errorByCode(current)?.package : undefined
+  return errorsByPackage()
+    .map((group) => {
+      const name = escapeHtml(group.package)
+      if (group.package !== here) {
+        return (
+          `<h2 class="hint"><a href="/errors#p-${name}">${name}</a> ` +
+          `<span class="count">${group.codes.length}</span></h2>`
+        )
+      }
+      return `<h2 class="hint">${name}</h2><ul class="contents">${group.codes
+        .map(
+          (entry) =>
+            `<li>${
+              entry.code === current
+                ? `<strong><code>${escapeHtml(entry.code)}</code></strong>`
+                : link(entry.code)
+            }</li>`,
+        )
+        .join('')}</ul>`
+    })
+    .join('')
+}
+
 export function errorsOutline(code?: string): string {
   const entry = code ? errorByCode(code) : undefined
   if (!entry) {
-    return `<h2 class="hint">By package</h2><ul class="contents">${errorsByPackage()
-      .map(
-        (group) =>
-          `<li><a href="#p-${escapeHtml(group.package)}">${escapeHtml(group.package)}</a> <span class="count">${
-            group.codes.length
-          }</span></li>`,
-      )
-      .join('')}</ul>`
+    /**
+     * Totals, not a by-package list — the contents column beside it is already the by-package list.
+     *
+     * It was one here first, which was fine while this page had one column and stopped being fine
+     * the moment it had three: the same nine links twice, once on each side of the prose.
+     */
+    const all = errorCodes()
+    return (
+      `<h2 class="hint">This page</h2><dl class="prov">` +
+      `<dt>Codes</dt><dd>${all.length}</dd>` +
+      `<dt>Packages</dt><dd>${errorsByPackage().length}</dd>` +
+      `<dt>With a spec reference</dt><dd>${all.filter((one) => one.spec.length).length}</dd>` +
+      `</dl>`
+    )
   }
   return `<h2 class="hint">This code</h2><dl class="prov">
     <dt>Package</dt><dd><code>${escapeHtml(entry.package)}</code></dd>

@@ -1,6 +1,6 @@
 import { defineRoute } from 'weft'
 import { errorByCode } from '../../lib/errors.ts'
-import { codeIds, errorBody } from '../../lib/errors-page.ts'
+import { codeIds, errorBody, errorsContents, errorsOutline } from '../../lib/errors-page.ts'
 
 /**
  * One page per code, and one route for all of them.
@@ -21,6 +21,8 @@ export default defineRoute({
   cache: { class: 'public', ttl: '1h' },
   params: { code: codeIds() },
   slots: {
+    contents: { html: (_ctx, params) => errorsContents(params.code) },
     body: { html: (_ctx, params) => errorBody(params.code ?? '') },
+    outline: { html: (_ctx, params) => errorsOutline(params.code) },
   },
 })

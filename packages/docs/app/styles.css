@@ -358,6 +358,15 @@ th {
   margin: 0;
 }
 
+/* In a sidebar the value column is about 8rem wide and a value like `app/fragments/examples/` is
+   wider than that. A grid item will not shrink below its content unless told to, and `code` has no
+   break opportunities in a path, so both halves are needed or the text is simply cut off. */
+.guide-contents .prov dd,
+.guide-outline .prov dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .api-entry {
   border-block-start: 1px solid var(--line);
   padding-block-start: 1rem;

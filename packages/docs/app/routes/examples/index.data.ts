@@ -1,5 +1,5 @@
 import { defineRoute } from 'weft'
-import { galleryBody } from '../lib/gallery.ts'
+import { galleryBody, galleryContents, galleryOutline } from '../../lib/gallery.ts'
 
 export default defineRoute({
   head: { title: 'Examples · weft', description: 'Every live example on the site, with its source.' },
@@ -9,6 +9,8 @@ export default defineRoute({
   },
   cache: { class: 'public', ttl: '1h' },
   slots: {
+    contents: { html: () => galleryContents() },
     body: { html: () => galleryBody() },
+    outline: { html: () => galleryOutline() },
   },
 })
