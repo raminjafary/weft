@@ -2,8 +2,8 @@
 
 The three documents in [`docs/`](../docs) are the design as written, in August 2026, before
 any of it had been built. This is the record of what happened when it was, claim by claim.
-Four things the design says are now wrong, and they are wrong in ways worth reading rather
-than quietly editing away.
+Five things are now wrong — four the design said, and one this repository published about itself —
+and they are wrong in ways worth reading rather than quietly editing away.
 
 Nothing here is a hypothetical. Every number comes from
 `node packages/bench/src/cli.ts`, on an Apple M4, and every one of them is reproducible by
@@ -23,6 +23,41 @@ the command the report prints.
 | Isolated DOM updates will tie                                   | **Consistent** — 0.29–1.7 µs                         |
 | Warp unifies five jobs on one channel                           | **One path exercised** of five                       |
 | Client rendering work belongs off the main thread               | **Refused** — the decode is under the worker's floor |
+| The front-door entry is what a page downloads                   | **Reversed** — 3.6× under the served figure          |
+
+## Reversed: the front-door figure was measuring a bundle this framework does not ship
+
+> _"`boot.ts` (front door) — what a page actually downloads — 12,540 B."_
+
+That entry was added because nothing was measuring the composition a reader actually loads, which
+was the right instinct and the wrong measurement. It bundles with Rolldown and minifies. This
+framework has **no bundler and no minifier**, on purpose and in writing: a page fetches the boot
+module and each module it imports as its own response, served as written with types stripped and
+comments intact.
+
+Wiring `budget({ js })` to a real number is what exposed it. Walking the graph the browser walks and
+compressing each response the way it arrives:
+
+| The demo's client            | Modules | Raw       | Brotli       |
+| ---------------------------- | ------- | --------- | ------------ |
+| Bundled and minified         | 1       | 42,011 B  | 13,033 B     |
+| **Served, module by module** | 19      | 168,798 B | **44,716 B** |
+
+**3.6× the figure that was published**, and the same walk over HTTP against the running server
+agrees within 0.3% — 44,846 B, the difference being the boot prelude the front door adds.
+
+Where the bytes are: 21,427 B of the 44,716 is `boot.ts` alone, a file whose comments are a large
+fraction of it. Nothing here is a compression failure; it is what "no minifier" costs, measured
+instead of assumed. Two smaller effects are in the number too and are worth knowing — a barrel of
+re-exports compresses to _more_ than it was, because a brotli stream has a header and a fifty-byte
+file has nothing to find, and nineteen responses cannot share a compression window the way one
+bundle can.
+
+The bundled entry stays and is relabelled. It is a good gate on how much code the front door _is_ —
+minified bytes are a proxy for logic, and comments do not move them — and it is no longer allowed to
+stand in for what a page pays. The download figure is measured by `measureClientJs`, gated by
+`budget({ js, grow })`, reported by `weft build` and committed as `weft.budget.json`, so a
+regression is a diff.
 
 ## Refused after measuring: decoding frames off the main thread
 

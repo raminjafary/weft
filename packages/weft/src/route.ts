@@ -94,6 +94,16 @@ export interface SlotDeclaration {
   /** Streamed with an optional priority. `false` buffers, which derives in-order delivery. */
   stream?: boolean | { prio?: number }
   incremental?: boolean
+  /**
+   * Re-render this slot after a response rather than on a reader's request.
+   *
+   * A slot with a TTL has one request per period that pays for a render, and it is always
+   * somebody's. `true` warms it whenever its entry is in the last fifth of its life; `'profile'`
+   * leaves the decision to a measurement. It is speculation about a **clock** and not about a
+   * reader — guessing where somebody will go next is what a staged route already does, paid for by
+   * their own hover.
+   */
+  speculate?: boolean | 'profile'
   executor?: string
   budget?: BudgetDeclaration
   /** Overrides `budget`'s cpu ceiling and exceed policy for this request. See `BudgetFor`. */
@@ -144,6 +154,16 @@ export interface RouteModule {
   document?: CacheDeclaration
   stream?: boolean | { prio?: number }
   incremental?: boolean
+  /**
+   * Re-render this page's body after a response rather than on a reader's request.
+   *
+   * A slot with a TTL has one request per period that pays for a render, and it is always
+   * somebody's. `true` warms it whenever its entry is in the last fifth of its life; `'profile'`
+   * leaves the decision to a measurement. It is speculation about a **clock** and not about a
+   * reader — guessing where somebody will go next is what a staged route already does, paid for by
+   * their own hover.
+   */
+  speculate?: boolean | 'profile'
   live?: boolean
   placeholder?: string
   executor?: string

@@ -166,20 +166,26 @@ export const BUDGETS: ByteBudget[] = [
   },
   {
     /**
-     * What a page actually downloads, which is not any of the entries above.
+     * The front door's own code, bundled — and **not** what a page downloads.
      *
-     * Every other client figure measures `@weft/client` — the runtime a page composes. This
-     * measures the composition: the framework's own boot module, which is what a `<script>` on a
-     * real weft page points at, with the runtime and the codec pulled in behind it. It is the only
-     * number a reader on a phone experiences, and until this entry existed it was the one number
-     * nobody was measuring.
+     * This entry claimed to be the download figure and it was wrong by 3.6×. It bundles with
+     * Rolldown and minifies, and this framework has no bundler and no minifier: a page fetches the
+     * boot module and every module it imports as separate responses, served as written with their
+     * types stripped and their comments intact. Walking that graph and compressing each response
+     * the way it arrives gives **44,716 B** for the demo against the 13,033 B below.
+     *
+     * The entry stays, because a gate on how much code there *is* is worth having and this is a
+     * good one — minified bytes are a proxy for logic that comments and formatting do not move. It
+     * stops claiming to be the number a reader on a phone pays. That number is measured by
+     * `measureClientJs` in `@weft/weft`, gated by `budget({ js, grow })`, and reported by
+     * `weft build`.
      */
     id: 'front-door',
-    label: 'The boot module a page loads, runtime and codec included',
+    label: 'The front door’s code, bundled and minified — not what a page downloads',
     entry: front('boot.ts'),
     limit: 13 * 1024,
     limitNote:
-      'no design figure; a watermark over what a page downloads, adoption to composition. Moved from 12 KB when the exposed table landed — see spec/kernel/budgets.md',
+      'no design figure; a watermark over how much code the front door is. Moved from 12 KB when the exposed table landed — see spec/kernel/budgets.md',
   },
   {
     id: 'app-route',

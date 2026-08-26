@@ -12,7 +12,9 @@ import {
   requestFacts,
   guardReads,
   resolvePlugins,
+  resolveScoped,
   runPlugins,
+  type Plugin,
   type EnvelopeContext,
   type Ports,
 } from '../src/index.ts'
@@ -142,4 +144,77 @@ test('the same stack lets an authenticated request through to the compiled route
   assert.equal(response.status, 200)
   assert.match(await response.text(), /Welcome back/)
   assert.deepEqual(kernel.trace?.states, ['received', 'envelope', 'planned', 'streaming', 'settled'])
+})
+
+// ── scoped registration, and the two checks at registration ──────────────────────────
+
+/**
+ * Encapsulation, resolved rather than evaluated. Two plugins that provide the same key are
+ * ambiguous when they are in one graph and are not ambiguous when they are in two — which is the
+ * whole of what a scope is, and the reason it is a build-time resolve rather than a per-request
+ * prefix walk.
+ */
+test('two plugins under disjoint scopes are not in each other’s graph', () => {
+  const admin: Plugin = { name: 'audit', role: 'filter', scope: '/admin', provides: ['who'] }
+  const shop: Plugin = { name: 'session', role: 'filter', scope: '/shop', provides: ['who'] }
+  const scoped = resolveScoped([admin, shop])
+
+  assert.deepEqual(scoped.scopes, ['/admin', '/shop'])
+  assert.deepEqual(
+    scoped.forPath('/admin/users').filters.map((p) => p.name),
+    ['audit'],
+  )
+  assert.deepEqual(
+    scoped.forPath('/shop/cart').filters.map((p) => p.name),
+    ['session'],
+  )
+  // A route in neither gets neither, and a global plugin gets both.
+  assert.deepEqual(scoped.forPath('/').filters, [])
+  // And in one graph, the same pair is refused.
+  assert.throws(
+    () =>
+      resolvePlugins([
+        { ...admin, scope: undefined },
+        { ...shop, scope: undefined },
+      ]),
+    /E_PLUGIN_AMBIGUOUS/,
+  )
+})
+
+test('an unscoped plugin is in every scope’s graph, which is what unscoped means', () => {
+  const global_: Plugin = { name: 'nonce', role: 'filter', provides: ['nonce'] }
+  const scoped = resolveScoped([global_, { name: 'audit', role: 'filter', scope: '/admin' }])
+  assert.deepEqual(
+    scoped.forPath('/admin/x').filters.map((p) => p.name),
+    ['audit', 'nonce'],
+  )
+  assert.deepEqual(
+    scoped.forPath('/x').filters.map((p) => p.name),
+    ['nonce'],
+  )
+})
+
+test('a plugin that does not run on the server may not carry a request handler', () => {
+  assert.throws(
+    () =>
+      resolvePlugins([
+        { name: 'analytics', role: 'filter', residency: 'client', onRequest: () => undefined },
+      ]),
+    /E_PLUGIN_RESIDENCY/,
+  )
+  // The same plugin without the handler is fine: a client-resident plugin may still contribute an
+  // axis or an ordering constraint.
+  assert.doesNotThrow(() => resolvePlugins([{ name: 'analytics', role: 'filter', residency: 'client' }]))
+})
+
+test('a plugin requiring a capability nothing can grant is refused where it is registered', () => {
+  const plugin: Plugin = { name: 'admin-tools', role: 'filter', capabilities: ['admin:write'] }
+  assert.throws(
+    () => resolvePlugins([plugin], { grantable: ['cart:write'] }),
+    /E_PLUGIN_CAPABILITY_UNGRANTABLE/,
+  )
+  assert.doesNotThrow(() => resolvePlugins([plugin], { grantable: ['admin:write'] }))
+  // With no authority model bound there is nothing to check against, and a check against nothing
+  // would refuse every capability a deployment has not told the kernel about.
+  assert.doesNotThrow(() => resolvePlugins([plugin]))
 })

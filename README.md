@@ -285,15 +285,23 @@ ceiling.
 | Channel route — plus routing frames       | **4,081**  | 4,467  | 11,841 | 4,096   |
 | Patching route — plus applying a patch    | **4,571**  | 5,031  | 13,783 | 5,120   |
 | Navigating route — plus staged routes     | **4,932**  | 5,403  | 14,241 | 5,120   |
-| Front door — adoption to composition      | **13,033** | 14,422 | 42,011 | 13,312  |
+| Front door — the code, bundled            | **13,033** | 14,422 | 42,011 | 13,312  |
 | Server kernel — the document request path | **8,118**  | 9,122  | 23,764 | 8,192   |
 | Kernel + intent dispatch                  | **9,656**  | 10,870 | 28,845 | 10,240  |
 | Kernel + surgical refresh and epochs      | **10,893** | 12,202 | 32,838 | 12,288  |
 | Kernel + the patch encoder                | **11,563** | 12,950 | 35,309 | 12,288  |
-| Kernel + authority                        | **11,308** | 12,724 | 34,042 | 12,288  |
+| Kernel + authority                        | **11,631** | 13,049 | 35,057 | 12,288  |
 | Kernel + composition                      | **11,271** | 12,661 | 33,951 | 12,288  |
 | Kernel + a live Warp channel              | **13,546** | 15,154 | 40,961 | 14,336  |
 | Kernel + composition over a live channel  | **16,509** | 18,520 | 50,732 | 17,408  |
+
+**The front-door row is the code, not the download, and the difference is 3.6×.** It bundles with
+Rolldown and minifies; this framework has neither, so a page fetches nineteen modules served as
+written with their comments intact — **44,716 B brotli** for the demo, agreeing within 0.3% with the
+same walk over HTTP. That is now the gated number: `budget({ js, grow })` in the plan is enforced by
+`weft build`, which writes `weft.budget.json` so a regression is a diff. The bundled row stays as a
+gate on how much code there is, and stopped claiming to be what anybody pays. See
+[`spec/FINDINGS.md`](spec/FINDINGS.md).
 
 **The 8 KB claim is scoped and met**: 8,118 B against 8,192 covers the document request path —
 lifecycle, envelope, routing, key derivation, wave dispatch, the stream. Every other capability gets

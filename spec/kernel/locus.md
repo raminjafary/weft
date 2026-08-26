@@ -175,12 +175,17 @@ matters, because a render spinning synchronously cannot answer a message and so 
 much it has spent. The pool polls it at a quarter of the budget, floored at 4 ms so a small budget
 does not become a busy loop, and terminates the worker when active time crosses the ceiling.
 
-Two things follow, and both are asserted in `packages/adapters/test/worker-pool.test.ts`:
+Three things follow, and all three are asserted in `packages/adapters/test/worker-pool.test.ts`:
 
 - **A render that waits is not killed for waiting**, however far past its budget in wall clock it
   goes. It spent nothing this executor bounds.
 - **A synchronous loop is still killed**, which is the only thing a pool is for. The breach message
   now names the CPU actually spent rather than the wall clock it happened to consume.
+- **A cold worker is not charged for its own module load.** Importing is CPU, and the first render
+  against a module was paying for it — which made a cold worker's budget a different budget from
+  every one after it, and "a pool is warm" is the only reason to pay for a thread. The pool imports
+  first and starts the clock after: one message per module per worker, and only when a budget is
+  set. The test gives a cold worker a budget smaller than its own import and expects it to pass.
 
 `RenderOutcome.cpuMs` carries what the render cost, measured inside the worker with `cpuUsage()` —
 one job at a time on that thread is what makes the delta attributable — and reaches telemetry as a

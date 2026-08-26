@@ -203,16 +203,62 @@ composed on three paths — a document request, a refresh over the channel, a ro
 second caller that built that by hand would have been the first to disagree with the plan about a budget
 or a fallback, so there is one derivation and three callers.
 
+## The four declarations that were recorded and read by nothing
+
+A plan is data, which makes it easy to add a field to and easy to leave unread. Four were, and each
+one turned out to mean something slightly different from what its name suggested.
+
+**`budget({ js })` is enforced, and it is not per slot.** The declaration is per slot because the
+design was describing a framework with a bundler: chunks per route, an island in one of them, a
+number per slot. There is no bundler here — a page loads the boot module and whatever it imports,
+the same set on every route — so there is no per-slot JavaScript to measure. `weft build` measures
+what a page downloads by walking that graph and compressing each response the way it arrives, and a
+declared ceiling the measurement breaks fails the build. The failure names the route, the slot that
+declared the number, and the measurement, and then says plainly that the excess is the application's
+client rather than that slot's share of it: attribution nobody can compute is attribution nobody
+should print. Wiring it also reversed a claim this repository was publishing about itself — see
+[`FINDINGS.md`](../FINDINGS.md).
+
+**`grow` needs no bundler at all.** A ceiling alone produces permanent silence just under it; a
+growth cap notices the afternoon somebody added 900 bytes. The baseline is `weft.budget.json` beside
+the application's config rather than a query against a branch, because a baseline nobody can commit
+only ever compares a machine to itself.
+
+**Scoped registration is a property of the graph, not a check on the request.** `Plugin.scope` is a
+path prefix, and `resolveScoped` resolves one schedule per prefix at build time — so two plugins
+that would be ambiguous together are not ambiguous under `/admin` and `/shop`, each scope's ordering
+and cycles are checked within it, and a route carries the schedule that applies to it. The request
+path pays a `??` and never a prefix walk: two bytes of brotli, which is what encapsulation costs
+when it is resolved rather than evaluated.
+
+**`residency` and `capabilities` are checked where the plugin is registered.** A plugin whose
+residency is `client` or `build` may not carry an `onRequest` — nothing would ever call it, and that
+is `E_PLUGIN_RESIDENCY`. A plugin declaring a capability no role can grant is
+`E_PLUGIN_CAPABILITY_UNGRANTABLE`, which is the rule an intent already lives by, applied at the
+other registration point rather than becoming a second gate with its own failure modes. Both are in
+`resolvePlugins`, which is build-time and off the request path. There is no `budget` on the plugin
+type and this document used to say there was.
+
+**`refresh` is the fallback the design named and nothing implemented.** A region on another
+deployment holds its own cache keys, so a `STALE` about them has nobody to tell, and the design's
+answer is the client's own interval — recorded in the plan, warned about at build time, asked on by
+nobody. It travels in the adopt payload now, and the client asks under the conditions the plan
+declared: `visible` by default, because a background tab polling forever is the failure mode that
+makes people turn intervals off. Conditions are checked when the timer fires rather than by starting
+and stopping it, so the cadence a deployment declared survives somebody switching windows.
+
+**`speculate` is about a clock, not about a reader.** A slot with a TTL has one request per period
+that pays for a render, and it is always somebody's. `.speculate()` moves that render to _after_ a
+response, through `StorePort.revalidateAfterResponse` — which existed, collected tasks, and was
+drained by nobody. It is deliberately not prefetching a route on a guess: guessing where a reader
+goes next is what a staged route already does, paid for by their own hover. `'profile'` leaves the
+decision to a measurement rather than to the declaration.
+
 ## What this does not do yet
 
-- **No byte budget enforcement.** `budget({ js, grow })` is parsed and stored. The measurement
-  exists in `@weft/bench`; the two are not wired together.
-- **No scoped registration.** Fastify-style per-subtree plugin encapsulation is not
-  implemented; plugins are global to a kernel.
-- **No plugin capabilities.** The capability model is on intents, where the writes are — see
-  [`../kernel/authority.md`](../kernel/authority.md). `residency`, `capabilities` and `budget` on the
-  _plugin_ type are still declared and read by nothing, and a second gate with a second set of
-  failure modes is not worth having before somebody needs it.
-- **`refresh` and `speculate` are recorded and unread.** `.incremental()` is read now: it puts a
-  content-addressed segment memo on the slot, and `W_INCREMENTAL_NO_GRAPH` fires only when there
-  is neither a derived value nor a nested template for it to reuse.
+- **A `js` budget cannot be attributed to a slot**, and the refusal says so rather than implying
+  otherwise. That is a property of having no bundler, not an omission: there is nothing to attribute
+  until a page's JavaScript can differ from another page's.
+- **`speculate: 'profile'` is carried as its own mode and decided by the recorder's own numbers.**
+  A slot the profile has never seen render is a slot nothing knows the cost of, and warming it on a
+  guess is work that looks like a feature and reads like a leak.

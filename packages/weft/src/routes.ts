@@ -208,6 +208,7 @@ interface Placeable {
   buffered(): unknown
   cache(...args: Parameters<ReturnType<typeof slotSpec>['cache']>): unknown
   incremental(): unknown
+  speculate(mode?: boolean | 'profile'): unknown
   budget(spec: BudgetDeclaration): unknown
   refresh(everyMs: number): unknown
   form(spec: NonNullable<SlotDeclaration['form']>): unknown
@@ -232,6 +233,7 @@ function applyPlacement(builder: Placeable, declaration: SlotDeclaration, decide
   if (declaration.executor) builder.executor?.(declaration.executor)
   if (declaration.budget) builder.budget(declaration.budget)
   if (declaration.refresh !== undefined) builder.refresh(every(declaration.refresh))
+  if (declaration.speculate) builder.speculate(declaration.speculate === 'profile' ? 'profile' : true)
   if (declaration.form) builder.form(declaration.form)
   if (declaration.needs?.length) builder.needs(...declaration.needs)
 }
@@ -358,6 +360,16 @@ export interface AdoptOptions {
   live?: boolean
   /** What the client queries to find the region. Defaults to the slot's own wrapper. */
   selector?: string
+  /**
+   * `refresh(everyMs, { when })` from the plan, carried to the client that has to act on it.
+   *
+   * It was recorded and read by one thing — a build-time warning about a remote region with cache
+   * tags and no interval, which named the interval as the design's stated fallback for push
+   * invalidation across a tier boundary. That made it the fallback nothing implemented. The client
+   * asks on an interval instead, under the conditions the plan declared: `visible` because a tab
+   * nobody is looking at should not poll, `focused` and `idle` for the same reason at finer grain.
+   */
+  refresh?: { everyMs: number; when?: readonly string[] }
 }
 
 /**
@@ -414,6 +426,9 @@ export function adoptScript(
     values: exposed,
     intents,
     live,
+    // Only for a slot that can actually be refreshed. An interval on a region the channel cannot
+    // refresh would be a timer that fires forever and asks nobody.
+    ...(live && options.refresh ? { refresh: options.refresh } : {}),
   }
   return `<script type="application/json" data-weft="adopt">${JSON.stringify(payload).replace(
     /</g,
@@ -477,6 +492,7 @@ function wrapSlot(
   expose: readonly string[],
   live: boolean,
   store: StorePort,
+  refresh: { everyMs: number; when?: readonly string[] } | undefined,
   recorder?: Recorder,
 ): KernelSlot {
   const open = utf8.encode(`<div data-weft-slot="${name}">`)
@@ -534,7 +550,14 @@ function wrapSlot(
        * payload that binds it is the region's to send, and one written here would describe a
        * template this process has never seen.
        */
-      const script = fragment && values ? adoptScript(name, fragment, values, { expose, live }) : null
+      const script =
+        fragment && values
+          ? adoptScript(name, fragment, values, {
+              expose,
+              live,
+              ...(refresh ? { refresh } : {}),
+            })
+          : null
       const tail = utf8.encode(script ? `</div>${script}` : '</div>')
       const out = new Uint8Array(open.length + bytes.length + tail.length)
       out.set(open, 0)
@@ -949,6 +972,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
           expose,
           Boolean(live[slot.name]),
           options.store,
+          refreshOf(plan, slot.name),
           options.recorder,
         ),
         ...overrides.get(slot.name),
@@ -1005,4 +1029,17 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
       }),
     }),
   }
+}
+
+/**
+ * A slot's declared refresh interval, as the client needs it: milliseconds and the conditions.
+ *
+ * `when` is the plan's own condition vocabulary — `visible`, `focused`, `idle` — carried across as
+ * strings rather than re-modelled, because the client is the only layer that can evaluate any of
+ * them and a second spelling would be a second thing to keep in agreement.
+ */
+function refreshOf(plan: Plan, slot: string): { everyMs: number; when?: readonly string[] } | undefined {
+  const spec = plan.slots.find((candidate) => candidate.name === slot)?.refresh
+  if (!spec) return undefined
+  return { everyMs: spec.everyMs, ...(spec.when?.all.length ? { when: spec.when.all } : {}) }
 }

@@ -15,8 +15,16 @@ import { parentPort, workerData } from 'node:worker_threads'
 interface Request {
   id: number
   module: string
-  export: string
+  export?: string
   props?: unknown
+  /**
+   * Load the module and say nothing else.
+   *
+   * The parent asks for this before it starts a budget clock: importing is CPU, and a first render
+   * charged for its own import would make a cold worker's budget a different budget from every one
+   * after it. One round trip per module per worker, and only when a budget is set.
+   */
+  preload?: boolean
 }
 
 type Renderer = (props?: unknown) => Uint8Array | string | Promise<Uint8Array | string>
@@ -42,7 +50,11 @@ parentPort?.on('message', (request: Request) => {
   void (async () => {
     try {
       const exports = await load(request.module)
-      const renderer = exports[request.export]
+      if (request.preload) {
+        parentPort?.postMessage({ id: request.id, phase: 'loaded' })
+        return
+      }
+      const renderer = exports[request.export as string]
       if (typeof renderer !== 'function') {
         throw new Error(`E_NO_SUCH_EXPORT: ${request.module} has no callable export ${request.export}`)
       }
@@ -54,6 +66,15 @@ parentPort?.on('message', (request: Request) => {
        * renders and the stream interleave. `user + system`, because a render that spends its
        * time in a syscall spent it.
        */
+      /**
+       * "The render is starting", which is what the parent's budget has to be measured from.
+       *
+       * The first job against a module pays for importing it, and importing is CPU. Charging that
+       * to the render would make a cold worker's first budget a different budget from every one
+       * after it — and "a pool is warm" is the whole reason to pay for a thread. So the parent
+       * re-baselines here, one message per job, and what it then measures is the renderer.
+       */
+      parentPort?.postMessage({ id: request.id, phase: 'render' })
       const before = cpuUsage()
       const result = await (renderer as Renderer)(request.props)
       const spent = cpuUsage(before)

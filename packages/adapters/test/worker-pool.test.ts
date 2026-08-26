@@ -163,12 +163,42 @@ test('what a render cost is reported as CPU, which only a thread of its own make
   const telemetry = collectingTelemetry()
   const pool = workerPool({ size: 1, telemetry })
   try {
-    const outcome = await pool.run(job('spinner', 'spin', { ms: 120 }))
-    assert.equal(outcome.failure, undefined)
-    assert.ok((outcome.cpuMs ?? 0) > 50, `a synchronous loop spends CPU: ${outcome.cpuMs}ms`)
-    assert.ok((outcome.cpuMs as number) <= outcome.ms + 1, 'and cannot spend more of it than the render took')
+    const computing = await pool.run(job('spinner', 'spin', { ms: 120 }))
+    const waiting = await pool.run(job('sleeper', 'waits', { ms: 120 }))
+    assert.equal(computing.failure, undefined)
+    assert.equal(waiting.failure, undefined)
+
+    // The claim is the *difference* rather than a threshold: two renders of the same wall-clock
+    // length, one of which spent it computing. A threshold would be a claim about this machine's
+    // load, which is exactly the thing CPU accounting exists to be independent of.
+    assert.ok(
+      (computing.cpuMs ?? 0) > (waiting.cpuMs ?? 0),
+      `spinning ${computing.cpuMs}ms of CPU against waiting's ${waiting.cpuMs}ms, for the same 120ms`,
+    )
+    assert.ok(
+      (computing.cpuMs as number) <= computing.ms + 1,
+      'and a render cannot spend more CPU than the render took',
+    )
     const measured = telemetry.measures.find((m) => m.name === 'slot.render')
     assert.ok(measured?.attrs?.cpu !== undefined, 'and it is on the telemetry, not just the outcome')
+  } finally {
+    await pool.close()
+  }
+})
+
+/**
+ * The first job against a module pays for importing it, and importing is CPU. Charging that to the
+ * render would make a cold worker's first budget a different budget from every one after it — and
+ * "a pool is warm" is the only reason to pay for a thread in the first place. So the budget is
+ * measured from the moment the renderer is called, which this asserts by giving a cold worker a
+ * budget smaller than its own module load.
+ */
+test('a cold worker is not charged for its own module load', async () => {
+  const pool = workerPool({ size: 1 })
+  try {
+    const outcome = await pool.run(job('first', 'greeting', { name: 'Baghdad' }, 8))
+    assert.equal(outcome.failure, undefined, 'the import is not the render')
+    assert.equal(new TextDecoder().decode(outcome.bytes), '<p>hello Baghdad</p>')
   } finally {
     await pool.close()
   }

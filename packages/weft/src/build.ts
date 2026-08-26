@@ -3,6 +3,7 @@ import { dirname, join, relative } from 'node:path'
 import { parse, stringify, type TemplateIR } from '@weft/ir'
 import { createApp } from './serve.ts'
 import { prerender, STATIC_DIR, type StaticManifest, type StaticRefusal } from './static.ts'
+import { checkJsBudgets, describeJsVerdict, measureClientJs } from './js-budget.ts'
 import type { CompiledApp, CompiledFragment } from './compile.ts'
 import type { Discovered } from './convention.ts'
 import type { ResolvedConfig, WeftConfig } from './config.ts'
@@ -24,6 +25,13 @@ import type { ResolvedConfig, WeftConfig } from './config.ts'
 export interface BuildReport {
   outDir: string
   templates: number
+  /**
+   * What a page downloads, and every declared ceiling it broke.
+   *
+   * One number for the application rather than one per route, because there is no bundler here and
+   * therefore no per-route JavaScript — see `js-budget.ts` for what that does to the declaration.
+   */
+  client: { raw: number; brotli: number; modules: number; baseline?: number }
   routes: { pattern: string; slots: number; markupBytes: number; styles: string[]; live: string[] }[]
   intents: { id: string; name: string; module: string }[]
   /**
@@ -147,9 +155,38 @@ export async function build(root: string, overrides: WeftConfig = {}): Promise<B
   await mkdir(join(out, STATIC_DIR), { recursive: true })
   await writeFile(join(out, STATIC_DIR, 'manifest.json'), `${JSON.stringify(staticManifest, null, 2)}\n`)
 
+  /**
+   * The client, measured and gated.
+   *
+   * `budget({ js })` was parsed and stored and read by nothing, which made it the one declaration in
+   * the plan DSL that could be wrong forever. It is enforced here because here is where the bytes
+   * exist — and it is enforced against what a page actually downloads, module by module, because a
+   * framework with no bundler has no chunk to report instead.
+   */
+  const client = await measureClientJs(app.assets, app.assets.app)
+  // Beside the application's config rather than inside `.weft/`, which is generated and ignored: a
+  // growth cap measured against a file nobody can commit is a growth cap that only ever compares a
+  // machine to itself. Here it is a diff.
+  const baselinePath = join(root, 'weft.budget.json')
+  const baseline = await readBaseline(baselinePath)
+  const broken = checkJsBudgets(app.routes, client, baseline)
+  await writeFile(
+    baselinePath,
+    `${JSON.stringify({ note: 'what a page downloads, brotli. Commit this: a growth cap is a diff.', brotli: client.brotli, raw: client.raw, modules: client.modules.length }, null, 2)}\n`,
+  )
+  if (broken.length) {
+    throw new Error(broken.map(describeJsVerdict).join('\n'))
+  }
+
   const report: BuildReport = {
     outDir: app.config.outDir,
     templates: app.compiled.templates.length,
+    client: {
+      raw: client.raw,
+      brotli: client.brotli,
+      modules: client.modules.length,
+      ...(baseline !== undefined ? { baseline } : {}),
+    },
     routes: app.routes.map((route) => ({
       pattern: route.pattern,
       slots: route.plan.slots.length,
@@ -344,4 +381,20 @@ export function formatReport(report: BuildReport): string {
   )
   lines.push('')
   return lines.join('\n')
+}
+
+/**
+ * The recorded figure a growth cap is measured against, or nothing on a first build.
+ *
+ * A file in the build output rather than a query against a branch: this repository has no CI, and a
+ * baseline nobody can see is a baseline nobody can reason about. Committing it makes a regression a
+ * diff.
+ */
+async function readBaseline(path: string): Promise<number | undefined> {
+  try {
+    const held = JSON.parse(await readFile(path, 'utf8')) as { brotli?: number }
+    return typeof held.brotli === 'number' ? held.brotli : undefined
+  } catch {
+    return undefined
+  }
 }

@@ -76,6 +76,15 @@ export interface KernelRoute {
   envelope?(ctx: EnvelopeContext): Promise<void> | void
   policy?: CachePolicy
   critical?: PreloadLink[]
+  /**
+   * The plugin schedule this route is subject to, when it is not the kernel's own.
+   *
+   * Scoped registration, resolved where it belongs: `resolveScoped` in `plugin-graph.ts` produces
+   * one schedule per prefix at build time and the route carries the one that applies. The request
+   * path pays a `??` rather than a prefix walk, and a plugin scoped to somewhere else is not merely
+   * skipped — it was never in this route's graph, so it cannot be ambiguous with anything in it.
+   */
+  plugins?: PluginSchedule
   slots: KernelSlot[]
 }
 
@@ -213,7 +222,7 @@ export function createKernel(options: KernelOptions): Kernel {
       envelope.setCookie(cookie)
     }
 
-    const pluginResult = await runPlugins(plugins, phaseA, options.guard)
+    const pluginResult = await runPlugins(route.plugins ?? plugins, phaseA, options.guard)
     if (pluginResult.response) {
       life.to('settled')
       trace = { ...emptyTrace(), states: life.log, hints }

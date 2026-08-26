@@ -28,7 +28,22 @@ export interface Plugin {
   name: string
   /** `filter` runs sequentially in phase A and may end the request; `enricher` runs in parallel waves. */
   role: 'filter' | 'enricher'
+  /**
+   * Where this plugin's work happens. Checked rather than decorative: `client` and `build` may not
+   * carry an `onRequest`, because a handler on a plugin that does not run on the server is a
+   * handler nothing will ever call — see `E_PLUGIN_RESIDENCY`.
+   */
   residency?: PluginResidency
+  /**
+   * The path prefix this plugin applies to. Absent means every route.
+   *
+   * Fastify-style encapsulation, resolved at build time rather than checked per request: a scope is
+   * a *different graph*, so two plugins that would be ambiguous together are not ambiguous when they
+   * live under `/admin` and `/shop` — and each scope's ordering, cycles and ambiguity are checked
+   * within it. `resolveScoped` produces the schedule per prefix and a route carries the one that
+   * applies to it, so the request path never pays for a scope it is not in.
+   */
+  scope?: string
   before?: readonly string[]
   after?: readonly string[]
   reads?: readonly string[]

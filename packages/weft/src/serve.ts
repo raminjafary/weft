@@ -82,6 +82,7 @@ import {
 } from './profile.ts'
 import { loadDocuments, type ServedDocument } from './static.ts'
 import { generateRoutes, type GeneratedRoute } from './routes.ts'
+import { createSpeculation } from './speculate.ts'
 
 /**
  * The application, served.
@@ -1023,6 +1024,21 @@ export async function serveApp(app: App): Promise<Serving> {
    */
   const conditional = new Set(routes.filter((route) => route.etag).map((route) => route.pattern))
 
+  /**
+   * `.speculate()`, after the response.
+   *
+   * A slot with a TTL has one request per period that pays for a render, and it is always
+   * somebody's. This moves that render off a reader's request and onto time the process has already
+   * finished charging — through the store's own after-response queue, which existed and was empty.
+   */
+  const speculation = createSpeculation({
+    routes,
+    store,
+    ports: app.ports,
+    onWarmed: (pattern, slot, ms) =>
+      app.ports.telemetry?.measure('slot.speculated', ms, { route: pattern, slot }),
+  })
+
   // The stylesheet a page the framework itself renders — a 404, a refused intent — links. There is
   // no bundle for a page that is not a route, so it borrows the first one's.
   const firstCss = routes[0] ? assets.pageCss(routes[0].pattern) : ''
@@ -1292,6 +1308,7 @@ export async function serveApp(app: App): Promise<Serving> {
       }
       res.writeHead(response.status, { ...out, 'content-length': String(whole.byteLength) })
       res.end(req.method === 'HEAD' ? undefined : whole)
+      await warm(matched, url)
       return
     }
 
@@ -1318,6 +1335,32 @@ export async function serveApp(app: App): Promise<Serving> {
       res.destroy()
     })
     out_.pipe(res)
+    // After the last byte, not before: the whole point is that this render is not on the reader's
+    // request. `finish` rather than `close`, because a socket that went away has nobody to warm for.
+    res.once('finish', () => void warm(matched, url))
+  }
+
+  /**
+   * Queue what this request implies and run it.
+   *
+   * On Workers the platform drains this queue as `waitUntil` and this call is the no-op it should
+   * be. On Node nobody drains it, which is why `revalidateAfterResponse` had collected tasks for as
+   * long as it had existed and run none of them.
+   */
+  async function warm(
+    matched: { pattern: string; params: Record<string, string> } | null,
+    url: URL,
+  ): Promise<void> {
+    if (!matched || !speculation.patterns.length) return
+    try {
+      // The request's own URL, because a key can be derived from the query string and a pattern
+      // has none — warming under the wrong key is worse than not warming.
+      await speculation.after(matched.pattern, matched.params, url)
+      await speculation.drain()
+    } catch (error) {
+      // A speculative render that fails has cost a reader nothing, so it is reported and dropped.
+      process.stderr.write(`  speculation failed on ${matched.pattern}: ${(error as Error).message}\n`)
+    }
   }
 
   /**

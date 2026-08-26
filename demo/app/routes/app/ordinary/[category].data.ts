@@ -92,10 +92,26 @@ export default defineRoute({
     body: {
       fragment: 'ordinary',
       stream: false,
+      /**
+       * What this page may download, and how far it may drift.
+       *
+       * There is no bundler here, so this is the whole application's client rather than this
+       * slot's share of it — the build says so when it refuses. The ceiling is above where the
+       * demo sits today on purpose: a budget set to the current number is a budget that fails on
+       * the next honest comment, and `grow` is the half that notices drift anyway.
+       */
+      budget: { js: '48kb', grow: '2kb' },
       // Tagged, because the cart counts are in these bytes and `cart.add` declares that it writes
       // `cart`. Without the tag the page would keep showing the count from before your click for
       // ten minutes, which is a cache doing exactly what it was told and exactly the wrong thing.
       cache: { class: 'public', ttl: '10m', tags: ['cart'] },
+      /**
+       * And re-rendered after somebody's response rather than during it.
+       *
+       * A ten-minute TTL means one request every ten minutes pays for a render, and it is always
+       * a reader's. This moves it to the end of a response that has already been sent.
+       */
+      speculate: true,
       load: (_ctx, params) => {
         const key = params.category === 'household' ? 'household' : 'pantry'
         const category = CATEGORIES[key] as (typeof CATEGORIES)[string]

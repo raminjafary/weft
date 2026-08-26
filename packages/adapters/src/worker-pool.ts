@@ -50,6 +50,12 @@ interface Pending {
 
 interface Slot {
   worker: Worker
+  /** Called when the worker says the render itself has started. See `worker-entry.ts`. */
+  rebaseline: (() => void) | null
+  /** Modules this worker has already imported, so a budget is never charged for an import. */
+  loaded: Set<string>
+  /** Resolved when a preload comes back. */
+  ready: (() => void) | null
   /** The job this worker is on, if any. One at a time: see `worker-entry.ts`. */
   busy: Pending | null
   /**
@@ -91,21 +97,43 @@ export function workerPool(options: WorkerPoolOptions = {}): WorkerPool {
 
   const spawn = (): Slot => {
     const worker = new Worker(ENTRY, { workerData: { root } })
-    const slot: Slot = { worker, busy: null, reserved: false }
-    worker.on('message', (message: { id: number; bytes?: Uint8Array; error?: string; cpuMs?: number }) => {
-      const pending = slot.busy
-      slot.busy = null
-      slot.reserved = false
-      pending?.resolve(
-        message.error !== undefined
-          ? { error: message.error }
-          : {
-              bytes: message.bytes ?? new Uint8Array(0),
-              ...(message.cpuMs !== undefined ? { cpuMs: message.cpuMs } : {}),
-            },
-      )
-      pump()
-    })
+    const slot: Slot = {
+      worker,
+      busy: null,
+      reserved: false,
+      rebaseline: null,
+      loaded: new Set(),
+      ready: null,
+    }
+    worker.on(
+      'message',
+      (message: { id: number; bytes?: Uint8Array; error?: string; cpuMs?: number; phase?: string }) => {
+        // "The render is starting." Not a completion: the budget is re-measured from here, so
+        // importing a module for the first time is not charged to the first render that needed it.
+        if (message.phase === 'render') {
+          slot.rebaseline?.()
+          return
+        }
+        if (message.phase === 'loaded') {
+          const ready = slot.ready
+          slot.ready = null
+          ready?.()
+          return
+        }
+        const pending = slot.busy
+        slot.busy = null
+        slot.reserved = false
+        pending?.resolve(
+          message.error !== undefined
+            ? { error: message.error }
+            : {
+                bytes: message.bytes ?? new Uint8Array(0),
+                ...(message.cpuMs !== undefined ? { cpuMs: message.cpuMs } : {}),
+              },
+        )
+        pump()
+      },
+    )
     worker.on('error', (error: Error) => {
       replace(slot, error.message)
     })
@@ -172,6 +200,22 @@ export function workerPool(options: WorkerPoolOptions = {}): WorkerPool {
     })
 
     const id = nextId++
+
+    /**
+     * Import first, then start the clock.
+     *
+     * Only for a budgeted job, because only a budget cares: the round trip is one message per module
+     * per worker and it buys the property that makes a pool worth paying for — every render measured
+     * against the same warm baseline, rather than the first one being charged for everybody's import.
+     */
+    if (job.cpuBudgetMs !== undefined && !slot.loaded.has(job.address.module)) {
+      await new Promise<void>((resolve) => {
+        slot.ready = resolve
+        slot.worker.postMessage({ id, module: (job.address as { module: string }).module, preload: true })
+      })
+      slot.loaded.add(job.address.module)
+    }
+
     const settled = new Promise<{ bytes?: Uint8Array; error?: string; cpuMs?: number }>((resolve) => {
       slot.busy = { resolve, slot: job.slot }
       slot.reserved = false
@@ -196,7 +240,10 @@ export function workerPool(options: WorkerPoolOptions = {}): WorkerPool {
     let killed = false
     let spentMs = 0
     if (job.cpuBudgetMs !== undefined) {
-      const baseline = slot.worker.performance.eventLoopUtilization()
+      let baseline = slot.worker.performance.eventLoopUtilization()
+      slot.rebaseline = () => {
+        baseline = slot.worker.performance.eventLoopUtilization()
+      }
       const every = Math.max(4, Math.min(25, Math.floor(job.cpuBudgetMs / 4)))
       timer = setInterval(() => {
         spentMs = slot.worker.performance.eventLoopUtilization(baseline).active
@@ -218,6 +265,7 @@ export function workerPool(options: WorkerPoolOptions = {}): WorkerPool {
 
     const result = await settled
     if (timer !== undefined) clearInterval(timer)
+    slot.rebaseline = null
     const ms = performance.now() - started
 
     if (killed) {

@@ -59,6 +59,15 @@ interface AdoptPayload {
   values?: Record<string, unknown>
   intents?: Record<string, string>
   live?: boolean
+  /**
+   * The plan's declared refresh interval for this region, and the conditions it declared with it.
+   *
+   * The design calls a client-side interval the fallback for invalidation that cannot cross a tier
+   * boundary — a region on another deployment holds its own cache keys, so a `STALE` about them has
+   * nobody to tell. This is that fallback, and until it existed the plan recorded an interval and
+   * nothing asked on one.
+   */
+  refresh?: { everyMs: number; when?: readonly string[] }
 }
 
 interface WeftState {
@@ -360,12 +369,61 @@ async function adoptRegions(within?: Element): Promise<Region[]> {
     if (entry.live) {
       liveRegions = true
       state.live.push(entry.slot)
+      if (entry.refresh) schedule(entry.slot, entry.refresh)
     }
     regions.push({ slot: entry.slot, adopted, base: entry.base })
   }
 
   document.cookie = `weft-resident=${digest(Object.keys(resident))}; path=/; max-age=600; SameSite=Lax`
   return regions
+}
+
+/**
+ * A region's declared interval, asked under the conditions it declared.
+ *
+ * Conditions are checked at the moment of asking rather than by starting and stopping the timer.
+ * A timer that is torn down on blur and rebuilt on focus is a timer whose next fire moves every
+ * time somebody switches window; a timer that fires and *declines* keeps the cadence a deployment
+ * declared, and the ask is the only part that costs anything.
+ *
+ * `visible` is the one that matters most and the one a poll must have: a tab in the background
+ * asking every thirty seconds forever is the failure mode that makes people turn intervals off.
+ */
+const scheduled = new Set<string>()
+
+function schedule(slot: string, spec: { everyMs: number; when?: readonly string[] }): void {
+  if (spec.everyMs <= 0 || scheduled.has(slot)) return
+  scheduled.add(slot)
+  const conditions = spec.when ?? ['visible']
+  const timer = window.setInterval(() => {
+    if (!allowed(conditions)) return
+    void refresh([slot])
+  }, spec.everyMs)
+  // A page being unloaded is not a page that needs another answer.
+  window.addEventListener('pagehide', () => window.clearInterval(timer), { once: true })
+}
+
+function allowed(conditions: readonly string[]): boolean {
+  for (const condition of conditions) {
+    if (condition === 'visible' && document.visibilityState !== 'visible') return false
+    if (condition === 'focused' && !document.hasFocus()) return false
+    // `idle` asks about the reader rather than the document, and the only honest reading available
+    // here is "nothing has been typed or pointed at recently".
+    if (condition === 'idle' && performance.now() - lastActivity < 5_000) return false
+    if (condition === 'always') continue
+  }
+  return true
+}
+
+let lastActivity = 0
+for (const event of ['pointerdown', 'keydown', 'wheel'] as const) {
+  window.addEventListener(
+    event,
+    () => {
+      lastActivity = performance.now()
+    },
+    { passive: true },
+  )
 }
 
 // ── intents ──────────────────────────────────────────────────────────────────────────

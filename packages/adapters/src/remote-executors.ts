@@ -96,7 +96,11 @@ export function isolateExecutor(options: IsolateExecutorOptions = {}): KernelExe
             )
           }, budget)
 
-          worker.on('message', (message: { bytes?: Uint8Array; error?: string }) => {
+          worker.on('message', (message: { bytes?: Uint8Array; error?: string; phase?: string }) => {
+            // The worker says when the render starts, which the pool uses to place a CPU budget's
+            // baseline. An isolate is one render on a fresh thread and has no baseline to place, so
+            // this is the announcement of work rather than the end of it.
+            if (message.phase) return
             clearTimeout(timer)
             const ms = performance.now() - started
             if (message.error) {
