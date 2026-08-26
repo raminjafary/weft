@@ -1,5 +1,6 @@
 import { AXES, axis as axisById } from './axes.ts'
 import { ENGINE_PROXIES } from './measure/browser.ts'
+import { describeLink } from './measure/link.ts'
 import type { Row, RunResult } from './runner.ts'
 import { separable, type Summary } from './stats.ts'
 
@@ -57,7 +58,8 @@ export function renderMarkdown(result: RunResult): string {
   lines.push(
     `HTTP axes: ${m.iterations} iterations after ${m.warmup} warmup requests, ${m.connection} connection, identity encoding. ` +
       `In-process axes: ${m.batches} batches of ${m.opsPerBatch} renders, one warmup batch, output length sunk so the work cannot be eliminated. ` +
-      `Browser axes: ${m.browserIterations} iterations on ${m.engines.join(', ')}.`,
+      `Browser axes: ${m.browserIterations} iterations on ${m.engines.join(', ')}. ` +
+      `Link: ${describeLink({ rttMs: m.latencyMs, kbps: m.bandwidthKbps, lossPercent: m.lossPercent })}.`,
   )
   lines.push('')
 
@@ -139,7 +141,9 @@ export function renderMarkdown(result: RunResult): string {
   lines.push('')
   lines.push('```')
   lines.push(
-    `node packages/bench/src/cli.ts run --iterations ${m.iterations} --connection ${m.connection} --transport ${m.transport} --latency ${m.latencyMs} --engines ${m.engines.join(',')}`,
+    `node packages/bench/src/cli.ts run --iterations ${m.iterations} --connection ${m.connection} ` +
+      `--transport ${m.transport} --latency ${m.latencyMs} --bandwidth ${m.bandwidthKbps} ` +
+      `--loss ${m.lossPercent} --engines ${m.engines.join(',')}`,
   )
   lines.push('```')
   lines.push('')

@@ -1,5 +1,6 @@
 import { build, createApp, discover, loadBuild, loadConfig, serveApp } from 'weft/server'
-import { loadPlaywright, type EngineName } from './browser.ts'
+import { laneDeliversEvents, launchEngine, type EngineName } from './browser.ts'
+import { reachableUrl } from './device.ts'
 
 /**
  * Which binding a real browser actually opens, and what happens when it cannot open the one it
@@ -41,8 +42,11 @@ const LIVE = '/app/cart'
 const CONNECTED = 'Boolean(window.weft && window.weft.connected)'
 
 export async function measureChannel(root: string, engine: EngineName): Promise<ChannelRun> {
-  const playwright = await loadPlaywright()
-  if (!playwright) throw new Error('E_NO_PLAYWRIGHT: install playwright to exercise the channel')
+  if (!laneDeliversEvents(engine)) {
+    throw new Error(
+      `E_LANE_CANNOT: the ${engine} lane cannot deliver page errors, and this measurement reports them as checks`,
+    )
+  }
 
   // The build path rather than dev, for the reason the navigation measurement uses it: what a
   // reader loads is the built module graph, and a socket that only opens against source is not a
@@ -55,7 +59,7 @@ export async function measureChannel(root: string, engine: EngineName): Promise<
   const serving = await serveApp(app)
 
   const checks: ChannelCheck[] = []
-  const browser = await playwright[engine].launch()
+  const browser = await launchEngine(engine)
   try {
     const context = await browser.newContext()
 
@@ -72,7 +76,7 @@ export async function measureChannel(root: string, engine: EngineName): Promise<
     const page = (await context.newPage()) as Driver
     const errors: string[] = []
     page.on('pageerror', ((error: { message: string }) => errors.push(error.message)) as never)
-    await page.goto(new URL(LIVE, serving.url).href, { waitUntil: 'load' })
+    await page.goto(new URL(LIVE, reachableUrl(engine, serving.url)).href, { waitUntil: 'load' })
     await page.waitForFunction(CONNECTED, undefined, { timeout: 20_000 })
 
     const opened = bindings()
@@ -104,7 +108,7 @@ export async function measureChannel(root: string, engine: EngineName): Promise<
     blocked.on('pageerror', ((error: { message: string }) => failures.push(error.message)) as never)
     if (blocked.routeWebSocket) {
       await blocked.routeWebSocket('**/*', (ws) => ws.close())
-      await blocked.goto(new URL(LIVE, serving.url).href, { waitUntil: 'load' })
+      await blocked.goto(new URL(LIVE, reachableUrl(engine, serving.url)).href, { waitUntil: 'load' })
       await blocked.waitForFunction(CONNECTED, undefined, { timeout: 20_000 })
       const fell = bindings()
       checks.push({

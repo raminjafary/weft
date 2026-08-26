@@ -4,7 +4,8 @@ import { compileFiles } from '@weft/compiler'
 import type { TemplateIR } from '@weft/ir'
 import { serveRoute } from '@weft/adapters'
 import type { Order, Route } from '@weft/kernel'
-import { loadPlaywright, type EngineName } from './browser.ts'
+import { launchEngine, type EngineName } from './browser.ts'
+import { reachableUrl } from './device.ts'
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
 const FIXTURE = 'packages/compiler/fixtures/slots.tsx'
@@ -62,20 +63,15 @@ function delay(ms: number, value: string): Promise<string> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms))
 }
 
-async function visit(
-  pw: NonNullable<Awaited<ReturnType<typeof loadPlaywright>>>,
-  engine: EngineName,
-  url: string,
-  iterations: number,
-) {
-  const browser = await pw[engine].launch()
+async function visit(engine: EngineName, url: string, iterations: number) {
+  const browser = await launchEngine(engine)
   try {
     const times: RegionTimes[] = []
     let markup = ''
     for (let i = 0; i < iterations; i++) {
       const context = await browser.newContext()
       const tab = await context.newPage()
-      await tab.goto(url, { waitUntil: 'load' })
+      await tab.goto(reachableUrl(engine, url), { waitUntil: 'load' })
       times.push(await tab.evaluate<RegionTimes>('(() => window.__done())()'))
       if (i === 0) {
         // The anchor comment is left in the DOM on purpose, so it is not part of the
@@ -99,16 +95,13 @@ async function visit(
  * fast one behind it and out-of-order does not.
  */
 export async function measureSlots(engine: EngineName, iterations = 5): Promise<SlotRun> {
-  const pw = await loadPlaywright()
-  if (!pw) throw new Error('E_NO_PLAYWRIGHT: install playwright to measure slot streaming')
-
   const ir = await template()
   const results: Record<Order, { times: RegionTimes[]; markup: string; version: string }> = {} as never
 
   for (const order of ['in-order', 'out-of-order'] as Order[]) {
     const serving = await serveRoute(route(ir), { order, prelude: PRELUDE, postlude: POSTLUDE })
     try {
-      results[order] = await visit(pw, engine, serving.url, iterations)
+      results[order] = await visit(engine, serving.url, iterations)
     } finally {
       await serving.close()
     }
@@ -143,9 +136,6 @@ export interface DsdProbe {
  * and the inline filler is the primary path rather than a fallback.
  */
 export async function probeIncrementalDsd(engine: EngineName): Promise<DsdProbe> {
-  const pw = await loadPlaywright()
-  if (!pw) throw new Error('E_NO_PLAYWRIGHT: install playwright to probe declarative shadow DOM')
-
   const head = `<!doctype html><html><head><meta charset="utf-8"><script>
 window.__p={shadow:null,slotted:null,rendered:false};
 setInterval(function(){var h=document.getElementById('host');if(!h)return;
@@ -164,11 +154,11 @@ var s=h.querySelector('[slot="x"]');if(s&&window.__p.slotted===null){window.__p.
   const address = server.address()
   if (typeof address === 'string' || address === null) throw new Error('E_NO_ADDRESS')
 
-  const browser = await pw[engine].launch()
+  const browser = await launchEngine(engine)
   try {
     const context = await browser.newContext()
     const tab = await context.newPage()
-    await tab.goto(`http://127.0.0.1:${address.port}/`, { waitUntil: 'load' })
+    await tab.goto(reachableUrl(engine, `http://127.0.0.1:${address.port}/`), { waitUntil: 'load' })
     const probe = await tab.evaluate<{
       shadow: number | null
       slotted: number | null

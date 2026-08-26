@@ -4,7 +4,8 @@ import { stripTypeScriptTypes } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { encodeStream, frame, type Frame } from '@weft/warp'
 import { summarize, type Summary } from '../stats.ts'
-import { loadPlaywright, type EngineName } from './browser.ts'
+import { launchEngine, type EngineName } from './browser.ts'
+import { reachableUrl } from './device.ts'
 
 /**
  * Whether decoding a batch of frames is worth moving off the main thread.
@@ -135,9 +136,6 @@ export async function measureDecode(
   rows: number,
   iterations: number,
 ): Promise<DecodeRun> {
-  const pw = await loadPlaywright()
-  if (!pw) throw new Error('E_NO_PLAYWRIGHT: install playwright to measure a decode')
-
   const warpDir = fileURLToPath(new URL('../../../warp/src/', import.meta.url))
   const bytes = new Uint8Array(encodeStream(batch(rows)))
 
@@ -165,10 +163,10 @@ export async function measureDecode(
   const address = server.address()
   if (typeof address === 'string' || !address) throw new Error('E_NO_ADDRESS')
 
-  const browser = await pw[engine].launch()
+  const browser = await launchEngine(engine)
   try {
     const page = await (await browser.newContext()).newPage()
-    await page.goto(`http://127.0.0.1:${address.port}/`, { waitUntil: 'load' })
+    await page.goto(reachableUrl(engine, `http://127.0.0.1:${address.port}/`), { waitUntil: 'load' })
     const encoded = Buffer.from(bytes).toString('base64')
     const measured = (await page.evaluate(`window.measure(${JSON.stringify(encoded)}, ${iterations})`)) as {
       main: number[]

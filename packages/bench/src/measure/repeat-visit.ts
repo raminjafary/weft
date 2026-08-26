@@ -8,7 +8,8 @@ import { encodeStream, frame, negotiate, type Frame } from '@weft/warp'
 import { serverCapabilities } from '@weft/kernel'
 import { compileScenario, withRows } from '../compiled.ts'
 import type { Scenario } from '../workloads/index.ts'
-import { loadPlaywright, type EngineName } from './browser.ts'
+import { launchEngine, type EngineName } from './browser.ts'
+import { reachableUrl } from './device.ts'
 
 const decoder = new TextDecoder()
 const utf8 = new TextEncoder()
@@ -63,9 +64,6 @@ export async function measureRepeatVisit(
   engine: EngineName,
   iterations: number,
 ): Promise<RepeatVisitRun> {
-  const pw = await loadPlaywright()
-  if (!pw) throw new Error('E_NO_PLAYWRIGHT: install playwright to measure a repeat visit')
-
   const compiled = await compileScenario(scenario)
   const values = withRows(compiled, scenario.values(), scenario.rows())
   const html = decoder.decode(render(compiled.root, values, compiled.resolve))
@@ -145,9 +143,9 @@ export async function measureRepeatVisit(
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   if (typeof address === 'string' || address === null) throw new Error('E_NO_ADDRESS')
-  const url = `http://127.0.0.1:${address.port}/`
+  const url = reachableUrl(engine, `http://127.0.0.1:${address.port}/`)
 
-  const browser = await pw[engine].launch()
+  const browser = await launchEngine(engine)
   const cold: Visit[] = []
   const repeat: Visit[] = []
 

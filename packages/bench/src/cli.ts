@@ -24,7 +24,8 @@ import { renderMarkdown, comparison } from './report.ts'
 import { run } from './runner.ts'
 import { SCENARIOS, scenario as scenarioById } from './workloads/index.ts'
 import { stringify } from '@weft/ir'
-import { ENGINES_UNAVAILABLE, type EngineName } from './measure/browser.ts'
+import { DEVICE_ENGINES, ENGINES_UNAVAILABLE, LOCAL_ENGINES, type EngineName } from './measure/browser.ts'
+import { laneFor, lanes, loadDevices, probeDevice, registerDevices } from './measure/device.ts'
 
 const BUILT_IN: Candidate[] = [segmentsCandidate, stringSsrCandidate, blockingSsrCandidate]
 
@@ -60,21 +61,32 @@ function p50(values: number[]): number {
 }
 
 /**
- * Engine names, with the ones this harness cannot run refused by name.
+ * Engine names, with the ones this harness cannot reach refused by name.
  *
  * `spec/baseline/devices.md` says no claim about iOS is honest until it runs on a device, and until
  * now that was a paragraph. Asking for `--engines ios` fell through to Playwright and failed with a
  * message about a browser type — which reads like a missing dependency rather than a missing device.
  * It refuses here instead, saying what is actually absent.
+ *
+ * `--devices` is what makes the refusal answerable rather than final: a device named there is
+ * registered before this runs, so `ios` stops being a name with nothing behind it. Without one the
+ * refusal is unchanged, which is the point — the gate is the hardware, not the vocabulary.
  */
 function enginesFrom(value: string | undefined, fallback: EngineName[]): EngineName[] {
   const asked = csv(value) ?? fallback
   for (const engine of asked) {
+    if (laneFor(engine as EngineName)) continue
     const missing = ENGINES_UNAVAILABLE[engine]
     if (missing) {
       throw new Error(
-        `E_NO_DEVICE_ENGINE: '${engine}' needs ${missing}. Run --engines chromium,firefox,webkit and ` +
+        `E_NO_DEVICE_ENGINE: '${engine}' needs ${missing}. Point --devices at one and run ` +
+          `'weft-bench devices' to check it answers, or run --engines ${LOCAL_ENGINES.join(',')} and ` +
           `read the proxy table in the report: a webkit number is never an iOS number`,
+      )
+    }
+    if (!LOCAL_ENGINES.includes(engine as EngineName)) {
+      throw new Error(
+        `E_UNKNOWN_ENGINE: ${engine}. known: ${[...LOCAL_ENGINES, ...DEVICE_ENGINES].join(', ')}`,
       )
     }
   }
@@ -120,6 +132,7 @@ const HELP = `weft-bench — phase-zero benchmark harness
   l0        a document served from the build against the same document rendered
   nav       a staged click against the same click handed back to the browser
   decode    frames decoded on the main thread against the same frames decoded in a worker
+  devices   list the devices --devices names, and whether each driver answers
   list      list axes, scenarios, and candidates
   ir        print the sealed, versioned IR for a scenario
 
@@ -133,6 +146,9 @@ run flags
   --connection      warm | cold (default warm)
   --transport       stream | buffered (default stream; buffered is the intercepted-webview path)
   --latency N       injected round-trip time in ms; required for any shell-TTFB claim
+  --bandwidth N     injected link rate in kbps each way; required for any bytes-on-the-wire claim
+                    1600 is a slow 3G downlink, 400 a bad one, 0 an infinitely fast link
+  --loss N          injected per-packet loss as a percentage; a hole stalls everything behind it
   --batches N       in-process timing batches (default 25)
   --ops N           renders per batch (default 200)
   --clients N       clients in the deltas comparison (default 1000)
@@ -142,17 +158,61 @@ run flags
   --to PATHS        which links nav clicks (default every internal link on --from)
   --engines         chromium,firefox,webkit (browser axes; requires playwright)
                     webkit is the closest proxy for an iOS webview and is never an iOS number.
-                    ios and android are declared and refused: what is missing is a device
+                    ios and android are refused unless --devices names one: the missing thing
+                    is hardware, and the lane that drives it is config
+  --devices FILE    JSON array of device descriptors, or $WEFT_BENCH_DEVICES. android goes over
+                    cdp (adb forward to the WebView devtools socket); ios over webdriver
+                    (Appium and XCUITest). Run the 'devices' command to check one answers
   --out DIR         where to write the report (default results/)
   --no-strict       measure even if the wire forms disagree
 `
 
 async function main(): Promise<number> {
   const { command, flags, positional } = parseArgs(process.argv.slice(2))
+  registerDevices(loadDevices(flags.devices))
 
   if (command === 'help' || flags.help) {
     process.stdout.write(HELP)
     return 0
+  }
+
+  if (command === 'devices') {
+    const configured = lanes()
+    if (!configured.length) {
+      process.stdout.write(
+        'no devices configured.\n\n' +
+          '  --devices FILE, or $WEFT_BENCH_DEVICES, is a JSON array like:\n\n' +
+          '  [{ "id": "pixel-6a", "label": "Pixel 6a, WebView 121", "engine": "android",\n' +
+          '     "transport": "cdp", "endpoint": "http://127.0.0.1:9222" },\n' +
+          '   { "id": "iphone-se-3", "label": "iPhone SE 3, iOS 17.4", "engine": "ios",\n' +
+          '     "transport": "webdriver", "endpoint": "http://127.0.0.1:4723",\n' +
+          '     "context": "WEBVIEW_1", "capabilities": { "platformName": "iOS" } }]\n\n' +
+          '  Android: adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>, and\n' +
+          '  adb reverse tcp:<port> tcp:<port> so the device can reach a server on this machine.\n' +
+          '  iOS: appium with the XCUITest driver, and a tunnel for the same reason.\n',
+      )
+      return 0
+    }
+    let failed = false
+    for (const lane of configured) {
+      const probe = await probeDevice(lane.device)
+      if (!probe.ok) failed = true
+      const can = Object.entries(lane.supports)
+        .filter(([, yes]) => yes)
+        .map(([name]) => name)
+      const cannot = Object.entries(lane.supports)
+        .filter(([, yes]) => !yes)
+        .map(([name]) => name)
+      process.stdout.write(
+        `${probe.ok ? 'up  ' : 'DOWN'}  ${lane.device.engine.padEnd(8)} ${lane.device.id.padEnd(18)} ` +
+          `${lane.device.transport.padEnd(10)} ${lane.device.endpoint}\n` +
+          `      ${lane.device.label}\n` +
+          `      ${probe.detail}\n` +
+          `      carries ${can.join(', ') || 'nothing'}${cannot.length ? `; cannot ${cannot.join(', ')}` : ''}\n` +
+          `      reached at ${lane.device.reachHost ?? '127.0.0.1 (assumes a reverse tunnel)'}\n`,
+      )
+    }
+    return failed ? 1 : 0
   }
 
   if (command === 'list') {
@@ -267,6 +327,8 @@ async function main(): Promise<number> {
         ...(flags.from ? { from: flags.from } : {}),
         ...(csv(flags.to) ? { to: csv(flags.to) as string[] } : {}),
         ...(flags.latency ? { latencyMs: Number(flags.latency) } : {}),
+        ...(flags.bandwidth ? { bandwidthKbps: Number(flags.bandwidth) } : {}),
+        ...(flags.loss ? { lossPercent: Number(flags.loss) } : {}),
       })
       process.stdout.write(formatNavigation(report))
     }
@@ -350,6 +412,8 @@ async function main(): Promise<number> {
     ...(flags.connection ? { connection: flags.connection as 'warm' | 'cold' } : {}),
     ...(flags.transport ? { transport: flags.transport as 'stream' | 'buffered' } : {}),
     ...(flags.latency ? { latencyMs: Number(flags.latency) } : {}),
+    ...(flags.bandwidth ? { bandwidthKbps: Number(flags.bandwidth) } : {}),
+    ...(flags.loss ? { lossPercent: Number(flags.loss) } : {}),
     ...(flags.batches ? { batches: Number(flags.batches) } : {}),
     ...(flags.ops ? { opsPerBatch: Number(flags.ops) } : {}),
     ...(flags.engines ? { engines: csv(flags.engines) as EngineName[] } : {}),

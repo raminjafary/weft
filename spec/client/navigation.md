@@ -251,12 +251,14 @@ Read the first column of ratios as the honest floor: **on loopback a staged clic
 letting the browser do it** for a page the server produces quickly, because the swap costs more
 than a local request that never left the machine. What the staging removes is the round trip and
 the render, and loopback has neither — so the same two routes measured through the harness's
-latency proxy at 100 ms RTT come out 7.3× and 19.0× instead. The dashboard is the case that wins
+link proxy at 100 ms RTT come out 7.3× and 19.0× instead. The dashboard is the case that wins
 without any latency at all, because its slots are deliberately slow: 606 ms of server work the
 reader spent hovering rather than waiting.
 
 The bytes are identical either way. A staged navigation transfers the same document, from the same
-kernel, on the same route; what changes is when it is asked for.
+kernel, on the same route; what changes is when it is asked for. That is also why `--bandwidth`
+does not move this table much and moves the byte axes a great deal: the link proxy prices bytes,
+and these two paths carry the same ones.
 
 ## What the client knows before it asks
 

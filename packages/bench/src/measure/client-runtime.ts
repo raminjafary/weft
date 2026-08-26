@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url'
 import { baseRenderId, clientView, deltaPayload, patchPayload, render, type Values } from '@weft/ir'
 import { compileScenario, withRows } from '../compiled.ts'
 import type { Scenario } from '../workloads/index.ts'
-import { loadPlaywright, type EngineName } from './browser.ts'
+import { laneDeliversEvents, launchEngine, type EngineName } from './browser.ts'
+import { reachableUrl } from './device.ts'
 
 const decoder = new TextDecoder()
 
@@ -70,9 +71,6 @@ export async function measureClientRuntime(
   scenario: Scenario,
   engine: EngineName,
 ): Promise<ClientRuntimeRun> {
-  const pw = await loadPlaywright()
-  if (!pw) throw new Error('E_NO_PLAYWRIGHT: install playwright to exercise the client runtime')
-
   const document = await page(scenario)
   const runtimeDir = fileURLToPath(new URL('../../../client/src/', import.meta.url))
   const driver = fileURLToPath(new URL('../client/driver.ts', import.meta.url))
@@ -102,14 +100,14 @@ export async function measureClientRuntime(
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   if (typeof address === 'string' || address === null) throw new Error('E_NO_ADDRESS')
-  const url = `http://127.0.0.1:${address.port}/`
+  const url = reachableUrl(engine, `http://127.0.0.1:${address.port}/`)
 
-  const browser = await pw[engine].launch()
+  const browser = await launchEngine(engine)
   try {
     const context = await browser.newContext()
     const tab = await context.newPage()
     const failures: string[] = []
-    tab.on?.('pageerror', (error: Error) => failures.push(error.message))
+    if (laneDeliversEvents(engine)) tab.on?.('pageerror', (error: Error) => failures.push(error.message))
     await tab.goto(url, { waitUntil: 'load' })
     const result = await tab.evaluate<{ checks: Check[]; timings: Record<string, number[]> }>(
       '(() => window.__weft)()' as unknown as () => { checks: Check[]; timings: Record<string, number[]> },

@@ -11,6 +11,26 @@ export { segmentsCandidate } from './candidates/segments.ts'
 export * from './compiled.ts'
 export { stringSsrCandidate } from './candidates/string-ssr.ts'
 export { blockingSsrCandidate } from './candidates/blocking-ssr.ts'
-export { withLatency } from './measure/latency.ts'
+export { withLink, describeLink } from './measure/link.ts'
+export {
+  loadDevices,
+  registerDevices,
+  probeDevice,
+  laneFor,
+  lanes,
+  reachableUrl,
+  type DeviceDescriptor,
+  type DeviceLane,
+  type DevicePage,
+  type DeviceTransport,
+} from './measure/device.ts'
+export {
+  DEVICE_ENGINES,
+  ENGINE_PROXIES,
+  ENGINES_UNAVAILABLE,
+  LOCAL_ENGINES,
+  launchEngine,
+  type EngineName,
+} from './measure/browser.ts'
 export { externalCandidate } from './candidates/external.ts'
 export { measureSharedDelta } from './measure/shared-delta.ts'

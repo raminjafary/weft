@@ -1,7 +1,8 @@
 import { build, createApp, discover, loadBuild, loadConfig, serveApp } from 'weft/server'
-import { withLatency } from './latency.ts'
+import { describeLink, withLink, type LinkOptions } from './link.ts'
 import { summarize, type Summary } from '../stats.ts'
-import { loadPlaywright, type EngineName, type PageLike } from './browser.ts'
+import { laneDeliversEvents, launchEngine, type EngineName, type PageLike } from './browser.ts'
+import { reachableUrl } from './device.ts'
 
 /**
  * What a link costs, staged against not staged.
@@ -28,8 +29,9 @@ import { loadPlaywright, type EngineName, type PageLike } from './browser.ts'
  *
  * On loopback the two paths differ by a render and a parse, which is real and small. What the
  * staged path actually removes is a round trip, and loopback has no round trip in it — so
- * `--latency` puts one back through the same TCP proxy the streaming axes use. Latency only:
- * no bandwidth, no loss, no congestion control, and the handshake is not delayed either.
+ * `--latency` puts one back through the same TCP proxy the streaming axes use, and `--bandwidth`
+ * and `--loss` put a rate and a hole in it. What is still absent is the handshake, ack clocking,
+ * and every competing flow; all of those make a real link worse than this one.
  */
 export interface NavSample {
   /** Click to the target route being interactive, in milliseconds. */
@@ -51,6 +53,10 @@ export interface NavReport {
   engineVersion: string
   iterations: number
   latencyMs: number
+  bandwidthKbps: number
+  lossPercent: number
+  /** The link these numbers were measured over, in the words the report prints. */
+  link: string
   pairs: NavPair[]
   /** Routes whose layout carries no client runtime, so the two paths have no common clock. */
   skipped: string[]
@@ -68,6 +74,10 @@ export interface NavOptions {
   to?: string[]
   /** Injected round-trip time, in milliseconds. Zero serves the application directly. */
   latencyMs?: number
+  /** Injected link rate, in kilobits per second each way. Zero leaves the link infinitely fast. */
+  bandwidthKbps?: number
+  /** Injected per-packet loss, as a percentage. */
+  lossPercent?: number
 }
 
 interface Driver extends PageLike {
@@ -187,8 +197,15 @@ async function sampled(
 }
 
 export async function measureNavigation(options: NavOptions): Promise<NavReport> {
-  const playwright = await loadPlaywright()
-  if (!playwright) throw new Error('E_NO_PLAYWRIGHT: install playwright to measure navigation')
+  // The documents count is not decoration: it is what separates a staged click from one the
+  // framework handed back to the browser. A lane that cannot deliver the request event cannot
+  // tell those apart, so it refuses rather than reporting a ratio between two unknowns.
+  if (!laneDeliversEvents(options.engine)) {
+    throw new Error(
+      `E_LANE_CANNOT: the ${options.engine} lane cannot deliver browser events, and a staged click is ` +
+        `told from an unstaged one by counting documents. Run this axis on a cdp lane or a desktop engine`,
+    )
+  }
 
   // The build path rather than dev: `weft dev` serves TypeScript with its types stripped, and a
   // navigation measured against unminified modules is a number about this repository's checkout.
@@ -199,10 +216,16 @@ export async function measureNavigation(options: NavOptions): Promise<NavReport>
   const app = await createApp(options.root, { mode: 'start', compiled, port: 0 })
   const serving = await serveApp(app)
   const latencyMs = options.latencyMs ?? 0
-  const proxy = latencyMs > 0 ? await withLatency(serving.url, { rttMs: latencyMs }) : null
-  const origin = proxy?.url ?? serving.url
+  const link: LinkOptions = {
+    rttMs: latencyMs,
+    ...(options.bandwidthKbps ? { kbps: options.bandwidthKbps } : {}),
+    ...(options.lossPercent ? { lossPercent: options.lossPercent } : {}),
+  }
+  const shaped = latencyMs > 0 || Boolean(options.bandwidthKbps) || Boolean(options.lossPercent)
+  const proxy = shaped ? await withLink(serving.url, link) : null
+  const origin = reachableUrl(options.engine, proxy?.url ?? serving.url)
 
-  const browser = await playwright[options.engine].launch()
+  const browser = await launchEngine(options.engine)
   const context = await browser.newContext()
   const page = (await context.newPage()) as Driver
   const documents = { count: 0 }
@@ -213,9 +236,10 @@ export async function measureNavigation(options: NavOptions): Promise<NavReport>
     if (request.resourceType() === 'document') documents.count++
   }) as never)
 
-  // Every wait scales with the injected latency: a page that streams four slow slots pays the
-  // round trip several times over, and a timeout that does not know about it looks like a hang.
-  const timeout = 20_000 + latencyMs * 60
+  // Every wait scales with the injected link: a page that streams four slow slots pays the round
+  // trip several times over, a rate-limited one pays for its bytes as well, and a timeout that
+  // does not know about either looks like a hang.
+  const timeout = 20_000 + latencyMs * 60 + (options.bandwidthKbps ? 60_000 : 0)
 
   try {
     const from = options.from ?? '/'
@@ -262,6 +286,9 @@ export async function measureNavigation(options: NavOptions): Promise<NavReport>
       engineVersion: browser.version(),
       iterations: options.iterations,
       latencyMs,
+      bandwidthKbps: options.bandwidthKbps ?? 0,
+      lossPercent: options.lossPercent ?? 0,
+      link: describeLink(link),
       pairs,
       skipped,
       raced: raced.count,
@@ -277,7 +304,7 @@ export function formatNavigation(report: NavReport): string {
   const lines: string[] = [
     '',
     `  ${report.root} in ${report.engine} ${report.engineVersion}, ${report.iterations} samples each way`,
-    `  ${report.latencyMs > 0 ? `${report.latencyMs} ms injected RTT, latency only` : 'no injected latency: loopback, so the round trip a staged click removes is not in these numbers'}`,
+    `  ${report.latencyMs > 0 || report.bandwidthKbps > 0 || report.lossPercent > 0 ? report.link : 'loopback: the round trip a staged click removes is not in these numbers'}`,
     "  navigation to interactive, on the page's own clock: nav.lastMs staged, readyAt in a new document",
     '',
     `  ${'route'.padEnd(30)}${'staged'.padStart(10)}${'browser'.padStart(11)}${'ratio'.padStart(9)}   documents`,

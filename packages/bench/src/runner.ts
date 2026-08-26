@@ -3,17 +3,27 @@ import type { Candidate } from './candidate.ts'
 import { checkAll, type EquivalenceReport } from './equivalence.ts'
 import { environment, type Environment } from './env.ts'
 import { measureBytes } from './measure/bytes.ts'
-import { ENGINE_PROXIES, loadPlaywright, type EngineName } from './measure/browser.ts'
+import { ENGINE_PROXIES, enginesUnrunnable, type EngineName } from './measure/browser.ts'
+import { laneFor } from './measure/device.ts'
 import { measureClientRuntime } from './measure/client-runtime.ts'
 import { measureRepeatVisit } from './measure/repeat-visit.ts'
 import { measureHttp } from './measure/http.ts'
-import { withLatency } from './measure/latency.ts'
+import { describeLink, withLink, type LinkOptions } from './measure/link.ts'
 import { measureThroughput, opsPerSecond } from './measure/throughput.ts'
 import { compileScenario, compiledFor } from './compiled.ts'
 import { summarize, type Summary } from './stats.ts'
 import { scenario as scenarioById, type Scenario } from './workloads/index.ts'
 
 export type RowStatus = 'measured' | 'unavailable'
+
+/** The shaped link a run's HTTP axes go through, from the flags that describe it. */
+function link(m: Pick<Methodology, 'latencyMs' | 'bandwidthKbps' | 'lossPercent'>): LinkOptions {
+  return {
+    rttMs: m.latencyMs,
+    ...(m.bandwidthKbps ? { kbps: m.bandwidthKbps } : {}),
+    ...(m.lossPercent ? { lossPercent: m.lossPercent } : {}),
+  }
+}
 
 export interface Row {
   axis: string
@@ -33,6 +43,8 @@ export interface Methodology {
   connection: 'warm' | 'cold'
   transport: 'stream' | 'buffered'
   latencyMs: number
+  bandwidthKbps: number
+  lossPercent: number
   batches: number
   opsPerBatch: number
   browserIterations: number
@@ -56,6 +68,8 @@ export interface RunOptions {
   connection?: 'warm' | 'cold'
   transport?: 'stream' | 'buffered'
   latencyMs?: number
+  bandwidthKbps?: number
+  lossPercent?: number
   batches?: number
   opsPerBatch?: number
   browserIterations?: number
@@ -71,6 +85,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
     connection: options.connection ?? 'warm',
     transport: options.transport ?? 'stream',
     latencyMs: options.latencyMs ?? 0,
+    bandwidthKbps: options.bandwidthKbps ?? 0,
+    lossPercent: options.lossPercent ?? 0,
     batches: options.batches ?? 25,
     opsPerBatch: options.opsPerBatch ?? 200,
     browserIterations: options.browserIterations ?? 5,
@@ -107,6 +123,14 @@ export async function run(options: RunOptions): Promise<RunResult> {
       `browser axes ran on ${methodology.engines.join(', ') || 'no engine'}: a single-engine result is not a cross-engine claim`,
     )
   }
+  for (const engine of methodology.engines) {
+    const lane = laneFor(engine)
+    if (!lane) continue
+    warnings.push(
+      `${engine} is a device lane: ${lane.device.label} (${lane.device.id}) over ${lane.device.transport}. ` +
+        `This is a number about that device and no other, and it is not a number about ${engine} as a platform`,
+    )
+  }
   if (methodology.engines.includes('webkit')) {
     warnings.push(
       `webkit stands for ${ENGINE_PROXIES.webkit.standsFor}, but it is not ${ENGINE_PROXIES.webkit.notA}: do not publish a webkit number as an iOS number`,
@@ -117,9 +141,14 @@ export async function run(options: RunOptions): Promise<RunResult> {
       'no injected latency: loopback has no network in it, so an early flush cannot be distinguished from a late one. Run --latency 40 or higher for a shell-TTFB claim',
     )
   }
-  if (methodology.latencyMs > 0) {
+  if (methodology.bandwidthKbps === 0 && axes.some((a) => a.needs === 'http')) {
     warnings.push(
-      `injected ${methodology.latencyMs} ms RTT, latency only: bandwidth, loss, and congestion control are not modelled, and the TCP handshake is not delayed, so a cold-connection number understates a real one`,
+      'no injected bandwidth: the link is infinitely fast, so a byte difference costs nothing here. A bytes-on-the-wire claim needs --bandwidth; 1600 kbps is a slow 3G downlink and 400 kbps is a bad one',
+    )
+  }
+  if (link(methodology).rttMs > 0 || methodology.bandwidthKbps > 0 || methodology.lossPercent > 0) {
+    warnings.push(
+      `injected link: ${describeLink(link(methodology))}. Serialization, slow start (IW10, doubling once per RTT) and in-order loss recovery are modelled. The TCP handshake, congestion avoidance after the first loss, ack clocking, the receive window and competing flows are not — every one of those omissions makes a real link worse than this one, so a number here understates it`,
     )
   }
   if (scenarios.every((s) => !s.slowMs) && axes.some((a) => a.needs === 'http')) {
@@ -264,7 +293,11 @@ async function overHttp(
     ]
   }
   const handle = await candidate.serve(scenario, { transport: m.transport })
-  const proxy = m.latencyMs > 0 ? await withLatency(handle.url, { rttMs: m.latencyMs }) : null
+  const shaped = link(m)
+  const proxy =
+    shaped.rttMs > 0 || (shaped.kbps ?? 0) > 0 || (shaped.lossPercent ?? 0) > 0
+      ? await withLink(handle.url, shaped)
+      : null
   try {
     const samples = await measureHttp(proxy?.url ?? handle.url, {
       iterations: m.iterations,
@@ -286,6 +319,8 @@ async function overHttp(
           connection: m.connection,
           transport: m.transport,
           rtt: m.latencyMs,
+          ...(m.bandwidthKbps ? { kbps: m.bandwidthKbps } : {}),
+          ...(m.lossPercent ? { lossPercent: m.lossPercent } : {}),
           ...(scenario.slowMs ? { queryMs: scenario.slowMs } : {}),
         },
       },
@@ -313,11 +348,8 @@ async function inBrowser(
         ),
       ]
     }
-    if (!(await loadPlaywright())) {
-      return [
-        unavailable(axis, scenario, candidate, 'playwright is not installed: browser axes were not run'),
-      ]
-    }
+    const unrunnable = await enginesUnrunnable(m.engines)
+    if (unrunnable) return [unavailable(axis, scenario, candidate, unrunnable)]
 
     const out: Row[] = []
     for (const engine of m.engines) {
@@ -376,11 +408,8 @@ async function inBrowser(
         ),
       ]
     }
-    if (!(await loadPlaywright())) {
-      return [
-        unavailable(axis, scenario, candidate, 'playwright is not installed: browser axes were not run'),
-      ]
-    }
+    const unrunnable = await enginesUnrunnable(m.engines)
+    if (unrunnable) return [unavailable(axis, scenario, candidate, unrunnable)]
 
     const wanted: Record<string, string[]> = {
       'client-work': ['parse', 'delta', 'patch'],

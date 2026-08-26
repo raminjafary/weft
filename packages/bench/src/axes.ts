@@ -35,7 +35,7 @@ export const AXES: Axis[] = [
     expectation: 'beat',
     budget: { value: 15, statistic: 'p50', note: 'warm shell cache' },
     caveat:
-      'Without --latency this measures server work only, and loopback has no network in it. A shell-TTFB claim needs injected RTT and a scenario whose data is genuinely slow, because the question is whether the shell is downstream of the query, not how fast the renderer is.',
+      'Without --latency this measures server work only, and loopback has no network in it. A shell-TTFB claim needs injected RTT and a scenario whose data is genuinely slow, because the question is whether the shell is downstream of the query, not how fast the renderer is. --bandwidth adds the term that makes a byte difference cost time; without it the link is infinitely fast and a smaller response arrives no sooner.',
   },
   {
     id: 'server-throughput',
@@ -71,7 +71,7 @@ export const AXES: Axis[] = [
     gap: 'The delta form sends changed values only, computed once and shared across every client making the same transition.',
     expectation: 'beat',
     caveat:
-      'Payload size only. It does not price the server-side base-render recovery a delta needs, which is where LiveView pays with a stateful process per connection.',
+      'Payload size only. It does not price the server-side base-render recovery a delta needs, which is where LiveView pays with a stateful process per connection. Nor does it say what those bytes cost in time: that is the shell-TTFB axis under --bandwidth, where serialization and slow start turn a byte difference into a millisecond one.',
   },
   {
     id: 'client-work',

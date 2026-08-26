@@ -47,7 +47,7 @@ works in Chromium, Firefox and WebKit — see
 [the streaming spec](../kernel/streaming.md). That removes the desktop half of the risk and
 none of the device half.
 
-Three things need real devices and are therefore out of the harness's reach today:
+Three things need real devices:
 
 1. Whether incremental DSD parsing works on a given iOS version, on a device.
 2. What a host app's request interception does to first-byte timing.
@@ -56,3 +56,54 @@ Three things need real devices and are therefore out of the harness's reach toda
 The harness covers what it can: the buffered-transport mode reproduces the _shape_ of an
 intercepted request, per-engine numbers are never aggregated, and the storage tier that
 the repeat-visit axis depends on is stated with the result.
+
+## The device lane
+
+`--engines ios` and `--engines android` are real engine names, and they refuse by name until
+`--devices` points at hardware. What was missing was not only the hardware: there was no way to
+point the harness at a device even if you had one. There is now, and it is config.
+
+```sh
+node packages/bench/src/cli.ts devices --devices devices.json
+```
+
+`devices.json` is an array of descriptors, one per engine name — two devices claiming `ios` is
+refused, because a number aggregated over two phones is not a number about either.
+
+| Field          | Meaning                                                                              |
+| -------------- | ------------------------------------------------------------------------------------ |
+| `id`, `label`  | Printed with every result. An unlabelled device is refused: the label _is_ the claim |
+| `engine`       | Which `--engines` name this device answers to: `ios` or `android`                    |
+| `transport`    | `cdp` or `webdriver`                                                                 |
+| `endpoint`     | Where the driver listens                                                             |
+| `capabilities` | W3C capabilities, merged into `alwaysMatch`. WebDriver only                          |
+| `context`      | The Appium context to switch into, typically `WEBVIEW_1`. WebDriver only             |
+| `reachHost`    | The host the _device_ uses to reach this machine. Absent means loopback              |
+
+Two transports, because the platforms differ:
+
+- **`cdp`** — Android WebView, and remote Chrome. `adb forward tcp:9222
+localabstract:webview_devtools_remote_<pid>` exposes the DevTools socket, and Playwright's
+  `connectOverCDP` drives it with the full API. Every axis works unchanged.
+- **`webdriver`** — WKWebView on iOS, through Appium and the XCUITest driver. There is no CDP on
+  that platform and Playwright cannot reach it, so this is a plain W3C client: navigate, evaluate,
+  wait, click, hover. It has no event stream, because the protocol has none.
+
+That last sentence is a gate rather than a footnote. The navigation axis tells a staged click from
+one handed back to the browser by counting documents, and the channel axis reports page errors as
+checks — neither is observable over W3C WebDriver, so both refuse with `E_LANE_CANNOT` on a
+webdriver lane instead of reporting a number with a hole in it. A W3C session is also the only
+isolation the protocol offers, so a fresh context on that lane is a fresh app launch: an axis that
+opens a context per iteration is slow there, which is information about the lane.
+
+Every measurement here serves on this machine's loopback and then tells a browser to go there. On a
+phone, loopback is the phone. So the lane needs a reverse tunnel — `adb reverse tcp:P tcp:P` for
+Android, an SSH reverse tunnel or the emulator's `10.0.2.2` alias otherwise — and `reachHost` is
+where that is declared. The `devices` command prints what each lane assumes, and probes the driver,
+so a misconfiguration fails as `DOWN` before a measurement starts rather than as a connection
+refused inside one.
+
+What the lane does not do is make a claim. A device engine's row in the proxy table stands for
+itself and nothing else: `ios` is the one phone it was pointed at, named in the report, and not a
+statement about iOS. The three questions above become answerable on a device; they do not become
+answered by the existence of the lane.

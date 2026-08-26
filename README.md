@@ -11,7 +11,7 @@ edited — [`spec/FINDINGS.md`](spec/FINDINGS.md) is the claim-by-claim ledger.
 ```sh
 pnpm install
 pnpm build      # ten packages, in dependency order
-pnpm demo       # five shapes of page       :4173
+pnpm demo       # six shapes of page        :4173
 pnpm inspect    # every mechanism, running  :4180
 ```
 
@@ -394,11 +394,21 @@ node packages/bench/src/cli.ts verify     # every wire form must agree
 node packages/bench/src/cli.ts budget     # every entry against its ceiling
 node packages/bench/src/cli.ts client     # adopt and patch, in three engines
 node packages/bench/src/cli.ts slots      # both stream orders, and the shadow-DOM probe
+node packages/bench/src/cli.ts devices    # the device lane, and whether each driver answers
 node packages/bench/src/cli.ts nav --latency 100
 node packages/bench/src/cli.ts run --axes shell-ttfb --scenarios slow-feed \
-  --latency 40 --external benchmarks/rr7/candidates.json   # the gate, against RR7
+  --latency 40 --bandwidth 1600 --external benchmarks/rr7/candidates.json  # the gate, against RR7
 node --test packages/*/test/*.test.ts demo/test/*.test.ts  # conformance
 ```
+
+`--latency` puts a round trip in front of loopback; `--bandwidth` and `--loss` put a rate and a hole
+in it, so a byte difference costs time rather than nothing. The model is serialization, slow start
+and in-order loss recovery — every omission (the handshake, ack clocking, competing flows) makes a
+real link worse than the modelled one, which the report states with the numbers.
+
+`--engines ios` and `--engines android` are real names that refuse until `--devices` points at
+hardware: Android over CDP through `adb forward`, iOS over W3C WebDriver through Appium. The
+measurement needs a device; the lane is config.
 
 Third-party candidates are configured, never vendored: `--external` spawns another framework's app
 and measures it over HTTP on the same axes.
