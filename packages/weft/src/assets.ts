@@ -25,12 +25,19 @@ export interface Asset {
   immutable: boolean
 }
 
+/** The client modules a page pulls in, walked from its boot module. */
 export interface ModuleTree {
   dir: string
   /** `.ts` means the source still has its types and they are stripped on the way out. */
   ext: '.js' | '.ts'
 }
 
+/**
+ * Every URL the browser will fetch, and the digest that makes it immutable.
+ *
+ * Built after the generator has said which stylesheets each page links, because an href carries a
+ * hash of the bundle's contents — so there is one late binding here rather than an unrevved URL.
+ */
 export interface AssetTable {
   /** Everything served verbatim, by path. */
   files: Map<string, Asset>
@@ -58,10 +65,17 @@ const CSS_ROOT = '/_weft/a'
 const PUBLIC_ROOT = '/_weft/p'
 const IMMUTABLE = 'public, max-age=31536000, immutable'
 
+/**
+ * A year and immutable for a digest-bearing URL, `no-store` for a stable one.
+ *
+ * `weft dev` serves the same bytes at stable names, because a stylesheet you just edited served as
+ * immutable is a framework that lies to you for a year.
+ */
 export function cacheControlFor(asset: Asset): string {
   return asset.immutable ? IMMUTABLE : 'no-store'
 }
 
+/** A route pattern as a filename component, so a per-route bundle has a readable name. */
 export function slugOf(pattern: string): string {
   return (
     pattern
@@ -97,6 +111,7 @@ function digestOf(body: string | Uint8Array): string {
   return short(fastHash(typeof body === 'string' ? body : Buffer.from(body).toString('base64')), 10)
 }
 
+/** A content type from an extension. Unknown extensions are octet-stream rather than guessed. */
 export function typeOf(path: string): string {
   return TYPES[extname(path).toLowerCase()] ?? 'application/octet-stream'
 }
@@ -128,6 +143,7 @@ async function treeDigest(trees: readonly ModuleTree[]): Promise<string> {
   return short(fastHash(parts.join(' ')), 10)
 }
 
+/** What the asset build needs: what each route links, and where the framework's own files are. */
 export interface AssetInput {
   /**
    * One bundle per route: the framework's stylesheet, the application's, the layout's, and the
@@ -150,6 +166,7 @@ export interface AssetInput {
   revved: boolean
 }
 
+/** Bundle the stylesheets, walk the modules, and rev every URL by its own contents. */
 export async function buildAssets(input: AssetInput): Promise<AssetTable> {
   const files = new Map<string, Asset>()
   const trees = new Map<string, ModuleTree>()
@@ -242,6 +259,7 @@ export function browserModule(
     .replace(/(['"])@weft\/warp\1/g, `'${root}/warp/index${extOf('warp')}'`)
 }
 
+/** Whether the path is a directory. False for anything that cannot be read, including absent. */
 export async function isDirectory(path: string): Promise<boolean> {
   try {
     return (await stat(path)).isDirectory()

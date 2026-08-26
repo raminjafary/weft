@@ -57,6 +57,12 @@ import {
  */
 export type ChannelBinding = 'stream' | 'sse' | 'socket'
 
+/**
+ * The transport underneath a channel, whichever of the three bindings it is.
+ *
+ * `saturated` is the field that matters: a sink that never reports it makes a slow consumer look
+ * like a fast one right up to the point where the process runs out of memory holding frames.
+ */
 export interface ChannelSink {
   readonly binding: ChannelBinding
   /** False once the peer has gone. Sending to a closed sink is dropped and reported, never thrown. */
@@ -82,6 +88,7 @@ export interface SlotRender {
   fallback?: WireForm
 }
 
+/** A region asked for over the channel, with the epoch it is being staged into. */
 export interface SlotRequest {
   slot: string
   channel: Channel
@@ -117,6 +124,7 @@ export interface SlotFrames {
   also?: readonly Frame[]
 }
 
+/** How the hub reaches a region's renderer. The channel has no request, so this is supplied. */
 export type SlotSource = (
   request: SlotRequest,
 ) => Promise<SlotRender | SlotFrames | null> | SlotRender | SlotFrames | null
@@ -130,8 +138,10 @@ export interface WarmRequest {
   channel: Channel
 }
 
+/** What answers a `WARM` grain the hub does not handle itself. Templates are the one it does. */
 export type WarmHandler = (request: WarmRequest) => Promise<Frame[]>
 
+/** One connection's state: what it negotiated, what it holds, and where it last committed. */
 export interface Channel {
   readonly id: string
   readonly binding: ChannelBinding
@@ -150,6 +160,7 @@ export interface Channel {
   close(reason?: string): void
 }
 
+/** What a hub needs, and what each absent capability refuses by name rather than dropping. */
 export interface HubOptions {
   store: StorePort
   source: SlotSource
@@ -213,6 +224,13 @@ export interface HubOptions {
   telemetry?: TelemetryPort
 }
 
+/**
+ * Every open channel, and the frames that pass through them.
+ *
+ * Rebinding an existing id is what resumption is: a webview that was frozen and evicted reconnects
+ * and keeps the base renders it was known to hold, so the server continues rather than treating it
+ * as a first visit.
+ */
 export interface ChannelHub {
   /**
    * Open a channel, or rebind an existing one. Rebinding is what resumption is: a webview
@@ -256,6 +274,7 @@ export interface ChannelHub {
   readonly stale: StaleRegistry
 }
 
+/** A hub over the ports and handlers a deployment bound. */
 export function createHub(options: HubOptions): ChannelHub {
   const stale = createStaleRegistry()
   const live = new Map<string, ChannelRecord>()
@@ -674,6 +693,7 @@ export function serverCapabilities(overrides: Partial<ServerCapabilities> = {}):
   return { warp: WARP_VERSION, ir: TEMPLATE_IR_VERSION, forms: [...WARP_FORMS], ...overrides }
 }
 
+/** A channel refusal, carrying the code — which is also what goes into an ERROR frame. */
 export class ChannelError extends Error {
   code: string
 
@@ -686,6 +706,7 @@ export class ChannelError extends Error {
 
 const utf8 = new TextEncoder()
 
+/** A refusal as a frame. A stage that silently did nothing is indistinguishable from one that worked. */
 export function errorFrame(code: string, detail: string): Frame {
   return frame('ERROR', { code, detail })
 }

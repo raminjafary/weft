@@ -440,6 +440,7 @@ export function likelyNext(profile: Profile): Record<string, string[]> {
   return out
 }
 
+/** Write the recording out. Called on the way down, so a killed process loses only the tail. */
 export async function writeProfile(root: string, outDir: string, profile: Profile): Promise<string> {
   const path = join(root, outDir, PROFILE_FILE)
   await mkdir(dirname(path), { recursive: true })
@@ -475,6 +476,7 @@ export function ageOf(profile: Profile, now = Date.now()): string {
   return `${Math.round(hours / 24)} days ago`
 }
 
+/** The recording as `weft profile` prints it: what was seen, what it decided, what it refused to. */
 export function formatProfile(profile: Profile, decisions: Decisions): string {
   const lines: string[] = [
     '',

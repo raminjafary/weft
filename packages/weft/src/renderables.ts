@@ -32,6 +32,7 @@ export type RenderableLoad<I> = (
   params: I,
 ) => Values | Promise<Values> | Record<string, unknown> | Promise<Record<string, unknown>>
 
+/** A fragment a client may ask for by opaque id, and the gates that ask applies. */
 export interface RenderableDeclaration<I = unknown> {
   /** Human-readable, for a log and for the build report. Never on the wire. */
   name: string
@@ -67,6 +68,7 @@ export function defineRenderable<I>(declaration: RenderableDeclaration<I>): Rend
   return declaration
 }
 
+/** One entry: its id, what renders it, and what a caller must hold to ask for it. */
 export interface CatalogueEntry {
   module: string
   export: string
@@ -80,6 +82,13 @@ export interface CatalogueEntry {
   limit?: IntentLimit
 }
 
+/**
+ * The closed set of fragments a browser may name.
+ *
+ * Closed on purpose: an id that resolves to nothing is a refusal, so a client cannot reach a
+ * fragment somebody forgot was reachable. The ids are derived the same way an intent's are, so the
+ * wire never carries a function name.
+ */
 export interface Catalogue {
   entries: CatalogueEntry[]
   /** By opaque id, which is what the registry answers with. */
@@ -97,6 +106,7 @@ function looksLikeRenderable(value: unknown): value is RenderableDeclaration {
   )
 }
 
+/** A catalogue refusal — a duplicate id, an unreadable module, a declaration with no fragment. */
 export class CatalogueError extends Error {
   code: string
 
@@ -107,6 +117,7 @@ export class CatalogueError extends Error {
   }
 }
 
+/** Where the catalogue comes from: the `renderables/` directory, and what checks a request. */
 export interface CatalogueOptions {
   root: string
   files: readonly string[]
@@ -117,6 +128,7 @@ export interface CatalogueOptions {
   moduleIdOf(file: string): string
 }
 
+/** Load `app/renderables/**` into a closed set, refusing a collision rather than picking one. */
 export async function loadCatalogue(options: CatalogueOptions): Promise<Catalogue> {
   const entries: CatalogueEntry[] = []
   const byId = new Map<string, Renderable>()

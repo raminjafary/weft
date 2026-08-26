@@ -19,6 +19,7 @@
  */
 export type StageState = 'none' | 'fetching' | 'ready' | 'failed'
 
+/** What staging needs: how to fetch a route, and how much to keep. */
 export interface StagingOptions<T> {
   /**
    * Fetch the route's answer. Given an `AbortSignal` because a staged route that is evicted,
@@ -58,12 +59,19 @@ interface Entry<T> {
   abort: AbortController
 }
 
+/** A staged route being taken: the value, and whether it was ready before the click. */
 export interface Claimed<T> {
   value: T | null
   /** `staged` was already resolved, `awaited` had to wait for it, `cold` was never staged. */
   how: 'staged' | 'awaited' | 'cold'
 }
 
+/**
+ * Routes fetched and painted nowhere.
+ *
+ * An epoch one level up: an epoch stages values into the slots of the page you are on, and this
+ * stages a whole page. Keyed by URL, capped, and claimed by a click.
+ */
 export interface Staging<T> {
   /** Begin staging, or join the staging already in flight for this URL. Paints nothing. */
   stage(url: string): Promise<T | null>
@@ -84,11 +92,13 @@ export interface Staging<T> {
   readonly cold: number
 }
 
+/** How many routes are held staged, and for how long. A staged route nobody clicks is memory. */
 export const DEFAULT_STAGING: Required<Pick<StagingOptions<unknown>, 'max' | 'ttlMs'>> = {
   max: 4,
   ttlMs: 30_000,
 }
 
+/** A staging table. Nothing here touches the DOM; a claim is what a caller paints. */
 export function createStaging<T>(options: StagingOptions<T>): Staging<T> {
   const max = options.max ?? DEFAULT_STAGING.max
   const ttlMs = options.ttlMs ?? DEFAULT_STAGING.ttlMs
@@ -210,6 +220,7 @@ export function createStaging<T>(options: StagingOptions<T>): Staging<T> {
   }
 }
 
+/** What a link is, reduced to what decides whether the framework may answer the click. */
 export interface LinkFacts {
   href: string
   /** `target`, `rel` and `download` as the markup wrote them. A link that says it leaves is left. */
@@ -218,6 +229,7 @@ export interface LinkFacts {
   download?: boolean
 }
 
+/** What a click is: the modifiers that mean the reader asked the browser, not this framework. */
 export interface ClickFacts {
   /** True for anything but a plain primary click: the reader is asking for a tab, not a page. */
   modified?: boolean
@@ -307,6 +319,7 @@ function header(
   return value === undefined ? undefined : String(value)
 }
 
+/** The frames a staged navigation sends: what to stage, and what the client already holds. */
 export function navFrames(
   onNav?: (nav: StagedNav) => void,
 ): (

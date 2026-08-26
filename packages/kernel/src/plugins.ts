@@ -17,6 +17,7 @@ import type { EnvelopeContext } from './context.ts'
  */
 export type PluginResidency = 'server' | 'client' | 'both' | 'build'
 
+/** What one plugin did: what it provided, and whether it ended the request. */
 export interface PluginResult {
   /** Values contributed to the context. Keys must be declared in `provides`. */
   provided?: Record<string, unknown>
@@ -24,6 +25,12 @@ export interface PluginResult {
   response?: Response
 }
 
+/**
+ * Something that extends a request without replacing anything.
+ *
+ * Ordering is *inferred* from what a plugin declares it reads and provides, so a cycle or an
+ * ambiguity is a build error rather than a race. What no plugin may do is write a cache key.
+ */
 export interface Plugin {
   name: string
   /** `filter` runs sequentially in phase A and may end the request; `enricher` runs in parallel waves. */
@@ -59,6 +66,7 @@ export interface Plugin {
   ): Promise<PluginResult | void> | PluginResult | void
 }
 
+/** A plugin refusal, including the build-time ones: a cycle and an ambiguity are both this. */
 export class PluginError extends Error {
   code: string
   plugin: string
@@ -71,10 +79,12 @@ export class PluginError extends Error {
   }
 }
 
+/** An identity function that exists for the types: it is what makes the declarations checkable. */
 export function definePlugin(plugin: Plugin): Plugin {
   return plugin
 }
 
+/** A resolved order. Produced once at build time, because ordering is not a per-request question. */
 export interface PluginSchedule {
   /** Filters, in declared dependency order. Sequential, because short-circuiting requires sequence. */
   filters: Plugin[]
@@ -90,6 +100,7 @@ export interface PluginSchedule {
  */
 export type ReadGuard = (plugin: Plugin, ctx: EnvelopeContext) => EnvelopeContext
 
+/** What the whole schedule did, and the response if one of them produced it. */
 export interface PluginRunResult {
   provided: Record<string, unknown>
   /** Set when a filter ended the request. */
@@ -99,6 +110,7 @@ export interface PluginRunResult {
   axes: Record<string, string[]>
 }
 
+/** Run a schedule against one request, stopping at the first plugin that answers. */
 export async function runPlugins(
   schedule: PluginSchedule,
   ctx: EnvelopeContext,

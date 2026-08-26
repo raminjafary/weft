@@ -34,6 +34,7 @@ function fromBase64(b64: string): Uint8Array {
   return out
 }
 
+/** A sealed template as JSON: segments base64, everything else as written. */
 export interface SerializedTemplate {
   spec: string
   irVersion: string
@@ -51,6 +52,7 @@ export interface SerializedTemplate {
   [k: string]: Json | undefined
 }
 
+/** A template as a plain object. `forward` carries fields a newer reader added, unchanged. */
 export function toJSON(ir: TemplateIR, forward: Record<string, Json> = {}): SerializedTemplate {
   return {
     ...forward,
@@ -70,6 +72,7 @@ export function toJSON(ir: TemplateIR, forward: Record<string, Json> = {}): Seri
   }
 }
 
+/** A parsed document, plus how it was accepted — exact, migrated, or read forward. */
 export interface ParseResult {
   ir: TemplateIR
   /** Fields a newer minor added. Kept so a re-emit does not silently drop them. */
@@ -78,6 +81,7 @@ export interface ParseResult {
   mode: 'exact' | 'upgrade' | 'forward'
 }
 
+/** A plain object back to a template, applying whatever migrations the version needs. */
 export function fromJSON(input: unknown): ParseResult {
   if (typeof input !== 'object' || input === null) {
     throw new Error(`E_NOT_A_DOCUMENT: a sealed template is an object, not ${typeof input}`)
@@ -131,10 +135,12 @@ export function fromJSON(input: unknown): ParseResult {
   return { ir, forward, migrationsApplied: applied, mode: acc.mode }
 }
 
+/** A template as text. Keys are ordered, so the same template is always the same bytes. */
 export function stringify(ir: TemplateIR, forward?: Record<string, Json>): string {
   return JSON.stringify(toJSON(ir, forward), null, 2)
 }
 
+/** Text back to a template. */
 export function parse(text: string): ParseResult {
   return fromJSON(JSON.parse(text))
 }
@@ -156,6 +162,12 @@ export interface ClientView {
   derived: DerivedDecl[]
 }
 
+/**
+ * The template as a client needs it, and no more.
+ *
+ * Effects, provenance and the build's own metadata stay on the server: a client that received the
+ * read set would be receiving a description of the server's cache keys.
+ */
 export function clientView(ir: TemplateIR): ClientView {
   return { version: ir.version, holes: ir.holes, wiring: ir.wiring, derived: ir.derived }
 }

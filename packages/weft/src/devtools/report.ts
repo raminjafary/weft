@@ -87,6 +87,7 @@ function markupBytes(app: App, ids: readonly string[]): number {
   return total
 }
 
+/** One slot as the devtools table shows it: what renders it, how it arrives, what keys it. */
 export interface SlotRow {
   /** Placement, as the generated plan states it. */
   spec: SlotSpec
@@ -96,6 +97,7 @@ export interface SlotRow {
   file?: string
 }
 
+/** One live region: what it holds and what may be done to it over the channel. */
 export interface LiveRow {
   slot: string
   /** The key the framework records the base render under. Not a store entry an intent can name. */
@@ -104,6 +106,7 @@ export interface LiveRow {
   file: string
 }
 
+/** One route, as generated: its slots, its document, and whether it became a file. */
 export interface RouteReport {
   pattern: string
   plan: Plan
@@ -117,6 +120,7 @@ export interface RouteReport {
   markupBytes: number
 }
 
+/** Every route, from the running application rather than from a second derivation. */
 export function routeReport(app: App): RouteReport[] {
   const facts = factsOf(app)
   const byId = byCompilerId(app)
@@ -152,6 +156,7 @@ export function routeReport(app: App): RouteReport[] {
   })
 }
 
+/** One compiled fragment: its holes, its reads, its escape decisions, its version. */
 export interface FragmentReport {
   /** The logical name: `layout`, `route:/blog/:slug`, `fragment:card`. */
   name: string
@@ -171,6 +176,7 @@ export interface FragmentReport {
   bytes: number
 }
 
+/** Every compiled fragment, read out of the table the renderer itself uses. */
 export function fragmentReport(app: App): FragmentReport[] {
   return Object.entries(app.compiled.fragments).map(([name, fragment]) => ({
     name,
@@ -189,6 +195,7 @@ export function fragmentReport(app: App): FragmentReport[] {
   }))
 }
 
+/** One asset the browser will fetch, its size, and what it will be told about caching it. */
 export interface AssetRow {
   href: string
   bytes: number
@@ -208,6 +215,7 @@ export interface TreeRow {
   files: number
 }
 
+/** What a page downloads, walked and compressed the way it actually arrives. */
 export interface ByteReport {
   /** False in dev, where a URL carries no digest and therefore cannot be cached at all. */
   revved: boolean
@@ -224,6 +232,7 @@ export interface ByteReport {
   }[]
 }
 
+/** What a reader downloads: the modules walked, and each one compressed as it would ship. */
 export async function byteReport(app: App): Promise<ByteReport> {
   const assets: AssetRow[] = [...app.assets.files]
     .map(([href, asset]) => ({
@@ -280,6 +289,7 @@ function concrete(pattern: string, params: Record<string, string>): string {
   return path || '/'
 }
 
+/** One route's whole story, for the page that answers "why is this page like this". */
 export interface WhyPage {
   pattern: string
   plan: Plan

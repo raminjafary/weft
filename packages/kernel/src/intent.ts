@@ -35,6 +35,7 @@ export class IntentError extends Error {
   }
 }
 
+/** What an intent runs against: the envelope, still open, plus the one thing a render cannot do. */
 export interface IntentContext extends EnvelopeContext {
   readonly phase: 'envelope'
   /**
@@ -46,6 +47,7 @@ export interface IntentContext extends EnvelopeContext {
   invalidated(): string[]
 }
 
+/** The outcome plus everything the dispatch decided: the refusal, the status, the tags. */
 export interface IntentResult {
   /** Slots whose content this mutation is expected to have changed. Refreshed under the epoch. */
   refresh?: string[]
@@ -53,6 +55,13 @@ export interface IntentResult {
   data?: unknown
 }
 
+/**
+ * A mutation, and the only thing in this framework allowed to write.
+ *
+ * `writes` is the complete set of tags it may invalidate and an undeclared one throws — not in dev
+ * only, because an undeclared read is a missed optimisation and an undeclared write is a cache
+ * invalidation nobody can predict by reading the code.
+ */
 export interface Intent<I = unknown> {
   /** Human-readable, for logs and `weft why`. Never on the wire. */
   name: string
@@ -88,6 +97,7 @@ export interface Intent<I = unknown> {
   run(ctx: IntentContext, input: I): Promise<IntentResult | void> | IntentResult | void
 }
 
+/** An identity function that exists for the types: it is what makes `writes` checkable. */
 export function defineIntent<I>(intent: Intent<I>): Intent<I> {
   return intent
 }
@@ -101,6 +111,7 @@ export type CapabilityCheck = (
   capabilities: readonly string[],
 ) => Promise<boolean> | boolean
 
+/** What a dispatch needs: the closed set of intents, and the gates every call passes. */
 export interface IntentDispatchOptions {
   registry: Registry
   store: StorePort
@@ -130,11 +141,13 @@ export interface IntentCredentials {
   token?: string
 }
 
+/** Runs one intent by its opaque id, having checked who may. */
 export interface IntentDispatch {
   /** The intent, its outcome, and what it invalidated. Never a Response — that is the caller's. */
   run(id: string, raw: unknown, ctx: EnvelopeContext, credentials?: IntentCredentials): Promise<IntentOutcome>
 }
 
+/** What the intent itself returned, and what it invalidated on the way. */
 export interface IntentOutcome {
   ok: boolean
   id: string
@@ -158,6 +171,7 @@ export interface IntentOutcome {
   data?: unknown
 }
 
+/** A dispatch over a closed set. An id nothing answers is `E_NO_SUCH_INTENT`, never a 500. */
 export function createIntentDispatch(options: IntentDispatchOptions): IntentDispatch {
   return {
     async run(id, raw, base, credentials) {

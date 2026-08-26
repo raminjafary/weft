@@ -39,17 +39,20 @@ export interface SlotFacts {
   nestedCount?: number
 }
 
+/** One problem with a plan: its code, the slot it is about, and a sentence. */
 export interface Issue {
   code: string
   slot?: string
   message: string
 }
 
+/** Everything wrong with a plan, split by whether it stops the build. */
 export interface Diagnostics {
   errors: Issue[]
   warnings: Issue[]
 }
 
+/** What a plan is checked against: the compiler's facts, and what the deployment bound. */
 export interface ValidateContext {
   facts: Record<string, SlotFacts>
   /** Executor names the deployment actually binds. `inline` and `client` always exist. */
@@ -68,6 +71,7 @@ export interface ValidateContext {
 const EXECUTOR_PREFIXES = ['pool:', 'binding:', 'svc:']
 const BARE_EXECUTORS = new Set(['inline', 'client', 'isolate'])
 
+/** Every rule, against one plan. Returns what it found rather than throwing, so a report can print it. */
 export function validatePlan(plan: Plan, context: ValidateContext): Diagnostics {
   const errors: Issue[] = []
   const warnings: Issue[] = []
@@ -229,6 +233,7 @@ export interface HopCount {
   hops: number
 }
 
+/** How many tier boundaries this page crosses. The answer to "how much latency", not "made of what". */
 export function hopsOf(plan: Plan): HopCount {
   const regions = plan.slots.filter((s) => s.region)
   const remote = regions.filter((s) => s.region?.locus === 'remote')
@@ -495,6 +500,7 @@ function checkExecutor(spec: SlotSpec, context: ValidateContext, errors: Issue[]
  */
 export type RenderLocus = 'process' | 'client' | 'remote'
 
+/** Where an executor target runs: this thread, a deferred slice, a pool, or another deployment. */
 export function locusOf(target: string): RenderLocus {
   if (target === 'client') return 'client'
   if (target.startsWith('binding:') || target.startsWith('svc:')) return 'remote'
@@ -671,6 +677,7 @@ function checkIncremental(spec: SlotSpec, facts: SlotFacts, warnings: Issue[]): 
   }
 }
 
+/** The same rules, as a gate. Throws `E_PLAN_INVALID` with a line per error. */
 export function assertPlan(plan: Plan, context: ValidateContext): Plan {
   const { errors } = validatePlan(plan, context)
   if (errors.length) {

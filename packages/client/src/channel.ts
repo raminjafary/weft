@@ -20,12 +20,14 @@ import type { ClientTemplate, Json } from './template.ts'
  */
 export type FrameKindText = string
 
+/** A frame as the client sees it: the kind, its header, and an already-decoded body. */
 export interface ChannelFrame {
   kind: FrameKindText
   header: Record<string, string | number | boolean>
   body?: Uint8Array
 }
 
+/** One live region on this page: what it holds, and what it will accept next. */
 export interface Region {
   slot: string
   adopted: Adopted
@@ -33,6 +35,7 @@ export interface Region {
   base: string
 }
 
+/** What the runtime needs to route frames into regions: the regions, and where to apply them. */
 export interface ChannelClientOptions {
   epochs: Epochs
   /** Regions this client is holding, by slot name. */
@@ -61,6 +64,7 @@ export interface ChannelClientOptions {
   onCommit?(epoch: string, slots: string[]): void
 }
 
+/** The outcome of an intent this client sent, and whether its epoch survives. */
 export interface Acked {
   intent: string
   ok: boolean
@@ -69,6 +73,7 @@ export interface Acked {
   detail?: string
 }
 
+/** What an arriving frame did to the page — which region, which form, how long. */
 export interface Applied {
   /** DOM writes actually performed. A staged frame performs none, which is the point. */
   writes: number
@@ -96,6 +101,12 @@ function text(frame: ChannelFrame, key: string): string | undefined {
   return value === undefined ? undefined : String(value)
 }
 
+/**
+ * The client half of the protocol, and deliberately not a transport.
+ *
+ * It takes frames rather than a URL, so one code path serves a socket, an event stream with posts
+ * up, and a test. Opening a connection is the front door's job.
+ */
 export interface ChannelClient {
   apply(frames: readonly ChannelFrame[]): Promise<Applied>
   /**
@@ -123,12 +134,14 @@ export interface ChannelClient {
   stage(epoch: string, slot: string, changed: Record<string, Json>): void
 }
 
+/** What to stage while an intent is in flight, and under which epoch. */
 export interface OptimisticOptions {
   epoch?: string
   /** The client's guess, per slot: the values it expects the mutation to produce. */
   optimistic?: Record<string, Record<string, Json>>
 }
 
+/** A client over a set of regions. Frames in, applied updates out. */
 export function createChannelClient(options: ChannelClientOptions): ChannelClient {
   const byName = (): Map<string, Region> => new Map(options.regions().map((r) => [r.slot, r]))
 

@@ -35,6 +35,7 @@ import type { TelemetryPort } from './ports.ts'
  */
 export type Grant = string
 
+/** What a caller holds, as the grant source answered. */
 export interface Grants {
   /** Who this is, for the audit line. Null for a caller with no session. */
   subject: string | null
@@ -52,6 +53,7 @@ export interface Grants {
  */
 export type GrantSource = (ctx: EnvelopeContext) => Promise<Grants> | Grants
 
+/** Whether the call is allowed, what it needed, what it held, and what was missing. */
 export interface Decision {
   allowed: boolean
   subject: string | null
@@ -64,6 +66,7 @@ export interface Decision {
   code?: string
 }
 
+/** Where grants come from, and what every caller holds without asking. */
 export interface CapabilityOptions {
   grants: GrantSource
   /**
@@ -82,6 +85,7 @@ export interface CapabilityOptions {
   telemetry?: TelemetryPort
 }
 
+/** An authority refusal, carrying the code so the HTTP status can be derived from it. */
 export class AuthorityError extends Error {
   code: string
 
@@ -127,6 +131,7 @@ function assertUsable(grants: readonly Grant[], where: string): void {
   }
 }
 
+/** Answers whether a caller may run an intent. An unchecked capability is refused, not allowed. */
 export interface CapabilityModel {
   /** The `CapabilityCheck` the intent dispatch takes. */
   readonly check: CapabilityCheck
@@ -138,6 +143,7 @@ export interface CapabilityModel {
 
 const RECENT = 50
 
+/** A model over a grant source. A source that is down is a refusal about the source, not the subject. */
 export function createCapabilityModel(options: CapabilityOptions): CapabilityModel {
   const ambient = [...(options.ambient ?? [])]
   assertUsable(ambient, 'ambient')
@@ -214,6 +220,7 @@ export interface RoleGrantOptions {
   anonymous?: string
 }
 
+/** Grants by role, which is the smallest source that is not a stub. */
 export function roleGrants(options: RoleGrantOptions): GrantSource {
   for (const [role, grants] of Object.entries(options.table)) assertUsable(grants, `role '${role}'`)
   const anonymous = options.anonymous ?? 'anonymous'
