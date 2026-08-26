@@ -108,11 +108,19 @@ export function apiIndexBody(): string {
     ) +
     note(
       'why',
-      `Why "${total} exports, ${documented} documented" is on the page rather than hidden`,
-      'Coverage of the <em>surface</em> is complete and checked: a test walks the same tree and fails if any ' +
-        'export is missing here. Coverage of the <em>prose</em> is not, and the honest thing is to publish ' +
-        'the ratio and mark every entry that has none, rather than let a reader assume a blank space is a ' +
-        'simple function.',
+      documented === total
+        ? 'Both numbers are checked, and they are the same number'
+        : `Why "${total} exports, ${documented} documented" is on the page rather than hidden`,
+      documented === total
+        ? 'Two tests hold this page: one walks the packages and fails if an export is missing here, and one ' +
+            'fails if an export has no doc comment on its declaration. It was 384 of 1,367 when the page was ' +
+            'first published — the ratio was printed rather than hidden, because a blank space a reader ' +
+            'mistakes for a simple function is worse than an admission. Printing it is what made it worth ' +
+            'closing.'
+        : 'Coverage of the <em>surface</em> is complete and checked: a test walks the same tree and fails if ' +
+            'any export is missing here. Coverage of the <em>prose</em> is not, and the honest thing is to ' +
+            'publish the ratio and mark every entry that has none, rather than let a reader assume a blank ' +
+            'space is a simple function.',
     ) +
     table(
       ['Module', 'Import as', 'Exports', 'With a doc comment'],

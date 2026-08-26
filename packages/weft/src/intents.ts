@@ -29,6 +29,7 @@ export interface ManifestEntry {
   limit?: IntentLimit
 }
 
+/** Every intent, by the opaque id the compiler derived, with what each one declares. */
 export interface IntentManifest {
   entries: ManifestEntry[]
   registry: Registry
@@ -44,10 +45,12 @@ function looksLikeIntent(value: unknown): value is Intent<never> {
   return typeof candidate.name === 'string' && typeof candidate.run === 'function'
 }
 
+/** A module's identity, relative to the project — so an id does not depend on the checkout path. */
 export function moduleIdOf(root: string, file: string): string {
   return relative(root, file).split(sep).join('/')
 }
 
+/** Load `app/intents/**` into a closed set, refusing two intents that would share an id. */
 export async function loadIntents(root: string, files: readonly string[]): Promise<IntentManifest> {
   const entries: ManifestEntry[] = []
   const byId = new Map<string, Intent<never>>()

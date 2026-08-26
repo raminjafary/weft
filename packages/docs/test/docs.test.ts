@@ -132,6 +132,21 @@ test('every runtime export of every package appears in the API reference', async
   }
 })
 
+/**
+ * Every export carries a doc comment on its declaration.
+ *
+ * This was a published ratio before it was a gate — 384 of 1,367 — because a blank space a reader
+ * mistakes for a simple function is worse than an admission. The ratio is now 1, so the assertion is
+ * equality rather than a floor: a new export without a comment fails here, which is the only way a
+ * number like this stays at one.
+ */
+test('every export in the API reference has a doc comment', () => {
+  const undocumented = surface().flatMap((module) =>
+    module.entries.filter((entry) => !entry.doc).map((entry) => `${module.specifier} ${entry.name}`),
+  )
+  assert.deepEqual(undocumented, [], 'an export with no doc comment on its declaration')
+})
+
 test('the API reference covers every module, and none of them is empty', () => {
   const modules = surface()
   assert.equal(modules.length, 9)

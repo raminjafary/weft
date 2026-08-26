@@ -29,11 +29,13 @@ export interface IntentRoute {
   intent: string
 }
 
+/** Which intent a method and path dispatch to. A GET that writes cannot be built. */
 export interface IntentRouter {
   match(method: string, url: URL | string): { intent: string; params: Record<string, string> } | null
   readonly routes: readonly IntentRoute[]
 }
 
+/** A router over a closed set. Refuses to be built from a GET: the oldest bug on the web. */
 export function createIntentRouter(routes: readonly IntentRoute[]): IntentRouter {
   const byMethod = new Map<string, Router<string>>()
   const grouped = new Map<string, RouteEntry<string>[]>()
@@ -61,6 +63,7 @@ export function createIntentRouter(routes: readonly IntentRoute[]): IntentRouter
   }
 }
 
+/** What the HTTP half needs: the dispatch, plus how a payload and a token are read. */
 export interface ServeIntentOptions extends IntentDispatchOptions {
   routes: IntentRouter
   clock?: () => number
@@ -69,11 +72,18 @@ export interface ServeIntentOptions extends IntentDispatchOptions {
   returnTo?(request: Request): string
 }
 
+/** Serves an intent over HTTP, as a form post or as `fetch`, chosen by `Accept`. */
 export interface IntentServer {
   handle(request: Request): Promise<Response>
   readonly last: IntentOutcome | null
 }
 
+/**
+ * Intents over HTTP, in phase A.
+ *
+ * Which is where a real status, an `HttpOnly` cookie and a crawler-followable redirect are all still
+ * possible — the moment they exist in, and the reason an intent runs there rather than in a render.
+ */
 export function serveIntent(options: ServeIntentOptions): IntentServer {
   const dispatch = createIntentDispatch(options)
   let last: IntentOutcome | null = null
@@ -195,6 +205,7 @@ function statusFor(code: string | undefined): number {
 
 /** The header a `fetch` carries a signature in, and the field a form has to use instead. */
 export const TOKEN_HEADER = 'x-weft-intent-token'
+/** The form field a signed intent's token travels in, beside the payload and never inside it. */
 export const TOKEN_FIELD = '_weft_token'
 
 /** Pull a credential out of a decoded payload, so what the intent sees is the payload alone. */

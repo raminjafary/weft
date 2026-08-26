@@ -36,18 +36,22 @@ const current: CurrentApp = (container[CURRENT] ??= {
   profile: null,
 })
 
+/** Publish the asset table once the bundle exists and its hrefs can be resolved. */
 export function setAssets(table: AssetTable): void {
   current.assets = table
 }
 
+/** Publish the compiled templates so `fragmentIR` can answer. Called before route modules load. */
 export function setCompiled(app: CompiledApp): void {
   current.compiled = app
 }
 
+/** Publish the bound ports, so a loader reaches the deployment's rather than a second set. */
 export function setPorts(ports: Ports): void {
   current.ports = ports
 }
 
+/** Publish the recording a page can display. Null when this process was not asked to plan from one. */
 export function setProfile(recorded: { profile: Profile; decisions: Decisions } | null): void {
   current.profile = recorded
 }

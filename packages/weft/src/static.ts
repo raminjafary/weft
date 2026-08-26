@@ -54,6 +54,7 @@ export type StaticRefusal =
   | 'L0_REGION'
   | 'L0_FAILED'
 
+/** Whether this page can be a file, and if not, the code and the read that refused it. */
 export type StaticVerdict =
   | {
       static: true
@@ -64,6 +65,7 @@ export type StaticVerdict =
     }
   | { static: false; code: StaticRefusal; reason: string }
 
+/** What the structural half of the verdict is derived from: the declaration and every layer. */
 export interface StaticInput {
   pattern: string
   module: RouteModule
@@ -292,11 +294,13 @@ export interface StaticDocument {
   headers: Record<string, string>
 }
 
+/** Every document written, with its ETag and the headers the build's own render produced. */
 export interface StaticManifest {
   documents: StaticDocument[]
   refused: { pattern: string; code: StaticRefusal; reason: string }[]
 }
 
+/** The documents that became files, and every page that did not with its reason. */
 export interface Prerendered {
   documents: (StaticDocument & { body: Uint8Array })[]
   refused: { pattern: string; code: StaticRefusal; reason: string }[]
@@ -305,6 +309,7 @@ export interface Prerendered {
 /** Where the build writes documents, and where `weft start` looks for them. */
 export const STATIC_DIR = 'static'
 
+/** Where a route's document is written, so a CDN can serve the directory as it stands. */
 export function fileFor(pattern: string): string {
   return pattern === '/' ? 'index.html' : `${pattern.replace(/^\/|\/$/g, '')}/index.html`
 }
@@ -431,6 +436,13 @@ function headersFor(rendered: Headers): Record<string, string> {
   return out
 }
 
+/**
+ * Render every structurally static page twice and keep the ones whose bytes matched.
+ *
+ * Twice, under requests that differ in everything a document is allowed to be indifferent to —
+ * because the structural half cannot see a loader, and a page frozen into a file that varies is the
+ * one failure this tier must not be able to produce.
+ */
 export async function prerender(app: App): Promise<Prerendered> {
   const documents: Prerendered['documents'] = []
   const refused: Prerendered['refused'] = []

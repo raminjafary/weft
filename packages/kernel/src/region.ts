@@ -102,6 +102,7 @@ export function regionEffects(contract?: RegionContract): EffectSet {
   return { reads, writes: [], envelope: [], residency: 'server' }
 }
 
+/** The frames a region answered with, before anything in them has been trusted. */
 export interface RegionFrames {
   announced: RegionAnnouncement
   /** Markup for the shell's hole: the bodies of the region's own `HTML` frames, in order. */
@@ -405,6 +406,7 @@ export interface RegionSpec {
   contract?: RegionContract
 }
 
+/** What one region cost and where it ran, including a failure and what it degraded to. */
 export interface RegionOutcome {
   region: string
   /** Markup for the hole. Empty when the region degraded to nothing, which `optional` means. */
@@ -419,6 +421,7 @@ export interface RegionOutcome {
   failure?: { code: string; message: string }
 }
 
+/** What composing needs: the registry, the executors, and the contract each region must satisfy. */
 export interface ComposeOptions {
   /**
    * Narrower than `Ports` on purpose: a composer needs a registry, somewhere to run, and somewhere
@@ -437,6 +440,7 @@ export interface ComposeOptions {
   local?: Record<string, (request: RegionRequest, signal: AbortSignal) => Promise<Uint8Array> | Uint8Array>
 }
 
+/** Composes regions into a page, checking each one's frames before any of it reaches the reader. */
 export interface Composer {
   compose(spec: RegionSpec, request?: RegionRequest): Promise<RegionOutcome>
   /** Every region composed by this instance, in the order they were asked for. */
@@ -445,6 +449,13 @@ export interface Composer {
   readonly hops: number
 }
 
+/**
+ * A composer over this deployment's ports.
+ *
+ * From the kernel's point of view a region is a local async function; the boundary is the executor
+ * the registry named one level in. That nesting is the design's claim that a tier boundary is a
+ * port implementation rather than a second render path.
+ */
 export function createComposer(options: ComposeOptions): Composer {
   const composed: RegionOutcome[] = []
   const inline = inlineExecutor(options.ports.telemetry)

@@ -23,6 +23,12 @@ export interface ResolveOptions {
   grantable?: readonly string[]
 }
 
+/**
+ * Plugins into an order, from what each declares it reads and provides.
+ *
+ * At build time, because ordering is not a per-request question — so a cycle and an ambiguity are
+ * both build errors rather than a race nobody can reproduce.
+ */
 export function resolvePlugins(plugins: readonly Plugin[], options: ResolveOptions = {}): PluginSchedule {
   const byName = new Map<string, Plugin>()
   for (const plugin of plugins) {
@@ -158,6 +164,7 @@ export interface ScopedPlugins {
   readonly scopes: readonly string[]
 }
 
+/** One schedule per prefix, so a route carries the plugins that apply and pays nothing for the rest. */
 export function resolveScoped(plugins: readonly Plugin[], options: ResolveOptions = {}): ScopedPlugins {
   const scopes = [...new Set(plugins.map((p) => p.scope).filter((s): s is string => Boolean(s)))].sort(
     (a, b) => b.length - a.length,

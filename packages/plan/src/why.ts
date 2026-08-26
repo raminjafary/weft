@@ -21,6 +21,7 @@ export interface WhyInput {
   resolved?: Record<string, ResolvedKey>
 }
 
+/** One route explained: every slot, and where each fact about it came from. */
 export interface WhyReport {
   text: string
   waves: string[][]
@@ -30,6 +31,7 @@ export interface WhyReport {
   measured: boolean
 }
 
+/** The plan with its provenance attached, which is what makes a generated plan reviewable. */
 export function why(input: WhyInput): WhyReport {
   const { plan, facts, timings } = input
   const nodes: DagNode[] = plan.slots.map((s) => ({

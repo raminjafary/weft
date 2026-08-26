@@ -30,12 +30,14 @@ export function linkHeader(links: readonly PreloadLink[]): string {
   return links.map(linkValue).join(', ')
 }
 
+/** Whether a 103 went out, and what it pointed at. */
 export interface HintResult {
   sent: boolean
   links: readonly PreloadLink[]
   reason?: string
 }
 
+/** Send a 103 for a route's critical links, before the envelope settles. */
 export async function sendEarlyHints(
   life: Lifecycle,
   transport: TransportPort | undefined,

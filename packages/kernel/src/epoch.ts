@@ -15,6 +15,7 @@ import { frame, type Frame } from '@weft/warp'
  */
 export type Transition = 'view' | 'instant'
 
+/** An epoch refusal: too many open, or a commit of one that does not exist. */
 export class EpochError extends Error {
   code: string
 
@@ -25,6 +26,7 @@ export class EpochError extends Error {
   }
 }
 
+/** Staged writes, committed atomically or discarded. Bounded, because a staged epoch is memory. */
 export interface Epochs {
   /** Stage a frame for a slot. The frame is rewritten to carry the epoch, so nothing paints. */
   stage(epoch: string, slot: string, f: Frame): void
@@ -36,8 +38,10 @@ export interface Epochs {
   readonly open: string[]
 }
 
+/** The epoch that is on screen. Writing to it is what a refresh does; everything else is staged. */
 export const LIVE = 'live'
 
+/** An epoch table for one connection. */
 export function createEpochs(maxOpen = 8): Epochs {
   const staged = new Map<string, Map<string, Frame>>()
 

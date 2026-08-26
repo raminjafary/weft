@@ -110,6 +110,7 @@ export function decodeTextFrame(line: string): AnyFrame {
   return { kind, header, ...(body ? { body, bodyIsText } : {}) }
 }
 
+/** The eight bytes that open a stream: magic and version, so a wrong stream is refused at once. */
 export function preamble(major = WARP_MAJOR, minor = WARP_MINOR): Uint8Array {
   const out = new Uint8Array(PREAMBLE_BYTES)
   out.set(utf8.encode(WARP_MAGIC), 0)

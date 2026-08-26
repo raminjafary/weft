@@ -27,6 +27,7 @@ export function nestedHoles(holes: readonly Hole[]): number {
   return holes.filter((hole) => Boolean(hole.nested) && !hole.isolated).length
 }
 
+/** One fragment's facts, all derived. There is nothing here an author could get wrong. */
 export function factsOf(entry: TemplateIR): SlotFacts {
   return {
     id: entry.id,

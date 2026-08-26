@@ -27,6 +27,7 @@ export interface Services {
 /** What a route's loader receives: the kernel's reads, plus what the deployment bound. */
 export type LoaderContext = RenderContext & Services
 
+/** The half of the ports a loader may use — the services, never the store or the session directly. */
 export function services(ports: Ports): Services {
   return {
     setting: (key) => (ports.config ? ports.config.get(key) : unimplemented('config')),

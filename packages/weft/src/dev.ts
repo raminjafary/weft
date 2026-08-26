@@ -35,6 +35,7 @@ export interface DevServer {
   close(): Promise<void>
 }
 
+/** What changed, how long the rebuild took, and whether the process has to be replaced. */
 export interface ReloadEvent {
   file: string
   ms: number
@@ -50,6 +51,12 @@ const IGNORED = /(^|[\\/])(\.weft|node_modules|\.git|dist|\.DS_Store)([\\/]|$)/
 /** A change the framework can absorb without a new module graph. */
 const DATA = /\.(tsx|css|json|svg|png|jpg|jpeg|webp|avif|gif|ico|woff2?|txt|xml)$/
 
+/**
+ * The dev server, and the one thing it cannot do in place.
+ *
+ * A `.tsx` or `.css` change is rebuilt where it stands. A `.ts` change is not: an imported module
+ * cannot be un-imported, so the child asks to be replaced rather than serving a stale closure.
+ */
 export async function dev(
   root: string,
   overrides: WeftConfig = {},

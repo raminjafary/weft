@@ -481,6 +481,12 @@ drift: the API reference walks every package's public entry and lists every expo
 error reference walks every `src/` and lists every named refusal with the message it raises. Both
 have a test that scans the same tree independently and fails when something is missing.
 
+**Both are complete, and both completions are gates rather than claims.** All 1,367 importable names
+carry a doc comment on their declaration, and a test fails if one does not. All 326 named refusals
+either carry a sentence of their own or forward the failure underneath them, and a test fails if any
+of them says nothing but its own name. The API page published "384 of 1,367" when it first shipped;
+printing the shortfall is what made it worth closing.
+
 ```sh
 pnpm docs         # serve it
 pnpm docs:build   # build it, and read which pages became files

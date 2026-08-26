@@ -47,6 +47,7 @@ export interface DiscoveredRoute {
   next?: readonly string[]
 }
 
+/** What came back: the prefix, the routes described, and whether that was all of them. */
 export interface PlanExtension {
   /** What was asked about, echoed. `''` for the unasked frame that follows a handshake. */
   prefix: string
@@ -59,6 +60,7 @@ export interface PlanExtension {
   complete?: boolean
 }
 
+/** A prefix somebody asked about, and the connection asking. */
 export interface ExtendRequest {
   /**
    * The subtree asked about. Absent for the frame sent when a channel opens, which means "where
@@ -82,6 +84,7 @@ export interface PlanExtender {
   open(channel: Channel): Promise<Frame[]>
 }
 
+/** How a prefix becomes routes. Describing runs no loader, which is the difference from staging. */
 export interface DiscoveryOptions {
   resolve(request: ExtendRequest): Promise<PlanExtension | null> | PlanExtension | null
   /** How many routes one frame may carry. A table of four thousand routes is not a prefetch hint. */
@@ -89,8 +92,10 @@ export interface DiscoveryOptions {
   telemetry?: TelemetryPort
 }
 
+/** How many routes one answer may describe. A truncated answer says so rather than looking complete. */
 export const DISCOVER_MAX = 32
 
+/** Answers `WARM plan=` with a `PLAN`. A prefix matching nothing is an empty answer, not a silence. */
 export function createExtender(options: DiscoveryOptions): PlanExtender {
   const max = options.max ?? DISCOVER_MAX
 

@@ -19,18 +19,21 @@ export class RouterError extends Error {
   }
 }
 
+/** One row of the table: a pattern, and whatever it resolves to. */
 export interface RouteEntry<T> {
   /** `/cart`, `/product/:sku`, `/checkout/*`. */
   pattern: string
   value: T
 }
 
+/** A match: the value, and the params captured on the way. */
 export interface Matched<T> {
   value: T
   pattern: string
   params: Record<string, string>
 }
 
+/** A path to a value, by specificity rather than by declaration order. */
 export interface Router<T> {
   match(url: URL | string): Matched<T> | null
   /**
@@ -126,6 +129,13 @@ function moreSpecific<T>(a: Compiled<T>, b: Compiled<T>): number {
   return a.pattern.localeCompare(b.pattern)
 }
 
+/**
+ * A table, checked at construction.
+ *
+ * Two patterns that can match the same paths are `E_ROUTE_CONFLICT` here rather than a surprise
+ * later, and specificity — static over param over wildcard, segment by segment — is what decides,
+ * so a table nobody can safely refactor is not a table this produces.
+ */
 export function createRouter<T>(entries: readonly RouteEntry<T>[]): Router<T> {
   const compiled = entries.map(compile)
   const seen = new Set<string>()

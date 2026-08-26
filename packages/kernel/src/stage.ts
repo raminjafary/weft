@@ -54,6 +54,7 @@ export interface StagedRoute {
   why?: string
 }
 
+/** A route asked for before anybody clicked, and the epoch it is being staged into. */
 export interface StageRequest {
   path: string
   channel: Channel
@@ -64,6 +65,7 @@ export interface StageRequest {
 /** What the hub calls. A `WARM` carrying `at=` is one grain of one frame, and this answers it. */
 export type RouteStager = WarmHandler
 
+/** How to resolve a route, and how to tell whether it shares this client's document. */
 export interface StageOptions {
   store: StorePort
   /** What the path resolves to, which is route knowledge a channel does not have. */
@@ -72,6 +74,13 @@ export interface StageOptions {
   telemetry?: TelemetryPort
 }
 
+/**
+ * Answers `WARM at=`, which is a route staged and painted nowhere.
+ *
+ * Two decisions live here because only this side can make them: whether the target shares the
+ * client's shell — a different document has different holes — and what each region's next state is,
+ * through the *same loaders* a document request would run.
+ */
 export function createStager(options: StageOptions): RouteStager {
   return async (asked) => {
     const epochAsked = str(asked.frame, 'epoch')

@@ -2,6 +2,7 @@ import { renderHole, type Resolver, type TemplateIR, type Values } from '@weft/i
 
 const utf8 = new TextEncoder()
 
+/** A document cut at its boundaries: the constant chunks, and the slot between each pair. */
 export interface SlotSplit {
   /** Constant regions of the shell. There is always one more chunk than there are slots. */
   chunks: Uint8Array[]
@@ -65,6 +66,7 @@ export function splitAtSlots(ir: TemplateIR, values: Values, resolve?: Resolver)
   return { chunks, slots }
 }
 
+/** The comment left in a hole for out-of-order delivery, which the fill script finds by walking. */
 export function anchorFor(slot: string): Uint8Array {
   return utf8.encode(`<!--w:${slot}-->`)
 }

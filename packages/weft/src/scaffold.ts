@@ -13,12 +13,14 @@ import { fileURLToPath } from 'node:url'
  */
 export type Template = 'app' | 'minimal'
 
+/** Where to write a new application, what to call it, and which template to use. */
 export interface ScaffoldOptions {
   directory: string
   name?: string
   template?: Template
 }
 
+/** What was written, and the message `npm create weft` prints. */
 export interface Scaffolded {
   directory: string
   files: string[]
@@ -53,6 +55,7 @@ async function version(): Promise<string> {
 
 const NAME = /^[a-z0-9][a-z0-9._-]*$/
 
+/** Write a new application. No step here is one you cannot read afterwards. */
 export async function scaffold(options: ScaffoldOptions): Promise<Scaffolded> {
   const template = options.template ?? 'app'
   const name = options.name ?? basename(options.directory)

@@ -58,6 +58,13 @@ export interface KernelSlot {
   render(ctx: RenderContext): Promise<Uint8Array>
 }
 
+/**
+ * One request's worth of a route: the document, its values, and a slot per boundary.
+ *
+ * What a plan lowers to, and the whole of what the kernel knows about a page. It contains no plan,
+ * no convention and no file tree — which is what lets a plan be generated, hand-written or measured
+ * without the kernel changing.
+ */
 export interface KernelRoute {
   path: string
   /** The shell. Its slot holes are the boundaries the kernel fills. */
@@ -117,6 +124,7 @@ export interface KernelRoute {
  */
 export type RouteResolver = (params: Record<string, string>, url?: URL) => KernelRoute | Promise<KernelRoute>
 
+/** Everything the kernel is given rather than knows: the ports, the table, and the policies. */
 export interface KernelOptions {
   ports: Ports
   /**
@@ -158,6 +166,7 @@ export interface KernelOptions {
   intents?(request: Request): Response | Promise<Response>
 }
 
+/** What the last request did, kept beside the response so nothing about it leaks into bytes. */
 export interface KernelTrace {
   states: readonly string[]
   hints: HintResult
@@ -173,6 +182,7 @@ export interface KernelTrace {
   matched: { pattern: string; params: Record<string, string> } | null
 }
 
+/** A Request in, a Response out, and nothing else to mount. */
 export interface Kernel {
   /**
    * Match a request against the route table and serve it. This is the whole entry point: a
@@ -185,6 +195,7 @@ export interface Kernel {
   readonly mailbox: DeferredMailbox
 }
 
+/** A kernel over a set of ports and a route table. */
 export function createKernel(options: KernelOptions): Kernel {
   const mailbox = options.mailbox ?? createMailbox()
   const plugins = options.plugins ?? { filters: [], waves: [], axes: {} }

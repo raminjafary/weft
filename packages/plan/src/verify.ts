@@ -25,6 +25,7 @@ export interface VerifyContext {
   executors?: readonly string[]
 }
 
+/** What one region says it is serving right now, against what this build expected. */
 export interface RegionStatus {
   region: string
   route: string
@@ -55,6 +56,7 @@ export interface RouteGraph {
   declared: number
 }
 
+/** Every region probed, and whether any of them disagreed with the manifest. */
 export interface VerifyReport {
   regions: RegionStatus[]
   errors: Issue[]
@@ -64,6 +66,7 @@ export interface VerifyReport {
   graph: readonly RouteGraph[]
 }
 
+/** Ask each region what it is serving. A disagreement is what `weft verify --probe` exits non-zero on. */
 export async function verifyRegions(
   plans: readonly Plan[],
   context: VerifyContext,

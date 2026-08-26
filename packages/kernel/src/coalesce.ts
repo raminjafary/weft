@@ -26,6 +26,13 @@ export interface CoalesceOptions {
   pollMs?: number
 }
 
+/**
+ * One render per cold key, using the store's lease.
+ *
+ * Opt-in because the good version is store-specific and the kernel should not have a favourite —
+ * and a seam, because a coalescer written into the request path would be one every deployment pays
+ * for. What it prevents is the thing that turns a cold cache into an incident.
+ */
 export function leaseCoalescer(store: StorePort, options: CoalesceOptions = {}): Coalescer {
   const leaseMs = options.leaseMs ?? 5_000
   const waitMs = options.waitMs ?? 1_000

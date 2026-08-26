@@ -4,8 +4,10 @@ import { anchorFor, splitAtSlots, type Splitter } from './split.ts'
 
 const utf8 = new TextEncoder()
 
+/** What fills a slot. A string is encoded; bytes are written as they are. */
 export type SlotContent = Uint8Array | string
 
+/** What streaming needs: the document, its values, and a resolver per slot. */
 export interface Route {
   template: TemplateIR
   values: Values
@@ -23,8 +25,10 @@ export interface Route {
   slots: Record<string, () => Promise<SlotContent>>
 }
 
+/** Whether a slow slot holds back the ones after it, or the fastest fills first. Derived, not declared. */
 export type Order = 'in-order' | 'out-of-order'
 
+/** The order, what wraps the document, and the fill script for out-of-order delivery. */
 export interface StreamOptions {
   order: Order
   prelude?: SlotContent

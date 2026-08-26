@@ -158,6 +158,7 @@ export type AnyFrame = Frame | UnknownFrame
 const BY_CODE = new Map<number, FrameKind>()
 for (const [kind, def] of Object.entries(FRAMES)) BY_CODE.set(def.code, kind as FrameKind)
 
+/** The kind a code names, or nothing — in which case the frame is carried as unknown. */
 export function kindForCode(code: number): FrameKind | undefined {
   return BY_CODE.get(code)
 }
@@ -192,11 +193,13 @@ export function frame(kind: FrameKind, header: Header = {}, body?: Uint8Array, b
   return { kind, header, ...(body ? { body, bodyIsText } : {}) }
 }
 
+/** A header read as text. */
 export function str(f: AnyFrame, key: string): string | undefined {
   const v = f.header[key]
   return v === undefined ? undefined : String(v)
 }
 
+/** A header read as a number. Absent and unparseable are both undefined. */
 export function num(f: AnyFrame, key: string): number | undefined {
   const v = f.header[key]
   if (v === undefined) return undefined
@@ -211,6 +214,7 @@ export function bool(f: AnyFrame, key: string): boolean | undefined {
   return v === true || v === 'true' || v === '1'
 }
 
+/** A comma-separated header as a list. Empty when absent, so a caller needs no guard. */
 export function list(f: AnyFrame, key: string): string[] {
   const v = str(f, key)
   return v ? v.split(',').filter(Boolean) : []

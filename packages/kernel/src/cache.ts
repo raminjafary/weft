@@ -31,6 +31,7 @@ export class CacheError extends Error {
   }
 }
 
+/** What a key is derived from: the fragment's identity and the reads the compiler recorded. */
 export interface KeyInput {
   /** The fragment's identity: module and export, stable across content changes. */
   id: string
@@ -39,6 +40,7 @@ export interface KeyInput {
   effects: EffectSet
 }
 
+/** The key, its class, what went into it, and one line saying why — which is what `weft why` prints. */
 export interface ResolvedKey {
   /** Null when the fragment is uncacheable, which today means it read `opaque`. */
   key: string | null
@@ -75,6 +77,12 @@ export async function resolveRead(read: string, facts: RequestFacts, ports: Port
   )
 }
 
+/**
+ * Reads to a key, by asking the ports for their values.
+ *
+ * The compiler said *which* reads taint; this resolves them. There is no setter and there never
+ * will be: a key that can be written by hand is a key that can be written wrongly.
+ */
 export async function resolveKey(input: KeyInput, facts: RequestFacts, ports: Ports): Promise<ResolvedKey> {
   const cls = cacheClassOf(input.effects)
   const vary = varyOn(input.effects)
@@ -155,8 +163,10 @@ function describe(
   return parts.join(' | ')
 }
 
+/** What a response may advertise. Checked against the class its reads derive, never trusted. */
 export type PolicyClass = 'public' | 'private'
 
+/** What a route declares about holding its response: the class, a TTL, and tags. */
 export interface CachePolicy {
   class: PolicyClass
   ttlMs?: number

@@ -9,6 +9,7 @@ import type { ExecutorPort, RenderJob, RenderOutcome, TelemetryPort } from './po
  */
 export type ExceedPolicy = 'stale' | 'client' | 'fallback' | 'placeholder' | 'fail'
 
+/** What one slot may spend, and what happens when it does not fit. */
 export interface SlotBudget {
   cpuMs?: number
   onExceed?: ExceedPolicy
@@ -32,10 +33,12 @@ export type Preemption =
   /** A separate crash domain that can be stopped mid-instruction. A budget is a limit. */
   | 'always'
 
+/** Whether this executor can stop a render, which is what makes a CPU budget a limit. */
 export interface Preemptible {
   readonly preemption: Preemption
 }
 
+/** An executor that also says whether it can be stopped. */
 export type KernelExecutor = ExecutorPort & Preemptible
 
 /** Whether a budget on this executor is a limit. Only a separate crash domain can promise one. */
@@ -43,6 +46,7 @@ export function isHardLimit(preemption: Preemption): boolean {
   return preemption === 'always'
 }
 
+/** Warned when a slot declares a CPU budget on an executor that cannot enforce it. */
 export const W_CPU_BUDGET_ADVISORY =
   'W_CPU_BUDGET_ADVISORY: a cpu budget is only a hard limit on a separate crash domain, and this ' +
   'slot is not on one. The breach will be reported and the render will finish. ' +
@@ -162,6 +166,7 @@ async function runWithBudget(
   }
 }
 
+/** What a failed slot has to choose from: a placeholder, a fallback, a stale entry, or nothing. */
 export interface DegradeInput {
   slot: string
   policy: ExceedPolicy
@@ -170,6 +175,7 @@ export interface DegradeInput {
   placeholder?: Uint8Array
 }
 
+/** A slot failure, carrying the code the degradation policy branches on. */
 export class SlotError extends Error {
   code: string
   slot: string

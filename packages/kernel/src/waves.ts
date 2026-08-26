@@ -31,6 +31,7 @@ export interface DagNode {
   optional?: boolean
 }
 
+/** A graph refusal: a cycle, or a dependency on a slot the plan does not have. */
 export class PlanGraphError extends Error {
   code: string
 
@@ -41,12 +42,14 @@ export class PlanGraphError extends Error {
   }
 }
 
+/** The waves, in order. A slot lands in the first wave after everything it needs. */
 export interface Schedule {
   waves: string[][]
   /** The widest wave. Compared against the scheduler's concurrency ceiling. */
   width: number
 }
 
+/** Slots into waves, from their declared dependencies. Watch the waves, not the sum. */
 export function schedule(nodes: readonly DagNode[]): Schedule {
   const byName = new Map(nodes.map((n) => [n.name, n]))
   for (const node of nodes) {
@@ -78,6 +81,7 @@ export function schedule(nodes: readonly DagNode[]): Schedule {
   return { waves, width: waves.reduce((max, w) => Math.max(max, w.length), 0) }
 }
 
+/** The longest chain through the graph, which is the floor on how fast the page can be. */
 export interface CriticalPath {
   path: string[]
   ms: number
@@ -93,6 +97,7 @@ function deeper(a: { ms: number; path: string[] }, b: { ms: number; path: string
   return a.ms > b.ms || (a.ms === b.ms && a.path.length > b.path.length)
 }
 
+/** The chain that decides the page's floor, so a report can name what to make faster. */
 export function criticalPath(nodes: readonly DagNode[]): CriticalPath {
   const byName = new Map(nodes.map((n) => [n.name, n]))
   const best = new Map<string, { ms: number; path: string[] }>()
@@ -124,6 +129,7 @@ export function criticalPath(nodes: readonly DagNode[]): CriticalPath {
   return { path: winner.path, ms: winner.ms, sequentialMs }
 }
 
+/** How wide a wave may be, and what runs each slot. */
 export interface DispatchOptions {
   maxConcurrency: number
   /** Called for each node when its turn comes. Rejections are the caller's to police. */

@@ -23,10 +23,12 @@ export interface Reads {
   taints(): string[]
 }
 
+/** What a read surface needs beyond the ports: a clock, so a build can freeze it. */
 export interface ReadOptions {
   clock?: () => number
 }
 
+/** The runtime half of effect tracking: resolve each read, and remember that it happened. */
 export function createReads(facts: RequestFacts, ports: Ports, options: ReadOptions = {}): Reads {
   const seen = new Set<string>()
   const order: string[] = []
@@ -91,6 +93,7 @@ export function deviceOf(facts: RequestFacts): string {
   return /mobi|android|iphone|ipad/i.test(facts.headers.get('user-agent') ?? '') ? 'mobile' : 'desktop'
 }
 
+/** The locale, from `Accept-Language`. Coarse, because a high-cardinality key is a bad key. */
 export function localeOf(facts: RequestFacts): string {
   const header = facts.headers.get('accept-language')
   if (!header) return 'en'
@@ -123,6 +126,7 @@ export interface RenderContext extends Reads {
   defer(effect: DeferredEffect): void
 }
 
+/** Phase A's context. The only one that can set a status, a cookie or a redirect. */
 export function envelopeContext(reads: Reads, envelope: Envelope): EnvelopeContext {
   return {
     ...reads,
@@ -135,6 +139,7 @@ export function envelopeContext(reads: Reads, envelope: Envelope): EnvelopeConte
   }
 }
 
+/** Phase B's context. The same reads and no envelope methods, which is how a render cannot write. */
 export function renderContext(reads: Reads, envelope: Envelope): RenderContext {
   return {
     ...reads,

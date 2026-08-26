@@ -24,6 +24,7 @@ export interface ChannelRegionOptions {
   route?(channel: Channel): string | undefined
 }
 
+/** How a channel reaches a region's renderer, which may be on another deployment. */
 export type ChannelRegions = (asked: {
   slot: string
   channel: Channel

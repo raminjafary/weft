@@ -27,6 +27,7 @@ const NEXT: Record<RequestState, readonly RequestState[]> = {
   failed: [],
 }
 
+/** A transition the state machine does not have: `E_REQUEST_STATE`, naming both states. */
 export class LifecycleError extends Error {
   code: string
   state: RequestState
@@ -39,6 +40,7 @@ export class LifecycleError extends Error {
   }
 }
 
+/** The request as a state machine, with declared transitions and nothing else permitted. */
 export interface Lifecycle {
   readonly state: RequestState
   readonly log: readonly RequestState[]
@@ -48,6 +50,7 @@ export interface Lifecycle {
   is(state: RequestState): boolean
 }
 
+/** One request's lifecycle, which is also the log of what it did. */
 export function lifecycle(): Lifecycle {
   let state: RequestState = 'received'
   const log: RequestState[] = ['received']

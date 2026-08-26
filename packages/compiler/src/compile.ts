@@ -41,6 +41,7 @@ export interface ExternalFragment {
   effects: EffectSet
 }
 
+/** What one module's compilation needs beyond its source: a root, types, and its dependencies. */
 export interface CompileOptions {
   /**
    * Template ids are stated relative to this directory. Ids feed the content hash, so

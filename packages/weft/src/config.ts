@@ -144,10 +144,12 @@ export interface WeftConfig {
   devtools?: boolean
 }
 
+/** An identity function that exists for the types, so a config file is checked as it is written. */
 export function defineConfig(config: WeftConfig): WeftConfig {
   return config
 }
 
+/** The config with every default filled in, so nothing downstream has to know what a default is. */
 export interface ResolvedConfig extends Required<Pick<WeftConfig, 'srcDir' | 'outDir' | 'port' | 'host'>> {
   root: string
   css: string[]
@@ -186,6 +188,7 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
+/** Load `weft.config.ts`, apply overrides, and fill in the defaults. An absent file is fine. */
 export async function loadConfig(root: string, overrides: WeftConfig = {}): Promise<ResolvedConfig> {
   let file: string | undefined
   let loaded: WeftConfig = {}

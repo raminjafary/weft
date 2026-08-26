@@ -71,6 +71,7 @@ function slug(id: string): string {
     .toLowerCase()
 }
 
+/** Every sealed template the build wrote, so a channel can answer a `WARM tpl=`. */
 export interface IrManifest {
   irVersion: string
   fragments: Record<string, { entry: string; file: string; templates: string[] }>
@@ -78,6 +79,7 @@ export interface IrManifest {
   templates: Record<string, string>
 }
 
+/** Compile, generate, bundle, prerender, and write the manifest. The whole of `weft build`. */
 export async function build(root: string, overrides: WeftConfig = {}): Promise<BuildReport> {
   const app = await createApp(root, { ...overrides, mode: 'build' })
   const out = join(root, app.config.outDir)
@@ -326,6 +328,13 @@ export async function loadBuild(discovered: Discovered, config: ResolvedConfig):
   return { fragments, diagnostics: [], templates: [...templates.values()] }
 }
 
+/**
+ * The build report, and it is the thing worth reading.
+ *
+ * A line per route, then the L0 section: which pages became files, and for every page that did not,
+ * the code and the read that refused it. That list is the performance review of an application, and
+ * it is generated rather than requested.
+ */
 export function formatReport(report: BuildReport): string {
   const lines: string[] = ['']
   lines.push(`  ${report.templates} sealed templates · ${report.routes.length} routes`)

@@ -253,6 +253,7 @@ export function formatRegionGraph(tree: readonly RegionNode[], indent = '    '):
  */
 export type ProbePorts = Pick<Ports, 'registry' | 'executors'>
 
+/** Ask every region what it is actually serving, so `weft verify` can fail on a disagreement. */
 export function regionProbe(
   ports: Pick<Ports, 'executors'>,
   depth = PROBE_DEPTH,

@@ -54,6 +54,7 @@ export interface FragmentSource {
  */
 export type SlotValues = (ctx: RenderContext, params: Record<string, string>) => Values | Promise<Values>
 
+/** What actually renders a slot: the fragment, its values, and where it can be reached by name. */
 export interface SlotBinding {
   fragment: FragmentSource
   values: SlotValues
@@ -77,6 +78,7 @@ export interface SlotBinding {
  */
 export type GuardHandler = (ctx: EnvelopeContext) => boolean | Promise<boolean>
 
+/** The bytes-producers behind a plan. The plan says what; this says with what. */
 export interface RouteBindings {
   shell: FragmentSource
   /**
@@ -122,6 +124,7 @@ export interface RouteBindings {
   regions?: RegionBindings
 }
 
+/** What a region needs beyond a slot: the ports, the request, and the bytes behind its degradation. */
 export interface RegionBindings {
   ports: Ports
   /**
@@ -380,6 +383,12 @@ function needsAddress(executor: string): boolean {
   return executor !== 'inline' && executor !== 'client'
 }
 
+/**
+ * A validated plan plus its bindings into a resolver the kernel can call per request.
+ *
+ * Everything decidable once is decided here — the delivery order, the document policy, the CSP, the
+ * chain's identity — so the request path resolves values rather than re-deriving facts.
+ */
 export function lowerPlan(plan: Plan, context: ValidateContext, bindings: RouteBindings): RouteResolver {
   assertPlan(plan, context)
 
@@ -564,6 +573,7 @@ export interface LoweredRoute {
   value: RouteResolver
 }
 
+/** The same, as a row for the router: the pattern and the resolver together. */
 export function routeEntry(plan: Plan, context: ValidateContext, bindings: RouteBindings): LoweredRoute {
   return { pattern: plan.route, value: lowerPlan(plan, context, bindings) }
 }

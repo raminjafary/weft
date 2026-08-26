@@ -104,6 +104,7 @@ import { createSpeculation } from './speculate.ts'
  */
 export type Mode = 'dev' | 'build' | 'start'
 
+/** A built application: its routes, its ports, its hub, and everything a page can ask about itself. */
 export interface App {
   config: ResolvedConfig
   discovered: Discovered
@@ -189,6 +190,7 @@ export interface App {
   authority: Authority
 }
 
+/** One channel's server-side state: where it is, and what it was told it holds. */
 export interface Connection {
   /** The path the client was on when it opened the channel, params and query included. */
   path: string
@@ -205,6 +207,7 @@ export interface Connection {
   described?: Set<string>
 }
 
+/** A running application: the URL it answers on, and how to stop it. */
 export interface Serving {
   url: string
   app: App
@@ -245,12 +248,14 @@ async function packageTree(specifier: string): Promise<ModuleTree> {
   throw new Error(`E_NO_PACKAGE: no servable source for ${specifier} at ${resolved} or ${source}`)
 }
 
+/** Config overrides, plus whether to compile or to load a build. */
 export interface CreateOptions extends WeftConfig {
   mode?: Mode
   /** Supplied by `weft start`, which reads sealed templates instead of running the compiler. */
   compiled?: CompiledApp
 }
 
+/** A folder into an application: discover, compile, generate, bind, and wire the channel. */
 export async function createApp(root: string, options: CreateOptions = {}): Promise<App> {
   const { mode = 'dev', compiled: prebuilt, ...overrides } = options
   const config = await loadConfig(root, overrides)
@@ -1049,6 +1054,7 @@ function channelContext(
   return { ...reads, ...services(ports), phase: 'render', defer: () => {} }
 }
 
+/** Put it on a port. Everything interesting already happened in `createApp`. */
 export async function serveApp(app: App): Promise<Serving> {
   const { assets, at, authority, config, documents, intents, keysFor, recorder, routes, store, hub } = app
   const table = createRouter<RouteResolver>(routes.map((route) => route.entry))

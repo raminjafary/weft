@@ -31,6 +31,7 @@ export interface CompiledFragment {
   source: string
 }
 
+/** Every sealed template this application has, by the name the convention gave it. */
 export interface CompiledApp {
   /**
    * By logical name: `layout`, `markup`, `route:/blog/:slug`, `slot:header`, `fragment:card`,
@@ -104,6 +105,7 @@ export async function stageAssets(root: string, outDir: string): Promise<Record<
   return staged
 }
 
+/** The framework's own stylesheet, which an application's is appended after. */
 export async function frameworkStyles(): Promise<string> {
   return readFile(join(ASSETS, 'styles.css'), 'utf8')
 }
@@ -122,6 +124,7 @@ function pick(
   return chosen
 }
 
+/** Compile everything the convention found, in dependency order, with the framework's own files staged. */
 export async function compileApp(
   discovered: Discovered,
   options: { outDir: string; types?: boolean },

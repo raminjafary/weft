@@ -17,6 +17,7 @@ export type RouteLoad = (
   params: Record<string, string>,
 ) => Values | Promise<Values> | Record<string, unknown> | Promise<Record<string, unknown>>
 
+/** What a slot declares about being held. Checked against what its fragment reads. */
 export interface CacheDeclaration {
   class: PolicyClass
   ttl?: string | number
@@ -25,6 +26,7 @@ export interface CacheDeclaration {
   consistency?: 'eventual' | 'strong'
 }
 
+/** What a slot may spend, in the spellings a person writes: `'120ms'`, `'8kb'`. */
 export interface BudgetDeclaration {
   cpu?: string | number
   js?: string | number
@@ -80,6 +82,7 @@ export interface RegionDeclaration {
   critical?: boolean
 }
 
+/** Everything a route says about one hole: what fills it, when it arrives, what it may spend. */
 export interface SlotDeclaration {
   /**
    * Which fragment renders it, by name under `app/fragments/`. Omitted for the `body` slot,
@@ -124,12 +127,19 @@ export interface SlotDeclaration {
   region?: RegionDeclaration
 }
 
+/** What goes in the document head for this route. A function of the params, never of the request. */
 export interface HeadDeclaration {
   title?: string
   description?: string
   meta?: Record<string, string>
 }
 
+/**
+ * What a `.data.ts` default-exports.
+ *
+ * Read at build time, so every field here becomes part of the generated plan rather than a branch
+ * taken per request — and every field is validated against what the compiler inferred.
+ */
 export interface RouteModule {
   /**
    * Which document wraps this page: `app/layouts/<name>.tsx`. Without one it is `app/layout.tsx`,

@@ -117,6 +117,7 @@ export interface GeneratedRoute {
   css: string[]
 }
 
+/** A region the framework can render again later: its fragment, its loader, and its cache tags. */
 export interface LiveSlot {
   fragment: CompiledFragment
   load: (ctx: RenderContext, params: Record<string, string>) => Promise<Values>
@@ -124,6 +125,7 @@ export interface LiveSlot {
   tags: string[]
 }
 
+/** Every route, the compiler's facts, and which holes the documents left. */
 export interface Generated {
   routes: GeneratedRoute[]
   facts: Record<string, SlotFacts>
@@ -131,6 +133,7 @@ export interface Generated {
   layoutSlots: string[]
 }
 
+/** A generation refusal, naming the file rather than the mechanism. */
 export class GenerateError extends Error {
   code: string
 
@@ -654,6 +657,7 @@ function wrapSlot(
   }
 }
 
+/** What generation needs: the file tree, the compiled templates, the ports, and the late bindings. */
 export interface GenerateOptions {
   discovered: Discovered
   compiled: CompiledApp
@@ -687,6 +691,7 @@ export interface GenerateOptions {
   brand: string
 }
 
+/** The convention into plans. The two hundred lines of wiring per application that became one file. */
 export async function generateRoutes(options: GenerateOptions): Promise<Generated> {
   const { compiled, discovered, config } = options
   const markup = compiled.fragments.markup as CompiledFragment

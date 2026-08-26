@@ -43,6 +43,7 @@ export interface DiscoveredRoute {
   depth: number
 }
 
+/** A named fragment, layout or slot, with the files that travel with it. */
 export interface DiscoveredNamed {
   name: string
   file: string
@@ -72,6 +73,7 @@ export interface DiscoveredNested {
   depth: number
 }
 
+/** The whole file tree as the framework reads it. Nothing downstream may add to this. */
 export interface Discovered {
   root: string
   srcDir: string
@@ -126,6 +128,7 @@ async function walk(dir: string): Promise<string[]> {
   return out
 }
 
+/** A file-tree refusal: a duplicate route, a wildcard that is not last, an orphan stylesheet. */
 export class ConventionError extends Error {
   code: string
 
@@ -191,6 +194,7 @@ export function chainFor(pattern: string, nested: readonly DiscoveredNested[]): 
     .sort((a, b) => a.depth - b.depth || a.scope.localeCompare(b.scope))
 }
 
+/** Read the convention once. The single source of the route table, and the only one. */
 export async function discover(root: string, srcDir = 'app'): Promise<Discovered> {
   const base = join(root, srcDir)
   if (!(await exists(base))) {

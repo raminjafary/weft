@@ -37,6 +37,7 @@ import { dirname, join } from 'node:path'
  */
 export const PROFILE_VERSION = '2'
 
+/** What one slot cost, over every render the recording saw. Renders and cache hits kept apart. */
 export interface SlotObservation {
   /** Renders observed. A hit is not a render, which is why this is not the request count. */
   renders: number
@@ -49,6 +50,7 @@ export interface SlotObservation {
   hits: number
 }
 
+/** What one route cost, and where its readers came from — which is what a `Referer` says. */
 export interface RouteObservation {
   requests: number
   slots: Record<string, SlotObservation>
@@ -72,6 +74,7 @@ export interface RouteObservation {
   followed: number
 }
 
+/** A recording, as written to disk. Versioned: an older one is ignored rather than half-read. */
 export interface Profile {
   version: string
   /** When it was written, absolute, so an old profile can say how old it is. */
@@ -81,6 +84,7 @@ export interface Profile {
   routes: Record<string, RouteObservation>
 }
 
+/** Where a recording is written, inside the out directory so it travels with the build. */
 export const PROFILE_FILE = 'profile.json'
 
 /** How many renders a slot needs before its number decides anything. */
@@ -91,6 +95,7 @@ export const SLOW_MS = 40
 export const MIN_STREAM_BYTES = 512
 /** A transition seen at least this often, and this much of a route's departures, is worth staging. */
 export const MIN_TRANSITIONS = 4
+/** The share of arrivals a source needs before staging from it is worth a speculative fetch. */
 export const MIN_SHARE = 0.15
 /** How many times a route has to have been described before the number says anything. */
 export const MIN_DESCRIBED = 8
@@ -110,6 +115,7 @@ interface Sample {
   hits: number
 }
 
+/** What every render, cache hit and description reports to while a process is recording. */
 export interface Recorder {
   /** A document request arrived for this route. */
   request(route: string, from?: string): void
@@ -236,6 +242,7 @@ function round(ms: number): number {
   return Math.round(ms * 10) / 10
 }
 
+/** What the numbers decided about one slot's delivery, and the sentence explaining it. */
 export interface SlotDecision {
   route: string
   slot: string
@@ -246,6 +253,7 @@ export interface SlotDecision {
   because: string
 }
 
+/** One route's decisions: its slots' delivery, and which pages it is worth staging from. */
 export interface RouteDecision {
   route: string
   slots: SlotDecision[]
@@ -253,6 +261,7 @@ export interface RouteDecision {
   stage: string[]
 }
 
+/** Whether describing this route to a client that has not been to it pays for the bytes. */
 export interface DiscoverDecision {
   route: string
   /** Whether describing this route to a client that has not been to it is worth the bytes. */
@@ -262,6 +271,13 @@ export interface DiscoverDecision {
   because: string
 }
 
+/**
+ * Everything a recording decided, and what it refused to decide.
+ *
+ * Delivery is the decision worth making from measurement because it is the one an author cannot
+ * make correctly from a file tree. Placement, cache classes and keys are untouched: a recording of
+ * last Tuesday has no standing over what the compiler inferred.
+ */
 export interface Decisions {
   routes: RouteDecision[]
   /**

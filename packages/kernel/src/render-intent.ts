@@ -113,6 +113,7 @@ export interface Renderable {
   render(request: RenderRequest): Promise<SlotRender | SlotFrames> | SlotRender | SlotFrames
 }
 
+/** The catalogue, and the gates a render request passes — the same ones an intent does. */
 export interface RenderDispatchOptions {
   registry: Registry
   /** Required as soon as a renderable declares a capability. */
@@ -123,6 +124,7 @@ export interface RenderDispatchOptions {
   limits?: LimitPort
 }
 
+/** What a render request produced, or the refusal that replaced it. */
 export interface RenderIntentOutcome {
   ok: boolean
   /** The opaque id that was asked for. */
@@ -137,6 +139,7 @@ export interface RenderIntentOutcome {
   source?: SlotRender | SlotFrames
 }
 
+/** Renders a fragment a client named by opaque id. Deliberately not the intent path. */
 export interface RenderDispatch {
   run(
     request: {
@@ -162,6 +165,12 @@ export interface RenderDispatch {
   ): Promise<RenderIntentOutcome>
 }
 
+/**
+ * A dispatch over a catalogue.
+ *
+ * Separate from intents because an intent is the only thing allowed to *write* and a render is the
+ * one thing that cannot — sharing the path would be one gate answering two questions.
+ */
 export function createRenderDispatch(options: RenderDispatchOptions): RenderDispatch {
   return {
     async run(asked, base, credentials) {

@@ -60,6 +60,12 @@ export function fragment(_render: unknown): never {
   return lowered('fragment')
 }
 
+/**
+ * Client-owned state, declared.
+ *
+ * A declaration the compiler reads, not a function that runs: calling one at runtime is a bug worth
+ * naming rather than a fallback worth having, which is why it throws.
+ */
 export function signal<T>(_initial: T): Signal<T> {
   return lowered('signal')
 }

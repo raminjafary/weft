@@ -25,6 +25,7 @@ export class EnvelopeError extends Error {
   }
 }
 
+/** What can wait for the next response when this one's envelope is already sealed. */
 export type DeferrableKind = 'cookie' | 'header'
 
 /**
@@ -39,6 +40,13 @@ export interface DeferredEffect {
   reason: string
 }
 
+/**
+ * The response head, and the fact that it seals.
+ *
+ * Everything here is possible in phase A and impossible afterwards: a status, a cookie, a redirect,
+ * `Vary`. The machine's job is to force that work before the first byte rather than let it be
+ * discovered in production.
+ */
 export interface Envelope {
   status(code: number): void
   redirect(location: string, code?: number): void
@@ -72,6 +80,7 @@ export interface Envelope {
 
 const NON_IDEMPOTENT = /consent|purchase|order|payment|csrf|nonce/i
 
+/** An envelope bound to one request's lifecycle, so a late write is a named refusal. */
 export function createEnvelope(life: Lifecycle): Envelope {
   const headers = new Headers()
   const cookies: SetCookie[] = []
@@ -173,6 +182,7 @@ export interface DeferredMailbox {
   readonly size: number
 }
 
+/** Where a deferred cookie or header waits for a connection's next response. Bounded on purpose. */
 export function createMailbox(maxConnections = 1024): DeferredMailbox {
   const pending = new Map<string, DeferredEffect[]>()
   return {

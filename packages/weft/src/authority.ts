@@ -70,6 +70,7 @@ export interface AuthorityConfig {
   }): void
 }
 
+/** What this deployment bound of the authority tier: the checks, the signer, the verifier. */
 export interface Authority {
   model: CapabilityModel | null
   signer: IntentSigner | null
@@ -81,6 +82,7 @@ export interface Authority {
   diagnostics: string[]
 }
 
+/** A configuration refusal: a key that will not load, or a grant naming nothing. */
 export class AuthorityConfigError extends Error {
   code: string
 
@@ -134,6 +136,7 @@ function base64(buffer: ArrayBuffer): string {
   return btoa(ascii)
 }
 
+/** Turn the config's authority block into the ports, refusing a half-configured one by name. */
 export async function resolveAuthority(
   config: AuthorityConfig | undefined,
   intents: IntentManifest,
@@ -279,6 +282,7 @@ export async function resolveAuthority(
 /** Where a client asks for a token. Its own path, because minting is not dispatching. */
 export const TOKEN_PATH = '/_weft/token'
 
+/** What a page asks for when it needs a signed intent minted for one reader. */
 export interface TokenRequest {
   request: Request
   authority: Authority

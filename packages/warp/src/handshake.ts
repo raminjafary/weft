@@ -1,6 +1,7 @@
 import { frame, list, str, type Frame } from './frames.ts'
 import { WARP_SPEC } from './version.ts'
 
+/** The forms a client may accept. Mirrors the IR's own list, because the wire is the contract. */
 export type WireForm = 'html' | 'bundle' | 'split' | 'patch' | 'delta' | 'remote'
 
 /**
@@ -11,6 +12,7 @@ export type WireForm = 'html' | 'bundle' | 'split' | 'patch' | 'delta' | 'remote
  */
 export type Transport = 'stream' | 'buffered' | 'socket'
 
+/** What a client announces: its versions, the forms it accepts, and the templates it holds. */
 export interface ClientHello {
   warp: string
   ir: string
@@ -33,6 +35,7 @@ export interface ClientHello {
   caps?: string[]
 }
 
+/** What this server can offer, so the intersection is a fact rather than an assumption. */
 export interface ServerCapabilities {
   warp: string
   ir: string
@@ -51,6 +54,7 @@ export interface ServerCapabilities {
  */
 export const WARP_FORMS: WireForm[] = ['html', 'bundle', 'split', 'patch', 'delta']
 
+/** What was settled: the versions, the forms, and the strategy both ends agreed on. */
 export interface Negotiation {
   ok: boolean
   spec: string
@@ -171,6 +175,7 @@ export function negotiate(hello: ClientHello, server: ServerCapabilities): Negot
   return { ...base, ok: true, warp, ir, forms, downgrades }
 }
 
+/** A `RESIDENT` frame from a client hello. */
 export function residentFrame(hello: ClientHello): Frame {
   return frame('RESIDENT', {
     warp: hello.warp,
@@ -196,6 +201,7 @@ function flag(f: Frame, key: string): boolean | undefined {
   return raw === 'true' || raw === '1'
 }
 
+/** A client hello back out of a `RESIDENT` frame. */
 export function readResident(f: Frame): ClientHello {
   return {
     warp: str(f, 'warp') ?? '0.0.0',
