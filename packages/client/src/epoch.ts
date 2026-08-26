@@ -35,6 +35,7 @@ export interface StagedWrite {
   delta: DeltaPayload
 }
 
+/** A region staged as markup rather than as values, for a form no template can project. */
 export interface StagedMarkup {
   slot: string
   html: string
@@ -43,17 +44,20 @@ export interface StagedMarkup {
   paint(html: string, base: string): void
 }
 
+/** One staged change: a value write, or markup for a whole region. */
 export type Staged = StagedWrite | StagedMarkup
 
 function isMarkup(staged: Staged): staged is StagedMarkup {
   return 'html' in staged
 }
 
+/** How to commit: with a view transition where the engine has one, instantly where it does not. */
 export interface CommitOptions {
   /** Wrap the commit in a same-document View Transition where the engine has them. */
   transition?: boolean
 }
 
+/** What the commit did, and whether the engine animated it. */
 export interface CommitResult {
   epoch: string
   slots: string[]
@@ -62,6 +66,13 @@ export interface CommitResult {
   animated: boolean
 }
 
+/**
+ * Staged values, committed atomically or discarded.
+ *
+ * Rollback is discarding an epoch: nothing was painted, so there is nothing to un-paint and no
+ * prior state to reconstruct. That is the whole of it, and it is why an ACK carries the outcome
+ * rather than needing a frame of its own.
+ */
 export interface Epochs {
   stage(epoch: string, write: Staged): void
   commit(epoch: string, options?: CommitOptions): Promise<CommitResult>
@@ -74,6 +85,7 @@ type ViewTransitionHost = {
   startViewTransition?: (callback: () => void) => { finished: Promise<void> }
 }
 
+/** An epoch table. The host is injected so a test can commit without a real view transition. */
 export function createEpochs(host?: ViewTransitionHost): Epochs {
   const staged = new Map<string, Map<string, Staged>>()
   const target =

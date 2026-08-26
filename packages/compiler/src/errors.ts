@@ -1,3 +1,4 @@
+/** A position in a source file, so a refusal can name the line rather than the offset. */
 export interface Loc {
   file: string
   line: number
@@ -17,6 +18,7 @@ export class CompileError extends Error {
   }
 }
 
+/** A byte offset as a line and column. */
 export function locate(file: string, source: string, offset = 0): Loc {
   const upto = source.slice(0, offset)
   const lines = upto.split('\n')

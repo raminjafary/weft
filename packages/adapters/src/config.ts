@@ -50,6 +50,7 @@ export function staticConfig(values: Record<string, string | undefined>): Config
   )
 }
 
+/** Which environment variables are readable, and what a missing one does. */
 export interface EnvConfigOptions {
   /**
    * Only keys under this prefix are visible, and they are asked for without it.
@@ -64,6 +65,12 @@ export interface EnvConfigOptions {
   env?: Record<string, string | undefined>
 }
 
+/**
+ * Configuration from the environment, through a declared allow-list.
+ *
+ * A port rather than `process.env` directly, because a render reading the environment is a read the
+ * compiler never saw — so this is bound once and what it exposes is written down.
+ */
 export function envConfig(options: EnvConfigOptions = {}): ConfigPort {
   const prefix = options.prefix ?? 'WEFT_'
   const env =

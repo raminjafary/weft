@@ -2,6 +2,7 @@ import type { ClientHole, ClientTemplate, Json, Resident } from './template.ts'
 import type { Readable } from './signal.ts'
 import { bindDerived } from './derived.ts'
 
+/** What one wiring entry writes to: a text node, an attribute, a property, or an event. */
 export type Target =
   | { kind: 'text'; node: Text }
   | { kind: 'attr'; element: Element; attr: string }
@@ -9,6 +10,7 @@ export type Target =
   /** A control's live state, which stops agreeing with its attribute once a user edits it. */
   | { kind: 'prop'; element: Element; attr: string }
 
+/** What was attached, so a caller can detach it again when a region is replaced. */
 export interface Adopted {
   /** Writes a value into every node the server rendered it into. */
   write(binding: string, value: Json): void
@@ -44,6 +46,7 @@ export interface Tables {
   instances: Record<string, Adopted>
 }
 
+/** What adoption needs: the template, the values it was rendered with, and where to attach. */
 export interface AdoptOptions {
   root: Element
   template: ClientTemplate
@@ -278,6 +281,7 @@ export function textAfter(marker: Comment): Text {
   return node
 }
 
+/** The text node a binding owns, created if the render left the element empty. */
 export function soleText(element: Element): Text {
   const first = element.firstChild
   if (first && first.nodeType === 3) return first as Text

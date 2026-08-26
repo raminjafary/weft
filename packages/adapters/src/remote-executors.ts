@@ -45,6 +45,7 @@ function failed(job: RenderJob, ms: number, code: string, message: string): Rend
   return { slot: job.slot, bytes: new Uint8Array(0), ms, failure: { code, message } }
 }
 
+/** A region in a separate isolate on this machine. */
 export interface IsolateExecutorOptions {
   /** Resolves a relative module specifier in an address. Defaults to the adapters directory. */
   root?: string
@@ -133,6 +134,7 @@ export function isolateExecutor(options: IsolateExecutorOptions = {}): KernelExe
 /** What a service binding is, reduced to the one thing every platform's version of it has. */
 export type BoundFetch = (request: Request) => Promise<Response> | Response
 
+/** A region over a platform binding — a real crash domain with no network in it. */
 export interface BindingExecutorOptions {
   /**
    * The binding. On Workers this is `env.RENDERER.fetch`, on a mesh it is a client for the
@@ -176,6 +178,7 @@ export function bindingExecutor(options: BindingExecutorOptions): KernelExecutor
   })
 }
 
+/** A region over HTTP: where it lives, what it may spend, and what a failure degrades to. */
 export interface SvcExecutorOptions {
   /** Where the renderer lives. Another pod, another region, another team's service. */
   url: string
@@ -309,6 +312,7 @@ function loader(root: string): (module: string) => Promise<Record<string, unknow
   }
 }
 
+/** A handler that answers render requests for a catalogue, which is the far side of a region. */
 export function renderService(options: RenderServiceOptions = {}): (request: Request) => Promise<Response> {
   const root = options.root ?? new URL('./', import.meta.url).href
   const load = loader(root)
@@ -380,6 +384,7 @@ export interface RegionAnswer {
   composed?: readonly RegionNode[]
 }
 
+/** The other end: what a deployment serving regions needs to answer with Warp frames. */
 export interface RegionServiceOptions {
   /** Resolves a relative module specifier. Defaults to the adapters directory. */
   root?: string

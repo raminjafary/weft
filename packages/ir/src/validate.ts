@@ -3,12 +3,14 @@ import { BINARY_OPS, UNARY_OPS, readsOf, type DerivedExpr } from './derived.ts'
 import { derivableForms, type TemplateIR } from './template-ir.ts'
 import { templateVersion } from './hash.ts'
 
+/** One thing wrong with a document: the code, where it is, and a sentence. */
 export interface IrError {
   code: string
   at: string
   message: string
 }
 
+/** Whether a document is valid, and everything wrong with it if not. */
 export interface ValidationResult {
   ok: boolean
   errors: IrError[]
@@ -16,6 +18,7 @@ export interface ValidationResult {
 
 const HEX128 = /^[0-9a-f]{32}$/
 
+/** Every structural rule, against one template. Returns findings rather than throwing. */
 export function validateTemplate(ir: TemplateIR): ValidationResult {
   const errors: IrError[] = []
   const fail = (code: string, at: string, message: string) => errors.push({ code, at, message })
@@ -202,6 +205,7 @@ function malformed(expr: DerivedExpr | undefined): string | undefined {
   return `unknown expression node ${String((expr as { k: string }).k)}`
 }
 
+/** The same rules as a gate. A validator that accepted an invalid document would be a spec bug. */
 export function assertValidTemplate(ir: TemplateIR): TemplateIR {
   const result = validateTemplate(ir)
   if (!result.ok) {

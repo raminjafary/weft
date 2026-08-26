@@ -19,6 +19,7 @@ import type { KernelExecutor } from '@weft/kernel'
  */
 export type TopologyName = 'monolith' | 'split-render' | 'edge-regional' | 'mesh'
 
+/** One region in a named topology: what serves it, and at what revision. */
 export interface TopologyRegion {
   region: string
   /** Module and export on the far side. Required by every shape except the monolith. */
@@ -31,6 +32,7 @@ export interface TopologyRegion {
   revision?: string
 }
 
+/** What a topology needs: its regions, and how each one is reached. */
 export interface TopologyOptions {
   regions: readonly TopologyRegion[]
   /**
@@ -42,6 +44,7 @@ export interface TopologyOptions {
   timeoutMs?: number
 }
 
+/** A named arrangement of regions across deployments, and the registry that resolves it. */
 export interface Topology {
   name: TopologyName
   registry: ManifestRegistry
@@ -50,6 +53,7 @@ export interface Topology {
   describe(): string
 }
 
+/** One of the design's named topologies, built so switching between them is a config change. */
 export function topology(name: TopologyName, options: TopologyOptions): Topology {
   const executors: Record<string, KernelExecutor> = {}
   const bindings: RegionBinding[] = []

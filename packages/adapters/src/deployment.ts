@@ -25,6 +25,7 @@ export interface DeploymentOptions {
   instance?: string
 }
 
+/** A deployment that knows its own identity because somebody wrote it down. */
 export function staticDeployment(options: DeploymentOptions = {}): DeploymentPort {
   return {
     name: 'static',
@@ -63,12 +64,14 @@ function first(env: Record<string, string | undefined>, keys: readonly string[])
   return undefined
 }
 
+/** Where this deployment thinks it is, when the host tells it rather than the config. */
 export interface HostDeploymentOptions extends DeploymentOptions {
   env?: Record<string, string | undefined>
   /** Read `WEFT_`-prefixed settings from a config port instead of the raw environment. */
   config?: ConfigPort
 }
 
+/** A deployment that reads its identity from the platform's own variables. */
 export function hostDeployment(options: HostDeploymentOptions = {}): DeploymentPort {
   const env =
     options.env ??

@@ -24,6 +24,7 @@ interface Slot {
   bytes: number
 }
 
+/** An in-process store, plus the drain a deployment has to call for deferred revalidation. */
 export interface MemoryStore extends StorePort {
   /**
    * Runs the tasks handed to `revalidateAfterResponse`. On Workers this is `waitUntil`; on
@@ -33,6 +34,7 @@ export interface MemoryStore extends StorePort {
   drain(): Promise<void>
 }
 
+/** The default store: one process, a byte ceiling, and LRU eviction. Real, and not shared. */
 export function memoryStore(options: MemoryStoreOptions = {}): MemoryStore {
   const maxBytes = options.maxBytes ?? 8 * 1024 * 1024
   const clock = options.clock ?? (() => Date.now())

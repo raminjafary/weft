@@ -18,6 +18,7 @@ import { inferEffects } from './effects.ts'
 import { lower, returnedJsx, type ComponentRef, type ImportRef, type Lowered, type Scope } from './lower.ts'
 import { createTypeOracle, type TypeOracle } from './types.ts'
 
+/** One compiled fragment: its sealed entry, the templates inside it, and which export it was. */
 export interface CompiledFragment {
   /** The root template, plus every nested row template it needs, sealed. */
   entry: TemplateIR
@@ -25,6 +26,7 @@ export interface CompiledFragment {
   exportName: string
 }
 
+/** One module's fragments. A module may export several; a page is one of them. */
 export interface CompiledModule {
   file: string
   fragments: CompiledFragment[]
@@ -331,6 +333,7 @@ async function sealTree(
   return { entry, all }
 }
 
+/** One module from its text. The entry point a test uses; a build uses `compileFiles`. */
 export async function compileSource(
   source: string,
   file: string,
@@ -491,6 +494,7 @@ export async function compileSource(
   return { file, fragments }
 }
 
+/** One module from a path, or from the supplied reader when the file set is virtual. */
 export async function compileFile(path: string, options?: CompileOptions): Promise<CompiledModule> {
   return compileSource(
     await (options?.read ?? ((file: string) => readFile(file, 'utf8')))(path),

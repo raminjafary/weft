@@ -60,6 +60,13 @@ export function bySubject(): CountingLimitOptions['counted'] {
 
 const utf8 = new TextEncoder()
 
+/**
+ * A fixed-window counter, and it says fixed on purpose.
+ *
+ * A sliding window needs a store that can count atomically, and `StorePort` deliberately has a lease
+ * rather than a counter. So a burst straddling a boundary is split across two buckets, which is
+ * stated rather than smoothed over.
+ */
 export function countingLimits(options: CountingLimitOptions): LimitPort {
   const now = options.now ?? (() => Date.now())
 

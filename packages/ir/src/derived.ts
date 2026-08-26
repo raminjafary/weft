@@ -1,12 +1,16 @@
 import type { BindingId, Json, Values } from './template-ir.ts'
 
+/** The unary operators a derived expression may use. A closed set, because the client evaluates it. */
 export type UnaryOp = '!' | '-' | '+' | '~'
 
+/** The binary operators a derived expression may use. Also closed, and for the same reason. */
 export type BinaryOp =
   '+' | '-' | '*' | '/' | '%' | '**' | '<' | '>' | '<=' | '>=' | '===' | '!==' | '==' | '!='
 
+/** Every unary operator, for the validator. */
 export const UNARY_OPS: readonly UnaryOp[] = ['!', '-', '+', '~']
 
+/** Every binary operator, for the validator. */
 export const BINARY_OPS: readonly BinaryOp[] = [
   '+',
   '-',
@@ -38,6 +42,12 @@ export type DerivedExpr =
   | { k: 'un'; op: UnaryOp; a: DerivedExpr }
   | { k: 'bin'; op: BinaryOp; a: DerivedExpr; b: DerivedExpr }
 
+/**
+ * A value computed from other bindings, as a tree rather than as code.
+ *
+ * Which is the whole point: a client can evaluate a tree without the component that wrote it, so a
+ * derived value costs no closure on the wire and needs no hydration to recompute.
+ */
 export interface DerivedDecl {
   id: BindingId
   expr: DerivedExpr

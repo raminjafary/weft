@@ -15,6 +15,7 @@ import { collectMarkers, elementAt, soleText, textAfter } from './adopt.ts'
  */
 export type PatchOp = 'text' | 'markup' | 'replace' | 'append' | 'truncate' | 'attr' | 'bool' | 'presence'
 
+/** One hole's new markup, addressed by path rather than by value. */
 export interface PatchWrite {
   path: number[]
   op: PatchOp
@@ -23,6 +24,7 @@ export interface PatchWrite {
   value?: string
 }
 
+/** A patch: the markup of the holes that changed, for a client holding no template. */
 export interface PatchPayload {
   tpl: string
   base: string
@@ -39,6 +41,7 @@ type Resolved =
   | { kind: 'truncate'; element: Element; value: string }
   | { kind: 'attr'; element: Element; attr: string; value?: string }
 
+/** Apply a patch and return how many holes it touched. The rung that needs nothing resident. */
 export function applyPatch(root: Element, patch: PatchPayload): number {
   const opaque = new Set<Element>()
   for (const path of patch.opaque) {
@@ -108,6 +111,7 @@ export function patchApplies(held: string, patch: PatchPayload): boolean {
   return held === patch.base
 }
 
+/** Where a patch write lands, resolved against the live DOM. */
 export interface PatchTarget {
   /** The region's root element, which is where every address in the patch starts. */
   root: Element

@@ -4,6 +4,7 @@ import { batch } from './signal.ts'
 
 const PATH = /^([^[.]+)(?:\[(\d+)\])?$/
 
+/** A delta as it arrives: the template, the base it applies to, and the changed values. */
 export interface DeltaPayload {
   tpl: string
   base: string

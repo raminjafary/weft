@@ -1,5 +1,6 @@
 import type { EffectSet } from './template-ir.ts'
 
+/** What a read set makes a fragment. Derived, never declared — a class you can assert is one you can assert wrongly. */
 export type CacheClass = 'static' | 'shared' | 'private'
 
 /**
@@ -81,6 +82,7 @@ export function flagAxes(effects: EffectSet): string[] {
     .sort()
 }
 
+/** Reads nothing, so its key is its content address and it could be a file. */
 export function isStatic(effects: EffectSet): boolean {
   return cacheClassOf(effects) === 'static'
 }

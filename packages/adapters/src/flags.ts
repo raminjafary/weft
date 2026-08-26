@@ -16,6 +16,7 @@ export interface StaticFlagsOptions {
   bucket?(flag: string, request: RequestFacts): FlagValue | undefined
 }
 
+/** A flag refusal: an undeclared flag, or a bucket that returned a value off the axis. */
 export class FlagError extends Error {
   code: string
 
@@ -26,6 +27,12 @@ export class FlagError extends Error {
   }
 }
 
+/**
+ * Flags from a declared axis set, which is what makes them plannable.
+ *
+ * A flag that is not declared cannot be read, so a typo is a build error rather than a branch that
+ * silently never runs — and a bucket answering off-axis is refused rather than keyed.
+ */
 export function staticFlags(options: StaticFlagsOptions): FlagPort {
   return {
     name: 'static',

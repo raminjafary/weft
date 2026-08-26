@@ -74,11 +74,18 @@ export interface RedisLeaseOptions {
  */
 const RELEASE = `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end`
 
+/** A store with real leases, plus the connection lifecycle a network client needs. */
 export type LeasedStore = StorePort & {
   /** Close the connection. A socket outlives a request by design, so something has to end it. */
   close(): void
 }
 
+/**
+ * Leases over Redis, so stampede coalescing works across processes.
+ *
+ * The lease is the whole point: the in-process store's is per isolate, which means every replica
+ * renders the same cold key once. This is the version that holds across them.
+ */
 export function redisLeases(base: StorePort, options: RedisLeaseOptions = {}): LeasedStore {
   const target = resolve(options)
   const prefix = options.prefix ?? ''

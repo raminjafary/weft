@@ -22,6 +22,7 @@ export function escapeBytes(s: string, attr: boolean): Uint8Array {
   return utf8.encode(needsEscape(s, attr) ? escapeString(s, attr) : s)
 }
 
+/** HTML-escape, with the attribute rules where they differ. Called only when a scan proved it necessary. */
 export function escapeString(s: string, attr: boolean): string {
   let out = ''
   let start = 0
@@ -41,6 +42,7 @@ export function escapeString(s: string, attr: boolean): string {
   return start === 0 ? s : out + s.slice(start)
 }
 
+/** Several buffers as one. */
 export function concat(parts: Uint8Array[]): Uint8Array {
   let total = 0
   for (const p of parts) total += p.length
@@ -279,6 +281,7 @@ function child(hole: Hole, resolve: Resolver | undefined): TemplateIR {
   return nested
 }
 
+/** `render` under the name the `html` wire form goes by, so a form table can name all of them. */
 export const renderHtml = render
 
 /** A delta is only applicable to the template version it was computed against. */
@@ -391,6 +394,7 @@ export function applyDelta(base: Values, delta: DeltaPayload, ir?: TemplateIR, r
   return next
 }
 
+/** How many bytes a render would produce, without producing them. */
 export function byteLength(
   ir: TemplateIR,
   supplied: Values,

@@ -38,6 +38,7 @@ export type PatchOp =
   | 'bool'
   | 'presence'
 
+/** One hole's markup, addressed by path — the rung that needs no resident template. */
 export interface PatchWrite {
   /** Element children only, from the region root — the address adoption already walks. */
   path: number[]
@@ -49,6 +50,7 @@ export interface PatchWrite {
   value?: string
 }
 
+/** A patch: the markup of the holes that changed, and nothing about the ones that did not. */
 export interface PatchPayload {
   spec: typeof PAYLOAD_SPEC
   irVersion: string

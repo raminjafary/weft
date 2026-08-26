@@ -49,11 +49,19 @@ export interface SegmentMemo {
   readonly size: number
 }
 
+/** How much of the memo to keep, which is a memory-for-renders trade and nothing else. */
 export interface SegmentMemoOptions {
   /** Bytes. An unbounded memo inside a 128 MB isolate is an outage waiting for traffic. */
   maxBytes?: number
 }
 
+/**
+ * A content-addressed memo over nested templates — list rows and component instances.
+ *
+ * Two lines drawn deliberately: only nested templates are memoised, because hashing a text hole
+ * costs more than rendering it; and the memo is process-local, because `render` is synchronous and
+ * a shared tier could not answer it.
+ */
 export function createSegmentMemo(options: SegmentMemoOptions = {}): SegmentMemo {
   const maxBytes = options.maxBytes ?? 4 * 1024 * 1024
   const entries = new Map<string, Uint8Array>()
@@ -134,6 +142,7 @@ export function derivedPlan(decls: readonly DerivedDecl[]): DerivedPlan {
   }
 }
 
+/** Which derived values a recompute could skip, because nothing they read changed. */
 export interface IncrementalDerived {
   values: Values
   recomputed: BindingId[]
@@ -195,6 +204,7 @@ export interface IncrementalStats {
   structural: string[]
 }
 
+/** The bytes, plus how many nested templates were reused rather than rendered. */
 export interface IncrementalRender {
   bytes: Uint8Array
   stats: IncrementalStats
@@ -202,6 +212,7 @@ export interface IncrementalRender {
   resolved: Values
 }
 
+/** The previous values and the memo, which is everything an incremental render needs extra. */
 export interface IncrementalInput {
   ir: TemplateIR
   values: Values

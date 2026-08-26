@@ -17,6 +17,7 @@ export interface ManifestEntry {
   intent: Intent<never>
 }
 
+/** A registry plus the manifest it answered from, for a build report and for `weft verify`. */
 export interface ManifestRegistry extends Registry {
   /** The id an entry got, for a build report and for `weft why`. */
   idFor(module: string, exportName: string): string
@@ -35,6 +36,7 @@ export interface ManifestRegistry extends Registry {
   regions(): readonly string[]
 }
 
+/** The manifest a registry resolves against, and what a name it does not know does. */
 export interface ManifestOptions {
   /**
    * Region name to the deployment serving it. A shell says `search`; this is what `search` is.
@@ -46,6 +48,13 @@ export interface ManifestOptions {
   regions?: readonly RegionBinding[]
 }
 
+/**
+ * Region names to deployments, from a manifest.
+ *
+ * Ids are derived with the same function the compiler used, because a manifest that spelled its own
+ * would eventually disagree with the templates — and that disagreement looks like a region that
+ * silently does nothing.
+ */
 export function manifestRegistry(
   entries: readonly ManifestEntry[],
   options: ManifestOptions = {},

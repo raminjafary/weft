@@ -15,6 +15,7 @@ export interface CookieSessionOptions {
   clock?: () => number
 }
 
+/** Identity and cookies from a signed cookie. The default, and a real one. */
 export function cookieSession(options: CookieSessionOptions = {}): SessionPort {
   const cookieName = options.cookie ?? 'sid'
   const clock = options.clock ?? (() => Date.now())

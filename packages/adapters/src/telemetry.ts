@@ -12,6 +12,7 @@ export interface Recorded {
   attrs?: Record<string, string | number>
 }
 
+/** Telemetry that keeps what it was told, so a test can assert on marks rather than on logs. */
 export interface CollectingTelemetry extends TelemetryPort {
   readonly marks: { name: string; at: number }[]
   readonly measures: Recorded[]
@@ -19,6 +20,7 @@ export interface CollectingTelemetry extends TelemetryPort {
   reset(): void
 }
 
+/** An in-memory telemetry port. For tests and for the devtools' own timeline. */
 export function collectingTelemetry(): CollectingTelemetry {
   const marks: { name: string; at: number }[] = []
   const measures: Recorded[] = []

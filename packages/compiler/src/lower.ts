@@ -26,6 +26,7 @@ import { CompileError, locate } from './errors.ts'
 import { intentId } from './intents.ts'
 import { cannotBeMarkup, type TypeOracle } from './types.ts'
 
+/** Where a tag came from: the module specifier and the export, exactly as written. */
 export interface ImportRef {
   /** The specifier exactly as written, which is what resolving a sibling module needs. */
   module: string
@@ -42,6 +43,7 @@ export interface ImportRef {
   id: string
 }
 
+/** What names are in scope while lowering, so a prop and a signal can be told apart. */
 export interface Scope {
   props: Set<string>
   propsIdent?: string
@@ -101,6 +103,7 @@ export interface ComponentRef {
   sealed?: SealedFragment
 }
 
+/** The result: segments, holes, wiring, and the nested templates a list or instance needs. */
 export interface Lowered {
   id: string
   parts: string[]
@@ -155,6 +158,7 @@ interface Classified {
   reads?: string[]
 }
 
+/** What lowering needs: the JSX, the scope around it, and the type oracle if there is one. */
 export interface LowerInput {
   id: string
   root: Node
@@ -172,6 +176,7 @@ export interface LowerInput {
   derived?: DerivedDecl[]
 }
 
+/** JSX to segments and holes. Every expression it cannot lower is refused by name. */
 export function lower(input: LowerInput): Lowered {
   const em: Emitter = {
     parts: [],
@@ -916,6 +921,7 @@ function lowerList(
   em.nested.push({ holeIndex, id, kind: 'row', lowered })
 }
 
+/** The JSX a fragment body returns, past the statements that set up its signals. */
 export function returnedJsx(block: Node, input: LowerInput): Node {
   for (const statement of nodes(block.body)) {
     if (statement.type === 'ReturnStatement') return node(statement.argument)

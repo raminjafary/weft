@@ -39,6 +39,7 @@ export interface KnownRoute {
   stage?: boolean
 }
 
+/** What this client has been told about routes it has not been to. Deliberately not a router. */
 export interface Known {
   /** Record what a PLAN carried. A pattern arriving twice replaces what was held for it. */
   learn(routes: readonly KnownRoute[]): void
@@ -51,6 +52,7 @@ export interface Known {
   readonly size: number
 }
 
+/** An empty registry. It answers "what do I know about this URL" and touches nothing else. */
 export function createKnown(): Known {
   const routes = new Map<string, KnownRoute>()
   const prefixes = new Set<string>()
@@ -130,6 +132,7 @@ export function discoverFrame(prefix: string): { kind: string; header: Record<st
   return { kind: 'WARM', header: { plan: prefix } }
 }
 
+/** What a `PLAN` frame carried, and which prefix it was answering. */
 export interface PlanArrival {
   /** What was asked about. Empty for the frame that follows the handshake. */
   prefix: string

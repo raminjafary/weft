@@ -54,6 +54,7 @@ function filename(key: string): string {
   return createHash('sha256').update(key).digest('hex')
 }
 
+/** Leases over any store that can do a conditional write, for deployments with no Redis. */
 export function sharedLeases(base: StorePort, options: SharedLeaseOptions): StorePort {
   const clock = options.clock ?? ((): number => Date.now())
   // Synchronous, once, at construction: a store that might not have its directory yet is a store

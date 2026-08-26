@@ -1,5 +1,6 @@
 import type { ClientTemplate, Resident } from './template.ts'
 
+/** Where templates a client already holds are kept: IndexedDB, then memory, then nothing. */
 export interface ResidentStore {
   all(): Promise<Resident>
   put(template: ClientTemplate): Promise<void>
@@ -83,10 +84,12 @@ export function digest(versions: string[]): string {
     .join(',')
 }
 
+/** The versions a `RESIDENT` digest says a client holds. Coarse on purpose: it is a fingerprint. */
 export function heldBy(digestValue: string): Set<string> {
   return new Set(digestValue.split(',').filter(Boolean))
 }
 
+/** Whether that digest covers this version. */
 export function isHeld(held: Set<string>, version: string): boolean {
   return held.has(version.slice(0, PREFIX))
 }

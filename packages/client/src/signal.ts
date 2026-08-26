@@ -1,3 +1,4 @@
+/** Something to run when a value it read has changed. */
 export type Subscriber = () => void
 
 /** Anything a wiring entry can bind to: a signal, or a value computed from signals. */
@@ -6,10 +7,12 @@ export interface Readable<T> {
   subscribe(run: Subscriber): () => void
 }
 
+/** A readable value that can be written. Writing marks its readers stale and recomputes nothing. */
 export interface Signal<T> extends Readable<T> {
   set(next: T): void
 }
 
+/** A value derived from others. Readable, never writable — the expression is the definition. */
 export type Computed<T> = Readable<T>
 
 /*
@@ -133,6 +136,7 @@ export function effect(fn: () => void): () => void {
   return () => dispose(node)
 }
 
+/** Several writes as one notification, so a subscriber sees the end state and not each step. */
 export function batch(work: () => void): void {
   batchDepth++
   try {

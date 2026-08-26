@@ -22,6 +22,7 @@ export interface PrioSchedulerOptions {
   maxConcurrency?: number
 }
 
+/** Orders a wave by declared priority. It reorders what it was handed and can add nothing. */
 export function prioScheduler(options: PrioSchedulerOptions = {}): SchedulerPort {
   const maxConcurrency = options.maxConcurrency ?? 6
   return {

@@ -1,5 +1,7 @@
+/** What a value can be, mirroring the IR's own type — the client holds templates as data. */
 export type Json = string | number | boolean | null | Json[] | { [k: string]: Json }
 
+/** The hole kinds a client has to understand. Fewer than the server's: it never cuts a document. */
 export type HoleKind =
   | 'text'
   | 'attr'
@@ -34,6 +36,7 @@ export interface ClientHole {
   children?: string
 }
 
+/** One binding to attach: where it is, what it writes, and which value feeds it. */
 export interface ClientWiring {
   path: number[]
   op: 'text' | 'attr' | 'prop' | 'bool' | 'event' | 'list'
@@ -51,11 +54,13 @@ export type ClientExpr =
   | { k: 'un'; op: string; a: ClientExpr }
   | { k: 'bin'; op: string; a: ClientExpr; b: ClientExpr }
 
+/** A derived value as an expression tree, which is what travels instead of code. */
 export interface ClientDerived {
   id: string
   expr: ClientExpr
 }
 
+/** A sealed template as the client receives it: no effects, no provenance, no build metadata. */
 export interface ClientTemplate {
   version: string
   holes: ClientHole[]

@@ -25,6 +25,7 @@ export interface BoundedDbOptions {
   now?(): number
 }
 
+/** A database refusal: a deadline passed, or an access that declared no tags. */
 export class DbError extends Error {
   code: string
   query: string
@@ -37,6 +38,7 @@ export class DbError extends Error {
   }
 }
 
+/** What one access cost and what it touched, so a slow query has a name in a report. */
 export interface Observed {
   name: string
   ms: number
@@ -44,6 +46,7 @@ export interface Observed {
   failed?: boolean
 }
 
+/** A database with a deadline and declared tags, plus what it observed. */
 export interface BoundedDb extends DbPort {
   observed(): readonly Observed[]
   /** Every tag any query has declared. What an invalidation can be checked against. */
@@ -51,6 +54,12 @@ export interface BoundedDb extends DbPort {
   forget(): void
 }
 
+/**
+ * A database access that has to name a deadline and the tags it reads.
+ *
+ * Neither is bureaucracy: without a deadline one slow query holds a whole page, and without tags an
+ * intent cannot invalidate what the query cached.
+ */
 export function boundedDb(options: BoundedDbOptions = {}): BoundedDb {
   const timeoutMs = options.timeoutMs ?? 10_000
   const keep = options.history ?? 64

@@ -12,8 +12,10 @@ import {
 } from 'typescript/unstable/sync'
 import { getTokenAtPosition, type Node, type SourceFile } from 'typescript/unstable/ast'
 
+/** What the checker said a hole holds. `number` and `boolean` are what make escaping a no-op. */
 export type ValueKind = 'number' | 'boolean' | 'string' | 'other'
 
+/** The type checker, asked one question: what kind of value occupies this span. */
 export interface TypeOracle {
   /** The kind of the expression occupying exactly this span, if it can be determined. */
   kindAt(file: string, start: number, end: number): ValueKind

@@ -25,6 +25,7 @@ const OP = {
   pong: 0xa,
 } as const
 
+/** One upgraded connection, with the buffer depth a sink needs to report saturation. */
 export interface WebSocketConnection {
   readonly open: boolean
   /** True when the socket buffer is above its watermark: the peer is not reading. */
@@ -36,6 +37,7 @@ export interface WebSocketConnection {
   close(code?: number, reason?: string): void
 }
 
+/** Complete an upgrade by hand, because the framework does not depend on a WebSocket library. */
 export function acceptWebSocket(
   req: IncomingMessage,
   socket: Duplex,

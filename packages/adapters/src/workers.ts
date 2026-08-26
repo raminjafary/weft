@@ -43,6 +43,7 @@ export interface KvNamespace {
   }>
 }
 
+/** What a KV-backed store needs to know about the namespace it was handed. */
 export interface KvStoreOptions {
   name?: string
   /**
@@ -65,6 +66,7 @@ function tagKey(tag: string, key: string): string {
   return `${TAG_PREFIX}${tag}:${key}`
 }
 
+/** A store over Workers KV. Eventually consistent, and it declares that rather than hoping. */
 export function kvStore(namespace: KvNamespace, options: KvStoreOptions = {}): StorePort {
   const clock = options.clock ?? ((): number => Date.now())
   const queued: (() => Promise<void>)[] = []
@@ -212,6 +214,7 @@ export interface ExecutionContext {
   passThroughOnException?(): void
 }
 
+/** What the Workers entry needs, including the `waitUntil` that lets work outlive a response. */
 export interface WorkersHandlerOptions {
   /** Anything that answers a Request. `createKernel(...).serve` is the one this exists for. */
   serve(request: Request): Promise<Response>

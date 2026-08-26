@@ -83,6 +83,7 @@ export interface Hole {
   anchor?: number
 }
 
+/** What a binding writes. `prop` exists because an attribute and a live value stop agreeing once somebody types. */
 export type WiringOp = 'text' | 'attr' | 'prop' | 'bool' | 'event' | 'list'
 
 /** One binding the client attaches on adoption. The cost model is the number of these. */

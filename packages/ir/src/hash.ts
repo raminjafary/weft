@@ -63,6 +63,7 @@ export async function templateVersion(ir: TemplateIR): Promise<string> {
   return hex(new Uint8Array(digest).subarray(0, 16))
 }
 
+/** Stamp a template with a hash of its own content. After this, its version *is* its identity. */
 export async function seal(ir: TemplateIR): Promise<TemplateIR> {
   return { ...ir, version: await templateVersion(ir) }
 }
@@ -82,10 +83,12 @@ export function fastHash(input: string): string {
   return (a >>> 0).toString(16).padStart(8, '0') + (b >>> 0).toString(16).padStart(8, '0')
 }
 
+/** The content address of one render, which is what a client names when it asks for a delta. */
 export function baseRenderId(ir: TemplateIR, values: Values): string {
   return fastHash(`${ir.version}|${canonicalJson(values as unknown as Json)}`)
 }
 
+/** A hash shortened for a log or a report. Never for a key. */
 export function short(hash: string, n = 6): string {
   return hash.slice(0, n)
 }

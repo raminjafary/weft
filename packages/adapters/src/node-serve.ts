@@ -2,12 +2,14 @@ import { Readable } from 'node:stream'
 import { createServer, type Server } from 'node:http'
 import { fillerBytes, type Order, type Route, type SlotContent, streamRoute } from '@weft/kernel'
 
+/** Where to listen, and what handles a request the kernel does not. */
 export interface ServeOptions {
   order: Order
   prelude?: SlotContent
   postlude?: SlotContent
 }
 
+/** A running server: its URL, and how to stop it. */
 export interface Serving {
   url: string
   close(): Promise<void>

@@ -31,6 +31,7 @@ export function nodeTransport(res: ServerResponse): TransportPort {
   }
 }
 
+/** What mounting needs: the kernel, the port, and the handlers around it. */
 export interface MountOptions {
   path?: string
   /** Built per request, so the transport can hold the response object it must write 103 to. */
@@ -38,11 +39,13 @@ export interface MountOptions {
   route(): KernelRoute
 }
 
+/** A mounted kernel: the server, the URL it answers on, and how to close it. */
 export interface Mounted {
   url: string
   close(): Promise<void>
 }
 
+/** A kernel on a Node HTTP server. The one place web-standard Request meets `node:http`. */
 export async function mountKernel(options: MountOptions): Promise<Mounted> {
   const path = options.path ?? '/'
   const server: Server = createServer((req, res) => {

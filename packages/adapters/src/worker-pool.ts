@@ -36,6 +36,7 @@ export interface WorkerPoolOptions {
   drainMs?: number
 }
 
+/** A pool of worker threads, plus the shutdown a process has to perform. */
 export interface WorkerPool extends KernelExecutor {
   /** Workers replaced because a job of theirs was killed. A budget breach is not free. */
   readonly replaced: number
@@ -79,6 +80,7 @@ interface Slot {
  */
 export const WORKER_ENTRY = workerEntry(import.meta.url)
 
+/** The worker's own entry module, resolved from wherever the caller is. */
 export function workerEntry(from: string): string {
   const ts = fileURLToPath(new URL('./worker-entry.ts', from))
   return existsSync(ts) ? ts : fileURLToPath(new URL('./worker-entry.js', from))
@@ -86,6 +88,13 @@ export function workerEntry(from: string): string {
 
 const ENTRY = WORKER_ENTRY
 
+/**
+ * Renders on worker threads, which is what makes a CPU budget a limit.
+ *
+ * On the request thread a budget is advisory and says so: several renders and the stream interleave
+ * there, so nothing can be stopped. A thread can be, which is why the CPU figure is present here
+ * and absent on `inline`.
+ */
 export function workerPool(options: WorkerPoolOptions = {}): WorkerPool {
   const size = options.size ?? 4
   const root = options.root ?? new URL('./', import.meta.url).href

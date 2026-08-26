@@ -77,6 +77,7 @@ export function streamSink(res: ServerResponse): ChannelSink {
   }
 }
 
+/** A sink over an event stream, for a client whose upgrade was refused. */
 export function sseSink(res: ServerResponse): ChannelSink {
   let open = true
   let saturated = false
@@ -118,6 +119,7 @@ export function sseSink(res: ServerResponse): ChannelSink {
   }
 }
 
+/** A sink over a WebSocket. Reports saturation, which is what makes backpressure a close. */
 export function socketSink(connection: WebSocketConnection): ChannelSink {
   // One preamble per connection, as its own message: a WebSocket delivers whole messages, so
   // the decoder on the other side sees exactly the stream the other two bindings produce.
@@ -140,6 +142,7 @@ export function socketSink(connection: WebSocketConnection): ChannelSink {
   }
 }
 
+/** What the channel routes need: the hub, and how a connection is identified. */
 export interface ChannelRouteOptions {
   hub: ChannelHub
   /** Mount point. `?c=<id>` names the channel on every binding. */
@@ -170,6 +173,7 @@ export interface ChannelHandlers {
   upgrade(req: IncomingMessage, socket: Duplex, head: Buffer): boolean
 }
 
+/** The three endpoints a channel needs over Node's HTTP server: upgrade, stream, and post-up. */
 export function channelHandlers(options: ChannelRouteOptions): ChannelHandlers {
   const path = options.path ?? '/channel'
   return {

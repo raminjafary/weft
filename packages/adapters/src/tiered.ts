@@ -19,6 +19,13 @@ function weakest<T extends string>(values: T[], order: Record<T, number>): T {
   return values.reduce((worst, value) => (order[value] < order[worst] ? value : worst), values[0] as T)
 }
 
+/**
+ * Several stores as one, nearest first.
+ *
+ * The reported coherence and scope are the *weakest* tier's, not the nearest: a guarantee is only
+ * as good as the layer that can break it, and reporting the cache's reach instead would be a
+ * promise nobody keeps.
+ */
 export function tieredStore(tiers: readonly StorePort[], name = 'tiered'): StorePort {
   if (!tiers.length) throw new Error('E_NO_TIERS: a tiered store needs at least one tier')
   const ordered = [...tiers]
