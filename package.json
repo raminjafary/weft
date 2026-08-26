@@ -30,7 +30,7 @@
     "build": "node scripts/build-packages.mjs",
     "inspect": "weft dev packages/inspector --devtools",
     "inspect:build": "weft build packages/inspector",
-    "docs": "weft dev packages/docs",
+    "docs:dev": "weft dev packages/docs",
     "docs:build": "weft build packages/docs"
   },
   "devDependencies": {

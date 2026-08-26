@@ -153,7 +153,7 @@ weft.config.ts          what this deployment binds
 ```sh
 npm create weft my-app
 
-pnpm docs           # the documentation site, which is itself a weft application
+pnpm docs:dev       # the documentation site, which is itself a weft application
 weft dev            # serve, and rebuild what changes
 weft dev --devtools # plus this application's routes, keys and bytes as pages
 weft build          # sealed templates, the generated plan, the manifest, revved assets
@@ -503,7 +503,7 @@ from the constants; `spec/VERSIONING.md` said warp was `1.7.0` while `packages/w
 said `1.8.0`. The spec is corrected and a test now asserts the two agree.
 
 ```sh
-pnpm docs         # serve it
+pnpm docs:dev     # serve it
 pnpm docs:build   # build it, and read which pages became files
 ```
 

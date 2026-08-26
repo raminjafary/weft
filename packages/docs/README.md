@@ -3,7 +3,7 @@
 The documentation site, and it is a weft application.
 
 ```sh
-pnpm docs         # serve it
+pnpm docs:dev     # serve it
 pnpm docs:build   # build it, and read which pages became files
 ```
 
