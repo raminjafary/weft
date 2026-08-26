@@ -47,6 +47,7 @@ export const PORTS: readonly PortName[] = [
   'limits',
 ]
 
+/** A port refusal, carrying which port and which code, so a caller branches on neither the text. */
 export class PortError extends Error {
   code: string
   port: PortName
@@ -59,6 +60,7 @@ export class PortError extends Error {
   }
 }
 
+/** The body of a port that is declared and not bound. Refuses by name rather than approximating. */
 export function unimplemented(port: PortName): never {
   throw new PortError('E_PORT_UNIMPLEMENTED', port, `no implementation of the ${port} port is bound`)
 }
@@ -74,6 +76,7 @@ export type Consistency = 'eventual' | 'strong'
  */
 export type Coherence = 'ttl' | 'generation' | 'pubsub' | 'tracking' | 'warp'
 
+/** What the store knows about an entry besides its bytes. The class is the load-bearing field. */
 export interface EntryMeta {
   /** The cache class the key was derived under. A private entry may never reach a shared tier. */
   class: CacheClass
@@ -85,11 +88,13 @@ export interface EntryMeta {
   generation?: number
 }
 
+/** Bytes and what is known about them. Returned together because a class without bytes decides nothing. */
 export interface StoreEntry {
   value: Uint8Array
   meta: EntryMeta
 }
 
+/** A held claim on a key, and the only thing you can do with it. Releasing twice is harmless. */
 export interface Lease {
   key: string
   release(): void
@@ -105,6 +110,13 @@ export interface Lease {
  */
 export type Scope = 'process' | 'shared'
 
+/**
+ * Where rendered bytes are held, and what the deployment can honestly claim about them.
+ *
+ * The four readonly properties are the interesting half: consistency, coherence, scope and a value
+ * ceiling are checked at build time, so a plan asking for `strong` against an eventual store is a
+ * build error rather than a guarantee nobody keeps.
+ */
 export interface StorePort {
   readonly name: string
   readonly consistency: Consistency
@@ -168,6 +180,12 @@ export interface StorePort {
 
 export type FlagValue = string | number | boolean
 
+/**
+ * Feature flags, and the one thing that makes them plannable: the complete axis set.
+ *
+ * A flag whose values are enumerable partitions the plan rather than branching inside a render, so
+ * only the resolved branch is reachable and a value off the axis is refused rather than rendered.
+ */
 export interface FlagPort {
   readonly name: string
   /** Every reachable value of every flag. This is what turns a combinatorial space into an enumerable one. */
@@ -189,6 +207,7 @@ export interface SessionPort {
   rotateIfStale?(request: RequestFacts): Promise<SetCookie[]> | SetCookie[]
 }
 
+/** A cookie the envelope will write. Only phase A can produce one, which is the point of the type. */
 export interface SetCookie {
   name: string
   value: string
@@ -224,6 +243,7 @@ export interface JobAddress {
   props?: unknown
 }
 
+/** One slot's render, as an executor sees it: a budget, an optional address, and a function. */
 export interface RenderJob {
   slot: string
   /** Milliseconds of CPU this slot is allowed before it is killed and degraded. */
@@ -236,6 +256,7 @@ export interface RenderJob {
   run(signal: AbortSignal): Promise<Uint8Array>
 }
 
+/** What came back from an executor: the bytes, what they cost, and how the render ended. */
 export interface RenderOutcome {
   slot: string
   bytes: Uint8Array
@@ -276,6 +297,7 @@ export interface SchedulableSlot {
   needs?: readonly string[]
 }
 
+/** Who decides the order within a wave, and how wide a wave may be. */
 export interface SchedulerPort {
   readonly name: string
   /**
@@ -301,6 +323,7 @@ export interface PreloadLink {
   rel: 'preload' | 'modulepreload'
 }
 
+/** What a route needs early: the links worth a 103, and the chunks a bundler would pack. */
 export interface AssetPort {
   readonly name: string
   /** Emitted in the 103, before the envelope is settled. */
@@ -622,6 +645,7 @@ export interface LimitRequest {
   cookie(key: string): string | undefined
 }
 
+/** Whether a call is within its limit. A refusal says what it was counted against, for a log only. */
 export type LimitDecision =
   | { ok: true; remaining?: number }
   | {
@@ -632,6 +656,13 @@ export type LimitDecision =
       retryAfterMs?: number
     }
 
+/**
+ * Everything the kernel refuses to implement.
+ *
+ * Fourteen capabilities, of which the first four are required and the rest are absent-or-bound. A
+ * port has one implementation at a time and swapping it changes *where* something happens; plugins
+ * are the other axis and only ever add. The one thing neither may do is write a cache key.
+ */
 export interface Ports {
   store: StorePort
   flags: FlagPort
@@ -649,6 +680,12 @@ export interface Ports {
   limits?: LimitPort
 }
 
+/**
+ * The request, reduced to what a read may see.
+ *
+ * Deliberately not the `Request`: a render that could reach the whole thing could read something the
+ * compiler never saw, and the cache key would then not describe the render.
+ */
 export function requestFacts(request: Request, params: Record<string, string> = {}): RequestFacts {
   return {
     url: new URL(request.url),
@@ -659,6 +696,7 @@ export function requestFacts(request: Request, params: Record<string, string> = 
   }
 }
 
+/** A `Cookie` header as a map. Malformed pairs are skipped rather than throwing on a request. */
 export function parseCookies(header: string | null): Record<string, string> {
   const out: Record<string, string> = {}
   if (!header) return out
@@ -671,6 +709,7 @@ export function parseCookies(header: string | null): Record<string, string> {
   return out
 }
 
+/** A `Set-Cookie` header value. Attributes are emitted in the order the RFC lists them. */
 export function serializeCookie(c: SetCookie): string {
   const parts = [`${c.name}=${encodeURIComponent(c.value)}`]
   if (c.maxAge !== undefined) parts.push(`Max-Age=${c.maxAge}`)

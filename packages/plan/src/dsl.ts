@@ -15,8 +15,16 @@ import { type ExceedPolicy, type PolicyClass, type RegionContract } from '@weft/
  */
 export type ExecutorTarget = string
 
+/** Conditions a refresh waits for, all of which must hold. Order-free, so `and` can sort. */
 export type Condition = { all: string[] }
 
+/**
+ * The condition vocabulary a refresh may wait for.
+ *
+ * Three, deliberately: `visible`, `focused`, `idle`. Each is something only the client can evaluate,
+ * which is why they travel as names rather than as predicates — the plan says what to wait for and
+ * the runtime says whether it holds.
+ */
 export const when = {
   get visible(): Condition {
     return condition('visible')
@@ -39,6 +47,7 @@ function condition(first: string): Condition {
   return { all: [first] }
 }
 
+/** Two conditions as one. Sorted, so `and(visible, focused)` and its reverse are the same value. */
 export function and(a: Condition, b: Condition): Condition {
   return { all: [...new Set([...a.all, ...b.all])].sort() }
 }
@@ -53,6 +62,7 @@ export function every(spec: string | number): number {
   return value * { ms: 1, s: 1000, m: 60_000, h: 3_600_000 }[unit]
 }
 
+/** `'8kb'` and `8192` are the same ceiling. A bad spelling is refused rather than coerced to zero. */
 export function bytes(spec: string | number): number {
   if (typeof spec === 'number') return spec
   const match = /^(\d+(?:\.\d+)?)\s*(b|kb|mb)$/i.exec(spec.trim())
@@ -62,6 +72,7 @@ export function bytes(spec: string | number): number {
   return value * { b: 1, kb: 1024, mb: 1024 * 1024 }[unit]
 }
 
+/** A plan refusal, carrying the code so a caller can branch on it rather than on the text. */
 export class PlanError extends Error {
   code: string
 
@@ -72,6 +83,7 @@ export class PlanError extends Error {
   }
 }
 
+/** A slot's ceilings, already parsed. `SlotBuilder.budget` takes the human spellings. */
 export interface SlotBudgetSpec {
   cpuMs?: number
   jsBytes?: number
@@ -80,6 +92,7 @@ export interface SlotBudgetSpec {
   onExceed?: ExceedPolicy
 }
 
+/** What a slot's cache entry is: its class, how long it lives, and what invalidates it. */
 export interface CacheSpec {
   class: PolicyClass
   ttlMs?: number
@@ -89,16 +102,27 @@ export interface CacheSpec {
   consistency?: 'eventual' | 'strong'
 }
 
+/** How often a live region re-renders, and the conditions under which the interval applies. */
 export interface RefreshSpec {
   everyMs: number
   when?: Condition
 }
 
+/**
+ * Which wire form a slot would rather send, and what it falls back to.
+ *
+ * A preference, never a guarantee: the form actually used is the smallest one the client can prove
+ * it can apply, and every form of a fragment produces identical bytes anyway.
+ */
 export interface FormSpec {
   prefer?: WireForm
   fallback?: WireForm
 }
 
+/**
+ * One slot, fully resolved: what renders it, when its bytes arrive, where it runs, what it may
+ * spend, and what may be done to it later. This is what `lowerPlan` reads and `weft why` prints.
+ */
 export interface SlotSpec {
   name: string
   /** The compiled fragment this slot renders: module and export, as the compiler names it. */
@@ -147,6 +171,7 @@ export interface RegionDecl {
   critical?: boolean
 }
 
+/** A guard by name, and what a refusal does: a real redirect or a real status, both in phase A. */
 export interface GuardSpec {
   name: string
   redirect?: string
@@ -170,6 +195,7 @@ export interface ShellSpec {
   nested?: readonly ShellNesting[]
 }
 
+/** One link in a chain: the layout, and the hole of the enclosing one it fills. */
 export interface ShellNesting {
   /** The slot hole of the enclosing layout this one fills. */
   at: string
@@ -177,6 +203,13 @@ export interface ShellNesting {
   fragment: string
 }
 
+/**
+ * A route's placement, delivery and policy, resolved.
+ *
+ * Generated from the file convention rather than written, and validated against what the compiler
+ * inferred before it is lowered — so a plan that contradicts the code fails the build with the read
+ * that caused it named. It is not a build configuration.
+ */
 export interface Plan {
   route: string
   /** The outermost fragment of the document. Absent only for a plan with no slots. */
@@ -210,6 +243,13 @@ export interface Plan {
   maxConcurrency: number
 }
 
+/**
+ * The chained form of a `SlotSpec`.
+ *
+ * A builder rather than an object literal because every call is a declaration with a rule attached —
+ * `.executor()` has to be checked against what the deployment bound, `.cache()` against what the
+ * fragment reads — and a builder is where the argument for each of those can live beside it.
+ */
 export interface SlotBuilder {
   readonly spec: SlotSpec
   fragment(id: string): SlotBuilder
@@ -239,6 +279,7 @@ export interface SlotBuilder {
   speculate(mode?: boolean | 'profile'): SlotBuilder
 }
 
+/** A slot by the name of the hole it fills. Every other property is chained onto it. */
 export function slot(name: string): SlotBuilder {
   const spec: SlotSpec = {
     name,
@@ -371,6 +412,7 @@ export interface RegionBuilder {
 /** The reserved executor name meaning "the registry decides". */
 export const REGION_EXECUTOR = 'region'
 
+/** A slot whose renderer may live on another deployment. Which one is the registry's answer. */
 export function region(name: string): RegionBuilder {
   const base = slot(name)
   const spec = base.spec
@@ -438,12 +480,15 @@ export function guard(name: string, options: { redirect?: string; status?: numbe
   return { name, ...options }
 }
 
+/** The document a route renders into, optionally a chain of layouts nested inside it. */
 export function shell(fragment: string, nested: readonly ShellNesting[] = []): ShellSpec {
   return { shell: fragment, ...(nested.length ? { nested } : {}) }
 }
 
+/** Anything that can go in a plan: a slot, a region, a guard, or the document itself. */
 export type PlanEntry = SlotBuilder | RegionBuilder | GuardSpec | ShellSpec
 
+/** What belongs to the plan rather than to any one slot: concurrency, the exposed set, the document's policy. */
 export interface PlanOptions {
   maxConcurrency?: number
   /** Signals the shell exposes to its regions. The only channel between them. */
@@ -458,6 +503,12 @@ export interface PlanOptions {
   }
 }
 
+/**
+ * A plan from its entries.
+ *
+ * Refuses two shells and a duplicated slot name here rather than at lowering, because both are
+ * questions about the declaration itself and neither needs the compiler's facts to answer.
+ */
 export function plan(route: string, entries: readonly PlanEntry[] = [], options: PlanOptions = {}): Plan {
   const guards: GuardSpec[] = []
   const slots: SlotSpec[] = []

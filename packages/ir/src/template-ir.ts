@@ -1,10 +1,19 @@
 import { clientOwned, resolveDerived, type DerivedDecl } from './derived.ts'
 import { PAYLOAD_SPEC, PAYLOAD_VERSION, TEMPLATE_IR_SPEC, TEMPLATE_IR_VERSION } from './version.ts'
 
+/** What can be a hole's value. A template is data, so its values have to be data too. */
 export type Json = string | number | boolean | null | Json[] | { [k: string]: Json }
 
+/**
+ * How a fragment's update can be encoded.
+ *
+ * Every form of a fragment must produce identical bytes, which is what makes negotiating between
+ * them safe — the harness refuses to publish a number until it has checked that they do. `data` was
+ * cut on the evidence; see `spec/VERSIONING.md`.
+ */
 export type WireForm = 'html' | 'bundle' | 'split' | 'patch' | 'delta' | 'remote'
 
+/** Every form, in the order the spec lists them. A template declares the subset it can serve. */
 export const ALL_FORMS: readonly WireForm[] = ['html', 'bundle', 'split', 'patch', 'delta', 'remote']
 
 /**
@@ -14,11 +23,20 @@ export const ALL_FORMS: readonly WireForm[] = ['html', 'bundle', 'split', 'patch
  */
 export type EscapeClass = 'escape' | 'proven-safe' | 'trusted-raw'
 
+/**
+ * What a hole is, which decides who produces its bytes.
+ *
+ * `slot` and an isolated `component` are the two this render does *not* own — one left for slow
+ * work, one for work with a different cache class — which is why the plan layer treats them as one
+ * list of boundaries.
+ */
 export type HoleKind =
   'text' | 'attr' | 'attr-bool' | 'attr-presence' | 'node' | 'list' | 'slot' | 'component' | 'children'
 
+/** A value's name inside a template. Holes and wiring entries both address values by it. */
 export type BindingId = string
 
+/** One gap in a sealed template: what fills it, how it escapes, and where it is in the DOM. */
 export interface Hole {
   index: number
   kind: HoleKind
@@ -67,6 +85,7 @@ export interface Hole {
 
 export type WiringOp = 'text' | 'attr' | 'prop' | 'bool' | 'event' | 'list'
 
+/** One binding the client attaches on adoption. The cost model is the number of these. */
 export interface WiringEntry {
   /**
    * Indices into *element* children, not childNodes. Element positions do not move
@@ -87,12 +106,20 @@ export interface WiringEntry {
   anchor?: number
 }
 
+/** Client-owned state the server renders at its initial value and then stops owning. */
 export interface SignalDecl {
   id: BindingId
   type: 'string' | 'number' | 'boolean' | 'json'
   init?: Json
 }
 
+/**
+ * What a fragment reads, writes and does to the envelope, inferred by the compiler.
+ *
+ * `reads` is the input to every cache decision — the key, the class and the `Vary` header all come
+ * from it. `writes` and `envelope` stay empty on a fragment, and deliberately: a render cannot
+ * write, so there is nothing in one to infer a write from.
+ */
 export interface EffectSet {
   reads: string[]
   writes: string[]
@@ -100,6 +127,14 @@ export interface EffectSet {
   residency: 'server' | 'client' | 'either'
 }
 
+/**
+ * A sealed template: pre-encoded UTF-8 segments with holes between them, and a version that is a
+ * hash of its own content.
+ *
+ * Sealed because nothing can change it after compilation — so two renders of the same template with
+ * the same values are the same bytes by construction, which is what lets a client hold one and be
+ * sent only values.
+ */
 export interface TemplateIR {
   spec: typeof TEMPLATE_IR_SPEC
   irVersion: string
@@ -119,8 +154,10 @@ export interface TemplateIR {
   meta?: Record<string, Json>
 }
 
+/** One render's values, by binding. Everything a template needs that is not in its segments. */
 export type Values = Record<BindingId, Json>
 
+/** The changed values of a region, against the base render the client says it holds. */
 export interface DeltaPayload {
   spec: typeof PAYLOAD_SPEC
   irVersion: string
@@ -130,8 +167,10 @@ export interface DeltaPayload {
   changed: Values
 }
 
+/** Reads nothing. `server` rather than `either` because a fixture is not a claim about residency. */
 export const EMPTY_EFFECTS: EffectSet = { reads: [], writes: [], envelope: [], residency: 'server' }
 
+/** A template before it is sealed. `seal` fills in the version, which is why that is absent here. */
 export interface DraftTemplate {
   id: string
   segments: (Uint8Array | string)[]
@@ -248,6 +287,13 @@ export function childrenFrame(
   return { ir, values, ...(outer ? { outer } : {}) }
 }
 
+/**
+ * The delta between two value sets for one template.
+ *
+ * `base` is the render the client named, and naming it is what makes this memoisable: a delta is a
+ * pure function of two content-addressed states, so one computation serves every client making the
+ * same transition.
+ */
 export function deltaPayload(
   ir: TemplateIR,
   base: string,

@@ -26,12 +26,14 @@ function decodeValue(s: string): string {
   return s.includes('%') ? decodeURIComponent(s) : s
 }
 
+/** A header as one line. Keys are sorted, so the same header is always the same bytes. */
 export function encodeHeader(header: Header): string {
   return Object.entries(header)
     .map(([k, v]) => `${k}=${encodeValue(v)}`)
     .join(' ')
 }
 
+/** A header line as names and values, with numbers and booleans parsed back. */
 export function decodeHeader(text: string): Header {
   const header: Header = {}
   if (!text) return header
@@ -77,6 +79,7 @@ export function encodeTextFrame(f: Frame): string {
   return parts.join(' ')
 }
 
+/** One line as a frame. An unknown kind comes back as an unknown frame rather than an error. */
 export function decodeTextFrame(line: string): AnyFrame {
   const trimmed = line.trim()
   if (!trimmed) throw new Error('E_EMPTY_FRAME: a frame needs a kind and a header')
@@ -115,6 +118,7 @@ export function preamble(major = WARP_MAJOR, minor = WARP_MINOR): Uint8Array {
   return out
 }
 
+/** One frame as length-prefixed bytes: code, header length, body length, then the two. */
 export function encodeBinaryFrame(f: Frame): Uint8Array {
   const headerBytes = utf8.encode(encodeHeader(f.header))
   const bodyBytes = f.body ?? new Uint8Array(0)
@@ -132,6 +136,7 @@ export function encodeBinaryFrame(f: Frame): Uint8Array {
   return out
 }
 
+/** What a decoder refuses, as opposed to what it cannot read. */
 export interface DecoderOptions {
   /** Reject frames travelling the wrong way, which is a protocol violation, not a version gap. */
   expect?: 'up' | 'down'
@@ -139,12 +144,14 @@ export interface DecoderOptions {
   major?: number
 }
 
+/** A streaming decoder: push bytes, take whole frames, and read back what the peer announced. */
 export interface Decoder {
   push(chunk: Uint8Array): AnyFrame[]
   end(): void
   peer: { major: number; minor: number } | null
 }
 
+/** The length-prefixed binary decoder. What a socket uses. */
 export function createBinaryDecoder(options: DecoderOptions = {}): Decoder {
   let buf: Uint8Array<ArrayBufferLike> = new Uint8Array(0)
   let sawPreamble = false
@@ -211,6 +218,7 @@ export function createBinaryDecoder(options: DecoderOptions = {}): Decoder {
   return state
 }
 
+/** The newline-delimited text decoder. What an event stream uses, where a frame is a line. */
 export function createTextDecoder(options: DecoderOptions = {}): Decoder {
   let pending = ''
   const state: Decoder = {
@@ -238,12 +246,14 @@ export function createTextDecoder(options: DecoderOptions = {}): Decoder {
   return state
 }
 
+/** A whole stream, preamble included. What a test and a server both send. */
 export function encodeStream(frames: Frame[], mode: 'binary' | 'text' = 'binary'): Uint8Array {
   if (mode === 'text') return utf8.encode(frames.map(encodeTextFrame).join('\n') + '\n')
   const parts = [preamble(), ...frames.map(encodeBinaryFrame)]
   return parts.reduce<Uint8Array>((acc, p) => concatBytes(acc, p), new Uint8Array(0))
 }
 
+/** Two buffers as one. A decoder holds a partial frame across chunks and this is how it grows. */
 export function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array {
   if (a.length === 0) return b
   if (b.length === 0) return a

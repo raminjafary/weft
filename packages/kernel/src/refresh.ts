@@ -33,6 +33,7 @@ export interface Held {
   base: string
 }
 
+/** What a `HELD` frame says this client is holding: templates, and the base render per region. */
 export function parseHeld(f: Frame): Held[] {
   const out: Held[] = []
   for (const [slot, value] of Object.entries(f.header)) {
@@ -60,12 +61,14 @@ export function heldFrame(held: readonly Held[], options: { only?: boolean } = {
   return frame('HELD', header)
 }
 
+/** The form chosen, and why. Every downgrade is a named step rather than a silent fallback. */
 export interface FormChoice {
   form: WireForm
   /** Why this form and not a smaller one. Every downgrade here is a named, visible step. */
   reason: string
 }
 
+/** Everything the choice depends on. Nothing here is a preference except `prefer` and `fallback`. */
 export interface FormInput {
   /** Forms the template can serve, derived by the compiler rather than declared. */
   available: readonly WireForm[]
@@ -158,6 +161,7 @@ export function selectForm(input: FormInput): FormChoice {
 const utf8 = new TextEncoder()
 const decoder = new TextDecoder()
 
+/** Where a region's last render is held, so the next delta has something to be a delta against. */
 export function baseKey(tpl: string, id: string): string {
   return `base:${tpl}:${id}`
 }
@@ -171,6 +175,7 @@ export function payloadKey(form: 'delta' | 'patch', tpl: string, from: string, t
   return `${form}:${tpl}:${from}->${to}`
 }
 
+/** A delta keyed by the transition it encodes — which is what lets one computation serve every client. */
 export function deltaKey(tpl: string, from: string, to: string): string {
   return payloadKey('delta', tpl, from, to)
 }
@@ -193,11 +198,19 @@ export interface RefreshTtl {
   deltaMs?: number
 }
 
+/**
+ * How long a base render and a memoised delta are kept.
+ *
+ * Fifteen minutes each, and configurable per deployment. A base nobody can recover means the next
+ * refresh falls back to `html`, which is correct and larger — so this is a memory-for-bytes trade
+ * rather than a correctness one.
+ */
 export const DEFAULT_REFRESH_TTL: Required<RefreshTtl> = {
   baseMs: 15 * 60_000,
   deltaMs: 15 * 60_000,
 }
 
+/** Remember the render a client is about to be shown, so its first refresh can be a delta. */
 export async function recordBase(
   store: StorePort,
   ir: TemplateIR,
@@ -213,6 +226,7 @@ export async function recordBase(
   return id
 }
 
+/** The values behind the base render a client named, or nothing — in which case `html` it is. */
 export async function recoverBase(store: StorePort, tpl: string, id: string): Promise<Values | null> {
   const entry = await store.get(baseKey(tpl, id))
   if (!entry) return null
@@ -223,6 +237,7 @@ export async function recoverBase(store: StorePort, tpl: string, id: string): Pr
   }
 }
 
+/** What a refresh needs to produce the smallest honest update for one region. */
 export interface SurgicalInput {
   slot: string
   ir: TemplateIR
@@ -247,6 +262,13 @@ export interface SurgicalInput {
   patch?: PatchEncoder
 }
 
+/**
+ * How a patch is encoded, supplied rather than imported.
+ *
+ * A seam for a byte budget: written into this module the encoder took four watermarks past their
+ * ceilings, so it arrives through here and is measured under `entry-patch.ts`. A deployment whose
+ * regions are all projectable never imports it.
+ */
 export type PatchEncoder = (
   ir: TemplateIR,
   base: string,
@@ -255,6 +277,7 @@ export type PatchEncoder = (
   resolve?: (version: string) => TemplateIR | undefined,
 ) => PatchPayload
 
+/** The update, the form it took, and why that form — so a report can explain a large payload. */
 export interface SurgicalResult {
   frame: Frame
   choice: FormChoice
@@ -383,6 +406,7 @@ export interface StaleRegistry {
   readonly connections: number
 }
 
+/** Which connections hold which keys, so an invalidation reaches the pages that showed them. */
 export function createStaleRegistry(): StaleRegistry {
   const byConnection = new Map<string, Map<string, string>>()
 

@@ -1,3 +1,4 @@
+/** Which way a frame kind travels. Declared per kind, so a frame sent the wrong way is refused. */
 export type Direction = 'up' | 'down'
 
 /**
@@ -124,12 +125,16 @@ export function reservedHeader(key: string): boolean {
   return key.startsWith('$')
 }
 
+/** Every frame this version defines. An unknown code is carried rather than refused. */
 export type FrameKind = keyof typeof FRAMES
 
+/** What a header value can be. Everything is text on the wire; these are what it parses back to. */
 export type HeaderValue = string | number | boolean
 
+/** A frame's header: names, never content. Whatever is large belongs in the body. */
 export type Header = Record<string, HeaderValue>
 
+/** One frame: a kind, a header of names, and an optional body. */
 export interface Frame {
   kind: FrameKind
   header: Header
@@ -147,6 +152,7 @@ export interface UnknownFrame {
   bodyIsText?: boolean
 }
 
+/** A frame this version understands, or one it does not. Both are carried; only one is read. */
 export type AnyFrame = Frame | UnknownFrame
 
 const BY_CODE = new Map<number, FrameKind>()
@@ -156,22 +162,32 @@ export function kindForCode(code: number): FrameKind | undefined {
   return BY_CODE.get(code)
 }
 
+/** The binary code for a kind. Retired codes are never reused — see `spec/VERSIONING.md`. */
 export function codeForKind(kind: FrameKind): number {
   return FRAMES[kind].code
 }
 
+/** Which way this kind travels. */
 export function directionOf(kind: FrameKind): Direction {
   return FRAMES[kind].dir
 }
 
+/** Which way a code travels, without needing to know the kind it names. */
 export function directionOfCode(code: number): Direction {
   return code < 0x10 ? 'up' : 'down'
 }
 
+/**
+ * Whether this frame is one this version does not define.
+ *
+ * An unknown frame is skipped intact rather than dropped, which is what makes a minor additive: an
+ * older reader passes a newer frame along instead of ending the stream over it.
+ */
 export function isUnknown(value: AnyFrame): value is UnknownFrame {
   return value.kind === 'UNKNOWN'
 }
 
+/** A frame, with the direction check the kind implies already done. */
 export function frame(kind: FrameKind, header: Header = {}, body?: Uint8Array, bodyIsText = false): Frame {
   return { kind, header, ...(body ? { body, bodyIsText } : {}) }
 }
@@ -188,6 +204,7 @@ export function num(f: AnyFrame, key: string): number | undefined {
   return Number.isFinite(n) ? n : undefined
 }
 
+/** A header read as a boolean. Absent and malformed are both undefined: a header is text. */
 export function bool(f: AnyFrame, key: string): boolean | undefined {
   const v = f.header[key]
   if (v === undefined) return undefined

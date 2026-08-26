@@ -30,8 +30,10 @@ import type { StorePort } from './ports.ts'
  *   the one that makes a token a receipt.
  */
 export const TOKEN_ALG = 'Ed25519'
+/** The first segment of every token, so a malformed one is refused before any crypto runs. */
 export const TOKEN_PREFIX = 'weft1'
 
+/** What a signed intent token asserts. Every field narrows what the token can do. */
 export interface IntentClaims {
   /** Key id. Rotation is a key added to the verifier's bundle, never a redeploy of both tiers. */
   kid: string
@@ -55,6 +57,7 @@ export interface IntentClaims {
   pn?: string
 }
 
+/** What to mint a token for. Omitting the payload widens it from a receipt to a licence. */
 export interface MintRequest {
   /** The opaque intent id, as it travels. */
   intent: string
@@ -68,6 +71,7 @@ export interface MintRequest {
   ttlMs?: number
 }
 
+/** What a signer needs: a key, an id for it, and the ceilings it will not mint past. */
 export interface SignerOptions {
   kid: string
   /** A private Ed25519 key. `usages` must include `sign`; the signer never imports one itself. */
@@ -114,6 +118,7 @@ export interface DelegateRequest {
   ttlMs?: number
 }
 
+/** Mints tokens, and narrows one into a leaf. Only a tier holding a private key has one. */
 export interface IntentSigner {
   readonly kid: string
   mint(request: MintRequest): Promise<string>
@@ -134,6 +139,7 @@ export interface IntentSigner {
   readonly maxDepth: number
 }
 
+/** A signing or verification refusal, carrying the code so a caller branches on it. */
 export class TokenError extends Error {
   code: string
 
@@ -147,6 +153,7 @@ export class TokenError extends Error {
 const DEFAULT_TTL = 5 * 60_000
 const utf8 = new TextEncoder()
 
+/** A signer over Ed25519. Minting is uncacheable by construction, which is why it is its own request. */
 export function createIntentSigner(options: SignerOptions): IntentSigner {
   const ttlMs = options.ttlMs ?? DEFAULT_TTL
   const clock = options.clock ?? ((): number => Date.now())
@@ -246,6 +253,7 @@ async function sign(key: CryptoKey, body: Uint8Array<ArrayBuffer>): Promise<Arra
   }
 }
 
+/** What a verifier needs: the public keys it will accept, and where spent nonces are remembered. */
 export interface VerifierOptions {
   /**
    * How deep a delegation chain this verifier accepts. **Zero by default**, which is the same
@@ -267,6 +275,7 @@ export interface VerifierOptions {
   skewMs?: number
 }
 
+/** A token presented for one call, with the call it claims to authorise. */
 export interface VerifyRequest {
   /** The intent actually being dispatched. The token has to agree with it. */
   id: string
@@ -277,9 +286,11 @@ export interface VerifyRequest {
   subject: string | null
 }
 
+/** Whether this token authorises this call, and if not, which refusal applies. */
 export type VerifyOutcome =
   { ok: true; claims: IntentClaims; boundPayload: boolean } | { ok: false; code: string; detail: string }
 
+/** Checks a token and spends its nonce. Verification is not a read: it consumes the token. */
 export interface IntentVerifier {
   verify(request: VerifyRequest): Promise<VerifyOutcome>
   /**
@@ -292,6 +303,7 @@ export interface IntentVerifier {
 
 const NONCE_PREFIX = 'weft:intent-nonce:'
 
+/** A verifier over a bundle of pinned public keys, so a key can be added before the old one retires. */
 export function createIntentVerifier(options: VerifierOptions): IntentVerifier {
   const clock = options.clock ?? ((): number => Date.now())
   const skew = options.skewMs ?? 5_000
@@ -425,6 +437,7 @@ export function canonical(value: unknown): string {
   return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(',')}}`
 }
 
+/** SHA-256 of a canonical encoding, so the same payload digests the same on both tiers. */
 export async function digest(value: unknown): Promise<string> {
   const bytes = utf8.encode(canonical(value))
   const hash = await crypto.subtle.digest('SHA-256', bytes)
@@ -441,6 +454,7 @@ export function b64url(bytes: Uint8Array): string {
   return btoa(ascii).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
+/** base64url back to bytes. Throws on anything that is not base64url, which a malformed token is. */
 export function unb64url(text: string): Uint8Array<ArrayBuffer> {
   const padded = text.replace(/-/g, '+').replace(/_/g, '/')
   const ascii = atob(padded + '='.repeat((4 - (padded.length % 4)) % 4))
