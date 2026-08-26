@@ -13,16 +13,17 @@ the gate is the test that calls it. Rolldown, minified, brotli at quality 11 —
 
 | Entry                     | Covers                                                                               | Measured | Ceiling  | Where the ceiling comes from                                            |
 | ------------------------- | ------------------------------------------------------------------------------------ | -------- | -------- | ----------------------------------------------------------------------- |
-| `entry-request.ts`        | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream    | 8,108 B  | 8,192 B  | The design's "target under 8 KB server-side"                            |
-| `entry-channel.ts`        | The above, plus surgical refresh, form selection, epochs, the stale registry         | 10,678 B | 12,288 B | No design figure. A watermark                                           |
-| `entry-intent.ts`         | The request path, plus intent dispatch, the three authority branches, method routing | 9,643 B  | 10,240 B | No design figure. A watermark                                           |
-| `entry-authority.ts`      | The above, plus the capability model and signed intents                              | 11,309 B | 12,288 B | No design figure. Its own, because the design calls this tier separable |
-| `entry-transport.ts`      | The channel path, plus a live channel: negotiation, held state, push invalidation    | 13,308 B | 13,312 B | No design figure. A watermark, and **4 bytes** are left                 |
-| `entry-stage.ts`          | The above, plus a whole route staged over the channel: `WARM at=`, `NAV`             | 13,660 B | 14,336 B | No design figure. Its own, because it went past the watermark above     |
-| `entry-discover.ts`       | The above, plus lazy plan extension: `WARM plan=`, `PLAN`                            | 13,857 B | 15,360 B | No design figure. Its own, on the rule route staging established        |
-| `entry-render.ts`         | The transport, plus a catalogue of fragments a client can name: render intents       | 13,866 B | 14,336 B | No design figure. Its own, on the same rule                             |
-| `entry-region.ts`         | The request path, plus regions resolved through the registry and checked on arrival  | 11,246 B | 11,264 B | No design figure. Its own, on the same rule. **18 bytes** are left      |
-| `entry-region-channel.ts` | The transport plus composition: a region refreshed over a live channel               | 16,268 B | 16,384 B | No design figure. Its own, because neither of those two covers it       |
+| `entry-request.ts`        | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream    | 8,118 B  | 8,192 B  | The design's "target under 8 KB server-side"                            |
+| `entry-channel.ts`        | The above, plus surgical refresh, form selection, epochs, the stale registry         | 10,893 B | 12,288 B | No design figure. A watermark                                           |
+| `entry-patch.ts`          | The above, plus the patch encoder: the surgical rung a template needs no proof for   | 11,563 B | 12,288 B | No design figure. Its own, because in the refresh path it cost everyone |
+| `entry-intent.ts`         | The request path, plus intent dispatch, the three authority branches, method routing | 9,656 B  | 10,240 B | No design figure. A watermark                                           |
+| `entry-authority.ts`      | The above, plus the capability model and signed intents                              | 11,308 B | 12,288 B | No design figure. Its own, because the design calls this tier separable |
+| `entry-transport.ts`      | The channel path, plus a live channel: negotiation, held state, push invalidation    | 13,546 B | 14,336 B | No design figure. A watermark, **moved from 13,312**                    |
+| `entry-stage.ts`          | The above, plus a whole route staged over the channel: `WARM at=`, `NAV`             | 13,911 B | 14,336 B | No design figure. Its own, because it went past the watermark above     |
+| `entry-discover.ts`       | The above, plus lazy plan extension: `WARM plan=`, `PLAN`                            | 14,110 B | 15,360 B | No design figure. Its own, on the rule route staging established        |
+| `entry-render.ts`         | The transport, plus a catalogue of fragments a client can name: render intents       | 14,114 B | 14,336 B | No design figure. Its own, on the same rule                             |
+| `entry-region.ts`         | The request path, plus regions resolved through the registry and checked on arrival  | 11,271 B | 12,288 B | No design figure. Its own, on the same rule. **Moved from 11,264**      |
+| `entry-region-channel.ts` | The transport plus composition: a region refreshed over a live channel               | 16,509 B | 17,408 B | No design figure. Its own, and **moved from 16,384**                    |
 | `index.ts`                | Everything, including build-time validation and serialisation                        | 11,601 B | —        | Not a claim. Reported so the marginal split is checkable                |
 
 On the client, same rule:
@@ -33,16 +34,44 @@ On the client, same rule:
 | `entry-app.ts`         | Plus deltas, epochs, residency                                      | 3,154 B  | 12,288 B |
 | `entry-channel.ts`     | Plus routing arriving frames into regions and epochs                | 4,081 B  | 4,096 B  |
 | `entry-expose.ts`      | Plus the shell values a region on this page is allowed to read      | 4,368 B  | 5,120 B  |
+| `entry-patch.ts`       | Plus applying a patch to a region nothing has adopted               | 4,571 B  | 5,120 B  |
 | `entry-nav.ts`         | Plus routes staged and unpainted, `NAV` frames, and what a click is | 4,932 B  | 5,120 B  |
 | `entry-discover.ts`    | Plus what it knows about routes it has not been to                  | 5,301 B  | 6,144 B  |
-| `index.ts`             | Everything                                                          | 5,595 B  | 6,144 B  |
-| `boot.ts` (front door) | What a page actually downloads                                      | 12,540 B | 13,312 B |
+| `index.ts`             | Everything                                                          | 6,109 B  | 6,144 B  |
+| `boot.ts` (front door) | What a page actually downloads                                      | 13,033 B | 13,312 B |
 
 Navigation is the client-side case of the rule below: 851 bytes on top of a channel route, in an
 entry of its own, because a page that links nowhere should not carry the staging model. Discovery is
 369 bytes on top of that, in an entry of its own again — and it is the one entry here whose whole
 purpose is a request it does not make, so it has to cost less than the `WARM` and the server render
 it saves.
+
+**The patch rung moved three watermarks, and the argument is the reason it moved only three.**
+Adding a form to the ladder splits into two costs that behave completely differently. The _choice_
+— two branches in `selectForm`, a `staged` flag, a `payloadKey` that names the form — is 215 B and
+cannot be moved anywhere, because a form choice lives where form choices are made. Every entry
+carrying the refresh path pays it: `entry-transport.ts` 13,308 → 13,546, `entry-region.ts`
+11,246 → 11,271, `entry-region-channel.ts` 16,268 → 16,509. All three were watermarks with no
+design figure behind them, and all three moved with this paragraph as the reason.
+
+The _encoder_ is 440 B more and was moved. Written into `refresh.ts` it took those same three past
+their ceilings by 234, 7 and 123 bytes and would have kept 440 B of dead weight in a deployment
+whose regions are all projectable. It arrives through `SurgicalInput.patch` instead and is measured
+under `entry-patch.ts`. Twice now the byte budget has turned a capability into a seam — stampede
+coalescing, and this — and both times the seam was the better architecture: the thing a deployment
+does not use is the thing it does not import.
+
+`entry-region.ts` is the entry that makes the point. It had **18 bytes** of headroom, this repository
+predicted in writing that a rule satisfied by five bytes is a rule about to stop being satisfied, and
+what broke it was seven bytes of a capability it does not have. A watermark that cannot absorb the
+shared cost of a ladder rung is measuring the wrong thing, so it went to 12,288 with 1,017 free.
+
+**The client runtime's "everything" entry has 35 bytes left.** 6,109 B against a ceiling of 6,144
+that comes from the design's stated "4–6 KB", so this one is not a watermark that can be moved with
+a paragraph: the next capability that lands in `packages/client` either finds its bytes elsewhere or
+contradicts a design figure in public. The applier itself is 490 B and it is in `entry-patch.ts`
+where a page that never receives a `PATCH` does not pay it — the barrel is over because a barrel is
+supposed to be.
 
 **The 8 KB is the document request path, and it now includes the route matcher.** It did not
 at first: `createRouter` was never exported from the entry, so the figure described a kernel
@@ -60,15 +89,17 @@ the size it was. The same thing happened on the client, where routing `NAV` in t
 entry 86 bytes past its watermark and the frame moved to navigation's own module — which is also
 where a frame kind belongs, since the capability that introduced it is the one that should carry it.
 
-**The transport entry has four bytes left, and that is the interesting number on this page.**
+**The transport entry had four bytes left, and that was the interesting number on this page.**
 Answering a `REFRESH` for a region needs a dispatch point, and a dispatch point lives in the shared
 file by definition — so the cost cannot be moved to an entry of its own however the capability is
 split. What could be moved was the mechanism: a table of handlers keyed by slot would have been a
 third dispatch shape in that file, so a region answers through the return type `SlotSource` already
 has, as a second shape rather than a second option, for **20 bytes**.
 
-The paragraph above used to say nine, and said the next thing to touch `channel.ts` either trims it or
-moves the watermark with a reason. Two things touched it and neither did.
+The paragraph above used to say nine, then four, and said each time that the next thing to touch
+`channel.ts` either trims it or moves the watermark with a reason. Three things touched it and did
+not, and the fourth — the patch rung — could not: 215 B of shared cost does not fit in four bytes by
+any amount of cleverness. The watermark moved, and the paragraph above this one is the reason.
 
 **Render intents cost five.** A `REFRESH` carrying `r=<id>` is answered by a slot source, and only the
 header tells it apart from an ordinary refresh — so the header has to reach it, and `SlotRequest` gained

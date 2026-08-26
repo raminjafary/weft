@@ -223,7 +223,7 @@ test('a list whose length changes is structural and travels whole', async () => 
 test('serialization round-trips and preserves fields a newer minor added', async () => {
   const ir = await seal(draftTemplate({ id: 't', segments: ['<p>', '</p>'], holes: [hole(0, 'a')] }))
   const withFuture = JSON.parse(stringify(ir)) as Record<string, unknown>
-  withFuture.irVersion = '2.6.0'
+  withFuture.irVersion = '2.7.0'
   withFuture.budget = { js: 8192 }
 
   const parsed = parse(JSON.stringify(withFuture))

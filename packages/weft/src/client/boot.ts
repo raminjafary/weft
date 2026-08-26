@@ -11,6 +11,7 @@ import {
   exposedFrames,
   navFrames,
   navigable,
+  patchFrames,
   planFrames,
   openResident,
   plainClick,
@@ -1002,6 +1003,28 @@ const routeNav = navFrames((nav) => {
 const routeExposed = exposedFrames(exposure, (line) => log('down', line))
 
 /**
+ * A region refreshed as a patch: the rung between a delta and being replaced whole.
+ *
+ * The region's root element is what every address in the payload is relative to, and the front
+ * door is the layer that knows where a slot's nodes are — `[data-weft-slot]`, the same attribute
+ * adoption found them by. Nothing is re-adopted afterwards, and that is the point: the nodes the
+ * bindings point at are the nodes that were written, so a patch leaves adoption intact where a
+ * markup replacement invalidates it.
+ */
+const routePatch = patchFrames(
+  (slot) => {
+    const region = regionsHeld.find((held) => held.slot === slot)
+    const root = document.querySelector(`[data-weft-slot="${slot}"]`)
+    return region && root ? { root, base: region.base } : undefined
+  },
+  (slot, writes, next) => {
+    const region = regionsHeld.find((held) => held.slot === slot)
+    if (region) region.base = next
+    log('down', `PATCH ${slot} — ${writes} write(s)`)
+  },
+)
+
+/**
  * The plan, extended — and the two things a page does with it the moment it arrives.
  *
  * The stylesheet of a route the reader is likely to go to is preloaded, which is bytes fetched
@@ -1065,6 +1088,7 @@ async function open(): Promise<Wire> {
       routeNav(frame, applied)
       routePlan(frame)
       routeExposed(frame)
+      routePatch(frame, applied)
     },
     onAck: (ack) => {
       log('down', `ACK ${ack.intent} ok=${ack.ok}${ack.code ? ` ${ack.code}` : ''}`)

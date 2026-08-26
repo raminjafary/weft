@@ -4,11 +4,11 @@ Phase zero ships two versioned artifacts before it ships a framework, because a 
 format and a compiler output cannot be versioned retroactively. Adding a version field
 later means every client already in the field is unversioned.
 
-| Spec             | Id                   | Version | Reference implementation |
-| ---------------- | -------------------- | ------- | ------------------------ |
-| Template IR      | `weft.template-ir/2` | 2.5.0   | `packages/ir`            |
-| Payloads (delta) | `weft.payload/2`     | 2.5.0   | `packages/ir`            |
-| Warp frames      | `weft.warp/1`        | 1.7.0   | `packages/warp`          |
+| Spec        | Id                   | Version | Reference implementation |
+| ----------- | -------------------- | ------- | ------------------------ |
+| Template IR | `weft.template-ir/2` | 2.6.0   | `packages/ir`            |
+| Payloads    | `weft.payload/2`     | 2.6.0   | `packages/ir`            |
+| Warp frames | `weft.warp/1`        | 1.7.0   | `packages/warp`          |
 
 ## What each version component means
 
@@ -45,6 +45,24 @@ requires nothing resident on the client, which is why it is the fallback wheneve
 versions disagree: a version mismatch costs a form, never the page.
 
 ## Changelog
+
+### Template IR 2.6.0, payload 2.6.0 — `patch`, and a form that stopped being unconditional
+
+The payload gains a second surgical form. A `patch` is a list of writes addressed the way adoption
+addresses the DOM — an element path, a marker ordinal, an attribute name — so it is applicable by a
+client that holds no copy of the template. `spec/kernel/surgical.md` has the ladder it slots into
+and the numbers.
+
+The IR minor is the same change seen from the template's side, and it is a **narrowing**: `patch`
+used to be listed unconditionally alongside `html`, `bundle` and `split`, and it is now derived like
+`delta` is. A `raw()` value that is not its element's only child has no boundary a structural write
+can address, so a template containing one no longer advertises the form.
+
+Additive on the wire and narrowing in the document, which is the one combination that needs saying
+out loud: a stored 2.5.0 document may advertise `patch` for a template that cannot serve it. The
+migration restamps rather than re-deriving, and `validate` names it — `E_FORM_UNPROVABLE`, at the
+place the form is declared. The alternative was a form that is accepted at negotiation and declines
+later, in a refresh, which is the failure mode this whole contract exists to prevent.
 
 ### Warp 1.7.0 — a region says what it composes, when it is asked
 

@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { assertValidTemplate, baseRenderId, draftTemplate, seal, type Hole, type TemplateIR } from '@weft/ir'
+import {
+  assertValidTemplate,
+  baseRenderId,
+  draftTemplate,
+  patchPayload,
+  seal,
+  type Hole,
+  type TemplateIR,
+} from '@weft/ir'
 import { str } from '@weft/warp'
 import {
   createEpochs,
@@ -8,6 +16,7 @@ import {
   deltaKey,
   heldFrame,
   parseHeld,
+  payloadKey,
   recordBase,
   recoverBase,
   selectForm,
@@ -65,7 +74,19 @@ test('a form the client did not accept is never selected', () => {
   assert.equal(choice.form, 'html')
 })
 
-test('a template that cannot serve delta falls to the floor even when everything else lines up', () => {
+test('a template that cannot serve delta takes the rung below it, which is a patch', () => {
+  const choice = selectForm({
+    available: ['html', 'bundle', 'split', 'patch'],
+    accepted: ALL,
+    resident: true,
+    baseRecovered: true,
+    encodesPatch: true,
+  })
+  assert.equal(choice.form, 'patch')
+  assert.match(choice.reason, /not projectable/)
+})
+
+test('a deployment that bound no patch encoder says the rung is missing rather than falling silently', () => {
   const choice = selectForm({
     available: ['html', 'bundle', 'split', 'patch'],
     accepted: ALL,
@@ -73,6 +94,43 @@ test('a template that cannot serve delta falls to the floor even when everything
     baseRecovered: true,
   })
   assert.equal(choice.form, 'html')
+  assert.match(choice.reason, /no encoder is bound/)
+})
+
+test('a delta is preferred to a patch wherever both are derivable', () => {
+  const choice = selectForm({
+    available: ALL,
+    accepted: ALL,
+    resident: true,
+    baseRecovered: true,
+    encodesPatch: true,
+  })
+  assert.equal(choice.form, 'delta')
+})
+
+test('a patch is not offered for a frame that will be held, because its addresses can move', () => {
+  const choice = selectForm({
+    available: ['html', 'bundle', 'split', 'patch'],
+    accepted: ALL,
+    resident: true,
+    baseRecovered: true,
+    encodesPatch: true,
+    staged: true,
+  })
+  assert.equal(choice.form, 'html')
+})
+
+test('a plan cannot prefer a patch into a staged frame either', () => {
+  const choice = selectForm({
+    available: ALL,
+    accepted: ALL,
+    resident: true,
+    baseRecovered: true,
+    encodesPatch: true,
+    staged: true,
+    prefer: 'patch',
+  })
+  assert.equal(choice.form, 'delta')
 })
 
 test('HELD round-trips through a frame', () => {
@@ -226,4 +284,115 @@ test('open epochs are bounded', () => {
   epochs.stage('a', 's', { kind: 'DELTA', header: {} })
   epochs.stage('b', 's', { kind: 'DELTA', header: {} })
   assert.throws(() => epochs.stage('c', 's', { kind: 'DELTA', header: {} }), /E_TOO_MANY_EPOCHS/)
+})
+
+/**
+ * `<div><!--w:x-->{lead}</div><aside>{note}</aside>` with a slot in the middle: a shell whose
+ * values a delta cannot project, because one of its holes is bytes this render does not own.
+ */
+async function shell(): Promise<TemplateIR> {
+  return assertValidTemplate(
+    await seal(
+      draftTemplate({
+        id: 'shell',
+        segments: ['<div>', '</div><aside>', '</aside>'],
+        holes: [
+          hole(0, 'lead', { path: [0] }),
+          hole(1, 'main', { kind: 'slot', escape: 'proven-safe', path: [0] }),
+        ],
+      }),
+    ),
+  )
+}
+
+test('a region a delta cannot serve is refreshed as a patch instead of being replaced whole', async () => {
+  const store = memoryStore()
+  const ir = await shell()
+  assert.ok(!ir.forms.includes('delta'))
+  assert.ok(ir.forms.includes('patch'))
+
+  const before = { lead: 'Today', main: 'x' }
+  const base = await recordBase(store, ir, before)
+  const result = await surgicalRefresh({
+    slot: 's1',
+    ir,
+    next: { lead: 'Tomorrow', main: 'x' },
+    held: { slot: 's1', tpl: ir.version, base },
+    store,
+    accepted: ALL,
+    patch: patchPayload,
+  })
+
+  assert.equal(result.choice.form, 'patch')
+  assert.equal(result.frame.kind, 'PATCH')
+  assert.equal(str(result.frame, 'base'), base)
+  assert.equal(str(result.frame, 'next'), result.nextBase)
+  // The slot is not addressed: those bytes belong to whatever fills it.
+  assert.deepEqual(result.patch?.writes, [{ path: [0], op: 'text', value: 'Tomorrow' }])
+  const body = JSON.parse(decoder.decode(result.frame.body as Uint8Array)) as {
+    writes: unknown[]
+    opaque: unknown[]
+  }
+  assert.equal(body.writes.length, 1)
+  assert.deepEqual(body.opaque, [])
+})
+
+test('the same deployment without the encoder sends markup, and says which rung it skipped', async () => {
+  const store = memoryStore()
+  const ir = await shell()
+  const before = { lead: 'Today', main: 'x' }
+  const base = await recordBase(store, ir, before)
+  const result = await surgicalRefresh({
+    slot: 's1',
+    ir,
+    next: { lead: 'Tomorrow', main: 'x' },
+    held: { slot: 's1', tpl: ir.version, base },
+    store,
+    accepted: ALL,
+  })
+  assert.equal(result.frame.kind, 'HTML')
+  assert.match(result.choice.reason, /no encoder is bound/)
+})
+
+test('a patch is memoized under its transition, in its own namespace', async () => {
+  const store = memoryStore()
+  const ir = await shell()
+  const before = { lead: 'Today', main: 'x' }
+  const after = { lead: 'Tomorrow', main: 'x' }
+  const base = await recordBase(store, ir, before)
+  const input = {
+    slot: 's1',
+    ir,
+    next: after,
+    held: { slot: 's1', tpl: ir.version, base },
+    store,
+    accepted: ALL,
+    patch: patchPayload,
+  }
+  const first = await surgicalRefresh(input)
+  const second = await surgicalRefresh(input)
+
+  assert.equal(first.memoized, false)
+  assert.equal(second.memoized, true)
+  assert.deepEqual(second.patch, first.patch)
+  assert.notEqual(await store.get(payloadKey('patch', ir.version, base, first.nextBase)), null)
+  // A delta of the same transition would be a different answer, so it is a different key.
+  assert.equal(await store.get(payloadKey('delta', ir.version, base, first.nextBase)), null)
+})
+
+test('a patch is never chosen for a frame that will be staged', async () => {
+  const store = memoryStore()
+  const ir = await shell()
+  const base = await recordBase(store, ir, { lead: 'Today', main: 'x' })
+  const result = await surgicalRefresh({
+    slot: 's1',
+    ir,
+    next: { lead: 'Tomorrow', main: 'x' },
+    held: { slot: 's1', tpl: ir.version, base },
+    store,
+    accepted: ALL,
+    patch: patchPayload,
+    staged: true,
+  })
+  assert.equal(result.frame.kind, 'HTML')
 })

@@ -1,8 +1,8 @@
 export const TEMPLATE_IR_SPEC = 'weft.template-ir/2'
-export const TEMPLATE_IR_VERSION = '2.5.0'
+export const TEMPLATE_IR_VERSION = '2.6.0'
 
 export const PAYLOAD_SPEC = 'weft.payload/2'
-export const PAYLOAD_VERSION = '2.5.0'
+export const PAYLOAD_VERSION = '2.6.0'
 
 export interface SemVer {
   major: number
@@ -115,6 +115,12 @@ export function migrate(
 }
 
 /**
+ * 2.5.0 -> 2.6.0 narrowed `forms`: `patch` is derived rather than unconditional, because a `raw()`
+ * value that is not its element's only child produced nodes with no boundary a structural write can
+ * address. A 2.5.0 document may therefore advertise `patch` for a template that cannot serve it —
+ * the migration restamps and `validate` names it `E_FORM_UNPROVABLE`, which is the honest outcome:
+ * the form is refused where it is declared rather than declining later, in a refresh.
+ *
  * 2.4.0 -> 2.5.0 added the `children` hole kind and the `children` field on a component hole:
  * the markup a call site wrote between the tags, sealed as its own template in the *caller's*
  * binding namespace. A 2.4.0 document has neither, so the migration restamps.
@@ -141,6 +147,7 @@ function installBuiltIns(): void {
   registerMigration('2.2.0', '2.3.0', (doc) => doc)
   registerMigration('2.3.0', '2.4.0', (doc) => doc)
   registerMigration('2.4.0', '2.5.0', (doc) => doc)
+  registerMigration('2.5.0', '2.6.0', (doc) => doc)
 }
 
 installBuiltIns()

@@ -383,13 +383,14 @@ async function inBrowser(
     }
 
     const wanted: Record<string, string[]> = {
-      'client-work': ['parse', 'delta'],
+      'client-work': ['parse', 'delta', 'patch'],
       'tti-server-rendered': ['adopt'],
       'isolated-dom-update': ['write', 'derive'],
     }
     const labels: Record<string, string> = {
       parse: 'html form, parsed',
       delta: 'delta form, applied surgically',
+      patch: 'patch form, applied structurally',
       adopt: 'adopt a server-rendered region',
       write: 'one signal write to one node',
       derive: 'one signal write to one node, through a derived value',

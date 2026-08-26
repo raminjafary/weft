@@ -184,8 +184,15 @@ export function adopt(options: AdoptOptions): Adopted {
 /**
  * A row is addressed relative to itself, so a single-element template's root is the row
  * element. Element children only: text nodes come and go with the values.
+ *
+ * Exported because the `patch` form addresses the DOM the same way and must arrive at the same
+ * node. Two walks over one address would be two things to keep in agreement.
  */
-function elementAt(root: Element, path: number[], origin: 'container' | 'element'): Element | undefined {
+export function elementAt(
+  root: Element,
+  path: number[],
+  origin: 'container' | 'element',
+): Element | undefined {
   // With `element` origin the leading index names the root itself, so it is consumed.
   const segments = origin === 'element' ? path.slice(1) : path
   let node: Element | undefined = root
@@ -199,8 +206,11 @@ function elementAt(root: Element, path: number[], origin: 'container' | 'element
 /**
  * Marker comments in document order, skipping list-hole subtrees because each row is its
  * own template instance with its own markers.
+ *
+ * Exported for the same reason `elementAt` is: a patch counts markers with no copy of the
+ * template, so it has to count them the way adoption did.
  */
-function collectMarkers(root: Element, listRoots: Set<Element>): Comment[] {
+export function collectMarkers(root: Element, listRoots: Set<Element>): Comment[] {
   const out: Comment[] = []
   const walker = root.ownerDocument.createTreeWalker(root, 128 /* SHOW_COMMENT */)
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -260,7 +270,7 @@ function locate(
 }
 
 /** The value's own text node, created if the value rendered empty. */
-function textAfter(marker: Comment): Text {
+export function textAfter(marker: Comment): Text {
   const next = marker.nextSibling
   if (next && next.nodeType === 3) return next as Text
   const node = marker.ownerDocument.createTextNode('')
@@ -268,7 +278,7 @@ function textAfter(marker: Comment): Text {
   return node
 }
 
-function soleText(element: Element): Text {
+export function soleText(element: Element): Text {
   const first = element.firstChild
   if (first && first.nodeType === 3) return first as Text
   const node = element.ownerDocument.createTextNode('')

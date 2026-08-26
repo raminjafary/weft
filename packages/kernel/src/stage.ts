@@ -145,6 +145,9 @@ export function createStager(options: StageOptions): RouteStager {
         ...(source.fallback ? { fallback: source.fallback } : {}),
         ...(request.channel.hello?.rtt !== undefined ? { rttMs: request.channel.hello.rtt } : {}),
         ...(options.ttl ? { ttl: options.ttl } : {}),
+        // Every frame this function emits carries the epoch, so nothing it chooses may be a
+        // form whose addresses another commit can move.
+        staged: true,
       })
       options.telemetry?.measure('channel.stage', 1, {
         slot,

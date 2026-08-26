@@ -53,14 +53,20 @@ export function concat(parts: Uint8Array[]): Uint8Array {
   return out
 }
 
-function stringify(v: Json | undefined): string {
+/**
+ * The text a value contributes, before escaping. Exported because a consumer that writes a
+ * value through a DOM API rather than into markup needs the same string this renderer would
+ * have escaped — the `patch` form's text and attribute writes are exactly that.
+ */
+export function valueText(v: Json | undefined): string {
   if (v === null || v === undefined) return ''
   if (typeof v === 'string') return v
   if (typeof v === 'number' || typeof v === 'boolean') return String(v)
   return JSON.stringify(v)
 }
 
-function truthy(v: Json | undefined): boolean {
+/** Whether a boolean or presence attribute is written at all. */
+export function isTruthy(v: Json | undefined): boolean {
   return v !== undefined && v !== null && v !== false && v !== '' && v !== 0
 }
 
@@ -153,11 +159,11 @@ function writeValue(
     case 'children':
       return off
     case 'attr-bool':
-      return truthy(value) ? writeString(hole.attr ?? '', out, off) : off
+      return isTruthy(value) ? writeString(hole.attr ?? '', out, off) : off
     case 'attr-presence': {
-      if (!truthy(value)) return off
+      if (!isTruthy(value)) return off
       let cursor = writeString(`${hole.attr ?? ''}="`, out, off)
-      cursor = writeEscaped(stringify(value), hole.escape === 'escape', true, out, cursor)
+      cursor = writeEscaped(valueText(value), hole.escape === 'escape', true, out, cursor)
       return writeString('"', out, cursor)
     }
     case 'list': {
@@ -172,12 +178,12 @@ function writeValue(
         return cursor
       }
       for (const item of value) {
-        cursor = writeEscaped(stringify(item), hole.escape === 'escape', false, out, cursor)
+        cursor = writeEscaped(valueText(item), hole.escape === 'escape', false, out, cursor)
       }
       return cursor
     }
     default:
-      return writeEscaped(stringify(value), hole.escape === 'escape', hole.kind === 'attr', out, off)
+      return writeEscaped(valueText(value), hole.escape === 'escape', hole.kind === 'attr', out, off)
   }
 }
 
@@ -201,30 +207,70 @@ function writeTemplate(
     off = writeBytes(ir.segments[i] as Uint8Array, out, off)
     const hole = ir.holes[i]
     if (!hole) continue
-    if (hole.kind === 'component') {
-      // An isolated instance is not this render's to produce: it has its own cache entry,
-      // and the kernel composes it in the same pass that fills a slot.
-      if (hole.isolated) continue
-      off = writeTemplate(
-        child(hole, resolve),
-        componentValues(hole, values),
-        resolve,
-        out,
-        off,
-        childrenFrame(hole, values, resolve, frame),
-      )
-      continue
-    }
-    if (hole.kind === 'children') {
-      // The caller's markup, rendered against the caller's values and under the frame that
-      // was open where it was written — so a component that passes its children on gets its
-      // caller's children, not its own.
-      if (frame) off = writeTemplate(frame.ir, frame.values, resolve, out, off, frame.outer)
-      continue
-    }
-    off = writeValue(hole, values[hole.binding], out, off, resolve)
+    off = writeHole(hole, values, resolve, out, off, frame)
   }
   return off
+}
+
+/**
+ * One hole's bytes, given the template's already-resolved values. Split out of the render
+ * loop rather than duplicated for the second consumer that needs it — the `patch` encoder
+ * asks what a single hole produced before and after, and two implementations of this switch
+ * would eventually disagree about the hole nobody was testing.
+ */
+function writeHole(
+  hole: Hole,
+  values: Values,
+  resolve: Resolver | undefined,
+  out: Uint8Array,
+  off: number,
+  frame: ChildrenFrame | undefined,
+): number {
+  if (hole.kind === 'component') {
+    // An isolated instance is not this render's to produce: it has its own cache entry,
+    // and the kernel composes it in the same pass that fills a slot.
+    if (hole.isolated) return off
+    return writeTemplate(
+      child(hole, resolve),
+      componentValues(hole, values),
+      resolve,
+      out,
+      off,
+      childrenFrame(hole, values, resolve, frame),
+    )
+  }
+  if (hole.kind === 'children') {
+    // The caller's markup, rendered against the caller's values and under the frame that
+    // was open where it was written — so a component that passes its children on gets its
+    // caller's children, not its own.
+    return frame ? writeTemplate(frame.ir, frame.values, resolve, out, off, frame.outer) : off
+  }
+  return writeValue(hole, values[hole.binding], out, off, resolve)
+}
+
+/**
+ * The markup one hole of a template produced, including a nested template's — a list's rows, a
+ * component instance, or the children a call site wrote. It is what the `patch` form sends for a
+ * hole whose content comes from a template rather than from a value, and what the encoder compares
+ * to decide the hole changed at all.
+ */
+export function renderSubtree(
+  ir: TemplateIR,
+  index: number,
+  supplied: Values,
+  resolve?: Resolver,
+): Uint8Array {
+  const hole = ir.holes[index]
+  if (!hole) return new Uint8Array(0)
+  const values = resolveDerived(ir.derived, supplied)
+  for (;;) {
+    try {
+      return scratch.slice(0, writeHole(hole, values, resolve, scratch, 0, undefined))
+    } catch (e) {
+      if (e !== OVERFLOW) throw e
+      grow()
+    }
+  }
 }
 
 function child(hole: Hole, resolve: Resolver | undefined): TemplateIR {

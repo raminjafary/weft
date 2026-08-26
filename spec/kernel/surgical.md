@@ -52,7 +52,7 @@ So a client that holds the template but whose base the server cannot recover fal
 | Resident | Base recovered | `delta` derivable | Result                                 |
 | -------- | -------------- | ----------------- | -------------------------------------- |
 | yes      | yes            | yes               | `delta`                                |
-| yes      | yes            | no (slot hole)    | `html`                                 |
+| yes      | yes            | no (slot hole)    | `patch`                                |
 | yes      | no             | —                 | `html`, or the declared fallback       |
 | no       | —              | —                 | `bundle` if RTT ≥ 100 ms, else `split` |
 | —        | —              | —                 | `html`, always available               |
@@ -64,6 +64,88 @@ does not fill is not projectable from values the parent holds.
 
 Every step degrades, which is what makes this deployable rather than clever. The fast path is
 an optimisation over a correct slow path, never a replacement for it.
+
+## `patch`: the rung that needs no template
+
+The second row of that table used to say `html`, and it was the largest hole in the ladder. A
+region with a `raw()` value, an isolated instance or a `slot` hole cannot serve a delta however
+much the client holds — nothing about those holes is projectable from values — so the most
+surgical mechanism in the design was refused by exactly the templates that had the most to gain
+from it, and every refresh of them replaced a region.
+
+A patch addresses the DOM **the way adoption does** rather than the way a delta does: an element
+path walked over element children, and a marker ordinal for a text node that is not its element's
+only child. Nothing is projected, so nothing has to be provable. What travels is the text or the
+markup each changed hole produced this time.
+
+| Hole                           | What travels                                | How it is applied       |
+| ------------------------------ | ------------------------------------------- | ----------------------- |
+| text                           | the value, unescaped                        | `node.data =`           |
+| attribute, boolean, presence   | the value, or nothing, which means remove   | `setAttribute` / remove |
+| `raw()`, sole child            | markup                                      | `innerHTML =`           |
+| one row of a list              | that row's markup                           | `replaceWith`           |
+| rows added, rows dropped       | the new rows' markup, or the new row count  | `append` / remove tail  |
+| a component instance           | the instance's markup                       | `replaceWith`           |
+| a `slot`, an isolated instance | nothing — those bytes are not this render's | never addressed         |
+
+`opaque` carries the paths of the holes whose subtree owns its own markers, because the client
+counts marker comments to find a text node and adoption skips those subtrees when it counts. A
+client with no copy of the template arrives at the same ordinals, which is the whole point: a patch
+is self-describing.
+
+Addresses are all resolved before anything is written. A markup write moves the nodes a later
+address would have counted, and resolving first is the difference between an order that happens to
+work and one that cannot stop working.
+
+### What it costs, measured
+
+Apple M4, Chromium, the bench's own scenarios. Raw bytes and brotli:
+
+| Region                        | `delta`   | `patch`     | `html`        |
+| ----------------------------- | --------- | ----------- | ------------- |
+| cart, 12 rows, one row edited | 77 / 62 B | 368 / 158 B | 1,582 / 296 B |
+| feed, 50 rows                 | 233 / 95  | 1,052 / 192 | 6,289 / 502   |
+| composed, a 141-byte region   | 15 / 19   | 110 / 93    | 141 / 78      |
+
+And what applying one costs, p50, against the two forms either side of it:
+
+| Scenario | `delta` applied | `patch` applied | `html` parsed |
+| -------- | --------------- | --------------- | ------------- |
+| cart     | 0.00061 ms      | 0.0064 ms       | 0.021 ms      |
+| feed     | 0.0018 ms       | 0.0199 ms       | 0.077 ms      |
+
+So the rung sits where a rung should: **4.3–6.0× smaller than the region raw, 1.9–2.6× after
+brotli, and 3.3–3.9× cheaper to apply than the parse it replaces** — while costing 4.5–4.8× a
+delta's bytes and 10–11× a delta's apply, which is what addresses cost when you cannot use a
+binding table.
+
+The third row is the floor, and it is in the table because it reverses the claim: on a 141-byte
+region the patch is **larger than the markup after brotli** — 93 B against 78. Addresses do not
+compress the way repeated markup does. It is still the better answer there, and for a reason that
+is not about bytes: a markup replacement destroys every binding adopted inside the region, so the
+front door re-adopts and re-wires it, and anything a reader was doing in there — a focused field, a
+scroll position, a half-typed value — goes with it. A patch writes nodes and leaves adoption intact.
+That is why the ladder prefers it and why the size comparison is reported rather than gated on.
+
+The first implementation replaced a list's host content whenever anything in the list changed, and
+the measurement killed it: on the cart scenario a one-row edit came out **1,663 B against the
+region's own 1,582**. Rows are addressable — adoption already treats a list host's element children
+as exactly the rows — so a changed row is one `replace` and a changed length is one `append` or one
+`truncate`.
+
+### Two refusals worth naming
+
+**A patch is not stageable.** A `PATCH` naming an epoch is refused by the client, and the server
+never sends one: `selectForm` drops the form when the frame will carry an epoch. A delta addresses a
+binding, which does not move; a patch addresses a position, and another epoch's commit can move it
+under the payload before it is applied. A form that cannot be held is not offered for holding.
+
+**The encoder is a seam, not a policy.** `patchPayload` written into the refresh path cost every
+entry carrying that path ~440 B of brotli and took four byte watermarks past their ceilings,
+including two that a deployment composing regions pays and never uses. So it arrives through
+`SurgicalInput.patch`, is measured under `entry-patch.ts`, and the front door binds it. A deployment
+that does not has a ladder with the rung missing — and `selectForm` says exactly that rather than
+falling silently to markup.
 
 ## Push invalidation, travelling the other way
 
@@ -141,7 +223,6 @@ and refuses to publish numbers if a single byte differs.
 
 ## What this does not do yet
 
-- **No `patch` form.** It is in `derivableForms()` and no encoder produces it.
 - **Base renders and memoized deltas expire after fifteen minutes** by default, configurable per
   refresh. An expired base costs a form and never correctness: the client names one the server
   cannot recover, `selectForm` falls to `html`, and the page is right. A shorter ceiling costs

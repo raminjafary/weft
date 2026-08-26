@@ -3,6 +3,7 @@ import {
   deltaPayload,
   render,
   type DeltaPayload,
+  type PatchPayload,
   type TemplateIR,
   type Values,
   type WireForm,
@@ -78,6 +79,24 @@ export interface FormInput {
   fallback?: WireForm
   /** Measured round trip. High RTT favours one payload over N chunk fetches. */
   rttMs?: number
+  /**
+   * The frame will carry an epoch, so it is held unpainted until a commit.
+   *
+   * `patch` is refused here, and it is the one form whose exclusion is about *when* rather than
+   * what: a delta addresses a binding, which does not move, and a patch addresses a path and a
+   * marker ordinal, which another epoch's commit can move under it. A stale address writes a
+   * value into the wrong node, so a form that cannot be held is not offered for holding.
+   */
+  staged?: boolean
+  /**
+   * Whether this deployment included the patch encoder.
+   *
+   * A seam rather than a policy, for the reason stampede coalescing is one: the rung costs bytes
+   * on every entry that carries the refresh path, and a deployment whose regions are all
+   * projectable never reaches it. Without one the ladder has the rung missing and says so, which
+   * is the difference between a degradation and a silence.
+   */
+  encodesPatch?: boolean
 }
 
 /**
@@ -88,16 +107,38 @@ export interface FormInput {
  * `spec/FINDINGS.md`.
  */
 export function selectForm(input: FormInput): FormChoice {
-  const can = (form: WireForm): boolean => input.available.includes(form) && input.accepted.includes(form)
+  const can = (form: WireForm): boolean =>
+    input.available.includes(form) &&
+    input.accepted.includes(form) &&
+    !(form === 'patch' && (input.staged === true || input.encodesPatch !== true))
+  /** Both surgical forms need the same two facts: this template, and the base it was rendered from. */
+  const surgical = (form: WireForm): boolean =>
+    form !== 'delta' && form !== 'patch' ? true : input.resident && input.baseRecovered
 
-  if (input.prefer && can(input.prefer)) {
-    if (input.prefer !== 'delta' || (input.resident && input.baseRecovered)) {
-      return { form: input.prefer, reason: `preferred by the plan` }
-    }
+  if (input.prefer && can(input.prefer) && surgical(input.prefer)) {
+    return { form: input.prefer, reason: `preferred by the plan` }
   }
 
   if (input.resident && input.baseRecovered && can('delta')) {
     return { form: 'delta', reason: 'template resident and base recovered: only changed values travel' }
+  }
+  /**
+   * The rung the ladder was missing. A template whose values are not projectable — a `raw()`
+   * value, an isolated instance, a `slot` hole — cannot serve a delta however much the client
+   * holds, and used to fall the whole way to markup on every refresh. A patch addresses the DOM
+   * structurally instead, so what travels is the holes that changed rather than the region.
+   */
+  if (input.resident && input.baseRecovered && can('patch')) {
+    return {
+      form: 'patch',
+      reason: 'template resident and base recovered, values not projectable: changed markup travels',
+    }
+  }
+  if (input.resident && input.baseRecovered && input.available.includes('patch') && !input.encodesPatch) {
+    return {
+      form: 'html',
+      reason: 'patch is derivable and no encoder is bound: this deployment did not include the rung',
+    }
   }
   if (input.resident && !input.baseRecovered) {
     const fallback = input.fallback && can(input.fallback) ? input.fallback : 'html'
@@ -121,9 +162,17 @@ export function baseKey(tpl: string, id: string): string {
   return `base:${tpl}:${id}`
 }
 
-/** A delta is named by the transition it encodes, which is what makes it shareable. */
+/**
+ * A surgical payload is named by the transition it encodes rather than by the connection that
+ * asked, which is the whole of why one computation serves ten thousand clients. The form is in
+ * the key because a delta and a patch of one transition are two different answers.
+ */
+export function payloadKey(form: 'delta' | 'patch', tpl: string, from: string, to: string): string {
+  return `${form}:${tpl}:${from}->${to}`
+}
+
 export function deltaKey(tpl: string, from: string, to: string): string {
-  return `delta:${tpl}:${from}->${to}`
+  return payloadKey('delta', tpl, from, to)
 }
 
 /**
@@ -188,14 +237,32 @@ export interface SurgicalInput {
   rttMs?: number
   /** How long a base render and a memoized delta live. Expiry costs a form, never correctness. */
   ttl?: RefreshTtl
+  /** The frame will carry an epoch. See `FormInput.staged`: a patch is not held. */
+  staged?: boolean
+  /**
+   * The patch encoder, when this deployment includes it. `patchPayload` from `@weft/ir` is the
+   * implementation; passing it is what puts the second rung on the ladder. See
+   * `entry-patch.ts` for what it costs.
+   */
+  patch?: PatchEncoder
 }
+
+export type PatchEncoder = (
+  ir: TemplateIR,
+  base: string,
+  prev: Values,
+  next: Values,
+  resolve?: (version: string) => TemplateIR | undefined,
+) => PatchPayload
 
 export interface SurgicalResult {
   frame: Frame
   choice: FormChoice
   /** Present only on the delta path. */
   delta?: DeltaPayload
-  /** True when the delta came out of the store rather than being computed for this client. */
+  /** Present only on the patch path. */
+  patch?: PatchPayload
+  /** True when the payload came out of the store rather than being computed for this client. */
   memoized: boolean
   nextBase: string
 }
@@ -218,45 +285,86 @@ export async function surgicalRefresh(input: SurgicalInput): Promise<SurgicalRes
     ...(input.prefer ? { prefer: input.prefer } : {}),
     ...(input.fallback ? { fallback: input.fallback } : {}),
     ...(input.rttMs !== undefined ? { rttMs: input.rttMs } : {}),
+    ...(input.staged !== undefined ? { staged: input.staged } : {}),
+    encodesPatch: Boolean(input.patch),
   })
 
   const nextBase = await recordBase(input.store, input.ir, input.next, input.ttl ?? {})
 
-  if (choice.form !== 'delta' || !prev || !held) {
+  /**
+   * The two surgical forms, on one path. They differ in what they encode and in nothing else:
+   * both are a pure function of two content-addressed states, both are memoized under the
+   * transition, and both degrade to markup when the pieces are not there. Two branches would be
+   * two places for that to stop being true.
+   */
+  const surgicalForm = choice.form === 'delta' || choice.form === 'patch' ? choice.form : undefined
+  const encode = surgicalForm === 'delta' ? deltaPayload : input.patch
+  if (surgicalForm && encode && prev && held) {
+    const { value, memoized } = await shared<DeltaPayload | PatchPayload>(
+      input,
+      payloadKey(surgicalForm, input.ir.version, held.base, nextBase),
+      () => encode(input.ir, held.base, prev, input.next, input.resolve),
+    )
+    // The patch body carries its writes and its opaque paths, because a client applying one may
+    // hold no copy of the template — everything it needs to find a node is in the frame.
+    const body = value.form === 'delta' ? value.changed : { opaque: value.opaque, writes: value.writes }
     return {
       choice,
-      memoized: false,
+      memoized,
       nextBase,
-      frame: frame(
-        'HTML',
-        { s: input.slot, tpl: input.ir.version, base: nextBase, form: choice.form, why: choice.reason },
-        render(input.ir, input.next, input.resolve),
-        true,
-      ),
+      ...(value.form === 'delta' ? { delta: value } : { patch: value }),
+      frame: payload(value.form === 'delta' ? 'DELTA' : 'PATCH', input.slot, value, nextBase, choice, body),
     }
   }
 
-  const key = deltaKey(input.ir.version, held.base, nextBase)
-  const cached = await input.store.get(key)
-  if (cached) {
-    const delta = JSON.parse(decoder.decode(cached.value)) as DeltaPayload
-    return { choice, memoized: true, nextBase, delta, frame: deltaFrame(input.slot, delta, nextBase, choice) }
+  return {
+    choice,
+    memoized: false,
+    nextBase,
+    frame: frame(
+      'HTML',
+      { s: input.slot, tpl: input.ir.version, base: nextBase, form: choice.form, why: choice.reason },
+      render(input.ir, input.next, input.resolve),
+      true,
+    ),
   }
+}
 
-  const delta = deltaPayload(input.ir, held.base, prev, input.next, input.resolve)
-  await input.store.set(key, utf8.encode(JSON.stringify(delta)), {
+/**
+ * Read it, or compute it and record it. One helper rather than a branch per form, because the
+ * two are the same operation on the same key space: a payload named by the transition it encodes
+ * is shared by every client making that transition, which is the whole argument for
+ * content-addressing the design.
+ */
+async function shared<T>(
+  input: SurgicalInput,
+  key: string,
+  compute: () => T,
+): Promise<{ value: T; memoized: boolean }> {
+  const cached = await input.store.get(key)
+  if (cached) return { value: JSON.parse(decoder.decode(cached.value)) as T, memoized: true }
+  const value = compute()
+  await input.store.set(key, utf8.encode(JSON.stringify(value)), {
     class: 'shared',
     ttlMs: input.ttl?.deltaMs ?? DEFAULT_REFRESH_TTL.deltaMs,
     tags: [`tpl:${input.ir.version}`],
   })
-  return { choice, memoized: false, nextBase, delta, frame: deltaFrame(input.slot, delta, nextBase, choice) }
+  return { value, memoized: false }
 }
 
-function deltaFrame(slot: string, delta: DeltaPayload, next: string, choice: FormChoice): Frame {
+/** A payload frame: which transition it encodes in the headers, the payload itself in the body. */
+function payload(
+  kind: 'DELTA' | 'PATCH',
+  slot: string,
+  of: { tpl: string; base: string },
+  next: string,
+  choice: FormChoice,
+  body: unknown,
+): Frame {
   return frame(
-    'DELTA',
-    { s: slot, tpl: delta.tpl, base: delta.base, next, why: choice.reason },
-    utf8.encode(JSON.stringify(delta.changed)),
+    kind,
+    { s: slot, tpl: of.tpl, base: of.base, next, why: choice.reason },
+    utf8.encode(JSON.stringify(body)),
     true,
   )
 }

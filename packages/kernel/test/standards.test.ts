@@ -101,7 +101,14 @@ test('the kernel only reaches sideways into the two versioned wire packages', ()
  */
 const LINE_CEILINGS: Record<string, number> = {
   'entry-request.ts': 1800,
-  'entry-channel.ts': 2100,
+  // The surgical ladder grew a second rung — `patch`, for a region whose values are not
+  // projectable — and the *choice* lives where every other form choice lives, so 31 lines landed
+  // in the refresh path and moved this ceiling and the three below it. The encoder itself is not
+  // here: it arrives through `SurgicalInput.patch` and is measured under `entry-patch.ts`,
+  // because written into this path it took four byte watermarks past their ceilings.
+  'entry-channel.ts': 2200,
+  // The same 31 lines, once per entry that carries the refresh path.
+  'entry-patch.ts': 2200,
   // Rate limiting took this past 2,100, and the ceiling moves rather than the code. The design puts
   // rate limiting in the authority tier and this is the one piece of that tier the intent path has
   // to carry anyway: it is a gate on *every* intent, so the branch lives where the dispatch is, and
@@ -109,16 +116,16 @@ const LINE_CEILINGS: Record<string, number> = {
   // a second dispatch site in the authority entry, or a port declared somewhere ports are not. The
   // byte figure moved 9,457 → 9,643 with 597 left, which is the number that actually gates.
   'entry-intent.ts': 2200,
-  'entry-transport.ts': 2500,
+  'entry-transport.ts': 2600,
   // A route staged over the channel: the transport plus `stage.ts`, and its own entry for the same
   // reason the transport has one — it went past a watermark set before it existed.
-  'entry-stage.ts': 2600,
+  'entry-stage.ts': 2700,
   // Authority: the intent path plus a capability model and signed intents. The tier the design
   // calls separable, so it gets a ceiling it can be reviewed against rather than a share of the
   // intent path's.
   'entry-authority.ts': 2500,
   // Lazy plan extension, on top of route staging. The whole capability is one module.
-  'entry-discover.ts': 2700,
+  'entry-discover.ts': 2800,
   // Composition: regions resolved through the registry and checked on arrival. The document path
   // plus `region.ts`, and its own ceiling because a deployment that composes nothing has no
   // business carrying it. 2,100 was set before the contract carried a region's reads, which is

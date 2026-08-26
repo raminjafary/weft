@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { stripTypeScriptTypes } from 'node:module'
 import { fileURLToPath } from 'node:url'
-import { baseRenderId, clientView, deltaPayload, render, type Values } from '@weft/ir'
+import { baseRenderId, clientView, deltaPayload, patchPayload, render, type Values } from '@weft/ir'
 import { compileScenario, withRows } from '../compiled.ts'
 import type { Scenario } from '../workloads/index.ts'
 import { loadPlaywright, type EngineName } from './browser.ts'
@@ -49,6 +49,12 @@ async function page(scenario: Scenario): Promise<string> {
     html: decoder.decode(render(compiled.root, before, compiled.resolve)),
     expected: decoder.decode(render(compiled.root, after, compiled.resolve)),
     delta: deltaPayload(compiled.root, baseRenderId(compiled.root, before), before, after, compiled.resolve),
+    /**
+     * The same transition as a patch. Every scenario here is projectable, so both forms are
+     * derivable for it — which is exactly what makes the comparison worth having: two encodings
+     * of one transition must reach the same DOM, and one of them needs no template at all.
+     */
+    patch: patchPayload(compiled.root, baseRenderId(compiled.root, before), before, after, compiled.resolve),
     values: before,
     iterations: 12,
     batch: 20,

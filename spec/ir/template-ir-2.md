@@ -216,9 +216,16 @@ which is a performance event and not a correctness one.
 
 ## Which forms a template can serve
 
-Derived, never declared by hand. `html`, `bundle`, `split`, and `patch` are always
-available. `delta` additionally requires every hole to be value-projectable, which a
-structural `slot` hole is not — declaring it anyway is `E_FORM_UNPROVABLE`.
+Derived, never declared by hand. `html`, `bundle` and `split` are always available.
+
+`patch` requires every hole whose _value_ is markup — a `raw()` value — to be the only child of its
+element. A raw value that is not produced an unknown number of nodes after a marker comment, and
+nothing in the template says where they end, so a structural write has no boundary to address. Every
+other hole is addressable, `slot` holes included: a patch never writes into a hole this render does
+not fill.
+
+`delta` additionally requires every hole to be value-projectable, which a structural `slot` hole is
+not. Declaring either anyway is `E_FORM_UNPROVABLE`.
 
 `remote` is the exception, and it is exempt rather than special-cased: the bytes are not this
 deployment's, so no property of these holes could prove an equivalence about them. A region

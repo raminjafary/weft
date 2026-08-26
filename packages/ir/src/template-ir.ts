@@ -170,13 +170,26 @@ function fromTemplate(h: Hole): boolean {
 }
 
 /**
+ * A hole whose *value* is markup: `raw()`. The nested kinds are trusted-raw as well and are not
+ * this case — their markup comes from a template, which is what makes it addressable.
+ */
+export function rawValue(h: Hole): boolean {
+  return h.escape === 'trusted-raw' && !fromTemplate(h)
+}
+
+/**
  * Which wire forms this template can serve, derived rather than declared.
  * `html` is unconditional — it is the floor that needs nothing resident on the client.
  * `delta` requires every hole to be value-projectable through a template the client
  * already holds, which a structural `slot` hole is not.
  */
 export function derivableForms(holes: Hole[]): WireForm[] {
-  const forms: WireForm[] = ['html', 'bundle', 'split', 'patch']
+  const forms: WireForm[] = ['html', 'bundle', 'split']
+  // A patch addresses the DOM structurally rather than by binding, so a slot hole and a
+  // non-projectable value are both fine — what it cannot address is markup with no boundary.
+  // A raw value that is not its element's only child produced an unknown number of nodes after a
+  // marker comment, and nothing in the template says where they end.
+  if (holes.every((h) => !(rawValue(h) && h.anchor !== undefined))) forms.push('patch')
   const projectable = holes.every(
     (h) =>
       // An isolated instance is structurally a hole this render does not fill, which is what
@@ -191,7 +204,7 @@ export function derivableForms(holes: Hole[]): WireForm[] {
       // their markup comes from a nested template the client already holds, and a delta projects
       // values into it. The distinction is where the markup comes from — a template, or the
       // value set.
-      !(h.escape === 'trusted-raw' && !fromTemplate(h)),
+      !rawValue(h),
   )
   if (projectable) forms.push('delta')
   return forms

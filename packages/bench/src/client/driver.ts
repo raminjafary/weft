@@ -1,5 +1,6 @@
 import { adopt, type Adopted } from '/runtime/adopt.ts'
 import { applyDelta, type DeltaPayload } from '/runtime/delta.ts'
+import { applyPatch, type PatchPayload } from '/runtime/patch.ts'
 import { evaluate } from '/runtime/derived.ts'
 import { signal } from '/runtime/signal.ts'
 import type { ClientExpr, ClientTemplate, Json } from '/runtime/template.ts'
@@ -12,6 +13,8 @@ interface Config {
   /** The server's render of the values the delta moves to — the DOM adoption must reach. */
   expected: string
   delta: DeltaPayload
+  /** The same transition, encoded structurally. Applied to a region nothing has adopted. */
+  patch: PatchPayload
   /** The values the server rendered with, so a server-owned derived value can be checked. */
   values: Record<string, Json>
   iterations: number
@@ -78,6 +81,44 @@ function checks(): Check[] {
     name: 'a delta writes one value per changed path, not a region',
     ok: writes === Object.keys(config.delta.changed).length,
     detail: `${writes} writes for ${Object.keys(config.delta.changed).length} paths`,
+  })
+
+  /**
+   * The patch form, and the property that makes it a rung rather than a second delta: it is
+   * applied to a region **nothing has adopted**, so it needs no template, no wiring table and no
+   * binding names — only the DOM the server rendered. Two encodings of one transition have to
+   * reach one DOM, or the negotiated set is not a negotiated set.
+   */
+  const patched = region(config.html)
+  const patchWrites = applyPatch(patched, config.patch)
+  const patchOk = sameDom(config.expected, patched)
+  out.push({
+    name: 'a patch applied to an unadopted region reaches the same DOM as a fresh render',
+    ok: patchOk,
+    detail: patchOk ? `${patchWrites} writes` : firstDifference(config.expected, patched.innerHTML),
+  })
+  out.push({
+    name: 'a patch addresses holes rather than the region',
+    ok: patchWrites > 0 && patchWrites === config.patch.writes.length,
+    detail: `${patchWrites} writes for ${config.patch.writes.length} addressed holes`,
+  })
+  /**
+   * The ordering the ladder claims, checked rather than assumed — and only the half that is a
+   * claim. A patch carries its own addresses where a delta carries a binding name, so a delta is
+   * always the smaller of the two. Against markup it is *usually* smaller and not always: a
+   * transition that rewrites every row of a list sends every row's markup plus its addresses. The
+   * reason to prefer it there is not bytes, it is that the nodes around the write survive, so the
+   * number is reported and not gated on.
+   */
+  const sizes = {
+    delta: JSON.stringify(config.delta.changed).length,
+    patch: JSON.stringify({ opaque: config.patch.opaque, writes: config.patch.writes }).length,
+    html: config.expected.length,
+  }
+  out.push({
+    name: 'a delta is smaller than a patch of the same transition, because addresses cost bytes',
+    ok: sizes.delta <= sizes.patch,
+    detail: `delta ${sizes.delta} B, patch ${sizes.patch} B, html ${sizes.html} B (patch/html ${(sizes.patch / sizes.html).toFixed(2)}×)`,
   })
 
   // An empty value leaves no text node, so the marker has to be the anchor.
@@ -282,6 +323,10 @@ function timings(): Record<string, number[]> {
       const host = region(config.html)
       const adopted = adoptRegion(host)
       return () => void applyDelta(adopted, config.delta)
+    }),
+    patch: measure(config.batch * 500, () => {
+      const host = region(config.html)
+      return () => void applyPatch(host, config.patch)
     }),
     parse: measure(config.batch * 5, () => {
       const host = region('')

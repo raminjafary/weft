@@ -86,6 +86,14 @@ cost **one** diff — 0.3 ms against a per-connection differ's 8.2. A thousand c
 _different_ base share nothing, and the shared path then costs 17.3 ms against 9.2. Both numbers are
 in the report, because the second is where a deployment gets surprised.
 
+A region whose values are not projectable — a `raw()` value, an isolated instance, a `slot` hole —
+cannot serve a delta at all, and used to fall the whole way to markup on every refresh. It now takes
+the rung between them: a `patch`, addressed the way adoption addresses the DOM, applicable by a
+client holding no copy of the template. 4.3–6.0× smaller than the region raw, 1.9–2.6× after brotli,
+3.3–3.9× cheaper to apply than the parse it replaces — and on a 141-byte region it is _larger_ than
+the markup after compression, which is in [`spec/kernel/surgical.md`](spec/kernel/surgical.md) with
+the reason it is still the right answer there.
+
 **Instant navigation.** Hover stages a route into an epoch that paints nowhere; a click commits it as
 a DOM swap. 17 ms staged against 606 ms on the demo's deliberately slow page, and 7–19× on ordinary
 ones at 100 ms injected RTT. On loopback a staged click is _slower_ than letting the browser do it,
@@ -260,21 +268,23 @@ ceiling.
 
 | Entry                                     | brotli     | gzip   | raw    | Ceiling |
 | ----------------------------------------- | ---------- | ------ | ------ | ------- |
-| Client runtime, everything                | **5,595**  | 6,136  | 16,239 | 6,144   |
+| Client runtime, everything                | **6,109**  | 6,719  | 18,247 | 6,144   |
 | Content route — adopt and bind            | **2,226**  | 2,426  | 6,657  | 5,120   |
 | App route — adopt, bind, patch, epochs    | **3,154**  | 3,443  | 9,109  | 12,288  |
 | Channel route — plus routing frames       | **4,081**  | 4,467  | 11,841 | 4,096   |
+| Patching route — plus applying a patch    | **4,571**  | 5,031  | 13,783 | 5,120   |
 | Navigating route — plus staged routes     | **4,932**  | 5,403  | 14,241 | 5,120   |
-| Front door — adoption to composition      | **12,539** | 13,875 | 39,879 | 13,312  |
-| Server kernel — the document request path | **8,108**  | 9,109  | 23,718 | 8,192   |
-| Kernel + intent dispatch                  | **9,643**  | 10,863 | 28,800 | 10,240  |
-| Kernel + surgical refresh and epochs      | **10,678** | 11,969 | 32,079 | 12,288  |
-| Kernel + authority                        | **11,306** | 12,710 | 33,997 | 12,288  |
-| Kernel + composition                      | **11,246** | 12,651 | 33,906 | 11,264  |
-| Kernel + a live Warp channel              | **13,310** | 14,887 | 40,145 | 13,312  |
-| Kernel + composition over a live channel  | **16,268** | 18,254 | 49,916 | 16,384  |
+| Front door — adoption to composition      | **13,033** | 14,422 | 42,011 | 13,312  |
+| Server kernel — the document request path | **8,118**  | 9,122  | 23,764 | 8,192   |
+| Kernel + intent dispatch                  | **9,656**  | 10,870 | 28,845 | 10,240  |
+| Kernel + surgical refresh and epochs      | **10,893** | 12,202 | 32,838 | 12,288  |
+| Kernel + the patch encoder                | **11,563** | 12,950 | 35,309 | 12,288  |
+| Kernel + authority                        | **11,308** | 12,724 | 34,042 | 12,288  |
+| Kernel + composition                      | **11,271** | 12,661 | 33,951 | 12,288  |
+| Kernel + a live Warp channel              | **13,546** | 15,154 | 40,961 | 14,336  |
+| Kernel + composition over a live channel  | **16,509** | 18,520 | 50,732 | 17,408  |
 
-**The 8 KB claim is scoped and met**: 8,108 B against 8,192 covers the document request path —
+**The 8 KB claim is scoped and met**: 8,118 B against 8,192 covers the document request path —
 lifecycle, envelope, routing, key derivation, wave dispatch, the stream. Every other capability gets
 its own entry and its own stated ceiling rather than a share of that one, so the first feature to
 arrive cannot spend the headroom every later one needs. The first attempt measured the whole barrel
@@ -373,7 +383,7 @@ and measures it over HTTP on the same axes.
 
 | Spec                      | Where                                                                                          | State                                                                           |
 | ------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Template IR               | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir`                          | 2.5.0 — children, instances in rows, derived values, contagion                  |
+| Template IR               | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir`                          | 2.6.0 — children, instances in rows, derived values, contagion, `patch` derived |
 | Warp frames               | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                  | 1.7.0 — a region announces itself, and says what it composes when asked         |
 | Versioning contract       | [`spec/VERSIONING.md`](spec/VERSIONING.md)                                                     | Majors refuse, minors round-trip                                                |
 | What measurement changed  | [`spec/FINDINGS.md`](spec/FINDINGS.md)                                                         | Five reversed, two clarified                                                    |
@@ -387,7 +397,7 @@ and measures it over HTTP on the same axes.
 | Ports                     | [`spec/kernel/ports.md`](spec/kernel/ports.md), `packages/adapters`                            | Fourteen declared, fourteen implemented                                         |
 | Cache keys, static docs   | [`spec/kernel/cache.md`](spec/kernel/cache.md), [`static.md`](spec/kernel/static.md)           | Reads resolved into a key; a page that reads nothing is a file                  |
 | Executors, waves, epochs  | [`spec/kernel/locus.md`](spec/kernel/locus.md)                                                 | DAG scheduling, CPU budgets, staged epochs with atomic commit                   |
-| Surgical updates          | [`spec/kernel/surgical.md`](spec/kernel/surgical.md)                                           | `HELD` recovers a base, the delta is memoized by its transition                 |
+| Surgical updates          | [`spec/kernel/surgical.md`](spec/kernel/surgical.md)                                           | `HELD` recovers a base, delta and patch memoized by their transition            |
 | Authority                 | [`spec/kernel/authority.md`](spec/kernel/authority.md)                                         | Capabilities by role, Ed25519 intents single-use per deployment, limits         |
 | Composition               | [`spec/kernel/composition.md`](spec/kernel/composition.md)                                     | Regions through a registry, contracts checked on arrival, the tree as one graph |
 | Byte budgets              | [`spec/kernel/budgets.md`](spec/kernel/budgets.md)                                             | Every entry, its ceiling, and every watermark that moved                        |

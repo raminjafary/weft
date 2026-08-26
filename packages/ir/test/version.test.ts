@@ -86,6 +86,7 @@ test('every step of the built-in chain exists, so no minor can be skipped', () =
     '2.2.0 -> 2.3.0',
     '2.3.0 -> 2.4.0',
     '2.4.0 -> 2.5.0',
+    '2.5.0 -> 2.6.0',
   ])
   assert.equal(doc.irVersion, TEMPLATE_IR_VERSION)
 })

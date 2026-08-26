@@ -58,6 +58,14 @@ export const BUDGETS: ByteBudget[] = [
     limitNote: 'no design figure; measured so a regression is visible',
   },
   {
+    id: 'kernel-patch',
+    label: 'Server kernel plus the surgical rung that needs no projectable values',
+    entry: kernelSrc('entry-patch.ts'),
+    limit: 12 * 1024,
+    limitNote:
+      'no design figure; its own entry, because written into the refresh path the encoder took four other watermarks past their ceilings',
+  },
+  {
     id: 'kernel-intent',
     label: 'Server kernel plus intent dispatch',
     entry: kernelSrc('entry-intent.ts'),
@@ -68,8 +76,9 @@ export const BUDGETS: ByteBudget[] = [
     id: 'kernel-transport',
     label: 'Server kernel plus a live Warp channel',
     entry: kernelSrc('entry-transport.ts'),
-    limit: 13 * 1024,
-    limitNote: 'no design figure; a watermark, so the next addition argues with a number',
+    limit: 14 * 1024,
+    limitNote:
+      'no design figure; moved from 13 KB when the surgical ladder grew its second rung — the choice is in the refresh path even where the encoder is not. See spec/kernel/budgets.md',
   },
   {
     id: 'kernel-stage',
@@ -105,17 +114,17 @@ export const BUDGETS: ByteBudget[] = [
     id: 'kernel-region',
     label: 'Server kernel plus a page composed out of regions on other deployments',
     entry: kernelSrc('entry-region.ts'),
-    limit: 11 * 1024,
+    limit: 12 * 1024,
     limitNote:
-      'no design figure; its own entry, because a deployment that composes nothing should not carry the check that makes composing safe',
+      'no design figure; its own entry, because a deployment that composes nothing should not carry the check that makes composing safe. Moved from 11 KB, which had 18 B of headroom, when the ladder grew a rung',
   },
   {
     id: 'kernel-region-channel',
     label: 'Server kernel plus a region on another deployment, refreshed over a live channel',
     entry: kernelSrc('entry-region-channel.ts'),
-    limit: 16 * 1024,
+    limit: 17 * 1024,
     limitNote:
-      'no design figure; its own entry, because neither the transport nor composition alone covers it',
+      'no design figure; its own entry, because neither the transport nor composition alone covers it. Moved from 16 KB with the transport watermark, and for the same reason',
   },
   {
     id: 'discover-route',
@@ -138,6 +147,14 @@ export const BUDGETS: ByteBudget[] = [
     limit: 5 * 1024,
     limitNote:
       'no design figure; its own entry, because a page that composes no region should not carry the exposed table',
+  },
+  {
+    id: 'patch-route',
+    label: 'Channel route plus the ladder rung that needs no resident template',
+    entry: src('entry-patch.ts'),
+    limit: 5 * 1024,
+    limitNote:
+      'no design figure; its own entry, because a page whose regions are all projectable never receives a PATCH',
   },
   {
     id: 'nav-route',

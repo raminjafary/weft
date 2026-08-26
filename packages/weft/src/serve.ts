@@ -3,6 +3,7 @@ import { access, readFile } from 'node:fs/promises'
 import { basename, dirname, join, relative } from 'node:path'
 import { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
+import { patchPayload } from '@weft/ir'
 import { frame, str, type Frame } from '@weft/warp'
 import {
   boundedDb,
@@ -768,6 +769,12 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
 
   const hub = createHub({
     store,
+    /**
+     * The second rung of the surgical ladder, bound because the front door is the deployment that
+     * cannot know which shape its application's regions have. A page with a `raw()` value or an
+     * isolated instance would otherwise have every refresh come back as markup.
+     */
+    patch: patchPayload,
     source: liveSource(routes, at, ports, composeRegion, {
       renders,
       names: catalogue.names,

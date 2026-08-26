@@ -32,6 +32,7 @@ import {
   createStaleRegistry,
   parseHeld,
   surgicalRefresh,
+  type PatchEncoder,
   type Held,
   type RefreshTtl,
   type StaleRegistry,
@@ -199,6 +200,16 @@ export interface HubOptions {
   maxSaturatedSends?: number
   /** How long recovered base renders and memoized deltas live. Expiry costs a form, never correctness. */
   ttl?: RefreshTtl
+  /**
+   * The patch encoder, which is what puts the second rung on the surgical ladder: a region whose
+   * values are not projectable updates node by node instead of being replaced whole.
+   *
+   * Optional because it is measured that way — `patchPayload` written into the refresh path cost
+   * every entry carrying that path ~440 B of brotli, including two a deployment composing regions
+   * pays and never uses. Bind it from `entry-patch.ts` and the rung is there; leave it and
+   * `selectForm` says the rung is missing rather than falling silently to markup.
+   */
+  patch?: PatchEncoder
   telemetry?: TelemetryPort
 }
 
@@ -518,6 +529,7 @@ export function createHub(options: HubOptions): ChannelHub {
     slot: string,
     source: SlotRender | SlotFrames,
     remember: boolean,
+    staged = false,
   ): Promise<SlotFrames & { frame?: Frame }> {
     // Frames from elsewhere are already the smallest form their producer could send: it was given
     // what this client holds and made the choice on its own side. Choosing again here would mean
@@ -536,6 +548,8 @@ export function createHub(options: HubOptions): ChannelHub {
       ...(source.fallback ? { fallback: source.fallback } : {}),
       ...(record.hello?.rtt !== undefined ? { rttMs: record.hello.rtt } : {}),
       ...(options.ttl ? { ttl: options.ttl } : {}),
+      ...(staged ? { staged } : {}),
+      ...(options.patch ? { patch: options.patch } : {}),
     })
     if (remember) {
       record.held.set(slot, { slot, tpl: source.ir.version, base: result.nextBase })
@@ -572,7 +586,9 @@ export function createHub(options: HubOptions): ChannelHub {
         out.push(errorFrame('E_NO_SUCH_SLOT', slot))
         continue
       }
-      const result = await serveSlot(record, slot, source, true)
+      // An epoch means the frame is held rather than painted, which is the one fact a form
+      // choice has to know beyond what the client holds: a patch addresses nodes by position.
+      const result = await serveSlot(record, slot, source, true, Boolean(epoch))
       const paint = result.frame ?? result.paint
       out.push(...(result.also ?? []))
       if (!paint) continue
