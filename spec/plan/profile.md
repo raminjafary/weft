@@ -43,11 +43,12 @@ reached by a DOM swap counts the same as one reached by a load.
 
 ## What it decides
 
-Two things, and both are about **time**. A profile cannot move a fragment, change a cache class or
-touch a key: those belong to the compiler and the convention, and a recording of last Tuesday has no
-standing over any of them. What it does have standing over is delivery — whether a region is worth its
-own flush — and whether describing a route to a client that has not been to it is worth the bytes.
-Both were guesses in a declaration, and this is a measurement.
+Three things, and all of them are about **time**. A profile cannot move a fragment, change a cache
+class or touch a key: those belong to the compiler and the convention, and a recording of last Tuesday
+has no standing over any of them. What it does have standing over is delivery — whether a region is
+worth its own flush — whether describing a route to a client that has not been to it is worth the
+bytes, and whether _staging_ one from the page a reader is on is worth the request. All three were
+guesses in a declaration, and this is a measurement.
 
 ### Whether a region is worth its own flush
 
@@ -105,6 +106,28 @@ description look successful.
 **A prefix somebody asked about is described whatever the recording says.** The measurement is about
 what this deployment _volunteers_, in the unasked frame when a channel opens, and a question is not a
 volunteer. `weft.discover('/checkout/*')` is answered either way.
+
+### Whether a route is worth staging from here
+
+`RouteDecision.stage` records which pages readers arrive at a route _from_ often enough for staging to
+pay — four arrivals and at least 15% of that route's traffic. It is the same table the transitions come
+from, read per **source** rather than per target: readers of a product page go to the cart, and readers
+of the cart do not go back.
+
+| Observation                                        | Decision                                   |
+| -------------------------------------------------- | ------------------------------------------ |
+| ≥ 4 arrivals from that page, and ≥ 15% of arrivals | stage on hover, as it always did           |
+| Recorded sources, and this page is not one of them | `stage: false` — the hover fetches nothing |
+| No recorded arrivals at all                        | nothing. Unmeasured stages                 |
+
+A `PLAN` frame carries the `false`, and the client checks it in `prefetchable` — the one gate hover,
+viewport dwell and pointer-down all pass through, so a decision that applied to two of the three
+signals is not expressible.
+
+The third row is the one worth being careful about. A page nobody has reached yet has nothing to
+count, so inventing a `false` for it would turn a cold recording into a framework that had switched
+staging off. Absent means unmeasured and unmeasured stages, which is the rule delivery and describing
+already follow.
 
 ## What it refuses to decide
 

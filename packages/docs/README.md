@@ -48,7 +48,7 @@ space a reader mistakes for a simple function is worse than an admission.
 | ------------------------------- | --------------------------------------------------------------------------- |
 | Nested layouts                  | `app/routes/{guide,tutorial,api}/layout.tsx`, each inside `app/layout.tsx`  |
 | Param routes with declared sets | One route serves every guide page; another serves all ~330 error codes      |
-| The L0 tier                     | `weft build` writes the site as 365 files; the kernel serves none of them   |
+| The L0 tier                     | `weft build` writes the site as 361 files; the kernel serves none of them   |
 | A slot as a cache unit          | The contents column is its own region: one entry per section, not per page  |
 | A declared refusal              | `/play` is the one page that is not a file, and `notStaticBecause` says why |
 | The compiler's virtual file set | `/play` compiles what you type without writing it anywhere                  |

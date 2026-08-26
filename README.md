@@ -470,7 +470,7 @@ introduction: Quick Start, Guide, Tutorial, Examples, API, Glossary and an Error
 
 **The documentation site is itself a weft application**, which is the strongest claim the framework
 can make about itself and the reason it is built that way rather than with a documentation
-generator. It is 13 routes and 14 sealed templates; `weft build` writes the whole thing as 365
+generator. It is 13 routes and 14 sealed templates; `weft build` writes the whole thing as 361
 files, so the kernel is not invoked to serve any of them. Its guide pages and its 300-odd error
 pages are two param routes with their sets declared. Three of its four sections sit under a nested
 layout. And the one page that is _not_ a file — the playground, which compiles what you type
