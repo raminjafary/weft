@@ -695,3 +695,16 @@ button {
 .t-punct {
   color: var(--t-punct);
 }
+
+/* The results page's own box. Wider than the header's, because it holds a query you can read and
+   edit rather than a placeholder you click past. */
+.find-again {
+  display: flex;
+  gap: 0.5rem;
+  margin-block-end: 1.5rem;
+}
+
+.find-again input {
+  flex: 1;
+  max-width: 32rem;
+}

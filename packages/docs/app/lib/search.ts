@@ -206,6 +206,26 @@ export function indexSize(): number {
   return candidates().length
 }
 
+/**
+ * The search box, on the results page, carrying the query that produced them.
+ *
+ * The header's copy lives in `app/layout.tsx` and cannot be pre-filled: `layoutValues` is handed the
+ * route's params and `q` is a query parameter, so a shared document hole has no way to read it. The
+ * result was a page that showed "52 results for fragment" above an empty box — so refining a search
+ * meant retyping it, and the box you had just typed into looked like it had thrown the input away.
+ *
+ * This one is inside the slot that *did* read `?q`, which is the one place on the page that knows.
+ */
+function searchAgain(query: string): string {
+  return (
+    `<form class="find find-again" method="get" action="/search" role="search">` +
+    `<input type="search" name="q" value="${escapeHtml(query)}" placeholder="Search" ` +
+    `aria-label="Search this site" autofocus>` +
+    `<button type="submit">Search</button>` +
+    `</form>`
+  )
+}
+
 export function searchBody(query: string): string {
   const trimmed = query.trim()
   if (!trimmed) {
@@ -228,11 +248,14 @@ export function searchBody(query: string): string {
 
   const results = search(trimmed)
   if (!results.length) {
-    return prose(
-      `Nothing matches <strong>${escapeHtml(trimmed)}</strong>.`,
-      'Error codes are searchable by their name, so <code>E_NO_SHELL</code> finds its page. Exported ' +
-        'names are searchable exactly. If you are looking for a concept and not a word, the ' +
-        '<a href="/glossary">glossary</a> is short enough to read.',
+    return (
+      searchAgain(trimmed) +
+      prose(
+        `Nothing matches <strong>${escapeHtml(trimmed)}</strong>.`,
+        'Error codes are searchable by their name, so <code>E_NO_SHELL</code> finds its page. Exported ' +
+          'names are searchable exactly. If you are looking for a concept and not a word, the ' +
+          '<a href="/glossary">glossary</a> is short enough to read.',
+      )
     )
   }
 
@@ -259,9 +282,11 @@ export function searchBody(query: string): string {
   }).join('')
 
   return (
+    searchAgain(trimmed) +
     prose(
       `${results.length} result${results.length === 1 ? '' : 's'} for ` +
         `<strong>${escapeHtml(trimmed)}</strong>, grouped by where the answer lives.`,
-    ) + groups
+    ) +
+    groups
   )
 }

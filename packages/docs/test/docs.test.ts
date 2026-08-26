@@ -436,6 +436,29 @@ test('every framework name a sketch imports actually exists', () => {
   assert.ok(found > 8, `only ${found} imported names found: the scan lost something`)
 })
 
+/**
+ * A results page carries the query that produced it.
+ *
+ * The header's box cannot be pre-filled — `layoutValues` is handed route params and `q` is a query
+ * parameter — so before the slot grew one of its own, `/search?q=fragment` showed "52 results for
+ * fragment" above an empty input, and refining a search meant retyping it.
+ */
+test('the search results page comes back with the query still in the box', async () => {
+  const serving = await serveApp(await app())
+  servers.push(serving)
+
+  const found = await (await fetch(new URL('/search?q=fragment', serving.url))).text()
+  assert.match(found, /<input[^>]*name="q"[^>]*value="fragment"/)
+
+  const missing = await (await fetch(new URL('/search?q=zzzqqq', serving.url))).text()
+  assert.match(missing, /<input[^>]*name="q"[^>]*value="zzzqqq"/)
+
+  // A quote in the query must not close the attribute it is rendered into.
+  const hostile = await (await fetch(new URL('/search?q=a%22+onfocus%3Dalert(1)', serving.url))).text()
+  assert.doesNotMatch(hostile, /value="a" onfocus/)
+  assert.match(hostile, /value="a&quot; onfocus=alert\(1\)"/)
+})
+
 /** Every page answers, and none of them answers with a stack trace. */
 test('every route in the site serves a document', async () => {
   const serving = await serveApp(await app())
