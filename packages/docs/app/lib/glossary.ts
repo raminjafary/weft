@@ -412,19 +412,6 @@ export function glossaryBody(): string {
 }
 
 /**
- * The left column: every term, as a jump list.
- *
- * This markup used to be built inside the route's `body` string. Moving it into a hole of its own is
- * the point of giving this page a layout: the list is identical on every render of the page, so it
- * is one cache entry rather than bytes recomputed with the prose each time.
- */
-export function glossaryContents(): string {
-  return `<h2 class="hint">Terms</h2><ul class="contents">${TERMS.map(
-    (term) => `<li><a href="#${slug(term.term)}">${escapeHtml(term.term)}</a></li>`,
-  ).join('')}</ul>`
-}
-
-/**
  * The right column: how big the glossary is, and where its entries point.
  *
  * Counting the entries that carry further reading was the obvious second row and it is not worth

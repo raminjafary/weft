@@ -1,5 +1,6 @@
 import { defineRoute } from 'weft'
-import { bodyOf, guideContents, guideOutline } from '../../lib/content.ts'
+import { bodyOf, guideOutline } from '../../lib/content.ts'
+import { guideContents } from '../../lib/contents.ts'
 import { BY_SLUG, PAGES } from '../../lib/pages.ts'
 
 /**
@@ -28,7 +29,7 @@ export default defineRoute({
   cache: { class: 'public', ttl: '1h' },
   params: { page: PAGES.map((page) => page.slug) },
   slots: {
-    contents: { html: (_ctx, params) => guideContents(params.page) },
+    contents: { fragment: 'docs/contents', load: (_ctx, params) => ({ groups: guideContents(params.page) }) },
     body: {
       html: (_ctx, params) => {
         const slug = params.page ?? ''

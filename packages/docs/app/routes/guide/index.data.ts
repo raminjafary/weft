@@ -1,5 +1,5 @@
 import { defineRoute } from 'weft'
-import { guideContents } from '../../lib/content.ts'
+import { guideContents } from '../../lib/contents.ts'
 import { GROUPS, PAGES } from '../../lib/pages.ts'
 import { prose } from '../../lib/markup.ts'
 
@@ -12,7 +12,7 @@ export default defineRoute({
   },
   cache: { class: 'public', ttl: '1h' },
   slots: {
-    contents: { html: () => guideContents() },
+    contents: { fragment: 'docs/contents', load: () => ({ groups: guideContents() }) },
     body: {
       html: () =>
         prose(

@@ -1,6 +1,6 @@
 import { renderExample } from './example.ts'
 import { escapeHtml, example, heading, note, prose, sketch, table } from './markup.ts'
-import { BY_SLUG, GROUPS, neighbours, PAGES } from './pages.ts'
+import { BY_SLUG, neighbours, PAGES } from './pages.ts'
 import { commands, options, tagline } from './cli.ts'
 import { budgets, siteWeight } from './budgets.ts'
 import { artifacts } from './versions.ts'
@@ -1247,24 +1247,6 @@ export function exampleCount(): number {
 }
 
 /** The contents column, identical on every page under the guide layout — so it is one cache entry. */
-export function guideContents(current?: string): string {
-  const groups = GROUPS.map((group) => {
-    const pages = PAGES.filter((page) => page.group === group.id)
-    if (!pages.length) return ''
-    return `<h2 class="hint">${group.label}</h2><ul class="contents">${pages
-      .map(
-        (page) =>
-          `<li>${
-            page.slug === current
-              ? `<strong>${page.title}</strong>`
-              : `<a href="/guide/${page.slug}">${page.title}</a>`
-          }</li>`,
-      )
-      .join('')}</ul>`
-  })
-  return groups.join('')
-}
-
 /** What the page covers, and where the argument for it lives. */
 export function guideOutline(slug: string): string {
   const page = BY_SLUG[slug]

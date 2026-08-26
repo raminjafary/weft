@@ -708,3 +708,21 @@ button {
   flex: 1;
   max-width: 32rem;
 }
+
+/* The nav is a sealed template now, and a sealed template cannot branch — so the entry you are on
+   is still a link and says so with `aria-current` instead of being a different element. That is the
+   markup assistive technology reads for "you are here", which a `<strong>` never was. */
+.contents [aria-current='page'] {
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+/* An empty `count` hole still renders its span, so give it nothing to occupy when it is empty. */
+.contents .count:empty {
+  display: none;
+}
+
+.contents-group:first-child h2 {
+  margin-block-start: 0;
+}

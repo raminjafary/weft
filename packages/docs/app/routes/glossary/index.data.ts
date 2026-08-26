@@ -1,5 +1,6 @@
 import { defineRoute } from 'weft'
-import { glossaryBody, glossaryContents, glossaryOutline } from '../../lib/glossary.ts'
+import { glossaryBody, glossaryOutline } from '../../lib/glossary.ts'
+import { glossaryContents } from '../../lib/contents.ts'
 
 export default defineRoute({
   head: {
@@ -12,9 +13,7 @@ export default defineRoute({
   },
   cache: { class: 'public', ttl: '1h' },
   slots: {
-    // The jump list this used to prepend to `body` is now a hole of its own, which is what makes it
-    // one cache entry instead of bytes rebuilt alongside the prose on every render.
-    contents: { html: () => glossaryContents() },
+    contents: { fragment: 'docs/contents', load: () => ({ groups: glossaryContents() }) },
     body: { html: () => glossaryBody() },
     outline: { html: () => glossaryOutline() },
   },

@@ -38,16 +38,6 @@ export function galleryBody(): string {
   )
 }
 
-/** The left column: every page that contributed an example, and how many. */
-export function galleryContents(): string {
-  return `<h2 class="hint">By page</h2><ul class="contents">${PAGES.filter((p) => p.examples.length)
-    .map(
-      (page) =>
-        `<li><a href="#${page.slug}">${page.title}</a> <span class="count">${page.examples.length}</span></li>`,
-    )
-    .join('')}</ul>`
-}
-
 /**
  * The right column: what the gallery is derived from.
  *
