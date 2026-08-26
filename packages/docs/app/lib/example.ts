@@ -27,8 +27,15 @@ export interface Example {
   title: string
   /** What the example is for, in one sentence. */
   shows: string
-  /** What to render it with. A fragment with no props takes none. */
-  values?: Values
+  /**
+   * What to render it with. A fragment with no props takes none.
+   *
+   * A thunk where the values are a function of something live. It was a plain object until the
+   * feedback example needed the real vote tally: with a literal, that example rendered `count: 0`
+   * for ever while the intent behind the button incremented a counter nobody could see, so the one
+   * live control on the site looked broken every time somebody pressed it.
+   */
+  values?: Values | (() => Values)
   /** What to look at in the output. Optional, and usually worth writing. */
   note?: string
 }
@@ -98,6 +105,12 @@ function facts(fragment: CompiledFragment): ExampleFacts {
 
 const decoder = new TextDecoder()
 
+/** Called at render time, so a thunk sees the tally as it is now rather than as it was at import. */
+function resolveValues(values: Example['values']): Values {
+  if (typeof values === 'function') return values()
+  return values ?? {}
+}
+
 /**
  * Render one example.
  *
@@ -114,7 +127,7 @@ export function renderExample(example: Example): RenderedExample {
     ...(example.note ? { note: example.note } : {}),
     file: fragment.file,
     source: fragment.source,
-    html: decoder.decode(render(fragment.entry, example.values ?? {}, fragment.resolve)),
+    html: decoder.decode(render(fragment.entry, resolveValues(example.values), fragment.resolve)),
     facts: facts(fragment),
   }
 }

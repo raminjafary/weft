@@ -1,4 +1,5 @@
 import type { Example } from './example.ts'
+import { votes } from '../intents/feedback.ts'
 
 /**
  * The guide, as a list.
@@ -251,8 +252,18 @@ export const PAGES: readonly Page[] = [
         title: 'A mutation with no JavaScript at all',
         shows:
           'A form, a hidden field and a POST to the route the intent manifest generated. This one is live: pressing it dispatches a real intent in this process.',
-        values: { page: 'intents', count: 0 },
-        note: 'Phase A dispatch is what makes a real status, an <code>HttpOnly</code> cookie and a 303 available — the three things a <code>fetch</code> handler cannot give you.',
+        // The real tally, not a literal. `votes` is exported by the intent module for this, and until
+        // this line called it the number on the page was a constant `0` — so every press dispatched
+        // a real intent, incremented a real counter, redirected back, and showed zero.
+        values: () => ({ page: 'intents', count: votes('intents') }),
+        note:
+          'Phase A dispatch is what makes a real status, an <code>HttpOnly</code> cookie and a 303 available — the ' +
+          'three things a <code>fetch</code> handler cannot give you. The count is real and it is this process’s. ' +
+          'It will usually not move when you press the button, and that is the declaration above it rather than a ' +
+          'bug: the intent declares <code>writes: []</code>, so a vote invalidates nothing, and this route declares ' +
+          '<code>public, 1h</code> and is built to a file. The number is therefore whatever it was when this page ' +
+          'was last rendered. Declaring a tag here and revalidating it is what would make it move — and would cost ' +
+          'this page its place in L0.',
       },
     ],
   },
