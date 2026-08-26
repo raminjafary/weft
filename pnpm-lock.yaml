@@ -148,6 +148,9 @@ importers:
       '@weft/ir':
         specifier: workspace:*
         version: link:../ir
+      '@weft/kernel':
+        specifier: workspace:*
+        version: link:../kernel
       oxc-parser:
         specifier: 0.146.0
         version: 0.146.0

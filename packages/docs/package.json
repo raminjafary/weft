@@ -16,7 +16,8 @@
     "weft": "workspace:*",
     "@weft/compiler": "workspace:*",
     "@weft/ir": "workspace:*",
-    "oxc-parser": "0.146.0"
+    "oxc-parser": "0.146.0",
+    "@weft/kernel": "workspace:*"
   },
   "engines": {
     "node": ">=22.18.0"

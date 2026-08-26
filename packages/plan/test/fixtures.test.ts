@@ -114,6 +114,7 @@ test('every complaint fixture warns and none of them fails the build', async () 
   const expected: Record<string, string> = {
     inlineCpuBudget: 'W_CPU_BUDGET_ADVISORY',
     clockWithoutPolicy: 'W_TTL_UNDECLARED',
+    ttlOnStatic: 'W_TTL_ON_STATIC',
     incrementalWithoutGraph: 'W_INCREMENTAL_NO_GRAPH',
     tooWide: 'W_WAVE_WIDTH',
   }

@@ -5,7 +5,7 @@ import { TEMPLATE_IR_VERSION } from '@weft/ir'
 import { frame, residentFrame, str, num, WARP_VERSION, type Frame } from '@weft/warp'
 import type { ChannelSink } from '@weft/kernel'
 import { createApp, serveApp, type Serving } from '../src/serve.ts'
-import { resolveAuthority } from '../src/authority.ts'
+import { generateSigningKeys, resolveAuthority } from '../src/authority.ts'
 import { loadIntents } from '../src/intents.ts'
 
 const ROOT = fileURLToPath(new URL('../../../demo/', import.meta.url))
@@ -207,6 +207,58 @@ test('a grant nothing declares is said rather than refused, and so is an unenfor
   const unbound = await resolveAuthority(undefined, intents, store, ports)
   assert.equal(unbound.model, null)
   assert.ok(unbound.diagnostics.some((line) => line.startsWith('W_NO_CAPABILITY_MODEL')))
+})
+
+/**
+ * The two halves of a signing key, each missing on its own.
+ *
+ * Both warn at startup rather than at the first call, because both are configuration mistakes and a
+ * configuration mistake found by a reader is a configuration mistake found too late. They had no
+ * test until now — a warning nothing asserts is a warning that can stop firing without anybody
+ * noticing, which is the same failure as a refusal nobody checks.
+ */
+test('a private key with no public keys warns, and so does a signature nobody can mint', async () => {
+  const { store, ports } = (await app()).app
+  const intents = await loadIntents(ROOT, [])
+  intents.entries.push({
+    module: 'app/intents/x.ts',
+    export: 'x',
+    id: 'bbbbbb',
+    name: 'x',
+    writes: [],
+    capabilities: [],
+    signed: true,
+  })
+  const keys = await generateSigningKeys()
+
+  // Can mint and cannot check its own tokens.
+  const mintOnly = await resolveAuthority(
+    { grants: {}, signing: { kid: 'dev', privateKey: keys.privateKey } },
+    intents,
+    store,
+    ports,
+  )
+  assert.ok(
+    mintOnly.diagnostics.some((line) => line.startsWith('W_NO_PUBLIC_KEYS')),
+    mintOnly.diagnostics.join(' | '),
+  )
+
+  // Can check and cannot mint: `/_weft/token` refuses by name, which is worth saying at startup.
+  const verifyOnly = await resolveAuthority(
+    { grants: {}, signing: { kid: 'dev', publicKeys: { dev: keys.publicKey } } },
+    intents,
+    store,
+    ports,
+  )
+  assert.ok(
+    verifyOnly.diagnostics.some((line) => line.startsWith('W_NO_SIGNER')),
+    verifyOnly.diagnostics.join(' | '),
+  )
+  assert.equal(
+    verifyOnly.diagnostics.some((line) => line.startsWith('W_NO_VERIFIER')),
+    false,
+    'a public key is a verifier, so that warning is not this one',
+  )
 })
 
 test('the demo starts clean except for what its store cannot promise', async () => {

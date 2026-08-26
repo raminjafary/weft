@@ -179,6 +179,18 @@ export const complaints: Record<string, Plan> = {
     slot('recs').fragment(LINES_ID),
   ]),
 
+  /**
+   * A ttl on a slot that reads nothing, which is a ttl with nothing to expire.
+   *
+   * Worth a warning rather than an error: it is harmless, and the author probably meant it for a
+   * different slot. `LINES` reads nothing, so its class is static and the declaration is inert.
+   */
+  ttlOnStatic: plan('/cart', [
+    shell(SHELL_ID),
+    slot('cartLines').fragment(LINES_ID).cache('public', { ttl: '1h' }),
+    slot('recs').fragment(LINES_ID),
+  ]),
+
   /** Memoisation with no derived values to memoize is pure input hashing. */
   incrementalWithoutGraph: plan('/cart', [
     shell(SHELL_ID),

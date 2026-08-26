@@ -477,10 +477,10 @@ export const portsStation: StationHandler = async () => {
   return {
     panel: panel(
       '',
-      `Thirteen ports are declared and this deployment binds ${implemented.size}. Any that remain refuse by name rather than approximating.`,
+      `${PORTS.length} ports are declared and this deployment binds ${implemented.size}. Any that remain refuse by name rather than approximating.`,
     ),
     body: async () =>
-      readout('The thirteen', rows, {
+      readout(`All ${PORTS.length}`, rows, {
         what: `A port has exactly one active implementation and answers “who does this job”. Replacing one cannot change an invariant: cache keys are still derived from effects, render is still read-only, the envelope still has two phases. Any that are declared and not implemented are not stubs — calling them throws a named error.`,
         from: 'PORTS and unimplemented() in @weft/kernel; every row describes the port answering this request',
         caveat:

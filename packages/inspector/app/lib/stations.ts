@@ -198,8 +198,9 @@ export const STATIONS: readonly Station[] = [
   {
     id: 'ports',
     title: 'Ports',
-    shows: 'Thirteen declared, seven implemented, and what an unimplemented one does when you call it',
-    control: 'Call each port; watch six answer and the rest refuse by name',
+    shows:
+      'Every port declared, how many this deployment binds, and what an unbound one does when you call it',
+    control: 'Call each port; the bound ones answer and the rest refuse by name',
     covers: ['kernel/ports.md'],
     status: 'live',
     group: 'plan',
