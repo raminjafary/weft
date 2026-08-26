@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
+import { dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path'
 import { parseSync } from 'oxc-parser'
 import {
   assertValidTemplate,
@@ -59,6 +59,8 @@ export interface CompileOptions {
    * own, so the build tells it.
    */
   composedElsewhere?: ReadonlySet<string>
+  /** Where this file's text comes from. Defaults to reading the path. */
+  read?: SourceReader
 }
 
 function moduleId(file: string, root?: string): string {
@@ -484,7 +486,11 @@ export async function compileSource(
 }
 
 export async function compileFile(path: string, options?: CompileOptions): Promise<CompiledModule> {
-  return compileSource(await readFile(path, 'utf8'), path, options)
+  return compileSource(
+    await (options?.read ?? ((file: string) => readFile(file, 'utf8')))(path),
+    path,
+    options,
+  )
 }
 
 /**
@@ -506,8 +512,35 @@ interface ModuleFacts {
   renders: Set<string>
 }
 
-async function readFacts(file: string, root?: string): Promise<ModuleFacts> {
-  const source = await readFile(file, 'utf8')
+/**
+ * Where a file's text comes from.
+ *
+ * Every other entry point in this compiler takes a path and reads it, which is right for a build:
+ * the file set is a directory tree and the tree is the truth. It is wrong for two callers that do
+ * not have one — a documentation page whose examples are source strings, and anything that wants to
+ * compile what somebody just typed. Both are the same need, which is a file set that exists only in
+ * memory, so it is one option rather than two entry points.
+ */
+export type SourceReader = (file: string) => string | Promise<string>
+
+function readerFor(sources?: ReadonlyMap<string, string>): SourceReader {
+  if (!sources) return (file) => readFile(file, 'utf8')
+  return (file) => {
+    const found = sources.get(file)
+    if (found === undefined) {
+      throw new CompileError(
+        'E_NO_SOURCE',
+        `${file} is not in the supplied sources. A virtual file set has no directory to fall back to, ` +
+          `so an import naming a file nobody supplied is a missing file rather than a missing read`,
+        { file, line: 1, column: 1 },
+      )
+    }
+    return found
+  }
+}
+
+async function readFacts(file: string, read: SourceReader, root?: string): Promise<ModuleFacts> {
+  const source = await read(file)
   const parsed = parseSync(file, source, { sourceType: 'module', preserveParens: false })
   if (parsed.errors.length) {
     const first = parsed.errors[0]
@@ -532,7 +565,12 @@ async function readFacts(file: string, root?: string): Promise<ModuleFacts> {
 /** Resolves a module specifier the way the file set does, rather than the way Node would. */
 function resolveSpecifier(from: string, specifier: string, known: Set<string>): string | undefined {
   if (!specifier.startsWith('.')) return undefined
-  const base = resolve(dirname(from), specifier)
+  // A virtual file set has no working directory behind it, so a relative path is joined rather
+  // than resolved: `resolve` would anchor it to wherever the process started, and the same source
+  // would compose in one process and not in another.
+  const base = isAbsolute(from)
+    ? resolve(dirname(from), specifier)
+    : posix.join(posix.dirname(from), specifier)
   for (const candidate of [base, `${base}.tsx`, `${base}.ts`]) {
     if (known.has(candidate)) return candidate
   }
@@ -593,11 +631,29 @@ function orderByDependency(facts: Map<string, ModuleFacts>): string[] {
  */
 export async function compileFiles(
   files: string[],
-  options?: Omit<CompileOptions, 'types' | 'external' | 'composedElsewhere'> & { types?: boolean },
-): Promise<{ modules: CompiledModule[]; diagnostics: string[] }> {
+  options?: Omit<CompileOptions, 'types' | 'external' | 'composedElsewhere' | 'read'> & {
+    types?: boolean
+    /**
+     * A file set that exists only in memory, keyed by the same paths passed in `files`.
+     *
+     * With it, nothing here touches the disk. That is what a documentation page's examples need —
+     * they are source strings, and writing them to a temporary directory to compile them would make
+     * the example's identity depend on where the process happened to be running.
+     *
+     * It also turns the type checker off, and that is not a shortcut: the checker opens files
+     * through TypeScript's own project system, which needs a directory. So a virtually compiled
+     * fragment escapes every value rather than eliding by type — which is the safe direction, is
+     * stated by `virtual: true` on the result, and is why the escape-elision examples in the docs
+     * are compiled from real files.
+     */
+    sources?: ReadonlyMap<string, string>
+  },
+): Promise<{ modules: CompiledModule[]; diagnostics: string[]; virtual: boolean }> {
+  const virtual = Boolean(options?.sources)
+  const read = readerFor(options?.sources)
   let oracle: TypeOracle | undefined
   let diagnostics: string[] = []
-  if (options?.types !== false) {
+  if (options?.types !== false && !virtual) {
     try {
       oracle = createTypeOracle(files, options?.root)
       diagnostics = oracle.diagnostics()
@@ -607,9 +663,11 @@ export async function compileFiles(
     }
   }
   try {
-    const absolute = files.map((f) => (isAbsolute(f) ? f : resolve(process.cwd(), f)))
+    // A virtual path is left exactly as it was given: there is no working directory behind it, and
+    // resolving one against `process.cwd()` would key the file set on where the process started.
+    const absolute = virtual ? files : files.map((f) => (isAbsolute(f) ? f : resolve(process.cwd(), f)))
     const facts = new Map<string, ModuleFacts>()
-    for (const file of absolute) facts.set(file, await readFacts(file, options?.root))
+    for (const file of absolute) facts.set(file, await readFacts(file, read, options?.root))
 
     const known = new Set(absolute)
     // Which exports are rendered from another module, so those modules wire their props.
@@ -648,6 +706,7 @@ export async function compileFiles(
         await compileFile(file, {
           ...(options?.root ? { root: options.root } : {}),
           ...(oracle ? { types: oracle } : {}),
+          read,
           external,
           ...(composedElsewhere.has(file)
             ? { composedElsewhere: composedElsewhere.get(file) as Set<string> }
@@ -657,7 +716,7 @@ export async function compileFiles(
     }
 
     // Returned in the order the caller asked for, not the order they had to be built in.
-    return { modules: absolute.map((f) => compiledByFile.get(f) as CompiledModule), diagnostics }
+    return { modules: absolute.map((f) => compiledByFile.get(f) as CompiledModule), diagnostics, virtual }
   } finally {
     // The checker runs as a separate process; leaving it up would hang the caller.
     oracle?.dispose()

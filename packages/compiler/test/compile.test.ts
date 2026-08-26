@@ -732,3 +732,90 @@ test('the same attribute on an element that is not a control stays an attribute'
   )
   assert.equal(ir.wiring[0]?.op, 'attr')
 })
+
+/**
+ * A file set that exists only in memory.
+ *
+ * The build's file set is a directory tree and that is right for a build. Two callers do not have
+ * one: a documentation page whose examples are source strings, and anything compiling what somebody
+ * just typed. Both are the same need, so it is one option rather than two entry points — and these
+ * check the two properties that make it usable rather than merely present.
+ */
+const VIRTUAL = new Map([
+  [
+    'app/fragments/badge.tsx',
+    `import { fragment } from 'weft'
+export default fragment(({ label }: { label: string }) => <span class="badge">{label}</span>)
+`,
+  ],
+  [
+    'app/fragments/card.tsx',
+    `import { fragment } from 'weft'
+import Badge from './badge.tsx'
+export default fragment(({ title, label }: { title: string; label: string }) => (
+  <article><h3>{title}</h3><Badge label={label} /></article>
+))
+`,
+  ],
+])
+
+test('a virtual file set compiles, composes across its modules, and renders', async () => {
+  const out = await compileFiles([...VIRTUAL.keys()], { sources: VIRTUAL, root: '.' })
+  assert.equal(out.virtual, true)
+  assert.deepEqual(
+    out.modules.map((m) => m.fragments[0]?.entry.id),
+    ['app/fragments/badge.tsx#default', 'app/fragments/card.tsx#default'],
+    'the id is the path it was given, so it does not depend on where the process started',
+  )
+  const card = out.modules[1]?.fragments[0] as CompiledFragment
+  const byVersion = new Map(card.templates.map((t) => [t.version, t]))
+  assert.equal(
+    decode(render(card.entry, { title: 'Hello', label: 'new' }, (v) => byVersion.get(v))),
+    '<article><h3>Hello</h3><span class="badge">new</span></article>',
+    'a relative import inside a virtual set is joined, not resolved against a working directory',
+  )
+})
+
+test('a virtual set compiles the same bytes wherever the process started', async () => {
+  const first = await compileFiles([...VIRTUAL.keys()], { sources: VIRTUAL, root: '.' })
+  const second = await compileFiles([...VIRTUAL.keys()], { sources: VIRTUAL, root: '/somewhere/else' })
+  assert.equal(
+    first.modules[1]?.fragments[0]?.entry.version,
+    second.modules[1]?.fragments[0]?.entry.version,
+    'a virtual path is not anchored to a root, so the content address is the content',
+  )
+})
+
+test('a virtual import naming a file nobody supplied is refused by name', async () => {
+  const sources = new Map([
+    [
+      'a.tsx',
+      `import { fragment } from 'weft'
+export default fragment(() => <p>a</p>)
+`,
+    ],
+  ])
+  await assert.rejects(compileFiles(['a.tsx', 'b.tsx'], { sources, root: '.' }), (error: Error) => {
+    assert.match(error.message, /E_NO_SOURCE/)
+    assert.match(error.message, /b\.tsx/)
+    return true
+  })
+})
+
+test('a virtual compile escapes rather than eliding, and says so', async () => {
+  const sources = new Map([
+    [
+      'total.tsx',
+      `import { fragment } from 'weft'
+export default fragment(({ total }: { total: number }) => <p>{total}</p>)
+`,
+    ],
+  ])
+  const virtual = await compileFiles(['total.tsx'], { sources, root: '.' })
+  assert.equal(virtual.virtual, true)
+  assert.equal(
+    virtual.modules[0]?.fragments[0]?.entry.holes[0]?.escape,
+    'escape',
+    'the checker needs a directory, so a virtual fragment escapes: the safe direction, stated by virtual',
+  )
+})
