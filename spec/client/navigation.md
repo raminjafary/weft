@@ -304,19 +304,24 @@ What is still refused, and stated as refused: a prefix no client has ever asked 
 points at has no observation behind it. There is nothing to count, and a number invented for it would be
 the guess the profile layer exists instead of.
 
+**And whether a described route is worth staging is the same measurement, read per source page.**
+`RouteDecision.stage` records which pages readers arrive at a route _from_ often enough for staging to
+pay, and a `PLAN` frame now carries `stage: false` for a route whose recorded sources do not include
+the page the connection is on. The client checks it in `prefetchable`, which is the one gate hover,
+viewport dwell and pointer-down all pass through — so a decision that applied to two of the three
+signals is not expressible.
+
+Absent means unmeasured and unmeasured stages, the same rule delivery and discovery follow. A route
+with no recorded arrivals at all is unmeasured rather than refused: a page nobody has reached yet has
+nothing to count, and inventing a `false` for it would turn a cold recording into a framework that had
+switched staging off.
+
 **Off-main-thread preparation.** Parsing the staged document happens on the main thread, in the
 `DOMParser` call inside the staging load, and it cannot move: `DOMParser` does not exist in a
 worker. The other candidate — decoding a batch of frames — was measured and refused, because the
 decode is smaller than a worker's own floor. See [`../FINDINGS.md`](../FINDINGS.md).
 
-**A staged route that is worth staging.** Everything hovered is fetched, and nothing decides whether
-it was worth it. Half of this exists: `weft dev --profile` counts which route readers arrive from and
-`RouteDecision.stage` records the ones they arrive from often enough to be worth staging —
-`weft profile` prints it. Nothing reads it. The client stages every link it sees hovered, exactly as
-it did before the recording existed, so this is a decision that is measured, printed and then
-ignored.
-
-That is the same shape as the four plan declarations that were recorded and read by nothing until
-they were wired, and it is the one remaining instance of it. What it needs is for the staging
-decision to reach the client — a `PLAN` frame already carries what a route is, so the field is a
-frame field rather than a new mechanism.
+**A discovery signal the framework raises on its own.** `weft.discover` is still only called by an
+application that knows something the framework does not. What _is_ decided from a measurement now is
+whether a route is worth describing at all, and whether it is worth **staging** from the page you are
+on — both below.

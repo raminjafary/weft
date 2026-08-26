@@ -24,6 +24,19 @@ export interface KnownRoute {
   css?: string
   tpl?: readonly string[]
   next?: readonly string[]
+  /**
+   * Whether staging this route from the page the client is on is worth the request.
+   *
+   * `false` only when a recording says so: readers of this page were described this route and did
+   * not follow it. Absent means unmeasured, and unmeasured stages — the same rule delivery and
+   * discovery follow, so a recording of last Tuesday cannot quietly turn staging off for a route it
+   * never saw.
+   *
+   * The decision is the server's because only the server has the recording, and it is per *source*
+   * page rather than per target: readers of a product page go to the cart, and readers of the cart
+   * do not go back.
+   */
+  stage?: boolean
 }
 
 export interface Known {

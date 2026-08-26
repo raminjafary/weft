@@ -1538,6 +1538,16 @@ function prefetchable(link: HTMLAnchorElement): boolean {
   const connection = (navigator as { connection?: { saveData?: boolean; effectiveType?: string } }).connection
   if (connection?.saveData) return false
   if (connection?.effectiveType && connection.effectiveType.includes('2g')) return false
+  /**
+   * The one thing a recording decides about staging.
+   *
+   * `stage: false` on a described route means readers of *this* page were told about that one and
+   * did not follow it, so fetching it on hover is a request nobody uses. Absent means unmeasured and
+   * unmeasured stages — the same rule delivery and discovery follow. Checked here rather than at
+   * each of the three signals, because hover, viewport dwell and pointer-down all come through this
+   * gate and a decision applied to two of them would be a decision nobody could reason about.
+   */
+  if (known.route(link.href, window.location.href)?.stage === false) return false
   return !samePage(new URL(link.href, window.location.href))
 }
 

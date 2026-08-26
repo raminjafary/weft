@@ -14,8 +14,25 @@ import {
   readProfile,
   type Profile,
 } from '../src/profile.ts'
+import { frame, residentFrame, WARP_VERSION, type Frame } from '@weft/warp'
+import { TEMPLATE_IR_VERSION } from '@weft/ir'
+import type { ChannelSink } from '@weft/kernel'
 
 const ROOT = fileURLToPath(new URL('../../../demo/', import.meta.url))
+
+/** A channel that keeps what it was sent, so a PLAN can be read out of it. */
+function sink(): ChannelSink & { frames: Frame[] } {
+  const frames: Frame[] = []
+  return {
+    frames,
+    binding: 'socket',
+    open: true,
+    send(batch) {
+      frames.push(...batch)
+    },
+    close() {},
+  }
+}
 
 const servers: Serving[] = []
 after(async () => {
@@ -180,8 +197,6 @@ test('what a profile refuses to decide is printed rather than left as a silence'
 test('a real recording counts the descriptions it hands out and the ones a client uses', async () => {
   // End to end, because the two halves are recorded in two places: the extender describes when a
   // channel opens, and the stager is what says a description was used.
-  const { TEMPLATE_IR_VERSION } = await import('@weft/ir')
-  const { frame, residentFrame, WARP_VERSION } = await import('@weft/warp')
   const serving = await serveApp(await createApp(ROOT, { mode: 'dev', port: 0, profile: true }))
   servers.push(serving)
   const recorder = serving.app.recorder as NonNullable<typeof serving.app.recorder>
@@ -210,8 +225,6 @@ test('a real recording counts the descriptions it hands out and the ones a clien
 })
 
 test('a stage of a route nobody described is a hover on a link, not a description that paid', async () => {
-  const { TEMPLATE_IR_VERSION } = await import('@weft/ir')
-  const { frame, residentFrame, WARP_VERSION } = await import('@weft/warp')
   const serving = await serveApp(await createApp(ROOT, { mode: 'dev', port: 0, profile: true }))
   servers.push(serving)
   const recorder = serving.app.recorder as NonNullable<typeof serving.app.recorder>
@@ -276,4 +289,76 @@ test('a recording of real traffic decides the demo plan, and the plan is generat
       `${decision.slot} was planned as the measurement decided: ${decision.because}`,
     )
   }
+})
+
+/**
+ * The one decision the profile measured and nobody read, now read.
+ *
+ * `RouteDecision.stage` records which pages readers arrive from often enough for staging to pay.
+ * Until this reached the wire, `weft profile` printed it and the client stated every hovered link
+ * regardless — which is the guess the profile layer exists instead of. `stage: false` on a described
+ * route is that decision, per source page: readers of the cart go to checkout, and readers of the
+ * article do not.
+ */
+test('a route nobody arrives at from here is described as not worth staging', async () => {
+  await rm(join(ROOT, '.weft', 'profile.json'), { force: true })
+  const recording = await serveApp(await createApp(ROOT, { mode: 'dev', port: 0, profile: true }))
+  servers.push(recording)
+
+  // Every reader of the dashboard arrived from the article. Nobody arrived from the feed.
+  for (let i = 0; i < MIN_SAMPLES + 2; i++) {
+    await (
+      await fetch(new URL('/app/dashboard', recording.url), {
+        headers: { referer: new URL('/app/article', recording.url).href },
+      })
+    ).arrayBuffer()
+  }
+  await recording.close()
+  servers.pop()
+
+  const profile = await readProfile(ROOT, '.weft')
+  assert.ok(profile)
+  assert.deepEqual(
+    decide(profile).routes.find((r) => r.route === '/app/dashboard')?.stage,
+    ['/app/article'],
+    'the recording says the dashboard is worth staging from the article and from nowhere else',
+  )
+
+  const planned = await serveApp(await createApp(ROOT, { mode: 'dev', port: 0, profile: true }))
+  servers.push(planned)
+
+  const described = async (at: string): Promise<Record<string, { stage?: boolean }>> => {
+    const id = `c-${Math.random().toString(36).slice(2, 8)}`
+    planned.app.at.set(id, { path: at, cookie: '' })
+    planned.app.hub.open(sink(), id)
+    await planned.app.hub.receive(id, [
+      residentFrame({ warp: WARP_VERSION, ir: TEMPLATE_IR_VERSION, forms: ['html', 'delta'] }),
+    ])
+    const out = await planned.app.hub.receive(id, [frame('WARM', { plan: '/app/*' })])
+    const plan = out.find((f) => f.kind === 'PLAN') as Frame
+    assert.ok(plan, `no PLAN came back for a connection on ${at}`)
+    const routes = JSON.parse(new TextDecoder().decode(plan.body)) as {
+      pattern: string
+      stage?: boolean
+    }[]
+    return Object.fromEntries(routes.map((route) => [route.pattern, route]))
+  }
+
+  const fromFeed = await described('/app/feed')
+  assert.equal(
+    fromFeed['/app/dashboard']?.stage,
+    false,
+    'nobody has ever gone feed → dashboard, so hovering that link should not fetch a document',
+  )
+
+  const fromArticle = await described('/app/article')
+  assert.equal(
+    fromArticle['/app/dashboard']?.stage,
+    undefined,
+    'from the page readers do arrive from, the field is absent and staging is on',
+  )
+
+  // A route the recording saw no arrivals to at all is unmeasured, not refused: a cold recording
+  // may not quietly switch staging off for a page nobody has reached yet.
+  assert.equal(fromFeed['/app/cart']?.stage, undefined, 'unmeasured keeps the behaviour it had')
 })

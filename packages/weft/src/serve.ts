@@ -640,9 +640,10 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
    * Nothing here runs a loader. That is the difference between this and staging a route, and it is
    * why a page can afford to know about thirty routes and stage two.
    */
-  const describe = (route: GeneratedRoute, shell: string | undefined): DiscoveredRoute => {
+  const describe = (route: GeneratedRoute, shell: string | undefined, from?: string): DiscoveredRoute => {
     const next = decided ? transitions()[route.pattern] : undefined
     const versions = [...new Set(Object.values(route.regions).map((r) => r.fragment.entry.version))]
+    const stage = worthStaging(route.pattern, from)
     return {
       pattern: route.pattern,
       shell: route.shell.version,
@@ -651,7 +652,29 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
       css: table().pageCss(route.pattern),
       ...(versions.length ? { tpl: versions } : {}),
       ...(next?.length ? { next } : {}),
+      ...(stage === false ? { stage: false } : {}),
     }
+  }
+
+  /**
+   * Whether staging this route from that page is worth the request.
+   *
+   * The last thing the profile measured and nobody read. `weft dev --profile` counts which route a
+   * reader arrived from, `RouteDecision.stage` records the sources they arrive from often enough for
+   * staging to pay, and until now that decision was printed by `weft profile` and then ignored —
+   * every hovered link was fetched regardless, which is the guess the profile layer exists instead
+   * of.
+   *
+   * Absent means unmeasured and unmeasured stages, the same rule delivery and discovery follow. And
+   * a route with *no* recorded sources is unmeasured rather than refused: a page nobody has arrived
+   * at yet has nothing to count, and inventing a `false` for it would turn a cold recording into a
+   * framework that has switched staging off.
+   */
+  const worthStaging = (pattern: string, from?: string): boolean | undefined => {
+    if (!decided || !from || from === pattern) return undefined
+    const sources = decided.routes.find((r) => r.route === pattern)?.stage
+    if (!sources?.length) return undefined
+    return sources.includes(from)
   }
 
   /**
@@ -697,7 +720,10 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
           channel,
           found.map((route) => route.pattern),
         )
-        return { prefix: from.value.pattern, routes: found.map((route) => describe(route, shell)) }
+        return {
+          prefix: from.value.pattern,
+          routes: found.map((route) => describe(route, shell, from.value.pattern)),
+        }
       }
       // `/checkout/*` and `/checkout` ask the same thing. The star is how the design spells it.
       const under = prefix.replace(/\/?\*$/, '')
@@ -709,7 +735,10 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
         channel,
         found.map((route) => route.pattern),
       )
-      return { prefix, routes: found.map((route) => describe(route, shell)) }
+      return {
+        prefix,
+        routes: found.map((route) => describe(route, shell, from?.value.pattern)),
+      }
     },
   })
 
