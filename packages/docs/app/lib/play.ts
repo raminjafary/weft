@@ -1,6 +1,7 @@
 import { compileFiles } from '@weft/compiler'
 import { render, stringify, type TemplateIR, type Values } from '@weft/ir'
 import { escapeHtml, note, prose } from './markup.ts'
+import { highlight } from './highlight.ts'
 
 /**
  * The playground: compile what somebody typed.
@@ -141,7 +142,7 @@ export function playBody(source: string, outcome: Outcome | null): string {
           )
           .join('')}</tbody></table></div>
         <details><summary>The sealed template, as the wire carries it</summary>
-          <figure class="code"><pre><code data-lang="json">${escapeHtml(outcome.ir)}</code></pre></figure>
+          <figure class="code"><pre><code data-lang="json">${highlight('json', outcome.ir)}</code></pre></figure>
         </details>`
       : `<h2>Refused</h2><div class="card refusal">
           <h3><code>${escapeHtml(outcome.code)}</code></h3>

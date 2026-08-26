@@ -1,16 +1,10 @@
 import type { RenderedExample } from './example.ts'
+import { escapeHtml } from './escape.ts'
+import { highlight } from './highlight.ts'
 
-const ESCAPES: Record<string, string> = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-  "'": '&#39;',
-}
-
-export function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (c) => ESCAPES[c] as string)
-}
+// Re-exported because most of the site imports it from here, and where it is defined is not
+// something twenty call sites should have to care about. See `escape.ts` for why it moved.
+export { escapeHtml }
 
 /**
  * Prose, as one paragraph per string.
@@ -44,7 +38,7 @@ export function table(headers: readonly string[], rows: readonly (readonly strin
 export function sketch(language: string, code: string): string {
   return `<figure class="code sketch"><figcaption>sketch — not compiled</figcaption><pre><code data-lang="${escapeHtml(
     language,
-  )}">${escapeHtml(code.trim())}</code></pre></figure>`
+  )}">${highlight(language, code.trim())}</code></pre></figure>`
 }
 
 /**
@@ -99,7 +93,7 @@ export function example(rendered: RenderedExample): string {
   <p>${rendered.shows}</p>
   <figure class="code">
     <figcaption><code>${escapeHtml(rendered.file)}</code> — compiled by this application</figcaption>
-    <pre><code data-lang="tsx">${escapeHtml(rendered.source.trim())}</code></pre>
+    <pre><code data-lang="tsx">${highlight('tsx', rendered.source.trim())}</code></pre>
   </figure>
   <figure class="output">
     <figcaption>Rendered, from the template that file produced</figcaption>

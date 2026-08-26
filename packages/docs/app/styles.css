@@ -13,6 +13,15 @@
   --accent: #1f6feb;
   --code-bg: #f5f7f9;
   --warn: #a15c00;
+
+  /* Syntax tokens. Six roles, not a full theme: the point is to make a comment recede and a string
+     and a keyword separable, which is what a reader scanning an example needs. */
+  --t-comment: #6a7480;
+  --t-string: #0a6b47;
+  --t-number: #8a4b12;
+  --t-keyword: #9026a8;
+  --t-type: #0b5cad;
+  --t-punct: #6a7480;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -25,6 +34,13 @@
     --accent: #79b8ff;
     --code-bg: #1e2328;
     --warn: #e0a34a;
+
+    --t-comment: #7d8794;
+    --t-string: #7fd1a6;
+    --t-number: #e0a37a;
+    --t-keyword: #d79bec;
+    --t-type: #86bdf5;
+    --t-punct: #8b95a1;
   }
 }
 
@@ -646,4 +662,36 @@ button {
 
 .device {
   margin: 0;
+}
+
+/* The highlighter emits these; `plain` runs are left as bare text and inherit. `command` and `key`
+   share the type colour and `flag` the keyword one, because shell and JSON have fewer roles to draw
+   than TypeScript and inventing separate hues for them would only make the page louder. */
+.t-comment {
+  color: var(--t-comment);
+  font-style: italic;
+}
+
+.t-string {
+  color: var(--t-string);
+}
+
+.t-number {
+  color: var(--t-number);
+}
+
+.t-keyword,
+.t-flag {
+  color: var(--t-keyword);
+}
+
+.t-type,
+.t-tag,
+.t-command,
+.t-key {
+  color: var(--t-type);
+}
+
+.t-punct {
+  color: var(--t-punct);
 }

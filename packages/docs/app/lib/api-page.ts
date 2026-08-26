@@ -1,5 +1,6 @@
 import { escapeHtml, heading, note, prose, table } from './markup.ts'
 import { moduleById, surface, type ApiEntry, type ApiModule } from './surface.ts'
+import { highlight } from './highlight.ts'
 
 const KIND_ORDER: Record<string, number> = { function: 0, class: 1, interface: 2, type: 3, enum: 4, const: 5 }
 const KIND_LABEL: Record<string, string> = {
@@ -22,7 +23,7 @@ function entry(item: ApiEntry): string {
   return `<section class="api-entry" id="${anchor(item.name)}">
   <h3><a class="anchor" href="#${anchor(item.name)}"><code>${escapeHtml(item.name)}</code></a>
     <span class="kind">${escapeHtml(item.kind)}</span></h3>
-  <figure class="code"><pre><code data-lang="ts">${escapeHtml(item.signature)}</code></pre></figure>
+  <figure class="code"><pre><code data-lang="ts">${highlight('ts', item.signature)}</code></pre></figure>
   ${
     item.doc
       ? `<div class="api-doc">${item.doc
