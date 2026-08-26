@@ -1,5 +1,5 @@
 import { readsOf, render, type Values } from '@weft/ir'
-import { fragmentIR, type CompiledFragment } from 'weft'
+import { adoptScript, fragmentIR, type CompiledFragment } from 'weft'
 
 /**
  * A live example: a fragment this application compiled, rendered with values this page supplies.
@@ -51,6 +51,20 @@ export interface RenderedExample {
   source: string
   /** What it rendered, as markup. */
   html: string
+  /**
+   * The payload that binds this example's template to the markup above, or null.
+   *
+   * Null for the fourteen examples that are constant — `adoptScript` returns null for a template
+   * with no wiring and no signals, because a static region has nothing for a client to attach to.
+   * Non-null for the one that does, and until this field existed that example was dead: the signals
+   * example rendered an input bound to a signal, and nothing on the page ever bound it, so typing
+   * into it did nothing on every page it appeared on.
+   *
+   * These examples are markup inside a `body` slot rather than slots of their own, so the framework
+   * has no hole to hang a payload on and cannot emit one. `adoptScript` is exported for exactly this
+   * — it takes a `selector`, so the payload can name the element the example was rendered into.
+   */
+  adopt: string | null
   facts: ExampleFacts
 }
 
@@ -112,6 +126,25 @@ function resolveValues(values: Example['values']): Values {
 }
 
 /**
+ * A signal's declared initial value, seeded into the render.
+ *
+ * `render` takes a value per binding and does not know that some of those bindings are signals, so
+ * a signal the caller does not supply renders as nothing. On a page that adopts, the client fills it
+ * a moment later and nobody sees the gap. These examples never adopt — they are markup inside a
+ * `body` slot — so the gap was permanent: the signals example rendered `value=""` for a signal
+ * declared `signal(1)`, and the total derived from it came out `0` instead of the unit price.
+ *
+ * An explicit value wins, so an example can still render a signal at something other than its init.
+ */
+function withSignals(entry: CompiledFragment['entry'], values: Values): Values {
+  const seeded: Record<string, unknown> = {}
+  for (const declaration of entry.signals) {
+    if (declaration.init !== undefined) seeded[declaration.id] = declaration.init
+  }
+  return { ...seeded, ...(values as Record<string, unknown>) } as Values
+}
+
+/**
  * Render one example.
  *
  * It throws rather than degrading, and `test/docs.test.ts` renders every example in the registry
@@ -120,6 +153,7 @@ function resolveValues(values: Example['values']): Values {
  */
 export function renderExample(example: Example): RenderedExample {
   const fragment = fragmentIR(example.id)
+  const values = withSignals(fragment.entry, resolveValues(example.values))
   return {
     id: example.id,
     title: example.title,
@@ -127,7 +161,8 @@ export function renderExample(example: Example): RenderedExample {
     ...(example.note ? { note: example.note } : {}),
     file: fragment.file,
     source: fragment.source,
-    html: decoder.decode(render(fragment.entry, resolveValues(example.values), fragment.resolve)),
+    html: decoder.decode(render(fragment.entry, values, fragment.resolve)),
+    adopt: adoptScript(example.id, fragment, values, { selector: `[data-example="${example.id}"]` }),
     facts: facts(fragment),
   }
 }

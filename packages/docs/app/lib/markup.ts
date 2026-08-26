@@ -97,8 +97,8 @@ export function example(rendered: RenderedExample): string {
   </figure>
   <figure class="output">
     <figcaption>Rendered, from the template that file produced</figcaption>
-    <div class="output-frame">${rendered.html}</div>
-  </figure>
+    <div class="output-frame" data-example="${escapeHtml(rendered.id)}">${rendered.html}</div>
+  </figure>${rendered.adopt ?? ''}
   <details class="facts">
     <summary>What the compiler knows about it</summary>
     <dl class="prov">

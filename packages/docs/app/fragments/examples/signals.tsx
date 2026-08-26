@@ -1,4 +1,5 @@
 import { fragment, signal } from 'weft'
+import { quantity } from '../../intents/quantity.ts'
 
 /**
  * A signal, and a value derived from it.
@@ -12,6 +13,10 @@ import { fragment, signal } from 'weft'
  * `value={qty()}` on the input is the case that needs a property write rather than an attribute
  * write: once somebody has typed, the attribute and the live value have stopped agreeing, and only
  * the property is what they see.
+ *
+ * `onInput` names an intent because that is the only inbound wiring op there is — a signal a reader
+ * can change needs one, or the binding the client writes it through does not exist. Without it this
+ * example was one-way and typing into it did nothing, on the page about adoption.
  */
 export default fragment(({ unitPrice }: { unitPrice: number }) => {
   const qty = signal(1)
@@ -19,7 +24,7 @@ export default fragment(({ unitPrice }: { unitPrice: number }) => {
     <form class="signals">
       <label>
         quantity
-        <input type="number" name="qty" min="0" value={qty()} />
+        <input type="number" name="qty" min="0" value={qty()} onInput={quantity} />
       </label>
       <p class="line">
         <span class="unit">{unitPrice}</span> × <output class="qty">{qty()}</output> ={' '}
