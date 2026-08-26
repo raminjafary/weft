@@ -496,6 +496,8 @@ pnpm docs:build   # build it, and read which pages became files
 
 ## What has to be true next
 
+One item, and it is not code.
+
 1. **The three things that need a real device.** Whether incremental declarative-shadow-DOM parsing
    works on a given iOS version; what a host app's request interception does to first-byte timing;
    and how often a backgrounded webview is evicted, and therefore what `RESUME` recovers in
@@ -503,3 +505,11 @@ pnpm docs:build   # build it, and read which pages became files
    W3C WebDriver, and `weft-bench devices` says whether the driver answers — so what is missing is
    hardware and not code. `--engines ios` keeps refusing by name until a device is configured,
    because webkit is a desktop proxy with nothing honest to fall back to.
+
+Everything else that was ever on this list has closed. The finer-grained ledgers — each spec
+document's own "what this does not do" section — hold what remains at that level, and what is there
+now is decisions rather than work: `permessage-deflate` refused because Warp bodies are already
+compressed, backpressure as a close rather than a queue, no delegation over HTTP, no
+`stale-if-error` on the wire, no per-request CPU accounting on the request thread, chunk packing and
+V8 compile hints refused for the shape of this framework, and partial-chain navigation refused after
+measuring what it would save. Each one names its argument.
