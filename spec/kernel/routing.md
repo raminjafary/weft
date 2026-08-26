@@ -97,8 +97,8 @@ order.
 
 `chainSplitter` lives in its own module and reaches the request path only through `entry-nested.ts`,
 because a chain walk written into `splitAtSlots` cost 83 bytes and the entry the design's 8 KB figure
-is about had 74 left. That is the third time the byte budget has turned a capability into a seam; see
-[`budgets.md`](budgets.md).
+is about had 74 left. That is the third time the byte budget has turned a capability into a seam, and
+it left the 8 KB path with fourteen bytes; see [`budgets.md`](budgets.md).
 
 ## The shell is a fragment, so its reads count
 

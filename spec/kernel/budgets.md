@@ -13,8 +13,8 @@ the gate is the test that calls it. Rolldown, minified, brotli at quality 11 —
 
 | Entry                     | Covers                                                                               | Measured | Ceiling  | Where the ceiling comes from                                            |
 | ------------------------- | ------------------------------------------------------------------------------------ | -------- | -------- | ----------------------------------------------------------------------- |
-| `entry-request.ts`        | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream    | 8,167 B  | 8,192 B  | The design's "target under 8 KB server-side"                            |
-| `entry-nested.ts`         | The above, plus splicing a chain of nested layouts into one cut document             | 8,358 B  | 9,216 B  | No design figure. Its own, because the chain walk did not fit above     |
+| `entry-request.ts`        | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream    | 8,178 B  | 8,192 B  | The design's "target under 8 KB server-side"                            |
+| `entry-nested.ts`         | The above, plus splicing a chain of nested layouts into one cut document             | 8,370 B  | 9,216 B  | No design figure. Its own, because the chain walk did not fit above     |
 | `entry-channel.ts`        | The above, plus surgical refresh, form selection, epochs, the stale registry         | 10,893 B | 12,288 B | No design figure. A watermark                                           |
 | `entry-patch.ts`          | The above, plus the patch encoder: the surgical rung a template needs no proof for   | 11,563 B | 12,288 B | No design figure. Its own, because in the refresh path it cost everyone |
 | `entry-intent.ts`         | The request path, plus intent dispatch, the three authority branches, method routing | 9,656 B  | 10,240 B | No design figure. A watermark                                           |
@@ -75,11 +75,16 @@ figure and moving it would make the figure a label.
 
 So the splice is `chainSplitter` in `split-chain.ts`, built on the flat splitter rather than
 replacing it, and it reaches the request path only through `entry-nested.ts`. What
-`entry-request.ts` pays is the `route.split ?? splitAtSlots` that chooses between them —
-8,118 → 8,167, leaving **25 bytes**. That is thin, and this page has said in writing that a rule
-satisfied by five bytes is a rule about to stop being satisfied. The difference is that this
-ceiling is not a watermark: the next addition to the document request path has 25 bytes, and if it
-needs more it needs a seam, which is the outcome the budget exists to force.
+`entry-request.ts` pays is the `route.split ?? splitAtSlots` that chooses between them:
+8,118 → 8,178, leaving **14 bytes**. Most of those 60 are not the expression — they are
+`splitAtSlots` becoming a named function that survives inlining, because it is now referenced as a
+value rather than called once.
+
+Fourteen bytes is thin, and this page has said in writing that a rule satisfied by five bytes is a
+rule about to stop being satisfied. The difference is that this ceiling is not a watermark and
+cannot move: the next addition to the document request path has fourteen bytes, and if it needs
+more it needs a seam of its own. That is the outcome this budget exists to force, and it has now
+forced it three times.
 
 **The front-door watermark moved to 14 KB, for a socket.** 12 KB when the exposed table landed, 13 KB
 when the refresh interval and the patch applier did, and 14 KB when the channel got a WebSocket with
