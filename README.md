@@ -466,26 +466,41 @@ and measures it over HTTP on the same axes.
 Three things, three jobs. `spec/` is the reference: the mechanism, its refusals, and what each one
 deliberately does not do. `packages/inspector` is the live version — a station per capability, each
 with a control, and a test that fails when a spec document has no station. `packages/docs` is the
-introduction: Quick Start, Guide, Tutorial, Examples, API, Glossary and an Error Reference.
+introduction: Quick Start, a 21-page Guide, Tutorial, Examples, API, Glossary, an Error Reference, a
+playground and a search page.
 
 **The documentation site is itself a weft application**, which is the strongest claim the framework
 can make about itself and the reason it is built that way rather than with a documentation
-generator. It is 13 routes and 14 sealed templates; `weft build` writes the whole thing as 361
+generator. It is 14 routes and 27 sealed templates; `weft build` writes the whole thing as 370
 files, so the kernel is not invoked to serve any of them. Its guide pages and its 300-odd error
-pages are two param routes with their sets declared. Three of its four sections sit under a nested
-layout. And the one page that is _not_ a file — the playground, which compiles what you type
-through the compiler's virtual file set — says so with `static: false` and a reason.
+pages are two param routes with their sets declared. Three of its sections sit under a nested
+layout. Its one mutation — the "useful" button on the intents page — is a real intent in
+`app/intents/`, dispatched by a form post. And the two pages that are _not_ files — the playground,
+which compiles what you type through the compiler's virtual file set, and search, which is a
+function of `?q` — say so with `static: false` and a reason each.
 
-Two of its sections are generated from the source rather than written beside it, so they cannot
-drift: the API reference walks every package's public entry and lists every export it finds, and the
-error reference walks every `src/` and lists every named refusal with the message it raises. Both
-have a test that scans the same tree independently and fails when something is missing.
+Most of it is generated from the source rather than written beside it, so it cannot drift: the API
+reference walks every package's public entry and lists every export; the error reference walks every
+`src/` and lists every named refusal with the message it raises; the CLI page is the `--help` text,
+parsed; the byte-budget table is `packages/bench/src/budget.ts`, parsed; the wire-format versions are
+the constants a build stamps on a document; and the three wire-form sizes on the live-regions page
+are measured on that page's own example when it renders. Each has a test that checks the same source
+independently and fails when something is missing.
 
-**Both are complete, and both completions are gates rather than claims.** All 1,367 importable names
-carry a doc comment on their declaration, and a test fails if one does not. All 326 named refusals
-either carry a sentence of their own or forward the failure underneath them, and a test fails if any
-of them says nothing but its own name. The API page published "384 of 1,367" when it first shipped;
-printing the shortfall is what made it worth closing.
+**The guide covers the framework, and that is a gate too.** Every page names the spec documents it
+introduces, and the test checks both directions — a name that does not exist fails, and a spec
+document no page introduces fails. There is no exemption list, so shipping a mechanism means writing
+the paragraph a reader can find in the same change.
+
+**Both references are complete, and both completions are gates rather than claims.** All 1,367
+importable names carry a doc comment on their declaration, and a test fails if one does not. All 326
+named refusals either carry a sentence of their own or forward the failure underneath them, and a
+test fails if any of them says nothing but its own name. The API page published "384 of 1,367" when
+it first shipped; printing the shortfall is what made it worth closing.
+
+Generating a figure also catches the hand-written copy of it. The version table on the site is read
+from the constants; `spec/VERSIONING.md` said warp was `1.7.0` while `packages/warp/src/version.ts`
+said `1.8.0`. The spec is corrected and a test now asserts the two agree.
 
 ```sh
 pnpm docs         # serve it

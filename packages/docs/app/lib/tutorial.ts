@@ -240,14 +240,15 @@ export default defineRoute({
       sketch(
         'ts',
         `// app/intents/cart.ts
-import { intent } from 'weft'
+import { defineIntent } from 'weft'
 
-export const add = intent({
+export const add = defineIntent<{ sku: string }>({
+  name: 'cart.add',
   writes: ['cart'],
-  params: { sku: 'string' },
+  input: (raw) => ({ sku: String((raw as { sku?: unknown }).sku ?? '') }),
   async run(ctx, { sku }) {
     await db.cart.add(ctx.session, sku)
-    ctx.revalidate('cart')
+    await ctx.revalidate('cart')
   },
 })`,
       ) +
@@ -293,9 +294,32 @@ npx weft upload --to …  # PUT the build to an object store`,
       heading('What to do next', 'next') +
       prose(
         'Two things pay for themselves immediately. <code>weft dev --profile</code> records what every ' +
-          'render costs and lets the next build plan delivery from measurement instead of a guess. And ' +
-          '<code>pnpm inspect</code> opens the inspector — a page per mechanism, each with a control — which ' +
-          'is the fastest way to build an intuition for what any of this costs.',
+          'render costs and lets the next build plan delivery from measurement instead of a guess — ' +
+          '<a href="/guide/measuring">a plan generated from measurement</a>. And <code>pnpm inspect</code> ' +
+          'opens the inspector — a page per mechanism, each with a control — which is the fastest way to ' +
+          'build an intuition for what any of this costs.',
+      ) +
+      prose('Then, in the guide, the four pages this tutorial deliberately did not stop for:') +
+      table(
+        ['Page', 'What it adds to what you just built'],
+        [
+          [
+            '<a href="/guide/navigation">Instant navigation</a>',
+            'A click that commits a route already fetched, parsed and painting nothing.',
+          ],
+          [
+            '<a href="/guide/where-it-runs">Where it runs</a>',
+            'Executors as crash domains, and why a CPU budget is advisory on one of them.',
+          ],
+          [
+            '<a href="/guide/composition">Composition</a>',
+            'A region that renders on another deployment, over the protocol you already have.',
+          ],
+          [
+            '<a href="/guide/what-ships">What the page downloads</a>',
+            'The ceiling per client entry, and the honest number that is bigger than all of them.',
+          ],
+        ],
       ),
   },
 ]

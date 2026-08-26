@@ -96,12 +96,35 @@ weft why /      # the generated plan for one route
 weft build      # sealed templates, the plan, revved assets — and which pages became files
 weft start      # serve the build. No compiler runs`,
         ) +
+        prose('All nine, with every flag, are on <a href="/guide/cli">the CLI page</a>.') +
         note(
           'why',
           'Read the build report',
           'It prints which pages were resolved at build time and served without the kernel at all, and for ' +
             'every page that was not, the read that refused it. That list is the performance review of your ' +
             'application, and you get it without asking.',
+        ) +
+        heading('Where to go from here', 'next') +
+        table(
+          ['If you want to', 'Read'],
+          [
+            [
+              'understand the whole design, in order',
+              '<a href="/guide">The Guide</a> — 21 pages, each with the spec it introduces',
+            ],
+            [
+              'build one page a step at a time',
+              '<a href="/tutorial">The Tutorial</a> — six steps, and what each one costs',
+            ],
+            [
+              'know why a page is not what you expected',
+              '<a href="/guide/declarations">What a route declares</a>, then <code>weft why</code>',
+            ],
+            [
+              'see a mechanism rather than read about it',
+              '<a href="/examples">Examples</a> — every live fragment on this site, with what the compiler knows',
+            ],
+          ],
         ) +
         `<nav class="sequence"><a class="next" href="/guide">The Guide, in order →</a></nav>`,
     },

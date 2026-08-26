@@ -1,11 +1,15 @@
 /**
- * The seven sections, and what each one is for.
+ * The sections, and what each one is for.
  *
  * Stated rather than implied, because a documentation site that cannot say which of these a reader
  * wants has to be read in full to be used. The split is the one Vue's docs settled on and it earns
  * its place for the same reason: "how do I start", "how does it work", "walk me through it",
  * "show me", "what is the exact signature", "what does that word mean" and "what does this error
- * mean" are six different questions and one page cannot answer all of them well.
+ * mean" are different questions and one page cannot answer all of them well.
+ *
+ * Three of them are generated from the source and one is computed per request, which is the split
+ * worth being able to see on the landing page: a section marked `derived` cannot drift, and the two
+ * that are written by hand are the two a reader should hold to a higher standard.
  */
 export interface Section {
   href: string
@@ -25,7 +29,8 @@ export const SECTIONS: readonly Section[] = [
   {
     href: '/guide',
     label: 'Guide',
-    blurb: 'How it works, in order: fragments, effects, slots, layouts, the client, intents, deployment.',
+    blurb:
+      'How it works, in order: fragments, layouts, effects, streaming, the client, intents, live regions, composition, operating it.',
   },
   {
     href: '/tutorial',
@@ -59,5 +64,11 @@ export const SECTIONS: readonly Section[] = [
     href: '/play',
     label: 'Playground',
     blurb: 'Type a fragment and see what it compiles to. No files, no build — a virtual file set.',
+  },
+  {
+    href: '/search',
+    label: 'Search',
+    blurb: 'Every page, step, term, error code and export — matched server-side, with nothing to download.',
+    derived: true,
   },
 ]

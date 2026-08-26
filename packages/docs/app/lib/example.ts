@@ -1,4 +1,4 @@
-import { render, type Values } from '@weft/ir'
+import { readsOf, render, type Values } from '@weft/ir'
 import { fragmentIR, type CompiledFragment } from 'weft'
 
 /**
@@ -58,6 +58,18 @@ export interface ExampleFacts {
   reads: string[]
   /** The wire forms this template can serve, derived rather than declared. */
   forms: string[]
+  /**
+   * What the client attaches on adoption, one row per entry.
+   *
+   * This is the cost model made visible: not "how many components", but how many places in this
+   * template a value reaches. An `event` row names an intent by its opaque id rather than by the
+   * export it came from, which is the property that keeps server code off the wire.
+   */
+  wiring: { op: string; binding: string; target: string }[]
+  /** Client-owned state this template declares, and its initial value as rendered. */
+  signals: { id: string; type: string; init: string }[]
+  /** Values computed from other bindings, with what each expression reads. */
+  derived: string[]
 }
 
 function facts(fragment: CompiledFragment): ExampleFacts {
@@ -68,6 +80,19 @@ function facts(fragment: CompiledFragment): ExampleFacts {
     holes: entry.holes.map((hole) => ({ binding: hole.binding, kind: hole.kind, escape: hole.escape })),
     reads: [...entry.effects.reads],
     forms: [...entry.forms],
+    wiring: entry.wiring.map((wire) => ({
+      op: wire.op,
+      binding: wire.intent ? `intent ${wire.intent}` : wire.binding,
+      // An element path is what the client walks. Printed as written, because a reader comparing it
+      // to the markup above should see the same numbers the runtime uses.
+      target: [wire.attr ?? wire.event ?? 'text', `at [${wire.path.join(', ')}]`].join(' '),
+    })),
+    signals: entry.signals.map((signal) => ({
+      id: signal.id,
+      type: signal.type,
+      init: JSON.stringify(signal.init ?? null),
+    })),
+    derived: entry.derived.map((decl) => `${decl.id} ← ${readsOf(decl.expr).join(', ') || 'a constant'}`),
   }
 }
 

@@ -66,6 +66,34 @@ export function example(rendered: RenderedExample): string {
       )
     : '<p class="hint">No holes: every byte of this template is constant.</p>'
 
+  const wiring = rendered.facts.wiring.length
+    ? table(
+        ['Op', 'Binds', 'Where'],
+        rendered.facts.wiring.map((wire) => [
+          `<code>${escapeHtml(wire.op)}</code>`,
+          `<code>${escapeHtml(wire.binding)}</code>`,
+          `<code>${escapeHtml(wire.target)}</code>`,
+        ]),
+      )
+    : '<p class="hint">No wiring: nothing on this template changes after it is painted, so the client attaches nothing to it.</p>'
+
+  const state = rendered.facts.signals.length
+    ? table(
+        ['Signal', 'Type', 'Initial'],
+        rendered.facts.signals.map((signal) => [
+          `<code>${escapeHtml(signal.id)}</code>`,
+          `<code>${escapeHtml(signal.type)}</code>`,
+          `<code>${escapeHtml(signal.init)}</code>`,
+        ]),
+      )
+    : ''
+
+  const derived = rendered.facts.derived.length
+    ? `<dt>Derived</dt><dd>${rendered.facts.derived
+        .map((entry) => `<code>${escapeHtml(entry)}</code>`)
+        .join(', ')}</dd>`
+    : ''
+
   return `<section class="example">
   <h3>${escapeHtml(rendered.title)}</h3>
   <p>${rendered.shows}</p>
@@ -88,8 +116,13 @@ export function example(rendered: RenderedExample): string {
           : '<em>nothing — so its class is static and its key is its content address</em>'
       }</dd>
       <dt>Wire forms</dt><dd>${rendered.facts.forms.map((f) => `<code>${escapeHtml(f)}</code>`).join(', ')}</dd>
+      ${derived}
     </dl>
+    <h4>Holes</h4>
     ${holes}
+    <h4>What the client wires on adoption</h4>
+    ${wiring}
+    ${state}
   </details>
   ${rendered.note ? `<p class="hint">${rendered.note}</p>` : ''}
 </section>`

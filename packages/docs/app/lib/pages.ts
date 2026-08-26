@@ -3,11 +3,12 @@ import type { Example } from './example.ts'
 /**
  * The guide, as a list.
  *
- * Every page names the spec documents it is the introduction to, and `test/docs.test.ts` refuses a
- * name that does not exist — so a page cannot point at a document that has been renamed. What the
- * test deliberately does *not* require is that every spec document has a page: three things in this
- * repository have three jobs, and pretending one of them is all three is how a documentation site
- * turns into a worse copy of a reference.
+ * Every page names the spec documents it is the introduction to, and `test/docs.test.ts` checks that
+ * relation in both directions: a name that does not exist fails, and a spec document no page
+ * introduces fails too. So "the guide covers the framework" is a gate rather than a claim, and
+ * shipping a mechanism means writing the page that introduces it in the same change.
+ *
+ * What the three things still are, because covering a document is not being it:
  *
  * - **This site** is the introduction: what the thing is, in order, with examples that run.
  * - **`spec/`** is the reference: the mechanism, its refusals, and what it deliberately does not do.
@@ -21,7 +22,7 @@ export interface Page {
   /** One sentence, shown on the landing page and as the page's lede. */
   lede: string
   group: 'start' | 'render' | 'deliver' | 'change' | 'operate'
-  /** Spec documents this page introduces. Checked for existence, not for coverage. */
+  /** Spec documents this page introduces. Checked both ways: it must exist, and it must be named. */
   covers: readonly string[]
   /** Examples this page renders, in order. Every one is compiled by this application. */
   examples: readonly Example[]
@@ -50,7 +51,21 @@ export const PAGES: readonly Page[] = [
     lede: 'The route table is the file tree, and the plan that places everything on a page is generated from it.',
     group: 'start',
     covers: ['kernel/routing.md'],
-    examples: [],
+    examples: [
+      {
+        id: 'examples/crumbs',
+        title: 'What a wildcard route renders',
+        shows:
+          'The file is <code>routes/docs/[...].tsx</code> and the path it matched is data — so a breadcrumb is a list hole, and nothing in it knows how deep the URL was.',
+        values: {
+          trail: [
+            { href: '/', label: 'Home' },
+            { href: '/guide', label: 'Guide' },
+          ],
+          here: 'An application is a folder',
+        },
+      },
+    ],
   },
   {
     slug: 'fragments',
@@ -99,6 +114,14 @@ export const PAGES: readonly Page[] = [
     ],
   },
   {
+    slug: 'layouts',
+    title: 'Layouts, and documents that nest',
+    lede: 'A route names one document. That document may be a chain, and the chain comes from the directory tree.',
+    group: 'render',
+    covers: ['kernel/routing.md'],
+    examples: [],
+  },
+  {
     slug: 'effects-and-cache',
     title: 'What a fragment reads decides everything',
     lede: 'The cache key, the class and the Vary header are derived from the reads the compiler saw. None of them can be declared.',
@@ -126,15 +149,39 @@ export const PAGES: readonly Page[] = [
     lede: 'A fragment that reads something slow becomes a hole by construction, so the first byte is never downstream of the query.',
     group: 'deliver',
     covers: ['kernel/streaming.md', 'kernel/lifecycle.md'],
-    examples: [],
+    examples: [
+      {
+        id: 'examples/feed',
+        title: 'A region that cannot be part of the shell',
+        shows:
+          'Reading the clock taints <code>time</code>, which forces a TTL. The rows are one template projected per item, so what arrives late is values rather than markup.',
+        values: {
+          count: 3,
+          items: [
+            { id: 1, title: 'Olive oil, 2L', price: 14 },
+            { id: 2, title: 'Basmati rice, 5kg', price: 9 },
+            { id: 3, title: 'Medjool dates, 1kg', price: 12 },
+          ],
+        },
+        note: 'The facts below list <code>time</code> as the read. That single entry is why a policy with no <code>ttl</code> on this route is a build error.',
+      },
+    ],
   },
   {
-    slug: 'layouts',
-    title: 'Layouts, and documents that nest',
-    lede: 'A route names one document. That document may be a chain, and the chain comes from the directory tree.',
-    group: 'render',
-    covers: ['kernel/routing.md'],
-    examples: [],
+    slug: 'where-it-runs',
+    title: 'Where a render runs, and what it may cost',
+    lede: 'Render is a DAG rather than a tree walk, executors are crash domains, and a budget is only a limit where something can be preempted.',
+    group: 'deliver',
+    covers: ['kernel/locus.md'],
+    examples: [
+      {
+        id: 'examples/placeholder',
+        title: 'What a region sends when it is out of budget',
+        shows:
+          'No holes at all: this template is constant, so rendering it is a buffer copy. A fallback that had to query something could fail the way the region it stands in for did.',
+        note: 'Declared as a slot’s <code>placeholder</code>. The page is still a page, and the part that is missing says so.',
+      },
+    ],
   },
   {
     slug: 'declarations',
@@ -142,6 +189,14 @@ export const PAGES: readonly Page[] = [
     lede: 'Placement, delivery, cache policy and budgets are declared per route — and checked against what the compiler inferred.',
     group: 'deliver',
     covers: ['plan/plan.md'],
+    examples: [],
+  },
+  {
+    slug: 'measuring',
+    title: 'A plan generated from measurement',
+    lede: 'The file tree cannot say what anything costs, and delivery is a decision about cost. So record it, and let the recording decide.',
+    group: 'deliver',
+    covers: ['plan/profile.md'],
     examples: [],
   },
   {
@@ -162,12 +217,44 @@ export const PAGES: readonly Page[] = [
     ],
   },
   {
+    slug: 'navigation',
+    title: 'Instant navigation',
+    lede: 'A route fetched, parsed, and painting nothing, committed by a click.',
+    group: 'change',
+    covers: ['client/navigation.md'],
+    examples: [
+      {
+        id: 'examples/links',
+        title: 'Ordinary anchors',
+        shows:
+          'Nothing here opts into staging. A link is a link, and what the client does behind it is a deployment’s decision rather than an author’s.',
+        values: {
+          links: [
+            { href: '/guide/the-client', label: 'The client', here: false },
+            { href: '/guide/navigation', label: 'Instant navigation', here: true },
+            { href: '/guide/intents', label: 'Intents', here: false },
+          ],
+        },
+        note: 'A page that links nowhere never carries the staging model. That is why this is an anchor rather than a component.',
+      },
+    ],
+  },
+  {
     slug: 'intents',
     title: 'Intents: the only thing that writes',
     lede: 'A render cannot write. Mutations are intents, addressed by an opaque id, with their writes declared.',
     group: 'change',
     covers: ['kernel/intents.md', 'kernel/authority.md'],
-    examples: [],
+    examples: [
+      {
+        id: 'examples/helpful',
+        title: 'A mutation with no JavaScript at all',
+        shows:
+          'A form, a hidden field and a POST to the route the intent manifest generated. This one is live: pressing it dispatches a real intent in this process.',
+        values: { page: 'intents', count: 0 },
+        note: 'Phase A dispatch is what makes a real status, an <code>HttpOnly</code> cookie and a 303 available — the three things a <code>fetch</code> handler cannot give you.',
+      },
+    ],
   },
   {
     slug: 'live-regions',
@@ -175,6 +262,30 @@ export const PAGES: readonly Page[] = [
     lede: 'A region can be refreshed over a channel, and the smallest honest form is a delta computed once for every client on the same base.',
     group: 'change',
     covers: ['kernel/surgical.md', 'kernel/transport.md', 'warp/warp-1.md'],
+    examples: [
+      {
+        id: 'examples/prices',
+        title: 'One template, three wire forms',
+        shows:
+          'The same fragment, and one price changed. The table under it is the three encodings measured on this render rather than quoted from a benchmark.',
+        values: {
+          heading: 'Your basket',
+          total: 35,
+          lines: [
+            { sku: 'OIL-2L', name: 'Olive oil, 2L', price: 14 },
+            { sku: 'RICE-5', name: 'Basmati rice, 5kg', price: 9 },
+            { sku: 'DATE-1', name: 'Medjool dates, 1kg', price: 12 },
+          ],
+        },
+      },
+    ],
+  },
+  {
+    slug: 'what-ships',
+    title: 'What the page downloads',
+    lede: 'Entries, not a bundle — and a ceiling per entry, because one number over several jobs is a label rather than a gate.',
+    group: 'change',
+    covers: ['kernel/budgets.md', 'FINDINGS.md'],
     examples: [],
   },
   {
@@ -183,6 +294,68 @@ export const PAGES: readonly Page[] = [
     lede: 'Ports replace, plugins extend. Fourteen are declared and eleven are bound by the front door with no configuration at all.',
     group: 'operate',
     covers: ['kernel/ports.md', 'kernel/static.md'],
+    examples: [],
+  },
+  {
+    slug: 'composition',
+    title: 'A region that lives somewhere else',
+    lede: 'A shell is a fragment tree whose leaves are regions, and a region is a fragment that happens to render on another deployment.',
+    group: 'operate',
+    covers: ['kernel/composition.md'],
+    examples: [
+      {
+        id: 'examples/remote',
+        title: 'A region, and nothing in it about being remote',
+        shows:
+          'There is nothing to add. What crosses the boundary is a warp frame — the protocol every render already produces — so the composite does not learn a second runtime.',
+        values: {
+          query: 'olive oil',
+          hits: [
+            { sku: 'OIL-2L', name: 'Olive oil, 2L' },
+            { sku: 'OIL-5L', name: 'Olive oil, 5L' },
+          ],
+        },
+      },
+    ],
+  },
+  {
+    slug: 'devices',
+    title: 'Every surface at once',
+    lede: 'Nothing here fails on an old engine. Every missing capability costs a wire form, a fill mechanism, or an animation.',
+    group: 'operate',
+    covers: ['baseline/devices.md'],
+    examples: [
+      {
+        id: 'examples/device',
+        title: 'A read with three values is an axis',
+        shows:
+          'Low cardinality is what lets a read become an ahead-of-time permutation rather than a branch taken per request.',
+        note: 'The facts below show <code>device</code> in the read set. The plan can carry a branch per value; the fragment does not know which one it is rendered for.',
+      },
+    ],
+  },
+  {
+    slug: 'versioning',
+    title: 'Versions, and what may change',
+    lede: 'Two artifacts were versioned before there was a framework, because a wire format cannot be versioned retroactively.',
+    group: 'operate',
+    covers: ['VERSIONING.md'],
+    examples: [],
+  },
+  {
+    slug: 'testing',
+    title: 'Checking your own application',
+    lede: 'A fragment is data, so testing one needs no browser, no server and no snapshot to keep in sync.',
+    group: 'operate',
+    covers: ['FINDINGS.md'],
+    examples: [],
+  },
+  {
+    slug: 'cli',
+    title: 'The CLI',
+    lede: 'Nine commands, and this page is generated from the one that prints them — so it cannot describe a flag that does not exist.',
+    group: 'operate',
+    covers: [],
     examples: [],
   },
 ]

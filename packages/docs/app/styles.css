@@ -487,3 +487,150 @@ button {
   color: #fff;
   font-size: 0.78rem;
 }
+
+/* The header's search form. A GET, so there is nothing to initialise. */
+.find {
+  display: flex;
+  gap: 0.4rem;
+  margin-inline-start: auto;
+}
+
+.find input {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  min-width: 9rem;
+}
+
+.find input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.find button {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+/* The facts panel's own subheadings, below the provenance list. */
+.facts h4 {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--dim);
+}
+
+/* Below here: the examples' own markup. Each one is a real fragment; these are its styles. */
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: baseline;
+  font-size: 0.92rem;
+}
+
+.crumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.crumbs li::after {
+  content: '/';
+  color: var(--dim);
+  margin-inline-start: 0.4rem;
+}
+
+.crumbs [aria-current] {
+  color: var(--dim);
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+}
+
+.links [data-current='true'] {
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.feed .items {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+}
+
+.feed .items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-block-start: 1px solid var(--line);
+  padding: 0.35rem 0;
+}
+
+.feed .meta,
+.region .meta {
+  color: var(--dim);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.prices .total {
+  border-block-start: 1px solid var(--line);
+  padding-block-start: 0.5rem;
+  font-weight: 600;
+}
+
+.degraded {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  color: var(--dim);
+}
+
+.degraded p {
+  margin: 0;
+}
+
+.region .hits {
+  margin: 0.5rem 0 0;
+  padding-inline-start: 1.2rem;
+}
+
+.vote {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.vote button {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.device {
+  margin: 0;
+}

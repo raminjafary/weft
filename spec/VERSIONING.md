@@ -8,7 +8,7 @@ later means every client already in the field is unversioned.
 | ----------- | -------------------- | ------- | ------------------------ |
 | Template IR | `weft.template-ir/2` | 2.6.0   | `packages/ir`            |
 | Payloads    | `weft.payload/2`     | 2.6.0   | `packages/ir`            |
-| Warp frames | `weft.warp/1`        | 1.7.0   | `packages/warp`          |
+| Warp frames | `weft.warp/1`        | 1.8.0   | `packages/warp`          |
 
 ## What each version component means
 

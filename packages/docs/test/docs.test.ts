@@ -7,13 +7,18 @@ import { createApp, serveApp, type Serving } from 'weft/server'
 import { after } from 'node:test'
 import { renderExample } from '../app/lib/example.ts'
 import { PAGES } from '../app/lib/pages.ts'
-import { written } from '../app/lib/content.ts'
+import { bodyOf, headingsOf, written } from '../app/lib/content.ts'
 import { SECTIONS } from '../app/lib/sections.ts'
 import { STEPS } from '../app/lib/tutorial.ts'
 import { TERMS } from '../app/lib/glossary.ts'
 import { surface } from '../app/lib/surface.ts'
 import { errorCodes } from '../app/lib/errors.ts'
 import { compilePlayground, STARTER } from '../app/lib/play.ts'
+import { commands, options } from '../app/lib/cli.ts'
+import { budgets } from '../app/lib/budgets.ts'
+import { artifacts } from '../app/lib/versions.ts'
+import { indexSize, search } from '../app/lib/search.ts'
+import { wireSizes } from '../app/lib/wire.ts'
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url))
 const REPO = fileURLToPath(new URL('../../../', import.meta.url))
@@ -39,7 +44,7 @@ after(async () => {
 test('every example in the registry compiles and renders', async () => {
   await app()
   const examples = PAGES.flatMap((page) => page.examples)
-  assert.ok(examples.length >= 6, `only ${examples.length} examples: the site claims more than that`)
+  assert.ok(examples.length >= 14, `only ${examples.length} examples: the site claims more than that`)
   for (const example of examples) {
     const rendered = renderExample(example)
     assert.ok(rendered.html.length > 0, `${example.id} rendered nothing`)
@@ -257,6 +262,180 @@ test('the playground compiles its own starter, and refuses by name', async () =>
   if (!tooBig.ok) assert.equal(tooBig.code, 'E_TOO_LARGE')
 })
 
+/**
+ * The other direction of the `covers` relation, and the one that makes the guide's coverage a gate.
+ *
+ * A page naming a document that does not exist has always failed here. This fails when a document
+ * exists and no page introduces it — which is the failure that actually happens: a mechanism ships,
+ * its spec is written, and the site quietly stays a description of the framework as it was. There is
+ * no exemption list on purpose; a document worth writing is a document worth a paragraph a reader can
+ * find.
+ */
+test('every spec document is introduced by a guide page', () => {
+  const specs: string[] = []
+  const walk = (dir: string, prefix: string): void => {
+    for (const name of readdirSync(dir).sort()) {
+      const path = join(dir, name)
+      if (statSync(path).isDirectory()) walk(path, `${prefix}${name}/`)
+      else if (name.endsWith('.md')) specs.push(`${prefix}${name}`)
+    }
+  }
+  walk(join(REPO, 'spec'), '')
+  const covered = new Set(PAGES.flatMap((page) => page.covers))
+  assert.deepEqual(
+    specs.filter((doc) => !covered.has(doc)),
+    [],
+    'a spec document no page on this site introduces',
+  )
+  assert.ok(specs.length > 20, `only ${specs.length} spec documents found: the walk lost something`)
+})
+
+/** Every page's outline comes from its own headings, so a page with none has an empty column. */
+test('every guide page has sections, and every section has an id', () => {
+  for (const page of PAGES) {
+    const headings = headingsOf(page.slug)
+    assert.ok(headings.length > 0, `${page.slug} has no headings: its outline column would be empty`)
+    for (const heading of headings) {
+      assert.match(heading.id, /^[a-z0-9-]+$/, `${page.slug}: ${heading.id}`)
+      assert.ok(heading.text.length > 2, `${page.slug}: a heading with no text`)
+    }
+  }
+})
+
+/**
+ * The CLI page is parsed out of the help text, so the failure worth catching is a command that is
+ * implemented and not in the help text at all — undocumented in both places at once.
+ */
+test('every command the CLI implements is on the CLI page', () => {
+  const source = readFileSync(join(REPO, 'packages/weft/src/cli.ts'), 'utf8')
+  const implemented = new Set(
+    [...source.matchAll(/command === '([a-z-]+)'/g)].map((match) => match[1] as string),
+  )
+  implemented.delete('help')
+  const documented = new Set(commands().map((command) => command.name))
+  assert.deepEqual(
+    [...implemented].filter((name) => !documented.has(name)).sort(),
+    [],
+    'a command the CLI dispatches and the page does not list',
+  )
+  assert.ok(commands().length >= 9, `only ${commands().length} commands parsed`)
+  // A usage line carries `<name>` and `<n>`, and text lifted out of a source file is text: unescaped,
+  // the browser eats `<name>` as a tag and the page shows `weft create` with nothing after it.
+  const rendered = bodyOf('cli')
+  assert.match(rendered, /weft create &lt;name&gt;/, 'the CLI table is not escaping its own angle brackets')
+  assert.match(rendered, /--port &lt;n&gt;/, 'the options table is not escaping its own angle brackets')
+  assert.ok(options().length >= 10, `only ${options().length} options parsed`)
+  for (const command of commands()) assert.ok(command.summary.length > 8, command.name)
+})
+
+/** The generated tables on two pages: parsed from source, so a parse that lost rows is the bug. */
+test('the budget and version tables are read out of the source', () => {
+  const all = budgets()
+  assert.ok(all.length >= 15, `only ${all.length} byte budgets parsed`)
+  for (const budget of all) {
+    assert.ok(budget.limit >= 1024, `${budget.id} has an implausible ceiling`)
+    assert.ok(budget.note.length > 10, `${budget.id} has no note`)
+  }
+
+  const stamped = artifacts()
+  assert.equal(stamped.length, 3)
+  for (const artifact of stamped) {
+    assert.match(artifact.version, /^\d+\.\d+\.\d+$/, artifact.what)
+    assert.match(artifact.spec, /^weft\./, artifact.what)
+  }
+  // The published table in the spec is the copy that drifted once. Checked here so it cannot again.
+  const versioning = readFileSync(join(REPO, 'spec/VERSIONING.md'), 'utf8')
+  for (const artifact of stamped) {
+    assert.ok(
+      new RegExp(`\`${artifact.spec.replace('/', '\\/')}\`\\s*\\|\\s*${artifact.version}`).test(versioning),
+      `spec/VERSIONING.md does not say ${artifact.spec} is ${artifact.version}`,
+    )
+  }
+})
+
+/**
+ * The three wire forms of one region, measured rather than quoted.
+ *
+ * The ordering is the claim the page makes, so the test is the ordering: a delta is smaller than a
+ * patch and a patch is smaller than the region. If a change to the renderer ever inverted that, the
+ * page would be making a false claim in a table it generated itself.
+ */
+test('the wire forms measured on the page rank the way the page says', () => {
+  const sizes = new Map(wireSizes().map((size) => [size.form, size.bytes]))
+  const html = sizes.get('html') ?? 0
+  const patch = sizes.get('patch') ?? 0
+  const delta = sizes.get('delta') ?? 0
+  assert.ok(html > 0 && patch > 0 && delta > 0, JSON.stringify([...sizes]))
+  assert.ok(delta < patch, `delta ${delta} is not smaller than patch ${patch}`)
+  assert.ok(patch < html, `patch ${patch} is not smaller than html ${html}`)
+})
+
+/** Search is a function of the site's own registries, so it can be tested without serving a page. */
+function hit(query: string, href: string): void {
+  const results = search(query)
+  assert.ok(
+    results.some((result) => result.href === href),
+    `${query} did not find ${href}; got ${results
+      .slice(0, 4)
+      .map((result) => result.href)
+      .join(', ')}`,
+  )
+}
+
+test('search finds a page, a section, a term, an error and an export', () => {
+  assert.ok(indexSize() > 800, `only ${indexSize()} things indexed`)
+  hit('intents', '/guide/intents')
+  hit('instant navigation', '/guide/navigation')
+  hit('E_NO_SHELL', '/errors/E_NO_SHELL')
+  hit('defineRoute', '/api/weft#defineRoute')
+  hit('adoption', '/glossary#adoption')
+  hit('playground', '/play')
+
+  assert.deepEqual(search(''), [], 'an empty query is the empty state, not every page')
+  assert.deepEqual(search('zzzqqq'), [], 'a query that matches nothing matches nothing')
+})
+
+/**
+ * Every name a sketch imports from this framework is a name this framework exports.
+ *
+ * A sketch is labelled "not compiled", and that label is about the surrounding code — not a licence
+ * for the API in it to be fictional. Three of these were wrong when this test was written: two
+ * sketches called `intent()` from `weft`, which exports `defineIntent`, and a config sketch imported
+ * `workerPool` from `weft`, which does not re-export it. All three read as true, which is exactly
+ * what makes them worse than a compile error.
+ *
+ * Checked against `surface()` rather than by importing each module, because the API walk already
+ * knows every export of every package — including the ones this application does not depend on, and
+ * including the types, which a dynamic import cannot see.
+ */
+test('every framework name a sketch imports actually exists', () => {
+  const exported = new Map(
+    surface().map((module) => [module.specifier, new Set(module.entries.map((entry) => entry.name))]),
+  )
+  const files = ['app/lib/content.ts', 'app/lib/tutorial.ts', 'app/lib/play.ts', 'app/lib/glossary.ts']
+  let found = 0
+
+  for (const file of files) {
+    const source = readFileSync(join(ROOT, file), 'utf8')
+    for (const match of source.matchAll(/import \{([^}]*)\} from '(weft(?:\/server)?|@weft\/[a-z]+)'/g)) {
+      const specifier = match[2] as string
+      const names = exported.get(specifier)
+      assert.ok(names, `a sketch imports from '${specifier}', which the API walk does not cover`)
+      const imported = (match[1] as string)
+        .split(',')
+        .map((name) => name.trim().replace(/^type /, ''))
+        .filter((name) => name.length > 0)
+      found += imported.length
+      assert.deepEqual(
+        imported.filter((name) => !names.has(name)).sort(),
+        [],
+        `a sketch imports these from '${specifier}' and it does not export them`,
+      )
+    }
+  }
+  assert.ok(found > 8, `only ${found} imported names found: the scan lost something`)
+})
+
 /** Every page answers, and none of them answers with a stack trace. */
 test('every route in the site serves a document', async () => {
   const serving = await serveApp(await app())
@@ -275,6 +454,9 @@ test('every route in the site serves a document', async () => {
     '/errors',
     '/errors/E_NO_SHELL',
     '/play',
+    '/search',
+    '/search?q=slot',
+    '/search?q=zzzqqq',
   ]
   for (const path of paths) {
     const response = await fetch(new URL(path, serving.url))
@@ -284,4 +466,32 @@ test('every route in the site serves a document', async () => {
     assert.equal(html.includes('E_DOCS_NO_BODY'), false, `${path} has a page with no content written`)
     assert.equal(html.includes('at Object.'), false, `${path} rendered a stack trace`)
   }
+})
+
+/**
+ * The one mutation this site declares, dispatched the way a reader without JavaScript would.
+ *
+ * The intents page shows a form posting to `/_weft/i/docs.helpful`, and a form on a documentation
+ * site that 404s would be the worst kind of example: one that reads as true. So this presses it.
+ */
+test('the intent on the intents page is dispatchable', async () => {
+  const serving = await serveApp(await app())
+  servers.push(serving)
+  const response = await fetch(new URL('/_weft/i/docs.helpful', serving.url), {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+    body: 'page=intents',
+    redirect: 'manual',
+  })
+  assert.ok(response.status < 400, `the intent answered ${response.status}`)
+  await response.arrayBuffer()
+
+  const refused = await fetch(new URL('/_weft/i/docs.helpful', serving.url), {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+    body: 'page=NOT A SLUG',
+    redirect: 'manual',
+  })
+  assert.equal(refused.status, 422, 'a payload the intent refuses should be a 422, not a 500')
+  await refused.arrayBuffer()
 })

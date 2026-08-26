@@ -21,10 +21,13 @@ interface ShellProps {
  * The document, and one slot.
  *
  * A documentation site is the case where a nested layout earns its keep, so this file deliberately
- * stops at the chrome every page shares: the head, the header, the heading and one `<slot>`. What
- * the guide pages need on top of that — a contents column, an outline — is
+ * stops at the chrome every page shares: the head, the header, the search form, the heading and one
+ * `<slot>`. What the guide pages need on top of that — a contents column, an outline — is
  * `app/routes/guide/layout.tsx`, which fills this `body` hole and leaves holes of its own. The
  * landing page and the playground are outside that subtree and get this document alone.
+ *
+ * The search form is a `GET` to a route, which is what lets it sit in a layout that ships no
+ * JavaScript of its own: there is nothing to initialise and no index to fetch.
  */
 export default fragment(({ title, description, css, runtime, heading, lede, nav, body }: ShellProps) => (
   <>
@@ -50,6 +53,10 @@ export default fragment(({ title, description, css, runtime, heading, lede, nav,
               </a>
             ))}
           </nav>
+          <form class="find" method="get" action="/search" role="search">
+            <input type="search" name="q" placeholder="Search" aria-label="Search this site" />
+            <button type="submit">Search</button>
+          </form>
         </header>
         <main>
           <h1>{heading}</h1>

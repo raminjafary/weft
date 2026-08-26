@@ -127,8 +127,8 @@ function docFor(source: string, comments: readonly Comment[], start: number): st
  * A module specifier, resolved to a file in this repository.
  *
  * Relative paths are joined. Bare specifiers are resolved too, and that is not a convenience: the
- * front door re-exports whole packages — `weft` hands you `redisLeases` and `workerPool` so an
- * application never imports `@weft/adapters` directly — and a walk that stopped at the package
+ * front door re-exports whole packages — `weft` hands you `redisLeases` and `bindingExecutor` so an
+ * application rarely imports `@weft/adapters` directly — and a walk that stopped at the package
  * boundary would list the surface an application does not use and omit the one it does.
  */
 function resolveWithin(from: string, specifier: string, root: string): string | undefined {
