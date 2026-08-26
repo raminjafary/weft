@@ -153,6 +153,7 @@ weft.config.ts          what this deployment binds
 ```sh
 npm create weft my-app
 
+pnpm docs           # the documentation site, which is itself a weft application
 weft dev            # serve, and rebuild what changes
 weft dev --devtools # plus this application's routes, keys and bytes as pages
 weft build          # sealed templates, the generated plan, the manifest, revved assets
@@ -462,6 +463,29 @@ and measures it over HTTP on the same axes.
 | The plan layer            | [`spec/plan/plan.md`](spec/plan/plan.md), [`profile.md`](spec/plan/profile.md)                 | Plan DSL, validation against inferred effects, plugins, `weft why`              |
 | Device and engine reality | [`spec/baseline/devices.md`](spec/baseline/devices.md)                                         | Written before the numbers                                                      |
 
+Three things, three jobs. `spec/` is the reference: the mechanism, its refusals, and what each one
+deliberately does not do. `packages/inspector` is the live version — a station per capability, each
+with a control, and a test that fails when a spec document has no station. `packages/docs` is the
+introduction: Quick Start, Guide, Tutorial, Examples, API, Glossary and an Error Reference.
+
+**The documentation site is itself a weft application**, which is the strongest claim the framework
+can make about itself and the reason it is built that way rather than with a documentation
+generator. It is 13 routes and 14 sealed templates; `weft build` writes the whole thing as 365
+files, so the kernel is not invoked to serve any of them. Its guide pages and its 300-odd error
+pages are two param routes with their sets declared. Three of its four sections sit under a nested
+layout. And the one page that is _not_ a file — the playground, which compiles what you type
+through the compiler's virtual file set — says so with `static: false` and a reason.
+
+Two of its sections are generated from the source rather than written beside it, so they cannot
+drift: the API reference walks every package's public entry and lists every export it finds, and the
+error reference walks every `src/` and lists every named refusal with the message it raises. Both
+have a test that scans the same tree independently and fails when something is missing.
+
+```sh
+pnpm docs         # serve it
+pnpm docs:build   # build it, and read which pages became files
+```
+
 ---
 
 ## What has to be true next
@@ -473,5 +497,3 @@ and measures it over HTTP on the same axes.
    W3C WebDriver, and `weft-bench devices` says whether the driver answers — so what is missing is
    hardware and not code. `--engines ios` keeps refusing by name until a device is configured,
    because webkit is a desktop proxy with nothing honest to fall back to.
-2. **A documentation site whose every example is live.** The compiler is ready for it —
-   `compileFiles` needs a virtual file system and nothing else.

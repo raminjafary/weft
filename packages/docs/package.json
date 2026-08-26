@@ -1,0 +1,24 @@
+{
+  "name": "@weft/docs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The documentation site. Every example on it is a fragment this application compiled, so an example that does not work is a build that does not pass.",
+  "license": "MIT",
+  "author": "raminjafary",
+  "type": "module",
+  "scripts": {
+    "dev": "weft dev",
+    "build": "weft build",
+    "start": "weft start",
+    "routes": "weft routes"
+  },
+  "dependencies": {
+    "weft": "workspace:*",
+    "@weft/compiler": "workspace:*",
+    "@weft/ir": "workspace:*",
+    "oxc-parser": "0.146.0"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

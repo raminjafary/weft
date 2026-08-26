@@ -1,0 +1,29 @@
+import { defineRoute } from 'weft'
+import { moduleBody, moduleIds, moduleList, moduleOutline } from '../../lib/api-page.ts'
+import { moduleById } from '../../lib/surface.ts'
+
+/**
+ * One route for the whole API reference.
+ *
+ * Nine entry points and well over a thousand names behind one pattern, one plan and one sealed
+ * template. The
+ * `params` set is the module list, which the surface walk produced — so the build writes a file per
+ * module and none of them needs the kernel at serve time.
+ */
+export default defineRoute({
+  head: (params) => ({
+    title: `${moduleById(params.module ?? '')?.specifier ?? 'Not found'} · weft API`,
+    description: moduleById(params.module ?? '')?.blurb ?? 'No such module.',
+  }),
+  layoutValues: (params) => ({
+    heading: moduleById(params.module ?? '')?.specifier ?? 'Not found',
+    lede: moduleById(params.module ?? '')?.blurb ?? 'This module does not exist.',
+  }),
+  cache: { class: 'public', ttl: '1h' },
+  params: { module: moduleIds() },
+  slots: {
+    contents: { html: (_ctx, params) => moduleList(params.module) },
+    body: { html: (_ctx, params) => moduleBody(params.module ?? '') },
+    outline: { html: (_ctx, params) => moduleOutline(params.module ?? '') },
+  },
+})

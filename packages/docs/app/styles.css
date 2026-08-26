@@ -1,0 +1,489 @@
+/* The site's own stylesheet, appended after the framework's. */
+
+:root {
+  --ink: #14171a;
+  --dim: #5b6570;
+  --line: #dfe4e8;
+  --bg: #fbfcfd;
+  --panel: #fff;
+  --accent: #1f6feb;
+  --code-bg: #f5f7f9;
+  --warn: #a15c00;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e6e9ec;
+    --dim: #9aa4af;
+    --line: #2a3138;
+    --bg: #14171a;
+    --panel: #191d21;
+    --accent: #79b8ff;
+    --code-bg: #1e2328;
+    --warn: #e0a34a;
+  }
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font:
+    16px/1.65 ui-sans-serif,
+    system-ui,
+    sans-serif;
+  margin: 0;
+}
+
+main {
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+}
+
+.top {
+  display: flex;
+  gap: 1.25rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+  padding: 0.9rem 1.25rem;
+  border-block-end: 1px solid var(--line);
+  background: var(--panel);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.top .brand {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.top nav {
+  display: flex;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.top nav a {
+  color: var(--dim);
+  text-decoration: none;
+  font-size: 0.92rem;
+}
+
+.top nav a[data-current='yes'],
+.top nav a:hover {
+  color: var(--accent);
+}
+
+h1 {
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+  margin: 1.25rem 0 0.4rem;
+}
+
+.lede {
+  color: var(--dim);
+  font-size: 1.08rem;
+  max-width: 60ch;
+  margin-block-end: 2rem;
+}
+
+h2 {
+  margin-block-start: 2.5rem;
+  font-size: 1.3rem;
+  letter-spacing: -0.01em;
+}
+
+h3 {
+  margin-block-start: 1.6rem;
+  font-size: 1.05rem;
+}
+
+a {
+  color: var(--accent);
+}
+
+.anchor {
+  color: inherit;
+  text-decoration: none;
+}
+
+.anchor:hover::after {
+  content: ' #';
+  color: var(--dim);
+  font-weight: 400;
+}
+
+p {
+  max-width: 72ch;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88em;
+  background: var(--code-bg);
+  padding: 0.1em 0.32em;
+  border-radius: 4px;
+}
+
+pre {
+  margin: 0;
+  overflow-x: auto;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+figure {
+  margin: 1rem 0;
+}
+
+figure.code,
+figure.output {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+figcaption {
+  font-size: 0.78rem;
+  color: var(--dim);
+  padding: 0.45rem 0.8rem;
+  border-block-end: 1px solid var(--line);
+  background: var(--code-bg);
+}
+
+figure.code pre {
+  padding: 0.9rem;
+}
+
+.output-frame {
+  padding: 1rem;
+}
+
+.sketch figcaption::before {
+  content: '✎ ';
+}
+
+/* ── the guide, tutorial and API share one three-column shape ─────────────── */
+
+.guide {
+  display: grid;
+  grid-template-columns: minmax(11rem, 14rem) minmax(0, 1fr) minmax(11rem, 15rem);
+  gap: 2rem;
+  align-items: start;
+}
+
+.guide-contents,
+.guide-outline {
+  position: sticky;
+  top: 4.5rem;
+  font-size: 0.9rem;
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
+}
+
+.guide-contents h2,
+.guide-outline h2 {
+  margin-block-start: 1.2rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+}
+
+.contents {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.contents a {
+  text-decoration: none;
+}
+
+.contents a:hover {
+  text-decoration: underline;
+}
+
+.contents.outline {
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.count {
+  color: var(--dim);
+  font-size: 0.8em;
+}
+
+@media (width < 62rem) {
+  .guide {
+    grid-template-columns: 1fr;
+  }
+  .guide-contents,
+  .guide-outline {
+    position: static;
+    max-height: none;
+  }
+}
+
+/* ── cards, notes, tables ──────────────────────────────────────────────────── */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+  margin: 1.25rem 0;
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  background: var(--panel);
+}
+
+.card h3 {
+  margin: 0 0 0.35rem;
+}
+
+.card p {
+  margin: 0;
+  color: var(--dim);
+  font-size: 0.94rem;
+}
+
+.note {
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  padding: 0.8rem 1rem;
+  margin: 1.25rem 0;
+  background: var(--panel);
+}
+
+.note h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.note p {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.note-careful {
+  border-inline-start-color: var(--warn);
+}
+
+.note-refused {
+  border-inline-start-color: #b4483c;
+}
+
+.scroll {
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.92rem;
+}
+
+th,
+td {
+  text-align: start;
+  padding: 0.45rem 0.7rem;
+  border-block-end: 1px solid var(--line);
+  vertical-align: top;
+}
+
+th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--dim);
+}
+
+.hint {
+  color: var(--dim);
+  font-size: 0.88rem;
+}
+
+.undocumented {
+  color: var(--warn);
+}
+
+/* ── examples, API entries, glossary, playground ───────────────────────────── */
+
+.example {
+  border-block-start: 1px solid var(--line);
+  padding-block-start: 1.25rem;
+  margin-block-start: 2rem;
+}
+
+.facts summary {
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--dim);
+}
+
+.prov {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 0.9rem;
+  font-size: 0.9rem;
+  margin: 0.7rem 0;
+}
+
+.prov dt {
+  color: var(--dim);
+}
+
+.prov dd {
+  margin: 0;
+}
+
+.api-entry {
+  border-block-start: 1px solid var(--line);
+  padding-block-start: 1rem;
+  margin-block-start: 1.75rem;
+}
+
+.api-entry h3 {
+  margin-block-start: 0;
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+
+.kind {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+}
+
+.api-doc p {
+  font-size: 0.95rem;
+}
+
+.term {
+  border-block-start: 1px solid var(--line);
+  padding-block-start: 1rem;
+  margin-block-start: 1.75rem;
+}
+
+.term .short {
+  font-weight: 600;
+}
+
+.jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.7rem;
+  align-items: baseline;
+  margin-block-end: 1rem;
+}
+
+.jump a {
+  font-size: 0.88rem;
+  text-decoration: none;
+}
+
+.message {
+  margin: 1rem 0;
+  padding: 0.8rem 1rem;
+  border-inline-start: 3px solid var(--accent);
+  background: var(--panel);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88rem;
+}
+
+.refusal {
+  border-inline-start: 3px solid #b4483c;
+}
+
+.play textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.play label {
+  display: block;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+  margin-block-end: 0.4rem;
+}
+
+.play-actions {
+  display: flex;
+  gap: 0.9rem;
+  align-items: center;
+  margin-block-start: 0.7rem;
+}
+
+button {
+  font: inherit;
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.sequence {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-start: 3rem;
+  padding-block-start: 1.25rem;
+  border-block-start: 1px solid var(--line);
+  font-size: 0.95rem;
+}
+
+.sequence .next {
+  margin-inline-start: auto;
+}
+
+.foot {
+  border-block-start: 1px solid var(--line);
+  padding: 1.5rem 1.25rem 3rem;
+}
+
+.foot p {
+  color: var(--dim);
+  font-size: 0.88rem;
+  max-width: 78rem;
+  margin: 0 auto;
+}
+
+.pill {
+  display: inline-block;
+  padding: 0.1em 0.5em;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.78rem;
+}

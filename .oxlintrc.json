@@ -19,7 +19,7 @@
     "unicorn/prefer-add-event-listener": "off",
     "no-underscore-dangle": "off"
   },
-  "ignorePatterns": ["node_modules", "build", "results", "docs", "CHANGELOG.md"],
+  "ignorePatterns": ["node_modules", "build", "results", "CHANGELOG.md"],
   "overrides": [
     {
       "files": ["packages/bench/src/**", "packages/compiler/src/cli.ts"],

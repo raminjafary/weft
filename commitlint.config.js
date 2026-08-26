@@ -57,6 +57,7 @@ export default {
         'weft',
         'create',
         'inspector',
+        'docs',
         'demo',
         'spec',
         'deps',

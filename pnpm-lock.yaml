@@ -140,6 +140,21 @@ importers:
         specifier: workspace:*
         version: link:../weft
 
+  packages/docs:
+    dependencies:
+      '@weft/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@weft/ir':
+        specifier: workspace:*
+        version: link:../ir
+      oxc-parser:
+        specifier: 0.146.0
+        version: 0.146.0
+      weft:
+        specifier: workspace:*
+        version: link:../weft
+
   packages/inspector:
     dependencies:
       '@weft/adapters':
