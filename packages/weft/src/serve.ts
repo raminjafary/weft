@@ -283,7 +283,13 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   // which time the table exists — one late binding rather than an unrevved URL.
   let assets: AssetTable | null = null
   const table = (): AssetTable => {
-    if (!assets) throw new Error('E_ASSETS_NOT_BUILT')
+    if (!assets) {
+      throw new Error(
+        'E_ASSETS_NOT_BUILT: an asset href was asked for before the bundle existed. Hrefs carry a ' +
+          'digest of the bundle, so the table is built after the generator says which stylesheets ' +
+          'each page links — this call happened before that',
+      )
+    }
     return assets
   }
 
@@ -1444,7 +1450,10 @@ export async function serveApp(app: App): Promise<Serving> {
   // every tutorial.
   await new Promise<void>((resolve) => server.listen(config.port, config.host, resolve))
   const address = server.address()
-  if (typeof address === 'string' || address === null) throw new Error('E_NO_ADDRESS')
+  if (typeof address === 'string' || address === null)
+    throw new Error(
+      'E_NO_ADDRESS: the server reported no TCP address after listening, so nothing can be told where to connect',
+    )
 
   return {
     url: `http://${config.host}:${address.port}/`,

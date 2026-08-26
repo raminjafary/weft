@@ -99,7 +99,10 @@ export async function measureClientRuntime(
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
-  if (typeof address === 'string' || address === null) throw new Error('E_NO_ADDRESS')
+  if (typeof address === 'string' || address === null)
+    throw new Error(
+      'E_NO_ADDRESS: the server reported no TCP address after listening, so nothing can be told where to connect',
+    )
   const url = reachableUrl(engine, `http://127.0.0.1:${address.port}/`)
 
   const browser = await launchEngine(engine)

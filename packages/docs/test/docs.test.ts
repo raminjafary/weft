@@ -164,7 +164,11 @@ test('every named refusal in the framework is in the error reference', () => {
       const path = join(dir, name)
       if (statSync(path).isDirectory()) walk(path)
       else if (name.endsWith('.ts') || name.endsWith('.tsx')) {
-        for (const match of readFileSync(path, 'utf8').matchAll(/\b[EW]_[A-Z][A-Z0-9_]*\b/g)) {
+        const text = readFileSync(path, 'utf8')
+        for (const match of text.matchAll(/\b[EW]_[A-Z][A-Z0-9_]*\b/g)) {
+          // `E_INTENT_${response.status}` builds a name at runtime; the prefix is not a code, and
+          // the reference skips it for the same reason.
+          if (text.startsWith('${', (match.index ?? 0) + match[0].length)) continue
           found.add(match[0])
         }
       }
@@ -192,13 +196,17 @@ test('every code in the reference names a real file, and most carry a message', 
       assert.ok(site.line > 0)
     }
   }
-  const withMessage = all.filter((entry) => entry.message).length
-  // A floor rather than a target. The codes with no message throw nothing but themselves, which the
-  // page says out loud; this keeps the extraction from silently getting worse.
-  assert.ok(
-    withMessage / all.length > 0.75,
-    `only ${withMessage} of ${all.length} codes have an extractable message`,
+  // Not a floor: zero. Every refusal in the framework either carries a sentence of its own or
+  // forwards the failure underneath it, and a code that says nothing at all is the one state this
+  // gate exists to keep at nothing.
+  const silent = all.filter((entry) => entry.detail === 'none')
+  assert.deepEqual(
+    silent.map((entry) => `${entry.code} at ${entry.sites[0]?.file}`),
+    [],
+    'a refusal that says nothing but its own name',
   )
+  const prose = all.filter((entry) => entry.detail === 'prose').length
+  assert.ok(prose / all.length > 0.95, `only ${prose} of ${all.length} codes carry their own sentence`)
 })
 
 test('the tutorial is a sequence, and every step has a body', () => {

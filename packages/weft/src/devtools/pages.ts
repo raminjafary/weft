@@ -284,7 +284,9 @@ export async function why(
     : keyRows(page)
 
   const failures = page.refused
-    .map((entry) => refusal('E_KEY_UNRESOLVED', `${entry.slot}: ${entry.message}`))
+    .map((entry) =>
+      refusal('E_KEY_UNRESOLVED', `no cache key could be derived for ${entry.slot}: ${entry.message}`),
+    )
     .join('')
 
   return {

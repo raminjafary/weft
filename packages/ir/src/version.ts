@@ -12,7 +12,8 @@ export interface SemVer {
 
 export function parseVersion(v: string): SemVer {
   const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(v)
-  if (!m) throw new Error(`E_VERSION_MALFORMED: ${v}`)
+  // Terse: `accepts` is reachable from the document request path, which has a byte budget.
+  if (!m) throw new Error(`E_VERSION_MALFORMED: ${v} is not semver`)
   return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]) }
 }
 
@@ -75,7 +76,9 @@ export type Migration = (doc: Record<string, unknown>) => Record<string, unknown
 const migrations = new Map<string, { to: string; run: Migration }>()
 
 export function registerMigration(from: string, to: string, run: Migration): void {
-  if (compareVersions(from, to) >= 0) throw new Error(`E_MIGRATION_DIRECTION: ${from} -> ${to}`)
+  if (compareVersions(from, to) >= 0) {
+    throw new Error(`E_MIGRATION_DIRECTION: ${from} -> ${to} is not forward; downgrades are undefined`)
+  }
   if (parseVersion(from).major !== parseVersion(to).major) {
     throw new Error(`E_MIGRATION_MAJOR: ${from} -> ${to} crosses a major, which is a wire break`)
   }
@@ -109,7 +112,7 @@ export function migrate(
     }
     applied.push(`${current.irVersion} -> ${step.to}`)
     current = { ...step.run(current), irVersion: step.to }
-    if (++guard > 64) throw new Error('E_MIGRATION_CYCLE')
+    if (++guard > 64) throw new Error('E_MIGRATION_CYCLE: registered steps lead in a circle')
   }
   return { doc: current, applied }
 }

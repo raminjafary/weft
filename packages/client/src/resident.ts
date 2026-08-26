@@ -41,7 +41,7 @@ export async function openResident(): Promise<ResidentStore> {
       }
       request.onsuccess = () => resolve(request.result)
       request.onerror = () => reject(request.error)
-      request.onblocked = () => reject(new Error('E_IDB_BLOCKED'))
+      request.onblocked = () => reject(new Error('E_IDB_BLOCKED: another tab holds an older version'))
     })
   } catch {
     return fallback

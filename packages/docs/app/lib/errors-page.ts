@@ -9,7 +9,9 @@ function link(code: string): string {
 
 export function errorsIndexBody(): string {
   const all = errorCodes()
-  const withMessage = all.filter((entry) => entry.message).length
+  const prose_ = all.filter((entry) => entry.detail === 'prose').length
+  const wrapped = all.filter((entry) => entry.detail === 'wrapped').length
+  const silent = all.length - prose_ - wrapped
   const withSpec = all.filter((entry) => entry.spec.length).length
 
   return (
@@ -30,21 +32,26 @@ export function errorsIndexBody(): string {
         'here. Adding a refusal to the framework adds a row without anybody remembering to.',
     ) +
     table(
-      ['Codes', 'With a message', 'With a spec reference'],
+      ['Codes', 'Own sentence', 'Forwards a cause', 'Says nothing', 'With a spec reference'],
       [
         [
           String(all.length),
-          `${withMessage} <span class="hint">(${Math.round((withMessage / all.length) * 100)}%)</span>`,
+          `${prose_} <span class="hint">(${Math.round((prose_ / all.length) * 100)}%)</span>`,
+          String(wrapped),
+          String(silent),
           `${withSpec} <span class="hint">(${Math.round((withSpec / all.length) * 100)}%)</span>`,
         ],
       ],
     ) +
     note(
-      'careful',
-      `${all.length - withMessage} codes are raised with no sentence at all`,
-      "They throw the code and nothing else — <code>throw new Error('E_ASSETS_NOT_BUILT')</code>. That is " +
-        'a real gap in the framework rather than a gap in this page, so they are listed with the file that ' +
-        'raises them and marked, instead of being given an explanation this page invented.',
+      'why',
+      'Three states, because two would be a lie about one of them',
+      `<strong>${prose_}</strong> codes carry a sentence of their own. <strong>${wrapped}</strong> forward ` +
+        'the failure underneath instead — a parse error, a region that would not answer — and at runtime ' +
+        'they do say something; it is the cause’s sentence rather than one in the source, so there is ' +
+        'nothing here to quote. Calling those bare would be a complaint about this extractor dressed as a ' +
+        `complaint about the framework. <strong>${silent}</strong> say nothing at all, and that is the ` +
+        'number worth watching: the test fails if it rises above zero.',
     ) +
     errorsByPackage()
       .map(
@@ -58,7 +65,9 @@ export function errorsIndexBody(): string {
                 `<tr><td>${link(entry.code)}</td><td>${
                   entry.message
                     ? escapeHtml(entry.message)
-                    : '<span class="hint undocumented">raised with no message</span>'
+                    : entry.detail === 'wrapped'
+                      ? '<span class="hint">forwards the underlying failure</span>'
+                      : '<span class="hint undocumented">raised with no message</span>'
                 }</td></tr>`,
             )
             .join('')}</tbody></table></div>`,
@@ -85,9 +94,13 @@ export function errorBody(code: string): string {
         )
       : note(
           'careful',
-          'Raised with no message',
-          'This code is thrown with nothing but itself. The file below is the only explanation there is, ' +
-            'and that is a gap in the framework rather than in this page.',
+          entry.detail === 'wrapped' ? 'Forwards the failure underneath it' : 'Raised with no message',
+          entry.detail === 'wrapped'
+            ? 'This code carries whatever went wrong beneath it — a parse error, a region that would not ' +
+                'answer — so at runtime it does say something. What it says is the cause’s sentence rather ' +
+                'than one written in the source, which is why there is none to quote here.'
+            : 'This code is thrown with nothing but itself. The file below is the only explanation there ' +
+                'is, and that is a gap in the framework rather than in this page.',
         )) +
     `<h2>Where it is raised</h2>` +
     table(

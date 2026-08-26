@@ -30,7 +30,10 @@ async function waitForReady(origin: string, timeoutMs: number): Promise<void> {
     }
     await new Promise((r) => setTimeout(r, 100))
   }
-  throw new Error(`E_EXTERNAL_NOT_READY: ${origin} (${lastError})`)
+  throw new Error(
+    `E_EXTERNAL_NOT_READY: ${origin} never answered, so this candidate cannot be measured — ${lastError}. ` +
+      `Check the command in candidates.json starts a server on that port`,
+  )
 }
 
 /**

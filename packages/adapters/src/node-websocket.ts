@@ -200,7 +200,12 @@ function readFrame(buf: Buffer): ParsedFrame | null {
     if (buf.length < offset + 8) return null
     const big = buf.readBigUInt64BE(offset)
     // A 4 GB Warp frame is a bug on the other side, not a payload to allocate for.
-    if (big > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('E_WS_FRAME_TOO_LARGE')
+    if (big > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new Error(
+        `E_WS_FRAME_TOO_LARGE: the peer announced a ${big}-byte frame. That is a bug on the other ` +
+          `side, not a payload to allocate for`,
+      )
+    }
     length = Number(big)
     offset += 8
   }

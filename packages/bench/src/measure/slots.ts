@@ -152,7 +152,10 @@ var s=h.querySelector('[slot="x"]');if(s&&window.__p.slotted===null){window.__p.
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
-  if (typeof address === 'string' || address === null) throw new Error('E_NO_ADDRESS')
+  if (typeof address === 'string' || address === null)
+    throw new Error(
+      'E_NO_ADDRESS: the server reported no TCP address after listening, so nothing can be told where to connect',
+    )
 
   const browser = await launchEngine(engine)
   try {

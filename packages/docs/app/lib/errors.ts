@@ -22,6 +22,17 @@ export interface ErrorSite {
   message?: string
 }
 
+/**
+ * How much this code says when it is raised.
+ *
+ * Three states rather than two, because "no literal message" and "no message" are different things.
+ * A code that forwards an underlying failure — `${(error as Error).message}`, `reasonOf(error)`, a
+ * parsed reply's own error — does have a sentence at runtime; it just is not in the source to
+ * extract. Calling that bare would be a complaint about the extractor dressed as a complaint about
+ * the framework, and the count that matters is the third state.
+ */
+export type ErrorDetail = 'prose' | 'wrapped' | 'none'
+
 export interface ErrorCode {
   code: string
   /** Which package raises it. The first one, when more than one does. */
@@ -30,6 +41,8 @@ export interface ErrorCode {
   sites: ErrorSite[]
   /** The longest message found for this code: the one that explains the most. */
   message: string
+  /** Whether that message is a sentence, a forwarded failure, or absent. */
+  detail: ErrorDetail
   /** Spec documents that mention it, so a reader can find the argument rather than the string. */
   spec: string[]
 }
@@ -65,36 +78,36 @@ function walk(dir: string, out: string[]): string[] {
  * Interpolations become an ellipsis and concatenations are joined. That is a reconstruction, and the
  * page says so rather than presenting it as the literal runtime text.
  */
-function callAround(source: string, index: number): string | undefined {
+function enclosing(source: string, index: number, open: string, close: string): string | undefined {
   let depth = 0
-  let open = -1
-  for (let i = index; i >= 0 && index - i < 600; i--) {
+  let start = -1
+  for (let i = index; i >= 0 && index - i < 700; i--) {
     const char = source[i]
-    if (char === ')') depth++
-    else if (char === '(') {
+    if (char === close) depth++
+    else if (char === open) {
       if (depth === 0) {
-        open = i
+        start = i
         break
       }
       depth--
     }
   }
-  if (open < 0) return undefined
-  let close = -1
+  if (start < 0) return undefined
+  let end = -1
   depth = 0
-  for (let i = open; i < source.length && i - open < 4000; i++) {
+  for (let i = start; i < source.length && i - start < 4000; i++) {
     const char = source[i]
-    if (char === '(') depth++
-    else if (char === ')') {
+    if (char === open) depth++
+    else if (char === close) {
       depth--
       if (depth === 0) {
-        close = i
+        end = i
         break
       }
     }
   }
-  if (close < 0) return undefined
-  return source.slice(open + 1, close)
+  if (end < 0) return undefined
+  return source.slice(start + 1, end)
 }
 
 /** Every string and template literal in a call, joined where they were concatenated. */
@@ -113,21 +126,62 @@ function stringsIn(call: string): string[] {
   return out
 }
 
+/**
+ * Where the sentence is, given four spellings of the same thing.
+ *
+ * A code is raised as `new Error(`E_X: …`)`, as a named error class taking the code and the message
+ * apart, as `fail(code, path, message)`, and as an object with `code` and `message` beside each
+ * other. The first three put it in the enclosing *call*; the fourth in the enclosing *object*, and
+ * a structured failure names its field — so a `message:`, `reason:` or `detail:` property wins over
+ * the longest string, because the longest string in an object literal is often something else.
+ */
+/** A scope that hands an underlying failure onward rather than writing its own sentence. */
+const FORWARDS =
+  /\b(?:error|err|cause)\s*(?:as\s+Error)?\s*\)?\.message|String\(\s*error|reasonOf\(|parsed\.error|lastError|\.stack\b/
+
+function forwardsAt(source: string, index: number): boolean {
+  for (const open of ['{', '('] as const) {
+    const scope = enclosing(source, index, open, open === '{' ? '}' : ')')
+    if (scope && FORWARDS.test(scope)) return true
+  }
+  return false
+}
+
 function messageAt(source: string, index: number): string | undefined {
-  const call = callAround(source, index)
-  if (!call) return undefined
-  const candidates = stringsIn(call)
-    .map((text) =>
-      text
-        .replace(/\$\{[^{}]*\}/g, '…')
-        .replace(/\\n/g, ' ')
-        .replace(/\s+/g, ' ')
-        .replace(/^[EW]_[A-Z0-9_]+:?\s*/, '')
-        .trim(),
-    )
-    .filter((text) => text.length > 15 && /[a-z]{3}/.test(text))
+  const scopes = [enclosing(source, index, '{', '}'), enclosing(source, index, '(', ')')].filter(
+    (text): text is string => Boolean(text),
+  )
+  if (!scopes.length) return undefined
+  for (const scope of scopes) {
+    const named =
+      /\b(?:message|reason|detail)\s*:\s*(`(?:[^`\\]|\\.)*`|'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")/.exec(
+        scope,
+      )
+    const found = named?.[1] ? clean(named[1].slice(1, -1)) : undefined
+    if (found && usable(found)) return found.slice(0, 500)
+  }
+  const call = scopes[scopes.length - 1] as string
+  const candidates = stringsIn(call).map(clean).filter(usable)
   const longest = candidates.sort((a, b) => b.length - a.length)[0]
   return longest ? longest.slice(0, 500) : undefined
+}
+
+function clean(text: string): string {
+  return text
+    .replace(/\$\{[^{}]*\}/g, '…')
+    .replace(/\\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[EW]_[A-Z0-9_]+:?\s*/, '')
+    .trim()
+}
+
+/**
+ * A message whose prose is short because most of it is interpolated still explains something:
+ * `known: …` is a sentence and `${JSON.stringify(magic)}` alone is not. So the floor is on the words
+ * rather than on the length, which is what tells those two apart.
+ */
+function usable(text: string): boolean {
+  return text.replace(/…/g, '').trim().length >= 6 && /[a-z]{3}/.test(text)
 }
 
 let cached: ErrorCode[] | null = null
@@ -146,12 +200,21 @@ export function errorCodes(): ErrorCode[] {
       let match: RegExpExecArray | null
       while ((match = CODE.exec(source))) {
         const code = match[1] as string
+        // `E_INTENT_${response.status}` builds a name at runtime; the prefix is not a code.
+        if (source.startsWith('${', match.index + code.length)) continue
         const line = source.slice(0, match.index).split('\n').length
         const message = messageAt(source, match.index + code.length)
         const held =
-          found.get(code) ?? ({ code, package: pkg, sites: [], message: '', spec: [] } as ErrorCode)
+          found.get(code) ??
+          ({ code, package: pkg, sites: [], message: '', detail: 'none', spec: [] } as ErrorCode)
         held.sites.push({ file: rel, line, ...(message ? { message } : {}) })
-        if (message && message.length > held.message.length) held.message = message
+        if (message && message.length > held.message.length) {
+          held.message = message
+          held.detail = 'prose'
+        }
+        if (held.detail === 'none' && forwardsAt(source, match.index + code.length)) {
+          held.detail = 'wrapped'
+        }
         found.set(code, held)
       }
     }

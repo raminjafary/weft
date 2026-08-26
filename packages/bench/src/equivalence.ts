@@ -50,7 +50,12 @@ export async function checkScenario(scenario: Scenario, candidates: Candidate[])
   const rooted: Values = withRows(compiled, values, rows)
 
   const reference = segmentsCandidate.render?.(scenario, values, rows)
-  if (!reference) throw new Error('E_NO_REFERENCE_RENDER')
+  if (!reference) {
+    throw new Error(
+      'E_NO_REFERENCE_RENDER: the segments candidate produced nothing to compare against, so every ' +
+        'other candidate would be checked against an empty string and pass',
+    )
+  }
 
   for (const candidate of candidates) {
     if (candidate.id === segmentsCandidate.id || !candidate.render) continue

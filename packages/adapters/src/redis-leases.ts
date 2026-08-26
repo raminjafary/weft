@@ -189,7 +189,12 @@ function client(target: Target): { command(args: readonly string[]): Promise<Rep
       try {
         parsed = parse(buffer, 0)
       } catch (error) {
-        fail(new Error(`E_LEASE_PROTOCOL: ${(error as Error).message}`))
+        fail(
+          new Error(
+            `E_LEASE_PROTOCOL: the reply could not be parsed as RESP — ${(error as Error).message}. ` +
+              `The connection is not talking to a Redis-compatible server, or it has desynchronised`,
+          ),
+        )
         return
       }
       if (!parsed) return
@@ -197,8 +202,9 @@ function client(target: Target): { command(args: readonly string[]): Promise<Rep
       const waiter = waiting.shift()
       if (!waiter) continue
       clearTimeout(waiter.timer)
-      if (parsed.error) waiter.reject(new Error(`E_LEASE_REFUSED: ${parsed.error}`))
-      else waiter.resolve(parsed.value)
+      if (parsed.error) {
+        waiter.reject(new Error(`E_LEASE_REFUSED: the server refused the lease script — ${parsed.error}`))
+      } else waiter.resolve(parsed.value)
     }
   }
 

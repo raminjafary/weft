@@ -121,9 +121,11 @@ export interface IntentSigner {
    * Narrow a token into a shorter-lived, more specific one.
    *
    * Needs a verifier because the parent has to be checked before it is trusted, and checking it is
-   * what spends it. Every refusal is named: `E_DELEGATE_WIDER` for a claim that grows,
-   * `E_DELEGATE_LONGER` for a window that outlives its parent's, `E_DELEGATE_DEPTH` for a chain
-   * past the ceiling.
+   * what spends it. Every refusal is named: `E_DELEGATE_LONGER` for a window that outlives its
+   * parent's, `E_DELEGATE_DEPTH` for a chain past the ceiling. There is deliberately no code for a
+   * claim that *grows* — see the note on the payload below: `verify` has already refused a child
+   * that binds anything other than its parent's payload, so the check would never fire and a guard
+   * that cannot fire is a guard nobody can trust.
    */
   delegate(request: DelegateRequest, verifier: IntentVerifier): Promise<string>
   /** The lifetime a minted token gets, so a page can say when what it is showing goes stale. */

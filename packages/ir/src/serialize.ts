@@ -79,7 +79,9 @@ export interface ParseResult {
 }
 
 export function fromJSON(input: unknown): ParseResult {
-  if (typeof input !== 'object' || input === null) throw new Error('E_NOT_A_DOCUMENT')
+  if (typeof input !== 'object' || input === null) {
+    throw new Error(`E_NOT_A_DOCUMENT: a sealed template is an object, not ${typeof input}`)
+  }
   const raw = input as Record<string, Json>
 
   const acc = accepts(raw)
@@ -94,7 +96,7 @@ export function fromJSON(input: unknown): ParseResult {
   }
 
   if (doc.encoding !== undefined && doc.encoding !== 'base64') {
-    throw new Error(`E_ENCODING_UNSUPPORTED: ${String(doc.encoding)}`)
+    throw new Error(`E_ENCODING_UNSUPPORTED: ${String(doc.encoding)}; segments are base64 only`)
   }
 
   const segments = Array.isArray(doc.segments) ? (doc.segments as string[]).map(fromBase64) : []

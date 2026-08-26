@@ -359,7 +359,8 @@ export function applyDelta(base: Values, delta: DeltaPayload, ir?: TemplateIR, r
     const tokens = path.split('.')
     tokens.forEach((token, i) => {
       const m = PATH_TOKEN.exec(token)
-      if (!m) throw new Error(`E_DELTA_PATH: ${path}`)
+      // Short on purpose: this module is in the document request path, which has a byte budget.
+      if (!m) throw new Error(`E_DELTA_PATH: ${path} is not a hole address like rows[3].name`)
       const key = m[1] as string
       const index = m[2] === undefined ? undefined : Number(m[2])
       const last = i === tokens.length - 1

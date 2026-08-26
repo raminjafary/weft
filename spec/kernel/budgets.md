@@ -13,8 +13,8 @@ the gate is the test that calls it. Rolldown, minified, brotli at quality 11 —
 
 | Entry                     | Covers                                                                               | Measured | Ceiling  | Where the ceiling comes from                                            |
 | ------------------------- | ------------------------------------------------------------------------------------ | -------- | -------- | ----------------------------------------------------------------------- |
-| `entry-request.ts`        | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream    | 8,178 B  | 8,192 B  | The design's "target under 8 KB server-side"                            |
-| `entry-nested.ts`         | The above, plus splicing a chain of nested layouts into one cut document             | 8,370 B  | 9,216 B  | No design figure. Its own, because the chain walk did not fit above     |
+| `entry-request.ts`        | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream    | 8,185 B  | 8,192 B  | The design's "target under 8 KB server-side"                            |
+| `entry-nested.ts`         | The above, plus splicing a chain of nested layouts into one cut document             | 8,377 B  | 9,216 B  | No design figure. Its own, because the chain walk did not fit above     |
 | `entry-channel.ts`        | The above, plus surgical refresh, form selection, epochs, the stale registry         | 10,893 B | 12,288 B | No design figure. A watermark                                           |
 | `entry-patch.ts`          | The above, plus the patch encoder: the surgical rung a template needs no proof for   | 11,563 B | 12,288 B | No design figure. Its own, because in the refresh path it cost everyone |
 | `entry-intent.ts`         | The request path, plus intent dispatch, the three authority branches, method routing | 9,656 B  | 10,240 B | No design figure. A watermark                                           |
@@ -81,10 +81,19 @@ replacing it, and it reaches the request path only through `entry-nested.ts`. Wh
 value rather than called once.
 
 Fourteen bytes is thin, and this page has said in writing that a rule satisfied by five bytes is a
-rule about to stop being satisfied. The difference is that this ceiling is not a watermark and
-cannot move: the next addition to the document request path has fourteen bytes, and if it needs
-more it needs a seam of its own. That is the outcome this budget exists to force, and it has now
-forced it three times.
+rule about to stop being satisfied. It stopped being satisfied almost immediately: passing the
+splitter from `KernelRoute` to `Route` was two conditional spreads, and two conditional spreads is
+twelve bytes, so the entry went over by that much before anybody was watching.
+
+**The fix was to stop conditionally spreading two fields that were always going to be copied.**
+`Route.resolve` and `Route.split` are declared `| undefined` so the kernel can assign them
+unconditionally, which is smaller than testing each one and building an object literal around it —
+and clearer, because "copy this across" is what the code was doing either way. 8,204 → 8,185, and
+seven bytes left.
+
+Seven is not a number anybody should plan against, and that is the honest state of this entry: it
+is at its ceiling, the ceiling is the design's own figure and cannot move, and the next capability
+that wants to be on the document request path needs a seam. Three have needed one so far.
 
 **The front-door watermark moved to 14 KB, for a socket.** 12 KB when the exposed table landed, 13 KB
 when the refresh interval and the patch applier did, and 14 KB when the channel got a WebSocket with

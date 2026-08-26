@@ -152,7 +152,11 @@ function decodeFirst(region: string, bytes: Uint8Array): AnyFrame | undefined {
     decoder.end()
     return frames[0]
   } catch (error) {
-    throw new RegionError('E_REGION_UNREADABLE', region, (error as Error).message)
+    throw new RegionError(
+      'E_REGION_UNREADABLE',
+      region,
+      `its frames could not be read, so nothing it sent may reach the page — ${(error as Error).message}`,
+    )
   }
 }
 

@@ -301,7 +301,13 @@ async function sealTree(
       if (!all.some((t) => t.version === template.version)) all.push(template)
     }
     const parentHole = holes[nested.holeIndex]
-    if (!parentHole) throw new Error(`E_NESTED_HOLE_MISSING: ${nested.id}`)
+    if (!parentHole) {
+      throw new Error(
+        `E_NESTED_HOLE_MISSING: template '${nested.id}' says it fills hole ${nested.holeIndex}, and the ` +
+          `parent has no such hole. The lowering and the sealing disagree about the same template, ` +
+          `which is a compiler bug rather than anything a fragment can cause`,
+      )
+    }
     // One component hole names two templates: the fragment it renders, and the markup the
     // call site wrote between its tags. They arrive as two requests against one hole.
     holes[nested.holeIndex] =

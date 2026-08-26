@@ -59,7 +59,11 @@ export interface InferredEffects extends EffectSet {
 
 function literalKey(argument: Node | undefined): string {
   if (argument?.type === 'Literal' && typeof argument.value === 'string') return argument.value
-  throw new Error('E_TAINT_ARGUMENT')
+  throw new Error(
+    'E_TAINT_ARGUMENT: a read has to name what it reads with a string literal. ' +
+      'The name becomes a cache key component, so a computed one is a key nobody can predict ' +
+      "— write ctx.cookie('currency') rather than ctx.cookie(key)",
+  )
 }
 
 function flagName(argument: Node | undefined): string {

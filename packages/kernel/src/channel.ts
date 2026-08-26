@@ -463,7 +463,12 @@ export function createHub(options: HubOptions): ChannelHub {
         // named rather than dropped, because a stage that silently does nothing is indistinguishable
         // from one that worked.
         if (str(f, 'tpl') === undefined) {
-          return [errorFrame('E_NO_WARM_HANDLER', Object.keys(f.header).join(','))]
+          return [
+            errorFrame(
+              'E_NO_WARM_HANDLER',
+              `nothing is registered to stage ${Object.keys(f.header).join(',') || 'this grain'}`,
+            ),
+          ]
         }
         if (!options.templates) {
           return [errorFrame('E_NO_TEMPLATE_REGISTRY', 'this hub was given no template registry')]
@@ -472,7 +477,7 @@ export function createHub(options: HubOptions): ChannelHub {
         for (const version of list(f, 'tpl')) {
           const ir = options.templates(version)
           if (!ir) {
-            out.push(errorFrame('E_NO_SUCH_TEMPLATE', version))
+            out.push(errorFrame('E_NO_SUCH_TEMPLATE', `no sealed template has version ${version}`))
             continue
           }
           out.push(frame('TPL', { tpl: ir.version }, utf8.encode(JSON.stringify(clientView(ir))), true))

@@ -675,7 +675,11 @@ export function assertPlan(plan: Plan, context: ValidateContext): Plan {
   const { errors } = validatePlan(plan, context)
   if (errors.length) {
     const lines = errors.map((e) => `  ${e.code}${e.slot ? ` [${e.slot}]` : ''}: ${e.message}`)
-    throw new PlanError('E_PLAN_INVALID', `${plan.route}\n${lines.join('\n')}`)
+    throw new PlanError(
+      'E_PLAN_INVALID',
+      `${plan.route} declares ${errors.length} thing${errors.length === 1 ? '' : 's'} the compiler ` +
+        `contradicts. Each line names the rule and the slot:\n${lines.join('\n')}`,
+    )
   }
   return plan
 }

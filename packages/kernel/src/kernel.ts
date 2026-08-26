@@ -63,7 +63,7 @@ export interface KernelRoute {
   /** The shell. Its slot holes are the boundaries the kernel fills. */
   template: TemplateIR
   values: Values
-  resolve?: Resolver
+  resolve?: Resolver | undefined
   /**
    * How this document is cut, when the flat splitter is not how. A route wrapped in nested layouts
    * carries `chainSplitter`; every other route carries nothing and gets `splitAtSlots`.
@@ -380,8 +380,8 @@ export function createKernel(options: KernelOptions): Kernel {
       {
         template: route.template,
         values: route.values,
-        ...(route.resolve ? { resolve: route.resolve } : {}),
-        ...(route.split ? { split: route.split } : {}),
+        resolve: route.resolve,
+        split: route.split,
         slots: Object.fromEntries(
           route.slots.map((slot) => [
             slot.name,

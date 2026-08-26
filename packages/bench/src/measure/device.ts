@@ -247,7 +247,12 @@ class WebDriverPage implements DevicePage {
       value: selector,
     })
     const id = Object.values(found)[0]
-    if (!id) throw new Error(`E_WEBDRIVER_NO_ELEMENT: ${selector}`)
+    if (!id) {
+      throw new Error(
+        `E_WEBDRIVER_NO_ELEMENT: nothing on the page matches '${selector}'. On a device lane this is ` +
+          `usually the wrong webview context rather than a missing element`,
+      )
+    }
     return id
   }
 

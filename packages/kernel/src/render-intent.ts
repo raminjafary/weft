@@ -97,7 +97,10 @@ export interface Renderable {
    * intents get, counted against whatever this deployment counts against.
    */
   limit?: IntentLimit
-  /** Parse and validate the raw params. Throwing here is `E_RENDER_INPUT`, not a 500. */
+  /**
+   * Parse and validate the raw params. Throwing here is `E_RENDER_INPUT` — the caller sent something
+   * this renderable does not accept — rather than a 500, which would say the server was at fault.
+   */
   input?(raw: unknown): unknown
   /**
    * What goes in the slot: something this process renders, or frames somebody else produced.

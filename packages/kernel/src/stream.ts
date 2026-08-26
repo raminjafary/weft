@@ -9,12 +9,16 @@ export type SlotContent = Uint8Array | string
 export interface Route {
   template: TemplateIR
   values: Values
-  resolve?: Resolver
+  resolve?: Resolver | undefined
   /**
    * How to cut this document, when the flat splitter is not it: a route whose layouts are nested
    * carries `chainSplitter`. See `split-chain.ts`.
+   *
+   * `| undefined` is deliberate under `exactOptionalPropertyTypes`: the kernel copies this field
+   * across from `KernelRoute` and being allowed to copy it unconditionally is two fewer branches on
+   * the document request path, which has twelve bytes of headroom.
    */
-  split?: Splitter
+  split?: Splitter | undefined
   /** One resolver per slot. Whatever it awaits is what the shell refused to wait for. */
   slots: Record<string, () => Promise<SlotContent>>
 }

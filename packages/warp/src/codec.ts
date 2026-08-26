@@ -79,7 +79,7 @@ export function encodeTextFrame(f: Frame): string {
 
 export function decodeTextFrame(line: string): AnyFrame {
   const trimmed = line.trim()
-  if (!trimmed) throw new Error('E_EMPTY_FRAME')
+  if (!trimmed) throw new Error('E_EMPTY_FRAME: a frame needs a kind and a header')
   const space = trimmed.indexOf(' ')
   const kindText = space < 0 ? trimmed : trimmed.slice(0, space)
   const header = decodeHeader(space < 0 ? '' : trimmed.slice(space + 1))
@@ -118,7 +118,9 @@ export function preamble(major = WARP_MAJOR, minor = WARP_MINOR): Uint8Array {
 export function encodeBinaryFrame(f: Frame): Uint8Array {
   const headerBytes = utf8.encode(encodeHeader(f.header))
   const bodyBytes = f.body ?? new Uint8Array(0)
-  if (headerBytes.length > 0xffff) throw new Error('E_HEADER_TOO_LARGE')
+  if (headerBytes.length > 0xffff) {
+    throw new Error(`E_HEADER_TOO_LARGE: ${headerBytes.length} B against a 16-bit field; use the body`)
+  }
   const out = new Uint8Array(8 + headerBytes.length + bodyBytes.length)
   const view = new DataView(out.buffer)
   out[0] = codeForKind(f.kind)
@@ -155,7 +157,8 @@ export function createBinaryDecoder(options: DecoderOptions = {}): Decoder {
       if (!sawPreamble) {
         if (buf.length < PREAMBLE_BYTES) return frames
         const magic = decodeUtf8.decode(buf.subarray(0, 4))
-        if (magic !== WARP_MAGIC) throw new Error(`E_BAD_MAGIC: ${JSON.stringify(magic)}`)
+        // Terse: this module is reachable from the document request path, which has a byte budget.
+        if (magic !== WARP_MAGIC) throw new Error(`E_BAD_MAGIC: ${magic} is not ${WARP_MAGIC}`)
         const major = buf[4] as number
         const minor = buf[5] as number
         const want = options.major ?? WARP_MAJOR
