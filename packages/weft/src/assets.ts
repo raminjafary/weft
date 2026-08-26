@@ -64,15 +64,30 @@ const MODULE_ROOT = '/_weft/m'
 const CSS_ROOT = '/_weft/a'
 const PUBLIC_ROOT = '/_weft/p'
 const IMMUTABLE = 'public, max-age=31536000, immutable'
+/**
+ * Keep the copy, but never use it without asking first.
+ *
+ * `no-store` was the obvious reading of "a stylesheet you just edited must not be served stale",
+ * and it is stronger than that sentence needs. It forbids the client from *holding* the bytes, so
+ * every reload re-downloads the stylesheet, and the document begins parsing before it lands — one
+ * unstyled frame per refresh, which is the flicker. Worse when the page is scrolled, because scroll
+ * is restored against the unstyled layout and then jumps when the real one arrives.
+ *
+ * `no-cache` keeps the promise and drops the cost: the client stores the response and revalidates
+ * it on every use, so an edited stylesheet still cannot be served from cache — the server answers
+ * 200 with new bytes the moment they differ, and 304 with none when they do not.
+ */
+const REVALIDATE = 'no-cache'
 
 /**
- * A year and immutable for a digest-bearing URL, `no-store` for a stable one.
+ * A year and immutable for a digest-bearing URL, revalidate-always for a stable one.
  *
  * `weft dev` serves the same bytes at stable names, because a stylesheet you just edited served as
- * immutable is a framework that lies to you for a year.
+ * immutable is a framework that lies to you for a year. The validator, not the storage ban, is what
+ * keeps that honest — see `REVALIDATE`.
  */
 export function cacheControlFor(asset: Asset): string {
-  return asset.immutable ? IMMUTABLE : 'no-store'
+  return asset.immutable ? IMMUTABLE : REVALIDATE
 }
 
 /** A route pattern as a filename component, so a per-route bundle has a readable name. */

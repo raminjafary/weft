@@ -473,7 +473,7 @@ export async function bytesPage(app: App, root: string): Promise<Shell> {
       code(asset.href),
       `<span class="unit">${bytes(asset.bytes)}</span>`,
       code(asset.type),
-      code(asset.immutable ? 'immutable, one year' : 'no-store'),
+      code(asset.immutable ? 'immutable, one year' : 'no-cache, revalidated by ETag'),
     ]),
   )
   const trees = table(
@@ -501,7 +501,7 @@ export async function bytesPage(app: App, root: string): Promise<Shell> {
     title: 'bytes',
     subtitle: report.revved
       ? 'every URL carries a digest of its contents, so every one of them is immutable'
-      : 'dev serves stable names with no-store — a stylesheet you just edited, served as immutable, is a framework that lies to you for a year',
+      : 'dev serves stable names with no-cache and an ETag — the browser keeps the bytes and revalidates, so an edited stylesheet is never served stale and an unedited one is never sent twice',
     root,
     body: [
       section(

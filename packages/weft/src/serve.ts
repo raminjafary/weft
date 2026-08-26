@@ -1225,8 +1225,31 @@ export async function serveApp(app: App): Promise<Serving> {
 
     const file = assets.files.get(path)
     if (file) {
-      res.writeHead(200, { 'content-type': file.type, 'cache-control': cacheControlFor(file) })
-      res.end(typeof file.body === 'string' ? file.body : Buffer.from(file.body))
+      const body = typeof file.body === 'string' ? Buffer.from(file.body, 'utf8') : Buffer.from(file.body)
+      const headers: Record<string, string> = {
+        'content-type': file.type,
+        'cache-control': cacheControlFor(file),
+      }
+      /**
+       * A stable name is `no-cache`, which is a promise the client can only keep with a validator.
+       *
+       * A digest-bearing name needs none: its URL changes when its bytes do. A stable one carries
+       * the tag instead, so `weft dev` answers a reload with 304 and no body rather than resending
+       * a stylesheet the browser already has — which is what removed the unstyled frame on refresh.
+       * Hashing on the way out costs a digest over bytes already in memory, against the alternative
+       * of putting them all back on the wire.
+       */
+      if (!file.immutable) {
+        const tag = await entityTag(new Uint8Array(body))
+        headers.etag = tag
+        if (matchesTag(req.headers['if-none-match'], tag)) {
+          res.writeHead(304, headers)
+          res.end()
+          return
+        }
+      }
+      res.writeHead(200, headers)
+      res.end(body)
       return
     }
 
@@ -1243,12 +1266,25 @@ export async function serveApp(app: App): Promise<Serving> {
         return
       }
       const body = browserModule(await readFile(source, 'utf8'), tree, prefix, assets.trees)
-      res.writeHead(200, {
+      const payload = path === assets.boot ? prelude + body : body
+      const headers: Record<string, string> = {
         'content-type': 'text/javascript; charset=utf-8',
         // The tree's digest is in the path, so every file under it is immutable together.
-        'cache-control': assets.revved ? 'public, max-age=31536000, immutable' : 'no-store',
-      })
-      res.end(path === assets.boot ? prelude + body : body)
+        'cache-control': assets.revved ? 'public, max-age=31536000, immutable' : 'no-cache',
+      }
+      // Same bargain as the stylesheet above: in dev the path has no digest, so the tag is what
+      // lets a reload cost 304 instead of the whole client runtime again.
+      if (!assets.revved) {
+        const tag = await entityTag(utf8.encode(payload))
+        headers.etag = tag
+        if (matchesTag(req.headers['if-none-match'], tag)) {
+          res.writeHead(304, headers)
+          res.end()
+          return
+        }
+      }
+      res.writeHead(200, headers)
+      res.end(payload)
       return
     }
 
