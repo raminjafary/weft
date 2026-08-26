@@ -284,7 +284,16 @@ Tuesday has no standing over what the compiler inferred.
 
 **Ports replace, plugins extend.** Fourteen declared, fourteen implemented, eleven bound by the front
 door with no configuration. A port that is not bound refuses by name and never approximates: a
-declared rate limit with no limiter is `E_NO_RATE_LIMIT`, not unlimited.
+declared rate limit with no limiter is `E_NO_RATE_LIMIT`, not unlimited. And a store on an edge
+key-value namespace refuses `lease` outright — a lease that is not atomic is a stampede guard that
+does not guard and a replay guard that reports every nonce fresh, which is the one place here where
+an approximation is a security bug.
+
+**A live page opens one socket, and falls back to two fetches when the upgrade does not survive the
+path.** The runtime itself opens nothing — `createChannelClient` takes frames rather than a URL, so
+one code path serves a socket, an SSE stream and a test — and the front door is the layer allowed to
+choose. Verified by asking the _server_ which binding it got, in all three engines, and again with
+the upgrade deliberately refused.
 
 **The kernel imports nothing but the WinterTC Minimum Common Web API.** That rule has a test, and the
 test failed on its first run — `serveRoute` had been importing `node:http` for weeks.
@@ -304,7 +313,7 @@ ceiling.
 | Channel route — plus routing frames       | **4,081**  | 4,467  | 11,841 | 4,096   |
 | Patching route — plus applying a patch    | **4,571**  | 5,031  | 13,783 | 5,120   |
 | Navigating route — plus staged routes     | **4,932**  | 5,403  | 14,241 | 5,120   |
-| Front door — the code, bundled            | **13,033** | 14,422 | 42,011 | 13,312  |
+| Front door — the code, bundled            | **13,428** | 14,858 | 43,383 | 14,336  |
 | Server kernel — the document request path | **8,118**  | 9,122  | 23,764 | 8,192   |
 | Kernel + intent dispatch                  | **9,656**  | 10,870 | 28,845 | 10,240  |
 | Kernel + surgical refresh and epochs      | **10,893** | 12,202 | 32,838 | 12,288  |
@@ -314,9 +323,9 @@ ceiling.
 | Kernel + a live Warp channel              | **13,546** | 15,154 | 40,961 | 14,336  |
 | Kernel + composition over a live channel  | **16,509** | 18,520 | 50,732 | 17,408  |
 
-**The front-door row is the code, not the download, and the difference is 3.6×.** It bundles with
+**The front-door row is the code, not the download, and the difference is 3.5×.** It bundles with
 Rolldown and minifies; this framework has neither, so a page fetches nineteen modules served as
-written with their comments intact — **44,716 B brotli** for the demo, agreeing within 0.3% with the
+written with their comments intact — **46,698 B brotli** for the demo, agreeing within 0.3% with the
 same walk over HTTP. That is now the gated number: `budget({ js, grow })` in the plan is enforced by
 `weft build`, which writes `weft.budget.json` so a regression is a diff. The bundled row stays as a
 gate on how much code there is, and stopped claiming to be what anybody pays. See
@@ -422,7 +431,7 @@ and measures it over HTTP on the same axes.
 | Spec                      | Where                                                                                          | State                                                                           |
 | ------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | Template IR               | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir`                          | 2.6.0 — children, instances in rows, derived values, contagion, `patch` derived |
-| Warp frames               | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                  | 1.7.0 — a region announces itself, and says what it composes when asked         |
+| Warp frames               | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                  | 1.8.0 — a region announces itself, and a failed negotiation says so             |
 | Versioning contract       | [`spec/VERSIONING.md`](spec/VERSIONING.md)                                                     | Majors refuse, minors round-trip                                                |
 | What measurement changed  | [`spec/FINDINGS.md`](spec/FINDINGS.md)                                                         | Five reversed, two clarified                                                    |
 | Template compiler         | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler`  | TSX to IR on Oxc, type-driven escape class, components any shape                |

@@ -151,6 +151,17 @@ export interface StorePort {
   readonly leaseScope?: Scope
   /** `waitUntil` on Workers, a task queue on Node. Revalidation happens after the response, or not at all. */
   revalidateAfterResponse(task: () => Promise<void>): void
+  /**
+   * Run what `revalidateAfterResponse` collected.
+   *
+   * Optional because the two hosts differ in who calls it, and that difference is the whole reason
+   * the queue exists. On Workers the platform is handed the promise — `ctx.waitUntil(store.drain())`
+   * — and the isolate stays alive for it. On Node nobody is watching, so the front door drains after
+   * the response is out. A store that collects tasks and has no way to run them is a store whose
+   * revalidation silently never happens, which is what this being on the port rather than on one
+   * adapter is meant to stop.
+   */
+  drain?(): Promise<void>
 }
 
 // ── flags ────────────────────────────────────────────────────────────────────────────

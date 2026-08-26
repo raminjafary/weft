@@ -399,6 +399,17 @@ export function createHub(options: HubOptions): ChannelHub {
   }
 
   async function handle(record: ChannelRecord, f: AnyFrame): Promise<Frame[]> {
+    /**
+     * A negotiation that failed is the end of the stream, not a caveat on it.
+     *
+     * `negotiate` can return `ok: false` — a major this server does not speak — and until now the
+     * only consequence was a `WARP` frame that looked degraded. Everything after it was answered
+     * normally, which is the worst of both: the client has been told the stream is unusable and is
+     * then handed frames that depend on it. One refusal, by the name the negotiation gave.
+     */
+    if (record.negotiation && !record.negotiation.ok && f.kind !== 'RESIDENT') {
+      return [errorFrame('E_WARP_MAJOR', record.negotiation.fatal ?? 'this stream was refused')]
+    }
     switch (f.kind) {
       case 'RESIDENT': {
         record.hello = readResident(f as Frame)

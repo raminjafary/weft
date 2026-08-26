@@ -1182,8 +1182,29 @@ async function open(): Promise<Wire> {
     },
   })
 
+  /**
+   * One socket if the browser and the server can have one, two fetches if they cannot.
+   *
+   * The runtime deliberately knows nothing about transports — `createChannelClient` takes frames
+   * rather than a URL, which is what lets one code path serve a socket, an SSE stream with POSTs up
+   * and a test. This is the layer that is allowed to choose, and it chooses a socket: two fetches
+   * cost a POST per uplink frame and a chunked response that no proxy is obliged to keep open,
+   * where a socket is one connection carrying both directions.
+   *
+   * The fallback is not a fallback for old browsers. It is the answer for the deployments where a
+   * socket does not survive the path between here and there — a proxy that buffers, a corporate
+   * middlebox, a platform that terminates upgrades — and the only way to find that out is to try.
+   * So the socket is attempted, and its failure is one log line and a working page.
+   */
+  const socketUrl = `${base.replace(/^http/, 'ws')}?c=${id}&at=${encodeURIComponent(location_)}`
+  const socket = await connect(socketUrl)
+
   const post = async (frames: readonly ChannelFrame[]): Promise<void> => {
     for (const f of frames) log('up', describe(f))
+    if (socket) {
+      socket.send(encodeUp(frames) as Uint8Array<ArrayBuffer>)
+      return
+    }
     const response = await fetch(`${base}?c=${id}&at=${encodeURIComponent(location_)}`, {
       method: 'POST',
       headers: { 'content-type': 'application/warp' },
@@ -1202,55 +1223,92 @@ async function open(): Promise<Wire> {
   // Aborted on the way out: a chunked response the browser abandons mid-stream is reported as
   // ERR_INCOMPLETE_CHUNKED_ENCODING, which looks like a server fault and is not one.
   const leaving = new AbortController()
-  window.addEventListener('pagehide', () => leaving.abort(), { once: true })
-  const down = await fetch(`${base}?c=${id}&at=${encodeURIComponent(location_)}`, {
-    signal: leaving.signal,
+  window.addEventListener('pagehide', () => {
+    leaving.abort()
+    socket?.close()
   })
+  const down = socket
+    ? null
+    : await fetch(`${base}?c=${id}&at=${encodeURIComponent(location_)}`, { signal: leaving.signal })
   state.connected = true
 
-  void (async () => {
-    const reader = (down.body as ReadableStream<Uint8Array>).getReader()
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      if (!value) continue
-      const frames = decoder.push(value).filter((f) => f.kind !== 'UNKNOWN') as ChannelFrame[]
-      for (const f of frames) log('down', describe(f))
-      const applied = await client.apply(frames)
-      state.writes += applied.writes
-      /**
-       * A staged route becomes staged when the last of its regions lands.
-       *
-       * Checked after the whole batch rather than per frame: the regions of one route arrive
-       * together almost always, and asking "are they all here" once per chunk is both cheaper and
-       * the only version that is correct when they do not.
-       */
-      for (const [epoch, nav] of pending) {
-        if (epochs.staged(epoch).length < nav.slots.length) continue
-        pending.delete(epoch)
-        const settle = waiting.get(epoch)
-        if (!settle) {
-          epochs.discard(epoch)
-          continue
-        }
-        waiting.delete(epoch)
-        settle({
-          kind: 'regions',
-          regions: {
-            epoch,
-            url: new URL(nav.at, window.location.href).href,
-            route: nav.route,
-            slots: nav.slots,
-            ...(nav.title ? { title: nav.title } : {}),
-            ...(nav.css ? { css: nav.css } : {}),
-            next: nav.next,
-          },
-        })
+  /**
+   * Bytes arriving, from whichever direction they came.
+   *
+   * A socket delivers messages and a stream delivers chunks, and the decoder does not care: it is
+   * length-prefixed either way, so a frame split across two messages is the same problem it was
+   * split across two chunks. One `arrived` means the routing below cannot come to depend on which
+   * transport is underneath it.
+   */
+  const arrived = async (value: Uint8Array): Promise<void> => {
+    const frames = decoder.push(value).filter((f) => f.kind !== 'UNKNOWN') as ChannelFrame[]
+    for (const f of frames) log('down', describe(f))
+    const applied = await client.apply(frames)
+    state.writes += applied.writes
+    /**
+     * A staged route becomes staged when the last of its regions lands.
+     *
+     * Checked after the whole batch rather than per frame: the regions of one route arrive
+     * together almost always, and asking "are they all here" once per chunk is both cheaper and
+     * the only version that is correct when they do not.
+     */
+    for (const [epoch, nav] of pending) {
+      if (epochs.staged(epoch).length < nav.slots.length) continue
+      pending.delete(epoch)
+      const settle = waiting.get(epoch)
+      if (!settle) {
+        epochs.discard(epoch)
+        continue
       }
-      // A STALE frame is an invitation rather than an instruction: the client decides when to ask.
-      if (applied.stale.length) await post([{ kind: 'REFRESH', header: { s: applied.stale.join(',') } }])
+      waiting.delete(epoch)
+      settle({
+        kind: 'regions',
+        regions: {
+          epoch,
+          url: new URL(nav.at, window.location.href).href,
+          route: nav.route,
+          slots: nav.slots,
+          ...(nav.title ? { title: nav.title } : {}),
+          ...(nav.css ? { css: nav.css } : {}),
+          next: nav.next,
+        },
+      })
     }
-  })().catch((error: unknown) => log('down', `reader stopped: ${String(error)}`))
+    // A STALE frame is an invitation rather than an instruction: the client decides when to ask.
+    if (applied.stale.length) await post([{ kind: 'REFRESH', header: { s: applied.stale.join(',') } }])
+  }
+
+  if (socket) {
+    socket.addEventListener('message', (event: MessageEvent) => {
+      void (async () => {
+        const data = event.data as ArrayBuffer | Blob | string
+        const bytes =
+          data instanceof ArrayBuffer
+            ? new Uint8Array(data)
+            : typeof data === 'string'
+              ? new TextEncoder().encode(data)
+              : new Uint8Array(await (data as Blob).arrayBuffer())
+        await arrived(bytes)
+      })().catch((error: unknown) => log('down', `frame dropped: ${String(error)}`))
+    })
+    // A socket that closes is a channel that is gone: the next use reopens, which is also how the
+    // server's own resumption works — the same id, and it keeps what this client was known to hold.
+    socket.addEventListener('close', () => {
+      opening = null
+      state.connected = false
+      log('down', 'socket closed')
+    })
+  } else {
+    void (async () => {
+      const reader = (down as Response).body as ReadableStream<Uint8Array>
+      const stream = reader.getReader()
+      for (;;) {
+        const { done, value } = await stream.read()
+        if (done) break
+        if (value) await arrived(value)
+      }
+    })().catch((error: unknown) => log('down', `reader stopped: ${String(error)}`))
+  }
 
   await post([
     {
@@ -1259,13 +1317,44 @@ async function open(): Promise<Wire> {
         warp: WARP_VERSION,
         ir: document.documentElement.dataset.weftIr ?? '2.4.0',
         forms: 'html,delta,patch',
-        transport: 'stream',
+        transport: socket ? 'socket' : 'stream',
       },
     },
   ])
   if (regionsHeld.length) await post([{ kind: 'HELD', header: client.held() }])
 
   return { send: post, client }
+}
+
+/**
+ * A socket, or nothing, and never a rejected promise.
+ *
+ * `WebSocket` reports failure as an event rather than a rejection, and it reports it *late* — an
+ * upgrade that a proxy is going to refuse looks exactly like one that has not opened yet. So this
+ * resolves on the first thing to happen, whichever it is, and a null answer is a page that uses two
+ * fetches instead of one socket. There is no retry: a deployment where the upgrade does not survive
+ * the path is a deployment where it will not survive the second attempt either, and paying for that
+ * discovery once per page is enough.
+ */
+function connect(url: string): Promise<WebSocket | null> {
+  if (typeof WebSocket === 'undefined') return Promise.resolve(null)
+  return new Promise((resolve) => {
+    let settled = false
+    const done = (value: WebSocket | null): void => {
+      if (settled) return
+      settled = true
+      resolve(value)
+    }
+    try {
+      const socket = new WebSocket(url)
+      socket.binaryType = 'arraybuffer'
+      socket.addEventListener('open', () => done(socket), { once: true })
+      socket.addEventListener('error', () => done(null), { once: true })
+      socket.addEventListener('close', () => done(null), { once: true })
+    } catch {
+      done(null)
+    }
+  })
 }
 
 // ── navigation ───────────────────────────────────────────────────────────────────────

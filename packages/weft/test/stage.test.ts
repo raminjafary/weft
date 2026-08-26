@@ -152,8 +152,8 @@ test('the hello a client sends is the version this build speaks', () => {
   const hello = readResident(residentFrame({ warp: WARP_VERSION, ir: TEMPLATE_IR_VERSION }))
   assert.equal(
     hello.warp,
-    '1.7.0',
-    'WARM carrying a route arrived in 1.4.0; a plan prefix is 1.5.0; a region announcing itself is 1.6.0, ' +
-      'and a region describing what it composes is 1.7.0',
+    '1.8.0',
+    'WARM carrying a route arrived in 1.4.0; a plan prefix is 1.5.0; a region announcing itself is 1.6.0; ' +
+      'a region describing what it composes is 1.7.0, and a negotiation saying it failed is 1.8.0',
   )
 })

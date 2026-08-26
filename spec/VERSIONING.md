@@ -46,6 +46,23 @@ versions disagree: a version mismatch costs a form, never the page.
 
 ## Changelog
 
+### Warp 1.8.0 — a negotiation that failed says so on the frame that settles it
+
+`WARP` gains `ok` and, when there is one, `fatal`. `Negotiation` has carried both since it was
+written and neither reached the wire, which meant a client speaking a major this server does not
+speak received a frame that looked like an ordinary degraded negotiation: `forms=html`,
+`strategy=collapse`, a downgrade line about the transport. The one thing it did not say is that the
+stream is unusable.
+
+Only a client that lies about its version can get there — the binary preamble refuses a different
+major three bytes in — and "only reachable by a misbehaving peer" is exactly the case a protocol has
+to answer clearly, because the peer may be a proxy or an old build rather than an attacker. The
+kernel now refuses every frame after a fatal negotiation with the name the negotiation gave, instead
+of answering them normally.
+
+Additive in the strictest sense: `ok` was `true` in every frame this server has ever sent, and a
+reader that does not know the header reads the forms it always read.
+
 ### Template IR 2.6.0, payload 2.6.0 — `patch`, and a form that stopped being unconditional
 
 The payload gains a second surgical form. A `patch` is a list of writes addressed the way adoption

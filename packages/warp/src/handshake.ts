@@ -216,6 +216,22 @@ export function readResident(f: Frame): ClientHello {
 }
 
 /** The first frame the server sends, and the only place versions and strategy are stated on the wire. */
+/**
+ * The frame that settles a negotiation — including, now, the case where nothing was settled.
+ *
+ * `ok` and `fatal` are on the `Negotiation` and were not on the frame, which meant a client whose
+ * major this server cannot speak received a `WARP` frame that looked exactly like an ordinary
+ * degraded one: `forms=html`, `strategy=collapse`, a downgrade line about the transport. The one
+ * thing it did not say is that the stream is unusable and why.
+ *
+ * That was only reachable by a client that lies about its version — the binary preamble refuses a
+ * different major three bytes in, before any of this — but "only reachable by a misbehaving peer"
+ * is exactly the case a protocol has to answer clearly, because the peer misbehaving may be a proxy
+ * or an old build rather than an attacker.
+ *
+ * Additive: `ok` is absent from no frame this server has ever sent (it was `true` in every one), and
+ * a reader that does not know the header reads the forms it always read.
+ */
 export function warpFrame(n: Negotiation): Frame {
   return frame('WARP', {
     spec: n.spec,
@@ -227,6 +243,8 @@ export function warpFrame(n: Negotiation): Frame {
     commit: n.commit,
     residency: n.residency,
     resume: n.resumable,
+    ok: n.ok,
+    ...(n.fatal ? { fatal: n.fatal } : {}),
     ...(n.downgrades.length ? { downgrade: n.downgrades.join('; ') } : {}),
   })
 }

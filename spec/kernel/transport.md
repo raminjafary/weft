@@ -69,9 +69,49 @@ is what resumption is: a webview that was frozen and evicted reconnects and the 
 knows which base render it holds, so the next refresh is a delta and not a first render.
 Nothing is replayed — the client named what it holds, and that is cheaper than a log.
 
+## The socket the front door opens
+
+The runtime is transport-free on purpose and the front door is not. A page with a live region now
+gets one WebSocket instead of a POST per uplink frame and a chunked response that no proxy is obliged
+to keep open, and the choice is made where a choice belongs: in the layer that knows it is a browser.
+
+`connect()` resolves on the first thing to happen — open, error, or close — because `WebSocket`
+reports failure as a late event and an upgrade a middlebox is going to eat looks exactly like one
+that has not finished. A null answer is a page that uses the two fetches, and that fallback is not
+for old browsers: it is for the deployments where an upgrade does not survive the path, which is
+something only trying can establish. There is no retry, because a path that ate the first upgrade
+will eat the second, and paying for that discovery once per page is enough.
+
+Verified in a real browser rather than asserted from Node: `node packages/bench/src/cli.ts channel`
+asks the **server** which binding it got, in Chromium, Firefox and WebKit, then breaks the upgrade
+with `routeWebSocket` and asks again. All three open a socket; all three fall back to `stream` when
+the upgrade is refused, with no error on the page.
+
+## The downgrades, in traffic
+
+Version negotiation ran, and it only ever ran against a client that agreed with the server. Every
+downgrade was asserted by calling `negotiate` with a hand-written hello, which proves the function
+and nothing about the wire — a server that negotiated `html` and then sent a delta anyway would have
+passed every test in this repository.
+
+Four sessions now announce something older over a real socket to a real hub, and each asserts both
+halves: what the `WARP` frame settled, and that the frames after it obey it.
+
+| Announced                    | Settled                         | And then                                     |
+| ---------------------------- | ------------------------------- | -------------------------------------------- |
+| `forms=html`                 | `forms=html`                    | a second refresh with a base is still markup |
+| `warp 1.2.0`                 | the minimum of the two          | the stream carries on                        |
+| `ir 1.9.0` (a major behind)  | `forms=html`, not fatal         | the page still arrives                       |
+| `warp 2.0.0` (a major ahead) | `ok=false` with the fatal named | nothing follows                              |
+
+The last row found a real gap. `Negotiation.fatal` and `ok` existed and **were not on the frame**, so
+a client whose major this server cannot speak received a `WARP` that looked like an ordinary degraded
+one — and then had its refresh answered normally, which is the worst of both: told the stream is
+unusable, then handed frames that depend on it. `ok` and `fatal` are headers now (warp 1.8.0,
+additive), and a fatal negotiation refuses everything after it by the name it gave.
+
 ## What this does not do yet
 
-- **No intents.** `INTENT` and `ACK` are refused by name.
 - **No `permessage-deflate`.** Warp frames are length-prefixed and bodies are already
   compressed by the layer that produced them; negotiating a second compression would be
   paying twice for one property.
@@ -80,9 +120,6 @@ Nothing is replayed — the client named what it holds, and that is cheaper than
   closed with `E_SLOW_CONSUMER`. Frames held for a peer that is not reading are memory the
   process cannot reclaim, and every one of them is stale by the time it would arrive — so closing
   is the honest answer, and the client reconnects and says what it holds.
-- **No browser-side socket.** The client half routes decoded frames and produces frames to
-  send — including an `INTENT` with an optimistic epoch staged behind it — but opening the
-  connection and feeding it is the application's. That is why `createChannelClient` takes frames
-  rather than a URL: the same code path then serves a socket, an SSE stream with POSTs up, and a
-  test. Navigation is the remaining phase 3 gap, and it is blocked on phase 7 discovery rather
-  than on transport.
+- **The runtime still opens no socket, and that is the design.** `createChannelClient` takes frames
+  rather than a URL, so one code path serves a socket, an SSE stream with POSTs up, and a test. What
+  changed is that the **front door** opens one: see below.

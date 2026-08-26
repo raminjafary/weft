@@ -23,7 +23,7 @@ the command the report prints.
 | Isolated DOM updates will tie                                   | **Consistent** — 0.29–1.7 µs                         |
 | Warp unifies five jobs on one channel                           | **One path exercised** of five                       |
 | Client rendering work belongs off the main thread               | **Refused** — the decode is under the worker's floor |
-| The front-door entry is what a page downloads                   | **Reversed** — 3.6× under the served figure          |
+| The front-door entry is what a page downloads                   | **Reversed** — 3.5× under the served figure          |
 
 ## Reversed: the front-door figure was measuring a bundle this framework does not ship
 
@@ -40,13 +40,13 @@ compressing each response the way it arrives:
 
 | The demo's client            | Modules | Raw       | Brotli       |
 | ---------------------------- | ------- | --------- | ------------ |
-| Bundled and minified         | 1       | 42,011 B  | 13,033 B     |
-| **Served, module by module** | 19      | 168,798 B | **44,716 B** |
+| Bundled and minified         | 1       | 43,383 B  | 13,428 B     |
+| **Served, module by module** | 19      | 176,264 B | **46,698 B** |
 
-**3.6× the figure that was published**, and the same walk over HTTP against the running server
-agrees within 0.3% — 44,846 B, the difference being the boot prelude the front door adds.
+**3.5× the figure that was published**, and the same walk over HTTP against the running server
+agrees within 0.3% — 46,830 B, the difference being the boot prelude the front door adds.
 
-Where the bytes are: 21,427 B of the 44,716 is `boot.ts` alone, a file whose comments are a large
+Where the bytes are: nearly half of it is `boot.ts` alone, a file whose comments are a large
 fraction of it. Nothing here is a compression failure; it is what "no minifier" costs, measured
 instead of assumed. Two smaller effects are in the number too and are worth knowing — a barrel of
 re-exports compresses to _more_ than it was, because a brotli stream has a header and a fifty-byte

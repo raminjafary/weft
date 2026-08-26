@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { assertValidTemplate, draftTemplate, seal, type Hole, type TemplateIR, type Values } from '@weft/ir'
+import {
+  assertValidTemplate,
+  draftTemplate,
+  seal,
+  TEMPLATE_IR_VERSION,
+  type Hole,
+  type TemplateIR,
+  type Values,
+} from '@weft/ir'
 import {
   type Channel,
   type ChannelHub,
@@ -689,4 +697,144 @@ test('an intent that invalidates a key another connection holds makes that one s
   controller.abort()
   await Promise.all([actor.done, watcher.done])
   await h.close()
+})
+
+// ── the downgrade paths, over a real socket ──────────────────────────────────────────
+
+/**
+ * Version negotiation had one honest gap and it is the kind that matters: it ran, and it only ever
+ * ran against a client that agreed with the server. Every downgrade was asserted by calling
+ * `negotiate` with a hand-written hello — which proves the function and nothing about the wire.
+ *
+ * What each of these does is announce something *older* over a real socket to a real hub, and then
+ * assert two things: that the `WARP` frame says what was settled, and that the frames after it obey
+ * it. The second half is the one a unit test cannot reach. A server that negotiated `html` and then
+ * sent a delta anyway would pass every existing test in this repository.
+ */
+async function speaking(announcing: Frame): Promise<{
+  frames: AnyFrame[]
+  send(frames: readonly Frame[]): void
+  warp: Frame
+  close(): Promise<void>
+}> {
+  const h = await harness()
+  const socket = new WebSocket(h.url('down-1', 'socket'))
+  const frames: AnyFrame[] = []
+  const decoder = createBinaryDecoder({ expect: 'down' })
+  socket.binaryType = 'arraybuffer'
+  socket.onmessage = (event) => {
+    frames.push(...decoder.push(new Uint8Array(event.data as ArrayBuffer)))
+  }
+  await new Promise<void>((resolve, reject) => {
+    socket.onopen = () => resolve()
+    socket.onerror = () => reject(new Error('E_WS_CONNECT'))
+  })
+  socket.send(upFrames([announcing, frame('REFRESH', { s: 'prices' })]))
+  await settle(() => frames.length >= 2, 'WARP and the first render')
+  return {
+    frames,
+    send: (batch) => socket.send(upFrames(batch).subarray(8)),
+    warp: frames[0] as Frame,
+    close: async () => {
+      socket.close()
+      await h.close()
+    },
+  }
+}
+
+test('a client that accepts only html is answered in html, over the wire and not only in the plan', async () => {
+  const session = await speaking(
+    residentFrame({ warp: WARP_VERSION, ir: TEMPLATE_IR_VERSION, forms: ['html'], transport: 'socket' }),
+  )
+  try {
+    assert.equal(str(session.warp, 'forms'), 'html')
+    assert.match(str(session.warp, 'downgrade') ?? '', /forms unavailable/)
+    assert.equal((session.frames[1] as Frame).kind, 'HTML', 'the first render is markup')
+
+    // The transition a client with a base and a template would have had as a delta. This one
+    // accepted no delta, so the second answer has to be markup too — and this is the assertion
+    // that a unit test on `negotiate` cannot make.
+    session.send([frame('HELD', { prices: 'x-y' }), frame('REFRESH', { s: 'prices' })])
+    await settle(() => session.frames.length >= 3, 'the second answer')
+    assert.equal((session.frames[2] as Frame).kind, 'HTML', 'and it stayed markup')
+  } finally {
+    await session.close()
+  }
+})
+
+test('an older warp minor settles on the older one, and the stream carries on', async () => {
+  const session = await speaking(
+    residentFrame({
+      warp: '1.2.0',
+      ir: TEMPLATE_IR_VERSION,
+      forms: ['html', 'delta', 'patch'],
+      transport: 'socket',
+    }),
+  )
+  try {
+    assert.equal(str(session.warp, 'v'), '1.2.0', 'the minimum of the two, not the server’s own')
+    assert.match(str(session.warp, 'downgrade') ?? '', /warp .* -> 1\.2\.0/)
+    // Additive minors mean the older reader is not cut off from anything it knew about.
+    assert.equal((session.frames[1] as Frame).kind, 'HTML')
+  } finally {
+    await session.close()
+  }
+})
+
+test('an IR major mismatch is html only, and says so on the frame that settles it', async () => {
+  const session = await speaking(
+    residentFrame({
+      warp: WARP_VERSION,
+      ir: '1.9.0',
+      forms: ['html', 'delta', 'patch'],
+      transport: 'socket',
+    }),
+  )
+  try {
+    assert.equal(str(session.warp, 'forms'), 'html')
+    assert.match(str(session.warp, 'downgrade') ?? '', /ir major mismatch/)
+    assert.equal((session.frames[1] as Frame).kind, 'HTML')
+    // And it is not fatal: an IR the client cannot read costs the forms that need one, and the
+    // page still arrives.
+    assert.equal(str(session.warp, 'fatal'), undefined)
+  } finally {
+    await session.close()
+  }
+})
+
+test('a warp major mismatch is fatal on the frame, and nothing renders under it', async () => {
+  const h = await harness()
+  const socket = new WebSocket(h.url('down-2', 'socket'))
+  const frames: AnyFrame[] = []
+  const decoder = createBinaryDecoder({ expect: 'down' })
+  socket.binaryType = 'arraybuffer'
+  socket.onmessage = (event) => {
+    frames.push(...decoder.push(new Uint8Array(event.data as ArrayBuffer)))
+  }
+  await new Promise<void>((resolve) => {
+    socket.onopen = () => resolve()
+  })
+  socket.send(
+    upFrames([
+      residentFrame({ warp: '2.0.0', ir: TEMPLATE_IR_VERSION, forms: ['html'], transport: 'socket' }),
+      frame('REFRESH', { s: 'prices' }),
+    ]),
+  )
+  await settle(() => frames.length >= 2, 'the WARP frame and the refusal after it')
+
+  try {
+    const warp = frames[0] as Frame
+    assert.equal(warp.kind, 'WARP')
+    assert.match(str(warp, 'fatal') ?? '', /E_WARP_MAJOR/)
+    assert.equal(str(warp, 'ok'), 'false')
+    // A refusal that then answered the refresh anyway would be the worst of both: the client has
+    // been told the stream is unusable, and is then handed frames that depend on it.
+    const after = frames[1] as Frame
+    assert.equal(after.kind, 'ERROR')
+    assert.equal(str(after, 'code'), 'E_WARP_MAJOR')
+    assert.equal(frames.length, 2, 'and nothing else')
+  } finally {
+    socket.close()
+    await h.close()
+  }
 })

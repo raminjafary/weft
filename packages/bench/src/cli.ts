@@ -13,6 +13,8 @@ import { fillerSize } from '@weft/kernel'
 import { DELAYS, measureSlots, probeIncrementalDsd } from './measure/slots.ts'
 import { checkAll } from './equivalence.ts'
 import { measureClientRuntime } from './measure/client-runtime.ts'
+import { fileURLToPath } from 'node:url'
+import { measureChannel } from './measure/channel.ts'
 import { formatSharedDelta, measureSharedDelta } from './measure/shared-delta.ts'
 import { formatL0, measureL0 } from './measure/l0.ts'
 import { formatDecode, measureDecode } from './measure/decode.ts'
@@ -111,6 +113,7 @@ const HELP = `weft-bench — phase-zero benchmark harness
   run       measure the axes and write a report
   verify    check that every wire form of a fragment produces identical bytes
   client    run the client runtime's own conformance checks in every engine
+  channel   which binding a real browser opens, and what it does when the upgrade is refused
   budget    bundle each entry and measure it against its byte budget
   slots     stream a route in both orders, and probe incremental shadow DOM
   deltas    shared vs per-connection delta computation, the phase 6 claim
@@ -277,6 +280,22 @@ async function main(): Promise<number> {
       process.stdout.write(formatDecode(measured))
     }
     return 0
+  }
+
+  if (command === 'channel') {
+    const engines = enginesFrom(flags.engines, ['chromium', 'firefox', 'webkit'])
+    const root = fileURLToPath(new URL('../../../demo/', import.meta.url))
+    let failed = false
+    for (const engine of engines) {
+      const measured = await measureChannel(root, engine)
+      for (const check of measured.checks) {
+        process.stdout.write(
+          `${check.ok ? 'pass' : 'FAIL'}  ${engine.padEnd(9)} ${check.name}${check.detail ? `\n      ${check.detail}` : ''}\n`,
+        )
+        if (!check.ok) failed = true
+      }
+    }
+    return failed ? 1 : 0
   }
 
   if (command === 'client') {

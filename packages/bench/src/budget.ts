@@ -183,9 +183,9 @@ export const BUDGETS: ByteBudget[] = [
     id: 'front-door',
     label: 'The front door’s code, bundled and minified — not what a page downloads',
     entry: front('boot.ts'),
-    limit: 13 * 1024,
+    limit: 14 * 1024,
     limitNote:
-      'no design figure; a watermark over how much code the front door is. Moved from 12 KB when the exposed table landed — see spec/kernel/budgets.md',
+      'no design figure; a watermark over how much code the front door is. 12 KB when the exposed table landed, 13 KB when the refresh interval and the patch applier did, 14 KB when the channel got a socket — see spec/kernel/budgets.md',
   },
   {
     id: 'app-route',

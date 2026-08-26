@@ -38,7 +38,7 @@ On the client, same rule:
 | `entry-nav.ts`         | Plus routes staged and unpainted, `NAV` frames, and what a click is | 4,932 B  | 5,120 B  |
 | `entry-discover.ts`    | Plus what it knows about routes it has not been to                  | 5,301 B  | 6,144 B  |
 | `index.ts`             | Everything                                                          | 6,109 B  | 6,144 B  |
-| `boot.ts` (front door) | The front door's code, bundled and minified — see below             | 13,033 B | 13,312 B |
+| `boot.ts` (front door) | The front door's code, bundled and minified — see below             | 13,428 B | 14,336 B |
 
 Navigation is the client-side case of the rule below: 851 bytes on top of a channel route, in an
 entry of its own, because a page that links nowhere should not carry the staging model. Discovery is
@@ -66,11 +66,16 @@ predicted in writing that a rule satisfied by five bytes is a rule about to stop
 what broke it was seven bytes of a capability it does not have. A watermark that cannot absorb the
 shared cost of a ladder rung is measuring the wrong thing, so it went to 12,288 with 1,017 free.
 
+**The front-door watermark moved to 14 KB, for a socket.** 12 KB when the exposed table landed, 13 KB
+when the refresh interval and the patch applier did, and 14 KB when the channel got a WebSocket with
+a fallback to the two fetches. It is a watermark with no design figure behind it and it moves with a
+reason written down; what it is _not_ is the number a reader pays, which is the paragraph below.
+
 **None of these entries is what a page downloads, and one of them said it was.** Every figure on
 this page is Rolldown-bundled and minified. This framework has no bundler and no minifier, and says
 so in `build.ts`: a page fetches the boot module and each module it imports as its own response,
 served as written with types stripped. Walked and compressed the way it arrives, the demo's client is
-**44,716 B across 19 modules** against the 13,033 B in the table — 3.6×, and the same walk over HTTP
+**46,698 B across 19 modules** against the 13,428 B in the table — 3.5×, and the same walk over HTTP
 agrees within 0.3%. The reversal is in [`FINDINGS.md`](../FINDINGS.md); what to do about it is a
 separate question from what to call it, and the first step was to stop publishing the smaller number
 as the one a reader pays.

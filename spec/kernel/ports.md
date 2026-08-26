@@ -49,7 +49,7 @@ enforcement as a dev-time check.
 
 | Port         | Status              | Notes                                                                                   |
 | ------------ | ------------------- | --------------------------------------------------------------------------------------- |
-| `store`      | Interface + 2 impls | `memoryStore` (L1), `tieredStore` (composition)                                         |
+| `store`      | Interface + 3 impls | `memoryStore` (L1), `tieredStore` (composition), `kvStore` (an edge namespace)          |
 | `flags`      | Interface + 1 impl  | `staticFlags`; `axes()` is mandatory, not optional                                      |
 | `session`    | Interface + 1 impl  | `cookieSession`                                                                         |
 | `executor`   | Interface + 4 impls | `inline`, `deferred`, `client`, and a real `pool` of worker threads                     |
@@ -132,6 +132,35 @@ declarations, which are types and cost nothing, and the request path came back t
 The wrapper is one function. `withServices(ctx, ports)` spreads the deployment's services onto the
 context the kernel handed in, and cannot add to what it tracks — so a loader gains a database and
 a settings table and still cannot smuggle an unkeyed read into a render.
+
+## The host the rule was written for
+
+"The kernel imports nothing but the WinterTC Minimum Common Web API" is what turns _runs on Workers_
+into a property rather than a porting exercise, and there was no adapter demonstrating it.
+`workers.ts` is that demonstration: no `node:` imports at all — a test asserts it by reading the
+file's own import list — and it runs under Node, which is how it is tested.
+
+Two things such a host needs that Node does not.
+
+**`waitUntil` is the only reason work outlives a response.** An isolate is torn down when its
+response settles, so a revalidation queued and not handed to the platform is a revalidation that
+never happens. `StorePort.revalidateAfterResponse` collected tasks and nothing ran them; `drain` is
+now on the port, the Node front door calls it once the response is out, and `workersHandler` hands
+the promise to `ctx.waitUntil`. With no context at all it drains inline and **says so** — the wrong
+trade, stated, rather than work that vanishes.
+
+**A store with no atomic operation may not pretend to have one.** `kvStore` implements every
+operation an edge key-value namespace can honestly support and refuses `lease` by name:
+`E_NO_ATOMIC_LEASE`. A lease that is not atomic is a stampede guard that does not guard and, far
+worse, a replay guard that reports every nonce fresh — the one place in this design where an
+approximation is a security bug. Bind `leases` (Redis, a Durable Object, an advisory lock) and the
+store uses it; bind nothing and anything needing one is refused where it is asked.
+
+Two smaller decisions are worth stating because they are the ones a reader would otherwise have to
+infer. A record carries its own metadata as a length-prefixed head, so `get(key, { stale: true })`
+can answer after this store's own TTL has passed while the platform's expiry — set to twice it —
+has not. And a tag is an index of one key per entry rather than one list per tag, because a list is a
+read-modify-write and an eventually consistent store loses those.
 
 ## Registry: two questions with the same shape and different lifetimes
 
