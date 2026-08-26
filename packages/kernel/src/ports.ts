@@ -230,6 +230,16 @@ export interface RenderOutcome {
   bytes: Uint8Array
   /** Wall-clock, measured by the executor rather than reported by the job. */
   ms: number
+  /**
+   * CPU this render actually consumed, where that is a separable quantity.
+   *
+   * Absent on the request thread, and absent honestly: several renders and the stream itself
+   * interleave there, so a `cpuUsage` delta around one of them is a measurement of all of them. It
+   * is present on an executor that gave the render a thread of its own — which is the same
+   * property that makes a budget a limit rather than a report, because a thread can be stopped and
+   * a thread's CPU can be attributed.
+   */
+  cpuMs?: number
   /** Set when the job was killed or threw. The slot degrades; the request does not fail. */
   failure?: { code: string; message: string }
 }

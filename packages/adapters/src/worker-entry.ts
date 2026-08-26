@@ -1,3 +1,4 @@
+import { cpuUsage } from 'node:process'
 import { parentPort, workerData } from 'node:worker_threads'
 
 /**
@@ -45,9 +46,21 @@ parentPort?.on('message', (request: Request) => {
       if (typeof renderer !== 'function') {
         throw new Error(`E_NO_SUCH_EXPORT: ${request.module} has no callable export ${request.export}`)
       }
+      /**
+       * CPU rather than wall clock, and it is only measurable here.
+       *
+       * One job at a time on this thread means a `cpuUsage` delta around the render is that
+       * render's and nothing else's — which is not true on the request thread, where several
+       * renders and the stream interleave. `user + system`, because a render that spends its
+       * time in a syscall spent it.
+       */
+      const before = cpuUsage()
       const result = await (renderer as Renderer)(request.props)
+      const spent = cpuUsage(before)
       const bytes = typeof result === 'string' ? utf8.encode(result) : result
-      parentPort?.postMessage({ id: request.id, bytes }, [bytes.buffer as ArrayBuffer])
+      parentPort?.postMessage({ id: request.id, bytes, cpuMs: (spent.user + spent.system) / 1000 }, [
+        bytes.buffer as ArrayBuffer,
+      ])
     } catch (error) {
       parentPort?.postMessage({
         id: request.id,

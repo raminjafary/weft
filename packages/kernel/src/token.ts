@@ -45,6 +45,14 @@ export interface IntentClaims {
   x: number
   /** Single-use nonce. */
   n: string
+  /**
+   * Delegation depth. Absent means minted directly, `1` means minted from a token, and a verifier
+   * refuses anything past its own ceiling — which defaults to zero, so a deployment that never
+   * asked for delegation refuses a delegated token by name rather than by accident.
+   */
+  d?: number
+  /** The nonce of the token this one was minted from. An audit reads the chain backwards. */
+  pn?: string
 }
 
 export interface MintRequest {
@@ -68,13 +76,60 @@ export interface SignerOptions {
   ttlMs?: number
   clock?(): number
   nonce?(): string
+  /**
+   * How deep a delegation chain this signer will mint. One by default: a token may be narrowed
+   * once, and the narrowed one is a leaf.
+   *
+   * A chain is the part of delegation that gets away from people — every link is another place an
+   * authorisation could have been narrowed wrongly, and the audit is only as good as somebody's
+   * willingness to walk it. One link is a shape a person can hold in their head.
+   */
+  maxDepth?: number
+}
+
+/**
+ * A token minted from a token, and the four ways it may only be narrower.
+ *
+ * Delegation exists for one shape of problem: something that is not the reader has to act on the
+ * reader's behalf, once, for less than the reader could. A region on another deployment is the case
+ * this framework has — a composite holds an authorisation and the region needs a strictly smaller
+ * one to do its part.
+ *
+ * It happens at the **signing** tier and not by attenuating a signature, which is the decision
+ * everything else follows from. Macaroon-style caveats would need the verifier to hold the root
+ * secret, and the whole reason this tier is separable is that the verifier holds public keys only.
+ * So a delegate is a new signature over smaller claims, and the parent is *spent* producing it —
+ * one authorisation in, one out, and no way to fan a token into many.
+ */
+export interface DelegateRequest {
+  /** The token being narrowed. Verified, and its nonce spent, before anything is minted. */
+  token: string
+  /** Who is asking, from the session. The parent must have been for them, if it named anybody. */
+  subject: string | null
+  /** The intent the child authorises. Only the parent's own, which is what makes it not wider. */
+  intent: string
+  /** Bind the child to one payload. Legal when the parent bound none, or bound the same one. */
+  payload?: unknown
+  /** The child's lifetime. Clamped to what is left of the parent's, never extending it. */
+  ttlMs?: number
 }
 
 export interface IntentSigner {
   readonly kid: string
   mint(request: MintRequest): Promise<string>
+  /**
+   * Narrow a token into a shorter-lived, more specific one.
+   *
+   * Needs a verifier because the parent has to be checked before it is trusted, and checking it is
+   * what spends it. Every refusal is named: `E_DELEGATE_WIDER` for a claim that grows,
+   * `E_DELEGATE_LONGER` for a window that outlives its parent's, `E_DELEGATE_DEPTH` for a chain
+   * past the ceiling.
+   */
+  delegate(request: DelegateRequest, verifier: IntentVerifier): Promise<string>
   /** The lifetime a minted token gets, so a page can say when what it is showing goes stale. */
   readonly ttlMs: number
+  /** How deep a chain this signer will mint. Zero refuses delegation outright. */
+  readonly maxDepth: number
 }
 
 export class TokenError extends Error {
@@ -95,21 +150,88 @@ export function createIntentSigner(options: SignerOptions): IntentSigner {
   const clock = options.clock ?? ((): number => Date.now())
   const nonce = options.nonce ?? (() => crypto.randomUUID().replace(/-/g, '').slice(0, 16))
 
+  const maxDepth = options.maxDepth ?? 1
+
+  const issue = async (claims: IntentClaims): Promise<string> => {
+    const body = utf8.encode(JSON.stringify(claims))
+    const signature = await sign(options.key, body)
+    return `${TOKEN_PREFIX}.${b64url(body)}.${b64url(new Uint8Array(signature))}`
+  }
+
   return {
     kid: options.kid,
     ttlMs,
+    maxDepth,
     async mint(request) {
-      const claims: IntentClaims = {
+      return issue({
         kid: options.kid,
         i: request.intent,
         ...(request.subject ? { s: request.subject } : {}),
         ...(request.payload === undefined ? {} : { p: await digest(request.payload) }),
         x: clock() + (request.ttlMs ?? ttlMs),
         n: nonce(),
+      })
+    },
+
+    async delegate(request, verifier) {
+      if (maxDepth < 1) {
+        throw new TokenError('E_DELEGATE_DEPTH', 'this signer does not delegate: maxDepth is zero')
       }
-      const body = utf8.encode(JSON.stringify(claims))
-      const signature = await sign(options.key, body)
-      return `${TOKEN_PREFIX}.${b64url(body)}.${b64url(new Uint8Array(signature))}`
+      /**
+       * The parent is verified first, which is also what spends it.
+       *
+       * Verification is not a read: it takes the nonce's lease and never gives it back, so a token
+       * can be narrowed once and the parent is dead afterwards. That is the property that keeps
+       * delegation from being a fan-out — one authorisation in, one out — and it is why this cannot
+       * be done without a verifier however convenient a signature-only version would be.
+       */
+      const parent = await verifier.verify({
+        id: request.intent,
+        token: request.token,
+        raw: request.payload,
+        subject: request.subject,
+      })
+      if (!parent.ok) throw new TokenError(parent.code, parent.detail)
+
+      const depth = (parent.claims.d ?? 0) + 1
+      if (depth > maxDepth) {
+        throw new TokenError(
+          'E_DELEGATE_DEPTH',
+          `this token is already ${parent.claims.d ?? 0} deep and this signer mints ${maxDepth}`,
+        )
+      }
+      /**
+       * The payload needs no rule of its own, and that is worth saying rather than adding one.
+       *
+       * `verify` above was given `request.payload` as the payload presented, so a parent that binds
+       * one has already refused a child binding anything else — including a child binding nothing,
+       * which is the widening case. The check that would have gone here would never fire, and a
+       * guard that cannot fire is a guard nobody can trust.
+       */
+      const now = clock()
+      const asked = now + (request.ttlMs ?? ttlMs)
+      if (request.ttlMs !== undefined && asked > parent.claims.x) {
+        throw new TokenError(
+          'E_DELEGATE_LONGER',
+          `the child would outlive its parent by ${Math.round((asked - parent.claims.x) / 1000)}s`,
+        )
+      }
+      return issue({
+        kid: options.kid,
+        i: request.intent,
+        // A parent for nobody in particular may be narrowed to somebody; a parent for somebody
+        // stays theirs, which `verify` has already established.
+        ...((parent.claims.s ?? request.subject)
+          ? { s: (parent.claims.s ?? request.subject) as string }
+          : {}),
+        ...(request.payload === undefined ? {} : { p: await digest(request.payload) }),
+        // Clamped rather than refused when no lifetime was asked for: a delegate that quietly
+        // outlived its parent would be the whole point of the mechanism, inverted.
+        x: Math.min(asked, parent.claims.x),
+        n: nonce(),
+        d: depth,
+        pn: parent.claims.n,
+      })
     },
   }
 }
@@ -123,6 +245,13 @@ async function sign(key: CryptoKey, body: Uint8Array<ArrayBuffer>): Promise<Arra
 }
 
 export interface VerifierOptions {
+  /**
+   * How deep a delegation chain this verifier accepts. **Zero by default**, which is the same
+   * refusal the design had before delegation existed — with a name on it: a deployment that never
+   * asked for delegation refuses a delegated token as `E_DELEGATE_DEPTH` rather than accepting one
+   * because nobody thought about it.
+   */
+  maxDepth?: number
   /**
    * The pinned public key bundle, by key id. Pinned means exactly that: an unknown `kid` is
    * refused rather than resolved, because a verifier that would fetch a key named by the token it
@@ -230,6 +359,13 @@ export function createIntentVerifier(options: VerifierOptions): IntentVerifier {
       }
       if (claims.p !== undefined && claims.p !== (await digest(request.raw))) {
         return refused('E_TOKEN_WRONG_PAYLOAD', 'issued for a different payload')
+      }
+      const depth = claims.d ?? 0
+      if (depth > (options.maxDepth ?? 0)) {
+        return refused(
+          'E_DELEGATE_DEPTH',
+          `this token was delegated ${depth} deep and this deployment accepts ${options.maxDepth ?? 0}`,
+        )
       }
 
       /**

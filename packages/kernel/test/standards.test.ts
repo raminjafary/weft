@@ -122,8 +122,10 @@ const LINE_CEILINGS: Record<string, number> = {
   'entry-stage.ts': 2700,
   // Authority: the intent path plus a capability model and signed intents. The tier the design
   // calls separable, so it gets a ceiling it can be reviewed against rather than a share of the
-  // intent path's.
-  'entry-authority.ts': 2500,
+  // intent path's. 2,500 was set before delegation, which is 43 lines of narrowing rules and their
+  // refusals — the byte figure moved 11,308 → 11,631 against a ceiling of 12,288, which is the
+  // number that actually gates.
+  'entry-authority.ts': 2600,
   // Lazy plan extension, on top of route staging. The whole capability is one module.
   'entry-discover.ts': 2800,
   // Composition: regions resolved through the registry and checked on arrival. The document path

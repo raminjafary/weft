@@ -44,7 +44,7 @@ export interface WorkerPool extends KernelExecutor {
 }
 
 interface Pending {
-  resolve(outcome: { bytes?: Uint8Array; error?: string }): void
+  resolve(outcome: { bytes?: Uint8Array; error?: string; cpuMs?: number }): void
   slot: string
 }
 
@@ -92,14 +92,17 @@ export function workerPool(options: WorkerPoolOptions = {}): WorkerPool {
   const spawn = (): Slot => {
     const worker = new Worker(ENTRY, { workerData: { root } })
     const slot: Slot = { worker, busy: null, reserved: false }
-    worker.on('message', (message: { id: number; bytes?: Uint8Array; error?: string }) => {
+    worker.on('message', (message: { id: number; bytes?: Uint8Array; error?: string; cpuMs?: number }) => {
       const pending = slot.busy
       slot.busy = null
       slot.reserved = false
       pending?.resolve(
         message.error !== undefined
           ? { error: message.error }
-          : { bytes: message.bytes ?? new Uint8Array(0) },
+          : {
+              bytes: message.bytes ?? new Uint8Array(0),
+              ...(message.cpuMs !== undefined ? { cpuMs: message.cpuMs } : {}),
+            },
       )
       pump()
     })
@@ -169,19 +172,41 @@ export function workerPool(options: WorkerPoolOptions = {}): WorkerPool {
     })
 
     const id = nextId++
-    const settled = new Promise<{ bytes?: Uint8Array; error?: string }>((resolve) => {
+    const settled = new Promise<{ bytes?: Uint8Array; error?: string; cpuMs?: number }>((resolve) => {
       slot.busy = { resolve, slot: job.slot }
       slot.reserved = false
     })
 
-    let timer: ReturnType<typeof setTimeout> | undefined
+    /**
+     * The budget, spent in CPU rather than in wall clock.
+     *
+     * A wall-clock timer kills a render for waiting, which is the wrong thing on the executor
+     * whose whole purpose is to bound *compute*: a fragment that spends 200 ms on a database
+     * round trip has used almost no CPU, and terminating it turns a slow dependency into a
+     * degraded page. What a thread makes measurable is the other quantity — this worker's own
+     * event loop active time, which the parent can read without the worker cooperating, so a
+     * render spinning synchronously cannot hide from it the way it hides from a signal.
+     *
+     * Polled rather than continuous, because there is no notification. The interval is a
+     * quarter of the budget, floored so a tiny budget does not become a busy loop of its own,
+     * and the overshoot it costs is bounded by that interval and reported as the CPU actually
+     * spent.
+     */
+    let timer: ReturnType<typeof setInterval> | undefined
     let killed = false
+    let spentMs = 0
     if (job.cpuBudgetMs !== undefined) {
-      timer = setTimeout(() => {
+      const baseline = slot.worker.performance.eventLoopUtilization()
+      const every = Math.max(4, Math.min(25, Math.floor(job.cpuBudgetMs / 4)))
+      timer = setInterval(() => {
+        spentMs = slot.worker.performance.eventLoopUtilization(baseline).active
+        if (spentMs <= (job.cpuBudgetMs as number)) return
         killed = true
         // The whole point. A cooperative signal cannot stop a synchronous loop; this can.
         replace(slot, 'E_CPU_BUDGET')
-      }, job.cpuBudgetMs)
+      }, every)
+      // A budget poll must not be the reason a process stays alive.
+      timer.unref?.()
     }
 
     slot.worker.postMessage({
@@ -192,18 +217,19 @@ export function workerPool(options: WorkerPoolOptions = {}): WorkerPool {
     })
 
     const result = await settled
-    if (timer !== undefined) clearTimeout(timer)
+    if (timer !== undefined) clearInterval(timer)
     const ms = performance.now() - started
 
     if (killed) {
-      options.telemetry?.measure('slot.render', ms, { slot: job.slot, over: 1 })
+      options.telemetry?.measure('slot.render', ms, { slot: job.slot, over: 1, cpu: Math.round(spentMs) })
       return {
         slot: job.slot,
         bytes: new Uint8Array(0),
         ms,
+        cpuMs: spentMs,
         failure: {
           code: 'E_CPU_BUDGET',
-          message: `${job.slot} exceeded ${job.cpuBudgetMs}ms and its worker was terminated`,
+          message: `${job.slot} spent ${Math.round(spentMs)}ms of CPU against a budget of ${job.cpuBudgetMs}ms, and its worker was terminated`,
         },
       }
     }
@@ -216,8 +242,17 @@ export function workerPool(options: WorkerPoolOptions = {}): WorkerPool {
         failure: { code: 'E_SLOT_FAILED', message: result.error },
       }
     }
-    options.telemetry?.measure('slot.render', ms, { slot: job.slot, over: 0 })
-    return { slot: job.slot, bytes: result.bytes ?? new Uint8Array(0), ms }
+    options.telemetry?.measure('slot.render', ms, {
+      slot: job.slot,
+      over: 0,
+      ...(result.cpuMs !== undefined ? { cpu: Math.round(result.cpuMs) } : {}),
+    })
+    return {
+      slot: job.slot,
+      bytes: result.bytes ?? new Uint8Array(0),
+      ms,
+      ...(result.cpuMs !== undefined ? { cpuMs: result.cpuMs } : {}),
+    }
   }
 
   return {

@@ -365,9 +365,55 @@ always costs. A sliding window needs a read-modify-write against a store that ca
 `StorePort` deliberately cannot — it has a lease, not a counter — so this is the honest limiter for the
 port that exists, and a deployment that needs a sliding one binds it.
 
+## Delegation, and the four ways a child may only be narrower
+
+Something that is not the reader sometimes has to act on the reader's behalf, once, for less than
+the reader could. A region on another deployment is the case this framework has: a composite holds
+an authorisation and the region needs a strictly smaller one to do its part.
+
+It happens at the **signing** tier, and that is the decision everything else follows from.
+Macaroon-style attenuation — caveats appended and authenticated with a chained MAC — would need the
+verifier to hold the root secret, and the entire reason this tier is separable is that the verifier
+holds public keys only. So a delegate is a new signature over smaller claims:
+
+```
+signer.delegate({ token, subject, intent, payload?, ttlMs? }, verifier)
+```
+
+`verifier` is not a convenience. The parent has to be checked before it is trusted, and **checking
+it is what spends it** — verification takes the nonce's lease and never returns it, so a token can
+be narrowed once and is dead afterwards. That is the property that keeps delegation from being a
+fan-out: one authorisation in, one out.
+
+| Claim   | The rule                                                              | Refusal                 |
+| ------- | --------------------------------------------------------------------- | ----------------------- |
+| intent  | The parent's own, and nothing else                                    | `E_TOKEN_WRONG_INTENT`  |
+| subject | The parent's, if it named one; a parent for nobody may gain one       | `E_TOKEN_WRONG_SUBJECT` |
+| payload | The parent's, if it bound one. Unbound may become bound               | `E_TOKEN_WRONG_PAYLOAD` |
+| expiry  | Clamped to what is left of the parent's; asking for longer is refused | `E_DELEGATE_LONGER`     |
+| depth   | `d` increments, and the signer's ceiling is one by default            | `E_DELEGATE_DEPTH`      |
+
+The payload has no rule of its own on purpose. The child's payload is what the parent's own check is
+given, so a bound parent already refuses a child that binds something else — including a child that
+binds nothing, which is the widening case. A guard that cannot fire is a guard nobody can trust, so
+it is not there.
+
+**The checking side accepts no delegation by default.** `maxDepth` on the verifier is zero unless a
+deployment sets it, so a delegated token arriving at a deployment that never asked for delegation is
+`E_DELEGATE_DEPTH` — the same refusal this document used to record as a design decision, now with a
+name and a code path. A chain is the part of this that gets away from people: every link is another
+place an authorisation could have been narrowed wrongly, and one link is a shape a person can hold
+in their head.
+
+`pn` carries the parent's nonce, so an audit reads the chain backwards without the tokens having to
+be stored anywhere.
+
 ## What this does not do
 
 - **No capability-gated renders or plugins.** The seam is on intents and on catalogue entries, which
   is where writes and client-addressable renders are. The design's plugin capabilities would be a
   third gate with a third set of failure modes.
-- **No delegation, and no token that mints tokens.** A token authorises one call.
+- **No delegation over HTTP.** `delegate` is a signer method, and the tier that holds a signing key
+  is the tier that may call it. Exposing it as an endpoint is a deployment's decision for the same
+  reason minting is: a path that narrows tokens is a path that spends them, and what may reach it is
+  not something a framework can know.

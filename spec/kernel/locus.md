@@ -162,12 +162,39 @@ Four things fall out rather than being built:
 Client epochs cost **254 bytes brotli**: the runtime went 2,742 → 2,996 B against a 6,144 B
 ceiling.
 
+## A CPU budget spent in CPU
+
+The budget was wall-clock, and on the executor whose entire purpose is to bound _compute_ that is
+the wrong quantity. A fragment waiting 200 ms on a database round trip has used almost no CPU;
+killing it turns a slow dependency into a degraded page, and the page degrades for a reason the
+budget was never about.
+
+A thread makes the right quantity measurable. `worker.performance.eventLoopUtilization()` reports
+that worker's own active time and the **parent** can read it without the worker cooperating — which
+matters, because a render spinning synchronously cannot answer a message and so cannot be asked how
+much it has spent. The pool polls it at a quarter of the budget, floored at 4 ms so a small budget
+does not become a busy loop, and terminates the worker when active time crosses the ceiling.
+
+Two things follow, and both are asserted in `packages/adapters/test/worker-pool.test.ts`:
+
+- **A render that waits is not killed for waiting**, however far past its budget in wall clock it
+  goes. It spent nothing this executor bounds.
+- **A synchronous loop is still killed**, which is the only thing a pool is for. The breach message
+  now names the CPU actually spent rather than the wall clock it happened to consume.
+
+`RenderOutcome.cpuMs` carries what the render cost, measured inside the worker with `cpuUsage()` —
+one job at a time on that thread is what makes the delta attributable — and reaches telemetry as a
+`cpu` attribute beside the wall clock. Absent on the request thread, deliberately: see the first
+entry below.
+
 ## What this does not do yet
 
-- **No worker-thread pool.** `deferred` is preemptible at await points and nothing more.
-- **No per-request CPU accounting.** The budget is wall-clock, measured by the executor.
+- **`deferred` is preemptible at await points and nothing more**, which is what it says. The
+  worker pool is what a budget being a _limit_ requires, and it exists — `pool:` in
+  `@weft/adapters`.
+- **No per-request CPU accounting on the request thread**, and it is not a gap that can be
+  closed there. Several renders and the stream interleave on that thread, so a `cpuUsage` delta
+  around one render measures all of them — `RenderOutcome.cpuMs` is therefore absent on `inline`
+  and `deferred`, which is the honest answer rather than a plausible number. On `pool:` it is
+  present and the budget is spent in CPU: see above.
 - **No speculation.** `.speculate()` is recorded in the plan and read by nothing.
-- **No incremental recompute.** `.incremental()` is recorded and warns when there is no graph
-  to memoize, but no memoized recompute exists.
-- **The client's epoch commit is not driven by frames yet.** The server emits `COMMIT`; no
-  transport reads it and calls the client's `commit`.

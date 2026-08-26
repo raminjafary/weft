@@ -477,3 +477,142 @@ test('a replay is a 409, because the request was well-formed and is not going to
   assert.equal((await post()).status, 200)
   assert.equal((await post()).status, 409)
 })
+
+// ── delegation ───────────────────────────────────────────────────────────────────────
+
+/**
+ * A token minted from a token, and the reason every one of these assertions is a refusal.
+ *
+ * Delegation is the part of an authority model that goes wrong quietly: the failure is not an
+ * error, it is a child that authorises slightly more than its parent did, discovered later by
+ * somebody reading a log. So the narrowing is enforced claim by claim and each refusal has its own
+ * name, and the default on the checking side is to accept no delegation at all.
+ */
+test('a delegated token is narrower, and the parent is spent producing it', async () => {
+  const { signer, publicKey } = await keys()
+  const store = memoryStore()
+  const verifier = createIntentVerifier({ keys: { k1: publicKey }, store, maxDepth: 1 })
+
+  const parent = await signer.mint({ intent: 'order.checkout', subject: 'u42' })
+  const child = await signer.delegate(
+    { token: parent, subject: 'u42', intent: 'order.checkout', payload: { sku: 'a' } },
+    verifier,
+  )
+
+  // The parent's nonce was spent by the verification that produced the child, so the parent
+  // cannot be used again — by its holder or by anybody who took a copy of it.
+  const reused = await verifier.verify({
+    id: 'order.checkout',
+    token: parent,
+    raw: {},
+    subject: 'u42',
+  })
+  assert.equal(reused.ok, false)
+  assert.equal(reused.ok === false && reused.code, 'E_INTENT_REPLAYED')
+
+  const checked = await verifier.verify({
+    id: 'order.checkout',
+    token: child,
+    raw: { sku: 'a' },
+    subject: 'u42',
+  })
+  assert.equal(checked.ok, true)
+  assert.equal(checked.ok && checked.claims.d, 1)
+  assert.equal(checked.ok && checked.boundPayload, true, 'the child bound a payload its parent did not')
+  assert.ok(checked.ok && checked.claims.pn, 'and it names the token it came from, so a chain can be read')
+})
+
+test('a deployment that never asked for delegation refuses a delegated token by name', async () => {
+  const { signer, publicKey } = await keys()
+  const store = memoryStore()
+  const permissive = createIntentVerifier({ keys: { k1: publicKey }, store, maxDepth: 1 })
+  const child = await signer.delegate(
+    { token: await signer.mint({ intent: 'order.checkout' }), subject: null, intent: 'order.checkout' },
+    permissive,
+  )
+
+  // The default, which is the behaviour this codebase had before delegation existed.
+  const strict = createIntentVerifier({ keys: { k1: publicKey }, store: memoryStore() })
+  const outcome = await strict.verify({ id: 'order.checkout', token: child, raw: {}, subject: null })
+  assert.equal(outcome.ok, false)
+  assert.equal(outcome.ok === false && outcome.code, 'E_DELEGATE_DEPTH')
+})
+
+test('a child may not outlive its parent, and asking for longer is refused rather than clamped', async () => {
+  const { signer, publicKey } = await keys()
+  const store = memoryStore()
+  const verifier = createIntentVerifier({ keys: { k1: publicKey }, store, maxDepth: 1 })
+  const parent = await signer.mint({ intent: 'order.checkout', ttlMs: 1_000 })
+  await assert.rejects(
+    () =>
+      signer.delegate({ token: parent, subject: null, intent: 'order.checkout', ttlMs: 60_000 }, verifier),
+    /E_DELEGATE_LONGER/,
+  )
+})
+
+/**
+ * A bound parent needs no widening rule of its own: presenting the child's payload to the parent's
+ * own check is what refuses both a different payload and no payload at all. Asserted because the
+ * absence of a rule is only safe if the other one really covers it.
+ */
+test('a child cannot unbind or change the payload its parent bound', async () => {
+  const { signer, publicKey } = await keys()
+  const store = memoryStore()
+  const verifier = createIntentVerifier({ keys: { k1: publicKey }, store, maxDepth: 1 })
+
+  const unbind = await signer.mint({ intent: 'order.checkout', payload: { sku: 'a' } })
+  await assert.rejects(
+    () => signer.delegate({ token: unbind, subject: null, intent: 'order.checkout' }, verifier),
+    /E_TOKEN_WRONG_PAYLOAD/,
+  )
+
+  const change = await signer.mint({ intent: 'order.checkout', payload: { sku: 'a' } })
+  await assert.rejects(
+    () =>
+      signer.delegate(
+        { token: change, subject: null, intent: 'order.checkout', payload: { sku: 'b' } },
+        verifier,
+      ),
+    /E_TOKEN_WRONG_PAYLOAD/,
+  )
+
+  // And the one that is legal: the same payload, for less time.
+  const same = await signer.mint({ intent: 'order.checkout', payload: { sku: 'a' }, ttlMs: 60_000 })
+  const child = await signer.delegate(
+    { token: same, subject: null, intent: 'order.checkout', payload: { sku: 'a' }, ttlMs: 1_000 },
+    verifier,
+  )
+  const checked = await verifier.verify({
+    id: 'order.checkout',
+    token: child,
+    raw: { sku: 'a' },
+    subject: null,
+  })
+  assert.equal(checked.ok, true)
+})
+
+test('a child for another intent is not a child at all', async () => {
+  const { signer, publicKey } = await keys()
+  const store = memoryStore()
+  const verifier = createIntentVerifier({ keys: { k1: publicKey }, store, maxDepth: 1 })
+  const parent = await signer.mint({ intent: 'order.checkout' })
+  await assert.rejects(
+    () => signer.delegate({ token: parent, subject: null, intent: 'cart.add' }, verifier),
+    /E_TOKEN_WRONG_INTENT/,
+  )
+})
+
+test('a chain stops where the signer says it stops', async () => {
+  const { signer, publicKey } = await keys()
+  const store = memoryStore()
+  const verifier = createIntentVerifier({ keys: { k1: publicKey }, store, maxDepth: 2 })
+  const first = await signer.delegate(
+    { token: await signer.mint({ intent: 'order.checkout' }), subject: null, intent: 'order.checkout' },
+    verifier,
+  )
+  // maxDepth is one by default, and the child is already at one.
+  await assert.rejects(
+    () => signer.delegate({ token: first, subject: null, intent: 'order.checkout' }, verifier),
+    /E_DELEGATE_DEPTH/,
+  )
+})

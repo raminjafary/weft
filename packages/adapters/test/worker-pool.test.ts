@@ -138,3 +138,38 @@ test('a closed pool refuses rather than hanging', async () => {
   const outcome = await pool.run(job('after', 'greeting'))
   assert.equal(outcome.failure?.code, 'E_POOL_CLOSED')
 })
+
+/**
+ * The budget is spent in CPU, which is the whole difference between bounding compute and
+ * punishing latency. Both halves are asserted here because either alone is satisfiable by
+ * a mistake: a pool that never kills anything passes the first, and a wall-clock timer
+ * passes the second.
+ */
+test('a render that waits is not killed for waiting, however far past its budget it waits', async () => {
+  const telemetry = collectingTelemetry()
+  const pool = workerPool({ size: 1, telemetry })
+  try {
+    const outcome = await pool.run(job('slow-dependency', 'waits', { ms: 300 }, 50))
+    assert.equal(outcome.failure, undefined, 'it used no CPU, so it did not exceed a CPU budget')
+    assert.match(new TextDecoder().decode(outcome.bytes), /waited 300/)
+    assert.ok(outcome.ms > 250, `it really did wait: ${Math.round(outcome.ms)}ms`)
+    assert.ok((outcome.cpuMs ?? Infinity) < 50, `and spent almost none of it computing: ${outcome.cpuMs}ms`)
+  } finally {
+    await pool.close()
+  }
+})
+
+test('what a render cost is reported as CPU, which only a thread of its own makes separable', async () => {
+  const telemetry = collectingTelemetry()
+  const pool = workerPool({ size: 1, telemetry })
+  try {
+    const outcome = await pool.run(job('spinner', 'spin', { ms: 120 }))
+    assert.equal(outcome.failure, undefined)
+    assert.ok((outcome.cpuMs ?? 0) > 50, `a synchronous loop spends CPU: ${outcome.cpuMs}ms`)
+    assert.ok((outcome.cpuMs as number) <= outcome.ms + 1, 'and cannot spend more of it than the render took')
+    const measured = telemetry.measures.find((m) => m.name === 'slot.render')
+    assert.ok(measured?.attrs?.cpu !== undefined, 'and it is on the telemetry, not just the outcome')
+  } finally {
+    await pool.close()
+  }
+})
