@@ -309,6 +309,14 @@ the guess the profile layer exists instead of.
 worker. The other candidate — decoding a batch of frames — was measured and refused, because the
 decode is smaller than a worker's own floor. See [`../FINDINGS.md`](../FINDINGS.md).
 
-**A staged route that is worth staging.** Everything hovered is fetched, and nothing decides
-whether it was worth it. `weft profile` is the roadmap entry where that belongs: which routes are
-worth speculating on is a measurement, not a hover.
+**A staged route that is worth staging.** Everything hovered is fetched, and nothing decides whether
+it was worth it. Half of this exists: `weft dev --profile` counts which route readers arrive from and
+`RouteDecision.stage` records the ones they arrive from often enough to be worth staging —
+`weft profile` prints it. Nothing reads it. The client stages every link it sees hovered, exactly as
+it did before the recording existed, so this is a decision that is measured, printed and then
+ignored.
+
+That is the same shape as the four plan declarations that were recorded and read by nothing until
+they were wired, and it is the one remaining instance of it. What it needs is for the staging
+decision to reach the client — a `PLAN` frame already carries what a route is, so the field is a
+frame field rather than a new mechanism.

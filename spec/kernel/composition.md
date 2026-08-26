@@ -537,8 +537,12 @@ And the fallback stays exactly where it was. A remote region that declares cache
 interval has neither mechanism, and that is still `W_REGION_TAGS_UNREACHABLE` at build time — now
 with a third thing it could have instead, which is a deployment that is willing to hold a secret.
 
-## What this does not do yet
+## What this does not do
 
-- **Nested regions are a tree in the numbers and not in the resolution.** A region's own regions are
-  resolved by its own registry, which is right, but nothing yet reports the composite tree as one
-  graph.
+- **The composite tree is reported, and resolution is still per tier.** `regionGraph` turns what a
+  composer did into one tree and `formatRegionGraph` prints it indented, depth and all —
+  `weft verify` shows it, and a degraded region gets its own line rather than a footnote. What has
+  not changed, and should not, is that a region's own regions are resolved by _its_ registry: a tier
+  that resolved its children's children would be a tier that has to know their topology, which is
+  the coupling the registry port exists to remove. So the tree is a report assembled from what came
+  back, not a plan made in advance.
