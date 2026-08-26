@@ -58,6 +58,48 @@ one by the compiler — so a disagreement is a build error:
 for slow work, one for work with a different cache class — so a plan can attach a policy to
 either without a second concept.
 
+### A document may be a chain
+
+`shell(id, nested)` names a chain: the outermost fragment, then the layouts inside it, each with
+the hole of the enclosing one it fills. In the file convention that chain comes from the directory
+tree — `app/routes/docs/layout.tsx` wraps every route at or under `/docs`, inside the
+application's own `app/layout.tsx` — so nothing declares it and nothing can declare it differently
+from where the file is. A `layout.tsx` under `routes/` is therefore a wrapper and never a page, and
+it has no `.data.ts`: a declaration there would be one that every route under it shared without
+saying so.
+
+What the chain is _not_ is a second render path. Every layer stays a separately sealed, separately
+versioned fragment; the cuts each one leaves are spliced together when the document streams, by
+`chainSplitter` in `split-chain.ts`. So a plan for a nested route has one flat list of slots — some
+from the outer document, some from the subtree's — in document order, and nothing downstream of the
+generator can tell which layer left which hole. A slow region inside a nested layout streams exactly
+as one in the outer document does, with its own cache policy, its own executor and its own budget.
+
+Three rules, each a build error:
+
+| Code                      | When                                                                         |
+| ------------------------- | ---------------------------------------------------------------------------- |
+| `E_SHELL_LINK_UNPLACED`   | a link fills a hole the layout enclosing it does not leave                   |
+| `E_NO_NESTING_SLOT`       | the same thing said in files: a layout with nowhere to put the one inside it |
+| `E_DUPLICATE_LAYOUT_HOLE` | two layers of one chain leave the same hole name                             |
+
+The last one is the interesting one. A plan keys its slots by name and the client addresses a region
+by name, so two layers both leaving `aside` would be one region with two places to be. The one
+exception is the hole each link fills — `body`, by convention — which never reaches the plan as a
+slot at all, because it is where the chain continues.
+
+**The chain is one document, and it is checked as one.** Its boundaries are the union of its layers'
+holes minus the ones the links fill; its reads are the union of what every layer reads; its identity
+is the layers in order. The last two matter: a nested layout that reads a cookie makes the whole page
+vary on it and takes it out of the build-time set, and two routes are the same document — swappable
+by a staged navigation, sharing regions — only when they were built from the same files in the same
+order.
+
+`chainSplitter` lives in its own module and reaches the request path only through `entry-nested.ts`,
+because a chain walk written into `splitAtSlots` cost 83 bytes and the entry the design's 8 KB figure
+is about had 74 left. That is the third time the byte budget has turned a capability into a seam; see
+[`budgets.md`](budgets.md).
+
 ## The shell is a fragment, so its reads count
 
 `KernelRoute.shell` carries the shell's identity, version and inferred effects, and the
@@ -184,17 +226,18 @@ cases, including the one where `/docs` matches `/docs/*`.
 
 ## What this does not do yet
 
-- **No method matching.** The table is path-only. Methods belong with intents, which do not
-  exist, and a route that matched on method today would have nothing to dispatch to.
+- **No method matching in this table.** It is path-only. Intents have their own dispatch and their
+  own manifest — a `POST` goes to `/_weft/i/<id>`, not to a route — so a route matching on method
+  would be a second dispatcher for the same question.
 - **The server's table is still resolved at construction.** Lazy plan extension is about what the
   client knows, above; a server that discovered its own routes at request time is a different
   feature and nothing needs it.
-- **No nested routes or layouts.** A route names one shell. A shell that is itself a region of
-  another shell is the app-shell design in phase 9.
-- **No `RegistryPort`.** Resolving a region name to a deployment is what makes routing portable
-  across deployments, and it is still one of the four declared-but-unimplemented ports.
-- **A plan is still assembled by hand.** `factsFrom` takes compiler output, but nothing generates
-  the plan or the bindings from a file convention or a profile.
+- **A chain nests documents, not routes.** `app/routes/docs/layout.tsx` wraps the subtree and its
+  holes are the subtree's boundaries, but a _route_ is still one leaf: there is no partial
+  navigation that re-renders the inner layout and keeps the outer one, because a staged navigation
+  swaps regions and the whole document is one of the things it can compare. Two routes sharing a
+  chain share a shell version, which is what makes their staged swap cheap; what does not exist is a
+  navigation that renders only the layers below the one that changed.
 - **Params do not taint by themselves.** A fragment that should vary by `:sku` has to read
   `ctx.param('sku')`; matching a path does not put the param in any key. That is correct — a
   fragment that ignores the param renders the same bytes — and it is worth knowing, because a

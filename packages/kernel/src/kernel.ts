@@ -22,6 +22,7 @@ import type { Router } from './router.ts'
 import { lifecycle, type Lifecycle } from './request.ts'
 import { runPlugins, type PluginSchedule, type ReadGuard } from './plugins.ts'
 import { streamRoute, type Order } from './stream.ts'
+import type { Splitter } from './split.ts'
 import { dispatch, type DagNode } from './waves.ts'
 
 /**
@@ -63,6 +64,16 @@ export interface KernelRoute {
   template: TemplateIR
   values: Values
   resolve?: Resolver
+  /**
+   * How this document is cut, when the flat splitter is not how. A route wrapped in nested layouts
+   * carries `chainSplitter`; every other route carries nothing and gets `splitAtSlots`.
+   *
+   * A chain is spliced at stream time rather than compiled into one template, because a layout's
+   * holes are boundaries and boundaries are what the kernel exists to fill: flattening the chain
+   * into a single IR would have to rebase every hole path and every wiring entry of every layer,
+   * and would make one sealed template out of files that are versioned separately.
+   */
+  split?: Splitter
   /**
    * The shell's own identity and inferred reads. A shell that reads a cookie contributes to
    * the document's `Vary` and to its class exactly as a slot does — it is a fragment, and
@@ -370,6 +381,7 @@ export function createKernel(options: KernelOptions): Kernel {
         template: route.template,
         values: route.values,
         ...(route.resolve ? { resolve: route.resolve } : {}),
+        ...(route.split ? { split: route.split } : {}),
         slots: Object.fromEntries(
           route.slots.map((slot) => [
             slot.name,

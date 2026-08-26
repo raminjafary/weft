@@ -1,6 +1,6 @@
 import type { Resolver, TemplateIR, Values } from '@weft/ir'
 import { fillerBytes } from './filler.ts'
-import { anchorFor, splitAtSlots } from './split.ts'
+import { anchorFor, splitAtSlots, type Splitter } from './split.ts'
 
 const utf8 = new TextEncoder()
 
@@ -10,6 +10,11 @@ export interface Route {
   template: TemplateIR
   values: Values
   resolve?: Resolver
+  /**
+   * How to cut this document, when the flat splitter is not it: a route whose layouts are nested
+   * carries `chainSplitter`. See `split-chain.ts`.
+   */
+  split?: Splitter
   /** One resolver per slot. Whatever it awaits is what the shell refused to wait for. */
   slots: Record<string, () => Promise<SlotContent>>
 }
@@ -49,7 +54,7 @@ function bytes(value: SlotContent): Uint8Array {
  * declarative shadow DOM.
  */
 export function streamRoute(route: Route, options: StreamOptions): ReadableStream<Uint8Array> {
-  const { chunks, slots } = splitAtSlots(route.template, route.values, route.resolve)
+  const { chunks, slots } = (route.split ?? splitAtSlots)(route.template, route.values, route.resolve)
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {

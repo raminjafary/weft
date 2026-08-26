@@ -270,6 +270,7 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
       if (file && css) table.set(file, css)
     }
     put(discovered.layout, discovered.layoutCss)
+    for (const layout of discovered.nested) put(layout.file, layout.css)
     for (const route of discovered.routes) put(route.file, route.css)
     for (const slot of discovered.slots) put(slot.file, slot.css)
     for (const fragment of discovered.fragments) put(fragment.file, fragment.css)

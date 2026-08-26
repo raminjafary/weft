@@ -66,8 +66,16 @@ export type StaticVerdict =
 export interface StaticInput {
   pattern: string
   module: RouteModule
-  /** The layout. Its own reads are the document's exactly as a slot's are. */
+  /** The innermost layout: the one whose `body` hole the page goes in. */
   shell: CompiledFragment
+  /**
+   * Every layer of the document, outermost first, `shell` included.
+   *
+   * A nested layout's reads are the document's exactly as the outer layout's are, so a chain whose
+   * dashboard layout reads a cookie is not a file — and checking only the innermost or only the
+   * outermost would write one. Defaults to `[shell]`, which is what a route with no nested layout has.
+   */
+  layers?: readonly CompiledFragment[]
   slots: {
     name: string
     /** Absent for a region rendered on another deployment, which is refused before it is read. */
@@ -122,6 +130,7 @@ function isolatedIn(fragment: CompiledFragment): TemplateIR | undefined {
  */
 export function staticVerdict(input: StaticInput): StaticVerdict {
   const { pattern, module: declared_, shell, slots } = input
+  const layers = input.layers ?? [shell]
 
   /**
    * A parameterised route is a file per value, when the values are a set the application declared.
@@ -180,7 +189,7 @@ export function staticVerdict(input: StaticInput): StaticVerdict {
    * out of the refusal, and one file is written per value.
    */
   const enumerable = new Set(names.map((name) => `route:${name}`))
-  for (const fragment of [shell, ...slots.map((slot) => slot.fragment)]) {
+  for (const fragment of [...layers, ...slots.map((slot) => slot.fragment)]) {
     if (!fragment) continue
     const reads = readsOf(fragment).filter((read) => !enumerable.has(read))
     if (reads.length) {

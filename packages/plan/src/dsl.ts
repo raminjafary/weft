@@ -160,12 +160,35 @@ export interface GuardSpec {
  */
 export interface ShellSpec {
   shell: string
+  /**
+   * Layouts nested inside it, outermost first: `[{ at: 'body', fragment: 'layout:dashboard' }]`.
+   *
+   * A chain's boundaries are the union of every layer's holes, minus the holes the chain itself
+   * fills — so `at` is named here rather than inferred. Inferring it would mean deciding that
+   * `body` is special in the plan layer, and `body` is a convention of the file layout above it.
+   */
+  nested?: readonly ShellNesting[]
+}
+
+export interface ShellNesting {
+  /** The slot hole of the enclosing layout this one fills. */
+  at: string
+  /** The fragment that fills it, which is itself a layout with holes of its own. */
+  fragment: string
 }
 
 export interface Plan {
   route: string
-  /** The fragment that is the document. Absent only for a plan with no slots. */
+  /** The outermost fragment of the document. Absent only for a plan with no slots. */
   shell?: string
+  /**
+   * Layouts nested inside `shell`, outermost first. Absent for the single-document case.
+   *
+   * The document a route renders is the whole chain, so every check that used to read `shell`
+   * alone reads this too: the boundaries a slot may fill, the reads that decide the cache class,
+   * and the identity two routes have to share before they can share a region.
+   */
+  shellChain?: readonly ShellNesting[]
   guards: GuardSpec[]
   slots: SlotSpec[]
   /**
@@ -415,8 +438,8 @@ export function guard(name: string, options: { redirect?: string; status?: numbe
   return { name, ...options }
 }
 
-export function shell(fragment: string): ShellSpec {
-  return { shell: fragment }
+export function shell(fragment: string, nested: readonly ShellNesting[] = []): ShellSpec {
+  return { shell: fragment, ...(nested.length ? { nested } : {}) }
 }
 
 export type PlanEntry = SlotBuilder | RegionBuilder | GuardSpec | ShellSpec
@@ -439,12 +462,14 @@ export function plan(route: string, entries: readonly PlanEntry[] = [], options:
   const guards: GuardSpec[] = []
   const slots: SlotSpec[] = []
   let shellFragment: string | undefined
+  let shellChain: readonly ShellNesting[] | undefined
   for (const entry of entries) {
     if ('spec' in entry) {
       slots.push(entry.spec)
     } else if ('shell' in entry) {
       if (shellFragment) throw new PlanError('E_DUPLICATE_SHELL', `${route} declares two shells`)
       shellFragment = entry.shell
+      if (entry.nested?.length) shellChain = entry.nested
     } else {
       guards.push(entry)
     }
@@ -461,6 +486,7 @@ export function plan(route: string, entries: readonly PlanEntry[] = [], options:
     exposes: [...new Set(options.exposes ?? [])].sort(),
     maxConcurrency: options.maxConcurrency ?? 6,
     ...(shellFragment ? { shell: shellFragment } : {}),
+    ...(shellChain ? { shellChain } : {}),
     ...(options.cache
       ? {
           cache: {

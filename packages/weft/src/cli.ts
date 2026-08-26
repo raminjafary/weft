@@ -98,7 +98,10 @@ async function main(): Promise<number> {
     out(HELP)
     return command ? 0 : 2
   }
-  const root = resolve(positional[0] ?? '.')
+  // `weft why <route> [dir]` is the one command whose first positional is not the directory, which
+  // is stated in the help above and was not true of this line: the route pattern became the root,
+  // so every invocation of it failed with `E_NO_APP_DIR` naming the pattern.
+  const root = resolve((command === 'why' ? positional[1] : positional[0]) ?? '.')
   const overrides = overridesFrom(flags)
 
   if (command === 'create') {
@@ -191,9 +194,13 @@ async function main(): Promise<number> {
     const app = await createApp(root, { ...overrides, mode: 'dev' })
     for (const route of app.routes) {
       const live = Object.keys(route.live)
+      // Which document a route renders into is only worth printing when it is not the obvious one.
+      // A chain is: the slot list is the union over its layers, and this says where the rest came from.
+      const nested = (route.plan.shellChain ?? []).map((link) => link.fragment.replace(/#default$/, ''))
       out(
         `  ${route.pattern.padEnd(26)} ${route.plan.slots.map((s) => s.name).join(', ')}` +
-          `${live.length ? `  (live: ${live.join(', ')})` : ''}\n`,
+          `${live.length ? `  (live: ${live.join(', ')})` : ''}` +
+          `${nested.length ? `  (in ${nested.join(' > ')})` : ''}\n`,
       )
     }
     return 0

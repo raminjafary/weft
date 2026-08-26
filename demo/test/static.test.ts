@@ -23,7 +23,7 @@ const ROOT = fileURLToPath(new URL('../', import.meta.url))
  *
  * The unit of this feature is not a function, it is a page: whether *this* page is a file, and
  * whether the file says what the framework would have said. So the assertions are about the demo
- * — five shapes of page, two of which read nothing — and the property that matters is that the
+ * — six shapes of page, several of which read nothing — and the property that matters is that the
  * tier is invisible. A visitor who gets the file and a visitor who gets the render are looking at
  * the same bytes; only the headers admit which happened.
  */
@@ -53,8 +53,24 @@ test('the pages that read nothing are files, and the rest say why they are not',
 
   assert.deepEqual(
     documents.map((d) => d.path).sort(),
-    ['/', '/app/article', '/app/ordinary/household', '/app/ordinary/pantry'],
-    'two pages that read nothing, and a parameterised one that says what its parameter can be',
+    [
+      '/',
+      '/app/article',
+      '/app/ordinary/household',
+      '/app/ordinary/pantry',
+      '/docs',
+      '/docs/cache',
+      '/docs/holes',
+      '/docs/nesting',
+    ],
+    'the pages that read nothing, and the two parameterised ones that say what their parameter can be',
+  )
+  // A nested layout does not take a page out of the build-time set. The verdict is computed over
+  // every layer of the chain, so these four are files because `app/layout.tsx`, the subtree's
+  // layout and the page all read nothing — and a cookie read in any one of them would refuse all four.
+  assert.deepEqual(
+    documents.filter((d) => d.pattern === '/docs/:topic').map((d) => d.path),
+    ['/docs/nesting', '/docs/holes', '/docs/cache'],
   )
   // One route, two documents, each proved on its own: an invariance test that passed for `pantry`
   // says nothing about `household`, and a loader that reads a cookie for one category and not the

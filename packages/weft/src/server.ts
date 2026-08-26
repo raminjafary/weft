@@ -9,7 +9,15 @@
 export { createApp, serveApp, type App, type CreateOptions, type Mode, type Serving } from './serve.ts'
 export { build, loadBuild, formatReport, type BuildReport, type IrManifest } from './build.ts'
 export { dev, type DevServer } from './dev.ts'
-export { discover, patternOf, ConventionError, type Discovered, type DiscoveredRoute } from './convention.ts'
+export {
+  chainFor,
+  discover,
+  patternOf,
+  ConventionError,
+  type Discovered,
+  type DiscoveredNested,
+  type DiscoveredRoute,
+} from './convention.ts'
 export { compileApp, frameworkStyles, slotHoles, type CompiledApp, type CompiledFragment } from './compile.ts'
 export { generateRoutes, navOf, GenerateError, type Generated, type GeneratedRoute } from './routes.ts'
 export { loadIntents, moduleIdOf, type IntentManifest, type ManifestEntry } from './intents.ts'

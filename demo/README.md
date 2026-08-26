@@ -1,6 +1,6 @@
 # demo
 
-Five shapes of page, built with weft. It is an application, and the interesting thing about it is
+Six shapes of page, built with weft. It is an application, and the interesting thing about it is
 what it does _not_ contain.
 
 ```
@@ -36,6 +36,7 @@ app/
   layouts/dash.tsx      the dashboard's, because it has a different shape
   layouts/race.tsx      the streaming race's
   routes/**             the route table, which is this tree
+  routes/docs/layout.tsx  a layout for that subtree, nested inside app/layout.tsx
   fragments/**          components, each with its own .css beside it
   intents/**            mutations. The manifest is generated from this directory
   styles.css            linked on every page after the framework's own

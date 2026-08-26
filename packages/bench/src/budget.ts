@@ -51,6 +51,14 @@ export const BUDGETS: ByteBudget[] = [
     limitNote: 'under 8 KB server-side',
   },
   {
+    id: 'kernel-nested',
+    label: 'Server kernel plus a document made of nested layouts',
+    entry: kernelSrc('entry-nested.ts'),
+    limit: 9 * 1024,
+    limitNote:
+      'no design figure; its own entry, because a chain walk written into splitAtSlots cost 83 B and the 8 KB path had 74 B left',
+  },
+  {
     id: 'kernel-refresh',
     label: 'Server kernel plus surgical refresh and epochs',
     entry: kernelSrc('entry-channel.ts'),

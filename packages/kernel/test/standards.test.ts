@@ -101,6 +101,10 @@ test('the kernel only reaches sideways into the two versioned wire packages', ()
  */
 const LINE_CEILINGS: Record<string, number> = {
   'entry-request.ts': 1800,
+  // Nested layouts: the request path plus the splice that assembles a chain of layouts into one
+  // cut document. Its own entry because the chain walk did not fit in the 8 KB path — see
+  // `spec/kernel/budgets.md`.
+  'entry-nested.ts': 1900,
   // The surgical ladder grew a second rung — `patch`, for a region whose values are not
   // projectable — and the *choice* lives where every other form choice lives, so 31 lines landed
   // in the refresh path and moved this ceiling and the three below it. The encoder itself is not

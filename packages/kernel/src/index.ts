@@ -1,4 +1,5 @@
 export * from './split.ts'
+export * from './split-chain.ts'
 export * from './stream.ts'
 export * from './filler.ts'
 export * from './ports.ts'

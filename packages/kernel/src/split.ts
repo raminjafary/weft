@@ -10,6 +10,17 @@ export interface SlotSplit {
 }
 
 /**
+ * How a document is cut into what can be sent now and what has to wait.
+ *
+ * A type rather than a call, because there is a second implementation: a route wrapped in nested
+ * layouts is cut across the whole chain, and that splicing lives in `split-chain.ts` so that a
+ * deployment whose layouts are flat does not import it. See `spec/kernel/budgets.md` — this is the
+ * third time the byte budget has turned a capability into a seam, and the seam is the better shape
+ * each time.
+ */
+export type Splitter = (ir: TemplateIR, values: Values, resolve?: Resolver) => SlotSplit
+
+/**
  * Cuts the shell at its slot holes, and at every instance the compiler isolated. Everything
  * between two of them is bytes the server can send before it knows anything about the slow
  * work, which is the whole reason a slot exists: a fragment that reads something slow

@@ -102,7 +102,7 @@ export default defineConfig({
     signing: { kid: 'dev', privateKey: dev.privateKey, publicKeys: { dev: dev.publicKey } },
   },
   nav: [
-    { href: '/', label: 'The five' },
+    { href: '/', label: 'The six' },
     { href: '/app/ordinary/pantry', label: 'Ordinary page' },
     { href: '/app/feed', label: 'Feed' },
     { href: '/app/cart', label: 'Cart' },
@@ -110,5 +110,6 @@ export default defineConfig({
     { href: '/app/article', label: 'Article' },
     { href: '/live/race/out-of-order', label: 'Streaming race' },
     { href: '/app/composed', label: 'Composed' },
+    { href: '/docs', label: 'Docs' },
   ],
 })

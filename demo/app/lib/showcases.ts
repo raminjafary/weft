@@ -62,6 +62,17 @@ export const SHOWCASES: readonly Showcase[] = [
     ],
   },
   {
+    href: '/docs/nesting',
+    title: 'A subtree with its own layout',
+    standsFor:
+      'Documentation, an admin area, a signed-in section — a group of pages that share chrome the rest of the application does not have.',
+    leansOn: [
+      'A nested layout: `app/routes/docs/layout.tsx` wraps every route under `/docs`, inside the application’s own document',
+      'A chain checked as one document — its holes, its reads and its static verdict are the union over every layer',
+      'A stylesheet linked by the pages under that layout and by no others',
+    ],
+  },
+  {
     href: '/live/race/out-of-order',
     title: 'The streaming race',
     standsFor:

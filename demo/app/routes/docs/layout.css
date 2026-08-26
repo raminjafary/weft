@@ -1,0 +1,34 @@
+/* A nested layout's own stylesheet, linked by the pages under it and by no others. */
+.docs {
+  display: grid;
+  grid-template-columns: minmax(12rem, 16rem) 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.docs-toc {
+  position: sticky;
+  top: 1rem;
+  border-inline-start: 2px solid color-mix(in oklab, currentColor 15%, transparent);
+  padding-inline-start: 0.9rem;
+}
+
+.docs-toc ol {
+  margin: 0;
+  padding-inline-start: 1.1rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.docs-body > * + * {
+  margin-block-start: 0.9rem;
+}
+
+@media (width < 46rem) {
+  .docs {
+    grid-template-columns: 1fr;
+  }
+  .docs-toc {
+    position: static;
+  }
+}

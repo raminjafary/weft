@@ -32,7 +32,10 @@ export interface CompiledFragment {
 }
 
 export interface CompiledApp {
-  /** By logical name: `layout`, `markup`, `route:/blog/:slug`, `slot:header`, `fragment:card`. */
+  /**
+   * By logical name: `layout`, `markup`, `route:/blog/:slug`, `slot:header`, `fragment:card`,
+   * and `nested:/dashboard` for a layout scoped to a subtree of the route table.
+   */
   fragments: Record<string, CompiledFragment>
   diagnostics: string[]
   /** Every sealed template, for a build artifact and for the channel's template lookup. */
@@ -133,6 +136,7 @@ export async function compileApp(
       .filter((route) => route.file)
       .map((route) => ({ name: `route:${route.pattern}`, file: route.file as string })),
     ...discovered.layouts.map((l) => ({ name: `layout:${l.name}`, file: l.file })),
+    ...discovered.nested.map((n) => ({ name: `nested:${n.scope}`, file: n.file })),
     ...discovered.slots.map((slot) => ({ name: `slot:${slot.name}`, file: slot.file })),
     ...discovered.fragments.map((f) => ({ name: `fragment:${f.name}`, file: f.file })),
   ]

@@ -1,6 +1,13 @@
-import { cacheClassOf, requiresTtl, type EffectSet, type WireForm } from '@weft/ir'
+import { cacheClassOf, requiresTtl, unionEffects, type EffectSet, type WireForm } from '@weft/ir'
 import { type Consistency, type DagNode, PlanGraphError, schedule, W_CPU_BUDGET_ADVISORY } from '@weft/kernel'
-import { PlanError, REGION_EXECUTOR, type Plan, type RegionDecl, type SlotSpec } from './dsl.ts'
+import {
+  PlanError,
+  REGION_EXECUTOR,
+  type Plan,
+  type RegionDecl,
+  type ShellNesting,
+  type SlotSpec,
+} from './dsl.ts'
 
 /**
  * The plan is checked against what the compiler inferred, never the other way around.
@@ -267,6 +274,85 @@ export function cspOf(plan: Plan, errors: Issue[] = []): Record<string, string[]
 }
 
 /**
+ * The document a route renders, as one fact set, however many layouts it is made of.
+ *
+ * A chain is a document with a document inside it, and every question this file asks about a shell
+ * is a question about the whole of it: which boundaries a slot may fill, what the document reads,
+ * and therefore what it may advertise. So the layers are merged once, here, and everything
+ * downstream sees a single `SlotFacts` — a nested layout that reads a cookie makes the document
+ * private exactly as the outer one would, which is the property that would quietly be lost if the
+ * chain were checked one layer at a time.
+ *
+ * The holes a link fills are removed rather than counted: they are where the next layout goes,
+ * not boundaries a slot may claim, and a plan that declared one would be filling a hole that no
+ * longer exists by the time the document is streamed.
+ */
+function shellFacts(plan: Plan, context: ValidateContext, errors: Issue[]): SlotFacts | undefined {
+  const outer = plan.shell ? context.facts[plan.shell] : undefined
+  if (!plan.shell) return undefined
+  if (!outer) {
+    errors.push({
+      code: 'E_NO_SUCH_FRAGMENT',
+      message: `${plan.route} names shell '${plan.shell}', which the compiler did not produce`,
+    })
+    return undefined
+  }
+  const chain = plan.shellChain ?? []
+  if (!chain.length) return outer
+
+  const layers: SlotFacts[] = [outer]
+  for (const link of chain) {
+    const facts = context.facts[link.fragment]
+    if (!facts) {
+      errors.push({
+        code: 'E_NO_SUCH_FRAGMENT',
+        message: `${plan.route} nests shell '${link.fragment}', which the compiler did not produce`,
+      })
+      return undefined
+    }
+    layers.push(facts)
+  }
+
+  // A link's `at` has to be a boundary the layout enclosing it actually leaves, or the nested
+  // layout has nowhere to go and the document renders without it.
+  for (let i = 0; i < chain.length; i++) {
+    const link = chain[i] as ShellNesting
+    const enclosing = layers[i] as SlotFacts
+    if (enclosing.fillable && !enclosing.fillable.includes(link.at)) {
+      errors.push({
+        code: 'E_SHELL_LINK_UNPLACED',
+        message:
+          `${plan.route} nests '${link.fragment}' at '${link.at}', which ${enclosing.id} does not leave ` +
+          `(it leaves ${[...enclosing.fillable].sort().join(', ') || 'none'})`,
+      })
+    }
+  }
+
+  // A layer loses exactly one hole: the one the link *inside it* fills. The innermost layer has no
+  // link inside it, so it keeps all of them — which is where the page goes.
+  const undecided = layers.some((layer) => !layer.fillable)
+  const fillable = undecided
+    ? undefined
+    : [
+        ...new Set(
+          layers.flatMap((layer, index) => {
+            const own = layer.fillable as readonly string[]
+            const link = chain[index]
+            return link ? own.filter((hole) => hole !== link.at) : own
+          }),
+        ),
+      ]
+
+  return {
+    id: [outer.id, ...chain.map((link) => link.fragment)].join('>'),
+    version: layers.map((layer) => layer.version).join('+'),
+    effects: unionEffects(layers.map((layer) => layer.effects)),
+    forms: outer.forms,
+    ...(fillable ? { fillable } : {}),
+  }
+}
+
+/**
  * The plan's slots and the shell's holes have to agree exactly. Both sides are already
  * written down — one by an author, one by the compiler — so a disagreement is a build error
  * rather than a region that renders empty in production.
@@ -282,19 +368,14 @@ function checkShell(plan: Plan, context: ValidateContext, errors: Issue[]): Slot
     return undefined
   }
 
-  const facts = context.facts[plan.shell]
-  if (!facts) {
-    errors.push({
-      code: 'E_NO_SUCH_FRAGMENT',
-      message: `${plan.route} names shell '${plan.shell}', which the compiler did not produce`,
-    })
-    return undefined
-  }
+  const facts = shellFacts(plan, context, errors)
+  if (!facts) return undefined
 
   // Absent rather than empty means the caller did not derive it, and inventing an answer
   // from that would turn a missing input into a confident refusal.
   if (!facts.fillable) return facts
 
+  const where = plan.shellChain?.length ? `the chain ${facts.id}` : (plan.shell as string)
   const holes = new Set(facts.fillable)
   const declared = new Set(plan.slots.map((s) => s.name))
   for (const spec of plan.slots) {
@@ -302,7 +383,7 @@ function checkShell(plan: Plan, context: ValidateContext, errors: Issue[]): Slot
       errors.push({
         code: 'E_SLOT_NOT_IN_SHELL',
         slot: spec.name,
-        message: `is not a boundary in ${plan.shell} (it leaves ${[...holes].sort().join(', ') || 'none'})`,
+        message: `is not a boundary in ${where} (it leaves ${[...holes].sort().join(', ') || 'none'})`,
       })
     }
   }
@@ -310,7 +391,7 @@ function checkShell(plan: Plan, context: ValidateContext, errors: Issue[]): Slot
     if (!declared.has(hole)) {
       errors.push({
         code: 'E_SHELL_HOLE_UNFILLED',
-        message: `${plan.shell} leaves a boundary '${hole}' that no slot in ${plan.route} fills`,
+        message: `${where} leaves a boundary '${hole}' that no slot in ${plan.route} fills`,
       })
     }
   }

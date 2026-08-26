@@ -11,6 +11,7 @@ import { join, relative, sep } from 'node:path'
  * the same idea.
  *
  *   app/layout.tsx              the document. Its `<slot>` holes are what a route fills.
+ *   app/routes/<dir>/layout.tsx a nested layout, wrapping every route at or under <dir>
  *   app/routes/index.tsx        /
  *   app/routes/about.tsx        /about
  *   app/routes/blog/[slug].tsx  /blog/:slug
@@ -49,6 +50,28 @@ export interface DiscoveredNamed {
   css?: string
 }
 
+/**
+ * A layout that wraps a subtree of the route table rather than the whole application.
+ *
+ * `app/routes/dashboard/layout.tsx` wraps every route at or under `/dashboard`, nested inside the
+ * application's own document. Directory-scoped rather than declared, for the reason every other
+ * placement in this file is: the file tree is the single source of the route table, and a chain
+ * assembled from a declaration somewhere else would be a second source that could disagree with it.
+ *
+ * `layout` is therefore a reserved page name under `routes/`: a file called `layout.tsx` is a
+ * wrapper, never a route. There is no `layout.data.ts` — a nested layout's holes are filled by the
+ * route's own declaration, exactly as the root layout's are, and a declaration attached to the
+ * wrapper would be one that every route under it silently shared.
+ */
+export interface DiscoveredNested {
+  /** The route-pattern prefix this layout wraps: `/dashboard`, or `/` at the top of `routes/`. */
+  scope: string
+  file: string
+  css?: string
+  /** Segments in the scope, so a chain sorts outermost-first without re-parsing the pattern. */
+  depth: number
+}
+
 export interface Discovered {
   root: string
   srcDir: string
@@ -58,6 +81,8 @@ export interface Discovered {
   routes: DiscoveredRoute[]
   /** Alternate documents. A route names one, or gets `layout.tsx`. */
   layouts: DiscoveredNamed[]
+  /** Layouts scoped to a subtree of `routes/`, outermost first. */
+  nested: DiscoveredNested[]
   slots: DiscoveredNamed[]
   fragments: DiscoveredNamed[]
   intents: string[]
@@ -147,6 +172,25 @@ export function patternOf(relativePath: string): string {
   return `/${segments.join('/')}`.replace(/\/+$/, '') || '/'
 }
 
+/**
+ * The nested layouts that wrap a route, outermost first.
+ *
+ * Matched segment by segment rather than by string prefix, because `/blog` is not a prefix of
+ * `/blogroll` in any sense a router would recognise — and a layout that wrapped the wrong subtree
+ * would do it silently, on a page that renders.
+ */
+export function chainFor(pattern: string, nested: readonly DiscoveredNested[]): DiscoveredNested[] {
+  const segments = pattern.split('/').filter(Boolean)
+  return nested
+    .filter((entry) => {
+      if (entry.scope === '/') return true
+      const scope = entry.scope.split('/').filter(Boolean)
+      if (scope.length > segments.length) return false
+      return scope.every((part, index) => part === segments[index])
+    })
+    .sort((a, b) => a.depth - b.depth || a.scope.localeCompare(b.scope))
+}
+
 export async function discover(root: string, srcDir = 'app'): Promise<Discovered> {
   const base = join(root, srcDir)
   if (!(await exists(base))) {
@@ -161,10 +205,46 @@ export async function discover(root: string, srcDir = 'app'): Promise<Discovered
   const routes: DiscoveredRoute[] = []
   const byPattern = new Map<string, string>()
 
+  // `layout.tsx` under `routes/` is a wrapper, not a page, so it is taken out before anything else
+  // sees the file list. Left in, it would be a route called `/dashboard/layout` — which is not what
+  // anybody who wrote the file meant, and is the sort of thing a convention has to decide once.
+  const nested: DiscoveredNested[] = []
+  const pages: string[] = []
+  for (const file of files) {
+    const stem = file.replace(/\.data\.ts$|\.tsx$|\.css$/, '')
+    if (stem.endsWith(`${sep}layout`)) {
+      if (file.endsWith('.data.ts')) {
+        throw new ConventionError(
+          'E_NESTED_LAYOUT_DATA',
+          `${relative(root, file)}: a nested layout has no declaration. Its holes are filled by each ` +
+            `route's own defineRoute({ slots }), because a declaration here would be one every route ` +
+            `under it shared without saying so`,
+        )
+      }
+      if (!file.endsWith('.tsx') && !file.endsWith('.css')) continue
+      const dir = relative(routesDir, stem.slice(0, -`${sep}layout`.length))
+      const scope = patternOf(dir ? `${dir}${sep}index.tsx` : 'index.tsx')
+      const found = nested.find((entry) => entry.scope === scope)
+      const held = found ?? { scope, file: '', depth: scope === '/' ? 0 : scope.split('/').length - 1 }
+      if (file.endsWith('.tsx')) held.file = file
+      else held.css = file
+      if (!found) nested.push(held)
+      continue
+    }
+    pages.push(file)
+  }
+  for (const entry of nested) {
+    if (entry.file) continue
+    throw new ConventionError(
+      'E_ORPHAN_CSS',
+      `${relative(root, entry.css as string)} has no layout.tsx beside it, so nothing links it`,
+    )
+  }
+
   // One entry per route, keyed by the stem the files share, so a `.tsx` and a `.data.ts` of the
   // same name are one route and either of them alone is also one.
   const stems = new Map<string, { tsx?: string; data?: string; css?: string }>()
-  for (const file of files) {
+  for (const file of pages) {
     const stem = file.replace(/\.data\.ts$|\.tsx$|\.css$/, '')
     const entry = stems.get(stem) ?? {}
     if (file.endsWith('.data.ts')) entry.data = file
@@ -232,6 +312,7 @@ export async function discover(root: string, srcDir = 'app'): Promise<Discovered
     ...((await exists(layoutCss)) ? { layoutCss } : {}),
     routes: routes.sort((a, b) => b.depth - a.depth || a.pattern.localeCompare(b.pattern)),
     layouts: await named('layouts'),
+    nested: nested.sort((a, b) => a.depth - b.depth || a.scope.localeCompare(b.scope)),
     slots: await named('slots'),
     fragments: await named('fragments'),
     intents: (await walk(join(base, 'intents'))).filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts')),

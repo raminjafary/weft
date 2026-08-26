@@ -13,7 +13,8 @@ the gate is the test that calls it. Rolldown, minified, brotli at quality 11 —
 
 | Entry                     | Covers                                                                               | Measured | Ceiling  | Where the ceiling comes from                                            |
 | ------------------------- | ------------------------------------------------------------------------------------ | -------- | -------- | ----------------------------------------------------------------------- |
-| `entry-request.ts`        | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream    | 8,118 B  | 8,192 B  | The design's "target under 8 KB server-side"                            |
+| `entry-request.ts`        | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream    | 8,167 B  | 8,192 B  | The design's "target under 8 KB server-side"                            |
+| `entry-nested.ts`         | The above, plus splicing a chain of nested layouts into one cut document             | 8,358 B  | 9,216 B  | No design figure. Its own, because the chain walk did not fit above     |
 | `entry-channel.ts`        | The above, plus surgical refresh, form selection, epochs, the stale registry         | 10,893 B | 12,288 B | No design figure. A watermark                                           |
 | `entry-patch.ts`          | The above, plus the patch encoder: the surgical rung a template needs no proof for   | 11,563 B | 12,288 B | No design figure. Its own, because in the refresh path it cost everyone |
 | `entry-intent.ts`         | The request path, plus intent dispatch, the three authority branches, method routing | 9,656 B  | 10,240 B | No design figure. A watermark                                           |
@@ -65,6 +66,20 @@ does not use is the thing it does not import.
 predicted in writing that a rule satisfied by five bytes is a rule about to stop being satisfied, and
 what broke it was seven bytes of a capability it does not have. A watermark that cannot absorb the
 shared cost of a ladder rung is measuring the wrong thing, so it went to 12,288 with 1,017 free.
+
+**Nested layouts are the third capability the byte budget turned into a seam.** A document may be a
+chain — `app/layout.tsx`, then a `layout.tsx` per directory, then the page — and the obvious
+implementation is to teach `splitAtSlots` to walk it. That cost **83 bytes** and `entry-request.ts`
+had **74** left, against the one ceiling on this page that cannot move: 8,192 is the design's own
+figure and moving it would make the figure a label.
+
+So the splice is `chainSplitter` in `split-chain.ts`, built on the flat splitter rather than
+replacing it, and it reaches the request path only through `entry-nested.ts`. What
+`entry-request.ts` pays is the `route.split ?? splitAtSlots` that chooses between them —
+8,118 → 8,167, leaving **25 bytes**. That is thin, and this page has said in writing that a rule
+satisfied by five bytes is a rule about to stop being satisfied. The difference is that this
+ceiling is not a watermark: the next addition to the document request path has 25 bytes, and if it
+needs more it needs a seam, which is the outcome the budget exists to force.
 
 **The front-door watermark moved to 14 KB, for a socket.** 12 KB when the exposed table landed, 13 KB
 when the refresh interval and the patch applier did, and 14 KB when the channel got a WebSocket with

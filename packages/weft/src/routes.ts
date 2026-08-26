@@ -1,5 +1,5 @@
 import { pathToFileURL } from 'node:url'
-import { baseRenderId, clientOwned, clientView, readsOf, render, type Values } from '@weft/ir'
+import { baseRenderId, clientOwned, clientView, readsOf, render, unionEffects, type Values } from '@weft/ir'
 import {
   createRouter,
   recordBase,
@@ -30,7 +30,7 @@ import {
 import { composedIn, slotHoles, type CompiledApp, type CompiledFragment } from './compile.ts'
 import { withServices } from './context.ts'
 import type { Decisions, Recorder, SlotDecision } from './profile.ts'
-import type { Discovered, DiscoveredRoute } from './convention.ts'
+import { chainFor, type Discovered, type DiscoveredRoute } from './convention.ts'
 import type {
   BudgetDeclaration,
   CacheDeclaration,
@@ -279,6 +279,92 @@ function layoutFor(compiled: CompiledApp, name: string | undefined, where: strin
     )
   }
   return found
+}
+
+/**
+ * The nested layouts a route is wrapped in, outermost first.
+ *
+ * The chain comes from the file tree — `app/routes/dashboard/layout.tsx` wraps `/dashboard` and
+ * everything under it — so nothing declares it and nothing can declare it differently. What each
+ * link fills is `body`, which is the same convention the page itself uses one level in: a layout
+ * hole named `body` is where the thing this document wraps goes, whether that thing is a page or
+ * another layout.
+ */
+function nestedFor(compiled: CompiledApp, discovered: Discovered, pattern: string): CompiledFragment[] {
+  return chainFor(pattern, discovered.nested).map((entry) => {
+    const found = compiled.fragments[`nested:${entry.scope}`]
+    if (!found) {
+      throw new GenerateError(
+        'E_NO_SUCH_LAYOUT',
+        `${pattern} is under ${entry.scope}, whose layout.tsx could not be compiled`,
+      )
+    }
+    return found
+  })
+}
+
+/** The hole every link in a chain fills: where the thing this document wraps goes. */
+const NESTS_AT = 'body'
+
+/** A chain of layouts, as a message names it: the files, outermost first. */
+function documentOf(layers: readonly CompiledFragment[]): string {
+  return layers.map((fragment) => fragment.file).join(' > ')
+}
+
+/**
+ * Every boundary a chain leaves, in document order.
+ *
+ * Not a concatenation: a nested layout's holes appear where the layout does, so a chain whose outer
+ * document is header/body/footer and whose inner one is main/aside leaves header, main, aside,
+ * footer — and the stream sends them in that order. Concatenating would put the footer's bytes
+ * before the inner layout's, which is the one thing document order is for.
+ */
+function chainHoles(layers: readonly CompiledFragment[]): string[] {
+  const walk = (index: number): string[] => {
+    const own = slotHoles(layers[index] as CompiledFragment)
+    if (index === layers.length - 1) return own
+    const at = own.indexOf(NESTS_AT)
+    return [...own.slice(0, at), ...walk(index + 1), ...own.slice(at + 1)]
+  }
+  return walk(0)
+}
+
+/**
+ * A chain has to be a chain: every layer but the innermost needs a hole for the next one.
+ *
+ * Checked here rather than left to the plan layer because the plan layer sees fragment ids and
+ * this sees files — and "app/routes/dashboard/layout.tsx has nowhere to go" is the sentence
+ * somebody can act on. A duplicate hole name is refused for the same reason: the plan keys slots
+ * by name and the client addresses regions by name, so two layers leaving `aside` would be one
+ * region with two places to be.
+ */
+function checkChain(layers: readonly CompiledFragment[], pattern: string): void {
+  for (let i = 0; i < layers.length - 1; i++) {
+    const layer = layers[i] as CompiledFragment
+    if (slotHoles(layer).includes(NESTS_AT)) continue
+    throw new GenerateError(
+      'E_NO_NESTING_SLOT',
+      `${layer.file} wraps ${(layers[i + 1] as CompiledFragment).file} on ${pattern}, and has no ` +
+        `<slot name="${NESTS_AT}"> to put it in`,
+    )
+  }
+  const seen = new Map<string, string>()
+  for (let i = 0; i < layers.length; i++) {
+    const layer = layers[i] as CompiledFragment
+    for (const hole of slotHoles(layer)) {
+      // The hole a link fills is not a boundary: it is where the next layout goes.
+      if (hole === NESTS_AT && i < layers.length - 1) continue
+      const held = seen.get(hole)
+      if (held) {
+        throw new GenerateError(
+          'E_DUPLICATE_LAYOUT_HOLE',
+          `${pattern}: ${held} and ${layer.file} both leave a hole '${hole}'. One region cannot be ` +
+            `in two places, so a nested layout has to name its holes differently from the one it is inside`,
+        )
+      }
+      seen.set(hole, layer.file)
+    }
+  }
 }
 
 /**
@@ -633,23 +719,37 @@ interface OneOptions extends GenerateOptions {
 }
 
 async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise<GeneratedRoute> {
-  const { compiled, markup, facts, nav } = options
+  const { compiled, markup, facts, nav, discovered } = options
   const module_ = await loadModule(route.data)
   const layout = layoutFor(compiled, module_.layout, route.pattern)
-  const holes = slotHoles(layout)
+  const nested = nestedFor(compiled, discovered, route.pattern)
+  /**
+   * The document, as the layers it is made of: the application's own, then every nested layout
+   * from the shallowest directory inwards.
+   *
+   * One list, used everywhere `layout` alone used to be, because every question about a document
+   * is a question about the whole chain — which holes it leaves, what it reads, what stylesheets it
+   * links, and which two routes are the same document. `inner` is the layer the page goes in, which
+   * is the last one; for a route with no nested layout that is the application's own and every
+   * expression below reduces to what it was.
+   */
+  const layers = [layout, ...nested]
+  const inner = layers[layers.length - 1] as CompiledFragment
+  checkChain(layers, route.pattern)
+  const holes = chainHoles(layers)
   const body = module_.slots?.body
   const page = compiled.fragments[`route:${route.pattern}`]
 
   if (!holes.length) {
     throw new GenerateError(
       'E_NO_SLOTS',
-      `${layout.file} declares no <slot> holes, so there is nowhere on it for a page to go`,
+      `${documentOf(layers)} declares no <slot> holes, so there is nowhere on it for a page to go`,
     )
   }
   if (!page && !Object.keys(module_.slots ?? {}).length) {
     throw new GenerateError(
       'E_NO_PAGE',
-      `${route.pattern} renders nothing. Write the .tsx beside its declaration, or declare what fills each of ${layout.file}'s slots`,
+      `${route.pattern} renders nothing. Write the .tsx beside its declaration, or declare what fills each of ${documentOf(layers)}'s slots`,
     )
   }
   // `body` is a convention rather than a requirement: a layout whose regions are four dashboard
@@ -657,7 +757,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
   if (route.file && !holes.includes('body')) {
     throw new GenerateError(
       'E_NO_BODY_SLOT',
-      `${route.file.split('/').pop()} is a page, but ${layout.file} has no <slot name="body"> to put it in. ` +
+      `${route.file.split('/').pop()} is a page, but ${inner.file} has no <slot name="body"> to put it in. ` +
         `Either give the layout one, or drop the .tsx and let the declaration name what renders each slot`,
     )
   }
@@ -726,7 +826,10 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
   }
 
   const entries = [
-    shellSpec(layout.entry.id),
+    shellSpec(
+      layout.entry.id,
+      nested.map((link) => ({ at: NESTS_AT, fragment: link.entry.id })),
+    ),
     ...(module_.guard
       ? [
           guardSpec('route.guard', {
@@ -815,7 +918,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
 
   // Cascade order: the layout's, then every fragment this page renders — including the ones it
   // composes rather than the ones a slot named — then the page's own.
-  const rendered = new Set<CompiledFragment>([layout])
+  const rendered = new Set<CompiledFragment>(layers)
   for (const name of holes) {
     const fragment = (declarations[name] as (typeof declarations)[string]).fragment
     // A remote region's stylesheet is its own, and it travels with its frames rather than in this
@@ -853,6 +956,9 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
   }
   const bindings: RouteBindings = {
     shell: { entry: layout.entry, resolve: layout.resolve },
+    ...(nested.length
+      ? { nested: nested.map((link) => ({ at: NESTS_AT, entry: link.entry, resolve: link.resolve })) }
+      : {}),
     shellValues: (params) => {
       const resolved = typeof head === 'function' ? head(params) : (head ?? {})
       return {
@@ -879,16 +985,21 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     ...STANDARD,
     ...Object.keys(typeof extra === 'function' ? extra({}) : (extra ?? {})),
   ])
-  for (const hole of layout.entry.holes) {
-    if (hole.kind === 'slot' || hole.kind === 'component') continue
-    if (supplied.has(hole.binding)) continue
-    throw new GenerateError(
-      'E_LAYOUT_HOLE_UNFILLED',
-      `${layout.file} has a hole '${hole.binding}' that neither the framework nor ${
-        route.data ?? route.pattern
-      } supplies. It may read ${[...supplied].join(', ')}, declare <slot> holes for regions, and ` +
-        `add anything else through defineRoute({ layoutValues })`,
-    )
+  // Every layer, because a nested layout reads the same value set as the one it is inside: the
+  // chain is one document with one head, and a hole in the third layer is as unfilled as one in
+  // the first.
+  for (const layer of layers) {
+    for (const hole of layer.entry.holes) {
+      if (hole.kind === 'slot' || hole.kind === 'component') continue
+      if (supplied.has(hole.binding)) continue
+      throw new GenerateError(
+        'E_LAYOUT_HOLE_UNFILLED',
+        `${layer.file} has a hole '${hole.binding}' that neither the framework nor ${
+          route.data ?? route.pattern
+        } supplies. It may read ${[...supplied].join(', ')}, declare <slot> holes for regions, and ` +
+          `add anything else through defineRoute({ layoutValues })`,
+      )
+    }
   }
 
   const composes = plan.slots.some((slot) => slot.region)
@@ -935,6 +1046,18 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     }))
     .filter((entry): entry is { name: string; for: NonNullable<typeof entry.for> } => Boolean(entry.for))
 
+  /**
+   * The document's identity and reads, over the whole chain.
+   *
+   * A nested layout is part of the document, so what it reads is what the document reads — leaving
+   * it out would advertise a page as shareable on the strength of its outer layout alone. The id
+   * and version are joined rather than hashed because they are only ever compared: two routes share
+   * a document when they were built from the same files in the same order.
+   */
+  const documentId = layers.map((layer) => layer.entry.id).join('>')
+  const documentVersion = layers.map((layer) => layer.entry.version).join('+')
+  const documentEffects = unionEffects(layers.map((layer) => layer.entry.effects))
+
   const value: RouteResolver = async (params, url) => {
     const resolved = await resolver(params)
     const query = url?.searchParams ?? new URLSearchParams()
@@ -956,9 +1079,9 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
        * The same reasoning as the slot ids below, one level up.
        */
       shell: {
-        id: `${layout.entry.id}@${route.pattern}`,
-        version: layout.entry.version,
-        effects: layout.entry.effects,
+        id: `${documentId}@${route.pattern}`,
+        version: documentVersion,
+        effects: documentEffects,
       },
       ...(order ? { order: typeof order === 'function' ? order(params) : order } : {}),
       slots: resolved.slots.map((slot) => ({
@@ -1007,7 +1130,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     regions,
     remote,
     exposed,
-    shell: { id: layout.entry.id, version: layout.entry.version },
+    shell: { id: documentId, version: documentVersion },
     titleFor: (params) => {
       const resolved = typeof head === 'function' ? head(params) : (head ?? {})
       return resolved.title ?? labelOf(route.pattern)
@@ -1017,7 +1140,8 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     static: staticVerdict({
       pattern: route.pattern,
       module: module_,
-      shell: layout,
+      shell: inner,
+      layers,
       slots: holes.map((name) => {
         const held = declarations[name] as (typeof declarations)[string]
         return {

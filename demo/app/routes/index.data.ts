@@ -2,7 +2,7 @@ import { defineRoute } from 'weft'
 import { SHOWCASES } from '../lib/showcases.ts'
 
 /**
- * The demo's index: the five shapes of page, and what makes each one hard.
+ * The demo's index: the six shapes of page, and what makes each one hard.
  *
  * It used to list thirty-four stations, which is why this file used to import a station registry.
  * The stations moved to `@weft/inspector`, where taking the framework apart is the job — and this
@@ -10,11 +10,11 @@ import { SHOWCASES } from '../lib/showcases.ts'
  * inspector for anyone who wants the mechanisms underneath.
  */
 export default defineRoute({
-  head: { title: 'weft — five applications', description: 'Five shapes of page, built with weft.' },
+  head: { title: 'weft — six applications', description: 'Six shapes of page, built with weft.' },
   layoutValues: {
-    heading: 'Five shapes of page',
+    heading: 'Six shapes of page',
     shows:
-      'A framework can win every isolated benchmark and still be miserable to build a page with. These five are whole pages.',
+      'A framework can win every isolated benchmark and still be miserable to build a page with. These six are whole pages.',
     control: 'Open any of them. Each says what makes it hard and which capabilities carry it.',
     status: 'live',
   },

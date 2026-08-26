@@ -141,6 +141,7 @@ app/
   routes/index.tsx      /            routes/[slug].tsx  /:slug
   routes/x.data.ts      x.tsx's head, cache policy, loader, guard and slots
   routes/x.css          linked only by the pages that render x
+  routes/<dir>/layout.tsx  wraps every route under <dir>, inside app/layout.tsx
   fragments/<name>.tsx  a component, referenced by name from a route's slots
   slots/<name>.tsx      fills the layout hole of that name on every route
   intents/**.ts         mutations. The manifest is generated from this directory
@@ -157,7 +158,7 @@ weft dev --devtools # plus this application's routes, keys and bytes as pages
 weft build          # sealed templates, the generated plan, the manifest, revved assets
 weft start          # serve the build. No compiler runs
 weft routes         # the route table, as the file tree produced it
-weft why /          # the plan the framework generated for a route
+weft why /          # the plan the framework generated for a route, chain included
 weft dev --profile  # record what every render costs, and plan the next run from it
 weft verify --probe # ask every region what it is serving, and exit non-zero on disagreement
 weft upload --to …  # PUT the build to an object store. --header is where authentication goes

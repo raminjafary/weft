@@ -3,10 +3,13 @@ import {
   render as renderTemplate,
   renderIncremental,
   type SegmentMemo,
+  type Resolver,
   type TemplateIR,
+  unionEffects,
   type Values,
 } from '@weft/ir'
 import {
+  chainSplitter,
   createComposer,
   readsFor,
   regionEffects,
@@ -76,6 +79,15 @@ export type GuardHandler = (ctx: EnvelopeContext) => boolean | Promise<boolean>
 
 export interface RouteBindings {
   shell: FragmentSource
+  /**
+   * Layouts nested inside `shell`, outermost first, in the same order as `plan.shellChain`.
+   *
+   * Two lists rather than one because they answer different questions and are checked against each
+   * other: the plan names the fragments so validation can refuse a link with nowhere to go, and
+   * these are the bytes-producers the kernel splices in. A chain whose two halves disagree is
+   * refused at lowering rather than streamed.
+   */
+  nested?: readonly (FragmentSource & { at: string })[]
   /**
    * The shell's non-slot values. A function of the matched params only: the shell is rendered
    * as the plan is resolved, before phase B exists, so it cannot read through a context. A
@@ -432,6 +444,58 @@ export function lowerPlan(plan: Plan, context: ValidateContext, bindings: RouteB
   // possible: there is one document and one header, which is why a conflict is a build error.
   const csp = cspOf(plan)
 
+  const chain = plan.shellChain ?? []
+  const nested = bindings.nested ?? []
+  if (chain.length !== nested.length) {
+    throw new PlanError(
+      'E_SHELL_CHAIN_MISMATCH',
+      `${plan.route}: the plan nests ${chain.length} layout(s) and the bindings supply ${nested.length}. ` +
+        `The plan says what the chain is and the bindings say what renders it; neither can be inferred from the other`,
+    )
+  }
+  for (let i = 0; i < chain.length; i++) {
+    const declared = chain[i] as { at: string; fragment: string }
+    const bound = nested[i] as FragmentSource & { at: string }
+    if (declared.at !== bound.at || declared.fragment !== bound.entry.id) {
+      throw new PlanError(
+        'E_SHELL_CHAIN_MISMATCH',
+        `${plan.route}: link ${i} is declared as '${declared.fragment}' at '${declared.at}' and bound as ` +
+          `'${bound.entry.id}' at '${bound.at}'`,
+      )
+    }
+  }
+  /**
+   * The document's identity and reads, over the whole chain.
+   *
+   * A nested layout is part of the document, so what it reads is what the document reads — and the
+   * cache key, the `Vary` and the class all come from this set. Computed once at lowering because
+   * the chain is build-time knowledge; recomputing it per request would be the same union every time.
+   */
+  const document = {
+    id: [bindings.shell.entry.id, ...nested.map((link) => link.entry.id)].join('>'),
+    version: [bindings.shell.entry.version, ...nested.map((link) => link.entry.version)].join('+'),
+    effects: unionEffects([bindings.shell.entry.effects, ...nested.map((link) => link.entry.effects)]),
+  }
+  const links = nested.map((link) => ({ at: link.at, template: link.entry }))
+  const splitter = links.length ? chainSplitter(links) : undefined
+  /**
+   * One lookup table over the whole chain, composed here because here is where it is free.
+   *
+   * Every layer brings its own nested templates — list rows, component instances — and the split
+   * that streams the chain takes one resolver. Template versions are content addresses, so asking
+   * the layers in order cannot answer differently from asking each layer about its own; what it
+   * does avoid is a per-link resolver on the document request path, which has a byte budget.
+   */
+  const resolveChain: Resolver | undefined = links.length
+    ? (version: string) => {
+        for (const source of [bindings.shell, ...nested]) {
+          const found = source.resolve?.(version)
+          if (found) return found
+        }
+        return undefined
+      }
+    : bindings.shell.resolve
+
   return async (params) => {
     // Hoisted, because the regions below may need it: a shell signal a region consumes is one of
     // these values, and the exposed set is the only channel between the two.
@@ -440,11 +504,8 @@ export function lowerPlan(plan: Plan, context: ValidateContext, bindings: RouteB
       path: plan.route,
       template: bindings.shell.entry,
       values: shellValues,
-      shell: {
-        id: bindings.shell.entry.id,
-        version: bindings.shell.entry.version,
-        effects: bindings.shell.entry.effects,
-      },
+      ...(splitter ? { split: splitter } : {}),
+      shell: document,
       order,
       maxConcurrency: plan.maxConcurrency,
       slots: plan.slots.map((spec) =>
@@ -461,7 +522,7 @@ export function lowerPlan(plan: Plan, context: ValidateContext, bindings: RouteB
             )
           : slotOf(spec, bindings.slots[spec.name] as SlotBinding, params, bindings.render),
       ),
-      ...(bindings.shell.resolve ? { resolve: bindings.shell.resolve } : {}),
+      ...(resolveChain ? { resolve: resolveChain } : {}),
       ...(bindings.critical ? { critical: bindings.critical } : {}),
       ...(documentPolicy ? { policy: documentPolicy } : {}),
       ...(plan.guards.length || bindings.envelope || Object.keys(csp).length
