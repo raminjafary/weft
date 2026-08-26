@@ -217,11 +217,16 @@ the server clears the map, drops that connection's entries in the stale registry
 new set. Added in Warp 1.3.0; an older server ignores it and merges, which is the behaviour it
 had before.
 
-What that path does not yet touch: the socket binding, `RESUME`, and `STALE`. Epochs, `COMMIT`,
-`NAV` and the uplink frames are exercised end to end — a route staged over a channel and committed
-by a click is measured in [the navigation spec](../client/navigation.md). Version negotiation runs, but only against a client
-that agrees with the server, so the downgrade paths remain tested in isolation rather than
-in traffic.
+What that path touches now: the socket binding, `RESUME`, `STALE`, and negotiation against a client
+that does _not_ agree with the server. Epochs, `COMMIT`, `NAV` and the uplink frames are exercised
+end to end — a route staged over a channel and committed by a click is measured in
+[the navigation spec](../client/navigation.md) — and `node packages/bench/src/cli.ts channel` asks a
+real browser in three engines which binding it opened and what it did when the upgrade was refused,
+which is the downgrade path in traffic rather than in isolation.
+
+What a real device would still add is the part no harness here can: an `OS`-suspended webview, and
+therefore what `RESUME` recovers in practice rather than what it recovers when a page chooses to
+reconnect. `spec/baseline/devices.md` says which lane that needs and what is missing behind it.
 
 ## Privacy
 

@@ -139,13 +139,25 @@ which is the one thing this whole section exists to prevent.
 The fix the message names is to move the read: take the private value above the list or the call
 site, where it is one hole in one template, and pass it in as a prop.
 
-## What this does not do yet
+## What this does not do
 
-- **No cache-policy checking.** `requiresTtl` reports that a TTL is needed; there is no
-  `.cache()` declaration for it to contradict, so the build error the design promises
-  ("a `.cache('public')` declaration anywhere on this slot becomes a build error naming the
-  read that caused it") has nothing to fire against yet.
-- **No writes, and no envelope set.** `EffectSet.writes` and `.envelope` stay empty:
-  invalidation happens in intents and API routes, which do not exist.
-- **Reads are not resolved.** The compiler records _which_ reads taint. Turning those into
-  an actual key needs their values, which is a runtime job the kernel does not do yet.
+Three things this page used to say were missing have since been built, and what they turned into is
+worth stating in their place.
+
+- **Cache-policy checking is the plan layer's, and it fires.** `cacheClassOf` and `requiresTtl` are
+  read by `validatePlan`, so a `.cache('public')` on a slot whose fragment reads identity is
+  `E_CACHE_POLICY_CONFLICT` and one that reads the clock without a TTL is `E_TTL_REQUIRED` — each
+  naming the read that caused it. A document policy is checked against the strictest class among the
+  shell chain and every slot (`E_DOCUMENT_POLICY_CONFLICT`), because there is one header.
+- **Reads are resolved at request time, by the kernel.** The compiler still records only _which_
+  reads taint; `resolveKey` turns that set into a key by asking the ports for the values, which is
+  the split the design asks for. What the compiler emits is the question, and the kernel answers it.
+
+What remains genuinely absent:
+
+- **`EffectSet.writes` and `.envelope` stay empty, on purpose.** A write is not inferred from a
+  fragment, because a render cannot write — that is the kernel's one structural rule. Invalidation is
+  declared on the intent (`writes: ['cart']`) and an undeclared `ctx.revalidate` throws, so the set
+  that matters is checked against a declaration rather than derived from code the compiler would have
+  to guess about. These two fields exist so a fragment's effect set has the same shape everywhere;
+  nothing fills them and nothing should.

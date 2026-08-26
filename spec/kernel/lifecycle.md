@@ -115,12 +115,15 @@ crawler will follow. HTTP trailers look like an escape and are not one. Anything
 those has to be in phase A, and the machine's job is to force it there rather than let it be
 discovered in production.
 
-## What this does not do yet
+## What this does not do
 
-- **No method matching.** `serve()` matches a path (see [routing](routing.md)); methods belong
-  with intents, which do not exist.
-- **No intents.** `EffectSet.writes` is still empty, because invalidation happens in intents
-  and API routes and neither exists.
-- **No `waitUntil`.** `StorePort.revalidateAfterResponse` collects tasks; the memory adapter
-  exposes `drain()` and somebody has to call it. On Workers this maps to `waitUntil`; there
-  is no Workers adapter yet.
+- **No method matching in the route table.** `serve()` matches a path (see
+  [routing](routing.md)). Intents have their own dispatch and their own manifest, so a route
+  matching on method would be a second dispatcher for one question.
+- **`EffectSet.writes` is still empty, and stays that way.** A render cannot write, so there is
+  nothing in a fragment to infer a write from. Invalidation is declared on the intent and an
+  undeclared `ctx.revalidate` throws — see [`../compiler/effects.md`](../compiler/effects.md).
+- **`revalidateAfterResponse` still needs somebody to drain it.** The memory adapter exposes
+  `drain()`; the Workers adapter hands the same promise to `ctx.waitUntil`, which is the
+  platform's own contract for work that outlives a response. What the kernel does not have is a
+  default: a task queue with no runtime behind it is a leak, so the deployment names the drain.
