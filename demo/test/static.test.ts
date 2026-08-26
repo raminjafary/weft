@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -199,4 +199,48 @@ test('a page the compiler cannot see through is refused by the render that prove
   )
   assert.equal(byPattern['/degrades']?.code, 'L0_DEGRADED')
   assert.match(byPattern['/degrades']?.reason ?? '', /this loader cannot run/)
+})
+
+/**
+ * The one refusal a route declares rather than the build deriving.
+ *
+ * Both halves of the L0 proof would say this page is a file: nothing it renders reads the request
+ * where the compiler can see it, and its bytes are identical under both probes because neither one
+ * invents the query key its loader reads. That is the hole `static: false` exists to close, and the
+ * assertion worth making is that the declaration is *checked first* — before the derivations that
+ * would otherwise overrule it.
+ */
+test('a route that declares it is not a file is refused with its own reason', async () => {
+  const root = join(ROOT, 'test/fixtures/declared-dynamic')
+  await rm(root, { recursive: true, force: true })
+  try {
+    await mkdir(join(root, 'app/routes'), { recursive: true })
+    await writeFile(
+      join(root, 'app/routes/index.data.ts'),
+      `import { defineRoute } from 'weft'
+
+export default defineRoute({
+  head: { title: 'declared' },
+  static: false,
+  notStaticBecause: 'its body is whatever ?q carries, and no probe invents that key',
+  slots: {
+    body: { stream: false, html: (ctx) => \`<p>\${ctx.query('q') ?? 'nothing'}</p>\` },
+  },
+})
+`,
+    )
+    const app = await createApp(root, { mode: 'dev', port: 0 })
+    const route = app.routes.find((r) => r.pattern === '/')
+    assert.deepEqual(route?.static, {
+      static: false,
+      code: 'L0_DECLARED',
+      reason: 'its body is whatever ?q carries, and no probe invents that key',
+    })
+
+    const outcome = await prerender(app)
+    assert.deepEqual(outcome.documents, [], 'a declared refusal may not be overruled by the probes')
+    assert.equal(outcome.refused.find((entry) => entry.pattern === '/')?.code, 'L0_DECLARED')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
 })

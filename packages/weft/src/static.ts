@@ -47,6 +47,7 @@ export type StaticRefusal =
   | 'L0_BUDGET_FOR'
   | 'L0_OUT_OF_ORDER'
   | 'L0_VARIES'
+  | 'L0_DECLARED'
   | 'L0_DEGRADED'
   | 'L0_STATUS'
   | 'L0_SET_COOKIE'
@@ -131,6 +132,24 @@ function isolatedIn(fragment: CompiledFragment): TemplateIR | undefined {
 export function staticVerdict(input: StaticInput): StaticVerdict {
   const { pattern, module: declared_, shell, slots } = input
   const layers = input.layers ?? [shell]
+
+  /**
+   * The one refusal the route declares rather than the build deriving.
+   *
+   * Checked first, because the derivations below would otherwise say this page *is* a file — which
+   * is the exact situation the declaration exists for: a loader reading a query key neither probe
+   * invents renders identically under both, and the page gets frozen ignoring the parameter it was
+   * written to read.
+   */
+  if (declared_.static === false) {
+    return {
+      static: false,
+      code: 'L0_DECLARED',
+      reason:
+        declared_.notStaticBecause ??
+        'the route declares static: false. Give a reason in notStaticBecause: a refusal nobody can read is noise',
+    }
+  }
 
   /**
    * A parameterised route is a file per value, when the values are a set the application declared.

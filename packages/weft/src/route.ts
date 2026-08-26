@@ -208,6 +208,24 @@ export interface RouteModule {
    */
   etag?: boolean
   /**
+   * `false` when this page must not be resolved at build time, and why.
+   *
+   * The L0 tier is derived twice over — structurally from what the compiler saw, and empirically by
+   * rendering the page under two requests that differ in everything the framework can vary. Between
+   * them they catch almost everything. What they cannot catch is a loader, an `html` thunk or a
+   * `head` function reading a query key the probe did not invent: `ctx.query('src')` returns
+   * undefined under both probes, the bytes match, and the page is frozen into a file that ignores
+   * the parameter it was written to read.
+   *
+   * So a route that knows it varies on something the probe cannot guess says so, and the build
+   * refuses it as `L0_DECLARED` with this text as the reason. It is an opt-*out* rather than an
+   * opt-in for the obvious reason: a page that forgot to declare it is a page whose author believed
+   * the derivation, and the derivation is right nearly always.
+   */
+  static?: false
+  /** Why this page is not a file. Required with `static: false`: a refusal with no reason is noise. */
+  notStaticBecause?: string
+  /**
    * The values each of this route's parameters can take, when they are a set the application knows.
    *
    * This is what makes a parameterised page a file. L0 refuses a pattern with a parameter because

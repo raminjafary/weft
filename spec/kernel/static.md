@@ -63,6 +63,27 @@ the compiler's ban exists to prevent, and the ban does not reach `.data.ts` beca
 is not compiled. The probe varies everything the framework can vary; it cannot vary something
 the framework never touched.
 
+**A query key the probe does not invent is the same hole, and it is reachable by accident.** The
+query axis sends `?weft-probe=1&sort=price`, so a loader reading `ctx.query('sort')` is caught. One
+reading `ctx.query('src')` is not: it gets `undefined` under both probes, the bytes match, and the
+page is written as a file that ignores the parameter it exists to read. The empirical half cannot
+close this — no fixed query string covers every key an application might read — and the structural
+half cannot either, because a loader is not compiled.
+
+So the route declares it. `defineRoute({ static: false, notStaticBecause: '…' })` is refused as
+`L0_DECLARED` with that text as the reason, checked before the derivations that would otherwise
+prove the page invariant. It is an opt-_out_: a page that forgot it is a page whose author believed
+the derivation, and the derivation is right nearly always. The documentation site's playground is
+the case that found this — its whole body is `?src` compiled — and it is the reason the field
+exists rather than an example invented for it.
+
+The honest fix would be to _observe_ rather than guess: every read goes through `Reads`, which
+already records what was actually read, so a render whose observed set contains an unenumerable key
+could be refused by name. That is not built, and the reason is a byte budget rather than a design
+argument — surfacing the observation means a field on `KernelTrace`, `entry-request.ts` has fourteen
+bytes of headroom against the design's own 8 KB figure, and a capability that does not fit needs a
+seam. See [`budgets.md`](budgets.md).
+
 ## Why a streaming slot is refused
 
 An out-of-order document is filled in **completion order** — `Promise.race` over the inflight
