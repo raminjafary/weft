@@ -30,8 +30,10 @@
     "build": "node scripts/build-packages.mjs",
     "inspect": "weft dev packages/inspector --devtools",
     "inspect:build": "weft build packages/inspector",
+    "inspect:start": "weft start packages/inspector",
     "docs:dev": "weft dev packages/docs",
-    "docs:build": "weft build packages/docs"
+    "docs:build": "weft build packages/docs",
+    "docs:start": "weft start packages/docs"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.2",
