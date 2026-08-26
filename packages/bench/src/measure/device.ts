@@ -161,7 +161,8 @@ async function reach(url: string, init: RequestInit): Promise<Response> {
   } catch (error) {
     throw new Error(
       `E_DEVICE_UNREACHABLE: ${url} did not answer (${error instanceof Error ? error.message : String(error)}). ` +
-        `Run 'weft-bench devices' to check the driver is up and the tunnel is open`, { cause: error },
+        `Run 'weft-bench devices' to check the driver is up and the tunnel is open`,
+      { cause: error },
     )
   }
 }
@@ -383,7 +384,8 @@ export async function openDevice(lane: DeviceLane, cdp: CdpConnector | null): Pr
     throw new Error(
       `E_DEVICE_UNREACHABLE: ${lane.device.id} at ${lane.device.endpoint} did not answer ` +
         `(${error instanceof Error ? error.message : String(error)}). For an Android WebView this is ` +
-        `usually a missing 'adb forward tcp:PORT localabstract:webview_devtools_remote_<pid>'`, { cause: error },
+        `usually a missing 'adb forward tcp:PORT localabstract:webview_devtools_remote_<pid>'`,
+      { cause: error },
     )
   }
 }
