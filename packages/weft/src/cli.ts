@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process'
-import { basename, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import process from 'node:process'
 import { build, formatReport } from './build.ts'
 import { loadBuild } from './build.ts'
@@ -13,6 +13,7 @@ import { decide, formatProfile, readProfile } from './profile.ts'
 import { createApp, serveApp } from './serve.ts'
 import { DEVTOOLS_PATH } from './devtools.ts'
 import { scaffold, type Template } from './scaffold.ts'
+import { uploadBuild } from './upload.ts'
 
 const HELP = `weft — a folder is an application
 
@@ -24,6 +25,7 @@ const HELP = `weft — a folder is an application
   weft why <route> [dir]  what the generated plan says about a route, and where each fact came from
   weft profile [dir]      what a recording decided about delivery, and what it refuses to decide
   weft verify [dir]       what this deployment's registry says about every region a route composes
+  weft upload [dir]       PUT the build to an object store. --to is where, --header is who
 
 Options
   --port <n>              default 3000, or PORT
@@ -31,6 +33,10 @@ Options
   --devtools              dev only: this application's routes, effect sets, keys and bytes
   --profile               record what every render costs, and plan the next build from it
   --probe                 verify only: ask each remote region what it is serving right now
+  --to <url>              upload only: the base URL every object is PUT under
+  --header <k=v>          upload only: sent on every request. Repeatable, and where auth goes
+  --concurrency <n>       upload only: parallel requests, default 8
+  --dry-run               upload only: say what would happen and send nothing
   --template <name>       create only: minimal | app   (default app)
   --no-types              skip the type checker. Escape elision falls back to escaping
 `
@@ -155,6 +161,30 @@ async function main(): Promise<number> {
     )
     hold(() => serving.close())
     return 0
+  }
+
+  if (command === 'upload') {
+    const to = typeof flags.to === 'string' ? flags.to : ''
+    if (!to) {
+      process.stderr.write('weft upload needs --to <url>: the base URL every object is PUT under\n')
+      return 2
+    }
+    const config = await loadConfig(root, overrides)
+    const report = await uploadBuild({
+      dir: join(root, config.outDir),
+      to,
+      headers: headersFrom(process.argv.slice(2)),
+      ...(flags.concurrency ? { concurrency: Number(flags.concurrency) } : {}),
+      ...(flags['dry-run'] ? { dryRun: true } : {}),
+    })
+    for (const object of report.objects) {
+      out(`  ${object.status.padEnd(8)} ${object.href}${object.detail ? `  — ${object.detail}` : ''}`)
+    }
+    out(
+      `\n  ${report.uploaded} uploaded, ${report.skipped} skipped, ${report.failed} failed — ` +
+        `${report.sent} bytes sent to ${report.to}`,
+    )
+    return report.failed ? 1 : 0
   }
 
   if (command === 'routes') {
@@ -374,3 +404,22 @@ main().then(
     process.exit(1)
   },
 )
+
+/**
+ * `--header k=v`, repeatable, which the flag parser cannot express on its own.
+ *
+ * Read from the raw argv rather than from the parsed flags because a repeated flag is a list and the
+ * parser keeps the last one — and the last one is exactly wrong for authentication plus a content
+ * disposition plus whatever else a provider wants.
+ */
+function headersFrom(argv: readonly string[]): Record<string, string> {
+  const headers: Record<string, string> = {}
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] !== '--header') continue
+    const pair = argv[i + 1]
+    if (!pair) continue
+    const split = pair.indexOf('=')
+    if (split > 0) headers[pair.slice(0, split).trim().toLowerCase()] = pair.slice(split + 1)
+  }
+  return headers
+}

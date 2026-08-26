@@ -52,8 +52,13 @@ export interface BuildReport {
   /** Every region a route composes, and where this deployment's registry says it is. */
   regions: { region: string; route: string; locus: string; where: string }[]
   assets: { href: string; bytes: number; immutable: boolean }[]
-  /** L0: the documents that were resolved here rather than per request, and what each one costs. */
-  static: { pattern: string; file: string; bytes: number }[]
+  /**
+   * L0: the documents resolved here rather than per request, and what each one costs.
+   *
+   * `pattern` is the route and `path` is the URL, and they differ for a parameterised route — one
+   * route with a declared parameter set is one document per value, each proved on its own.
+   */
+  static: { pattern: string; path: string; file: string; bytes: number }[]
   /** Every route that is not one of them, with the reason. A tier nobody can see is a tier nobody uses. */
   refused: { pattern: string; code: StaticRefusal; reason: string }[]
   diagnostics: string[]
@@ -213,7 +218,12 @@ export async function build(root: string, overrides: WeftConfig = {}): Promise<B
       where: status.bound?.executor ?? 'unresolved',
     })),
     assets,
-    static: prerendered.documents.map((d) => ({ pattern: d.pattern, file: d.file, bytes: d.bytes })),
+    static: prerendered.documents.map((d) => ({
+      pattern: d.pattern,
+      path: d.path,
+      file: d.file,
+      bytes: d.bytes,
+    })),
     refused: prerendered.refused,
     diagnostics: app.diagnostics,
   }

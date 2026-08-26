@@ -52,14 +52,20 @@ test('the pages that read nothing are files, and the rest say why they are not',
   const { static: documents, refused } = await built()
 
   assert.deepEqual(
-    documents.map((d) => d.pattern).sort(),
-    ['/', '/app/article'],
-    'the index and the article are the demo pages that read nothing',
+    documents.map((d) => d.path).sort(),
+    ['/', '/app/article', '/app/ordinary/household', '/app/ordinary/pantry'],
+    'two pages that read nothing, and a parameterised one that says what its parameter can be',
+  )
+  // One route, two documents, each proved on its own: an invariance test that passed for `pantry`
+  // says nothing about `household`, and a loader that reads a cookie for one category and not the
+  // other is exactly the bug that would otherwise be frozen into a file.
+  assert.deepEqual(
+    documents.filter((d) => d.pattern === '/app/ordinary/:category').map((d) => d.path),
+    ['/app/ordinary/pantry', '/app/ordinary/household'],
   )
   assert.deepEqual(
     Object.fromEntries(refused.map((r) => [r.pattern, r.code])),
     {
-      '/app/ordinary/:category': 'L0_PARAMS',
       '/live/race/:order': 'L0_PARAMS',
       '/app/cart': 'L0_READS',
       // Not measured twice: what a region on another deployment reads is its own, and the registry
@@ -92,20 +98,20 @@ test('the file the build wrote is byte-for-byte what the kernel would have rende
 
   for (const document of documents) {
     const file = await readFile(join(ROOT, outDir, 'static', document.file))
-    const served = await fetch(new URL(document.pattern, serving.url))
+    const served = await fetch(new URL(document.path, serving.url))
     assert.equal(served.headers.get('x-weft-tier'), 'l0')
     assert.equal(Buffer.from(await served.arrayBuffer()).toString('utf8'), file.toString('utf8'))
 
-    const held = app.documents.get(document.pattern)
-    app.documents.delete(document.pattern)
-    const rendered = await fetch(new URL(document.pattern, serving.url))
-    app.documents.set(document.pattern, held as NonNullable<typeof held>)
+    const held = app.documents.get(document.path)
+    app.documents.delete(document.path)
+    const rendered = await fetch(new URL(document.path, serving.url))
+    app.documents.set(document.path, held as NonNullable<typeof held>)
 
     assert.equal(rendered.headers.get('x-weft-tier'), null, 'the fallthrough has to be the kernel')
     assert.equal(
       Buffer.from(await rendered.arrayBuffer()).toString('utf8'),
       file.toString('utf8'),
-      `${document.pattern} differs between the render and the file`,
+      `${document.path} differs between the render and the file`,
     )
   }
 })
@@ -118,7 +124,7 @@ test('weft start answers an L0 path without the kernel, and a conditional one wi
 
   assert.deepEqual(
     [...app.documents.keys()].sort(),
-    documents.map((d) => d.pattern).sort(),
+    documents.map((d) => d.path).sort(),
     'start loads exactly the documents the build wrote',
   )
 

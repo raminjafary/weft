@@ -160,6 +160,7 @@ weft routes         # the route table, as the file tree produced it
 weft why /          # the plan the framework generated for a route
 weft dev --profile  # record what every render costs, and plan the next run from it
 weft verify --probe # ask every region what it is serving, and exit non-zero on disagreement
+weft upload --to …  # PUT the build to an object store. --header is where authentication goes
 ```
 
 **There is no bundler.** Client modules are TypeScript with their types stripped by Node and two
@@ -190,11 +191,21 @@ key — no second key, no second write, and nothing on the success path. An entr
 _invalidated_ is not recoverable and must not be: expiry means possibly out of date, invalidation
 means known to be wrong, and only one of those is safe to show somebody.
 
-**A page that reads nothing is a file.** `weft build` renders every route through the real kernel
-twice — under two requests differing in cookies, locale, device, headers, query, flags and a clock
-ten years apart — and writes the byte-identical ones to `.weft/static/`. `weft start` answers those
-paths before the kernel is reached, with an ETag and a 304. For every other page the build prints the
-reason: a parameter, a read, a live region, a streaming slot.
+**A page that reads nothing is a file, and a page whose parameters are a set somebody declared is
+several.** `weft build` renders every route through the real kernel twice — under two requests
+differing in cookies, locale, device, headers, query, flags and a clock ten years apart — and writes
+the byte-identical ones to `.weft/static/`. `weft start` answers those paths before the kernel is
+reached, with an ETag and a 304. A route declaring `params: { category: ['pantry', 'household'] }` is
+one document per value, each proved on its own — a passing probe for one says nothing about the
+other. A partial enumeration is refused, because files for some URLs of a route and a render for the
+rest is the one outcome nobody could debug. For every other page the build prints the reason: an
+undeclared parameter, a read, a live region, a streaming slot.
+
+**`weft upload --to <url> --header <k=v>`** puts that directory in an object store over plain HTTP.
+No SDK and no credential chain: every store worth using accepts an authenticated `PUT`, and a
+framework that depended on one provider's client would have to depend on the next one's. An
+immutable asset already there is skipped because its URL names its contents; a document is never
+skipped because its URL does not.
 
 **The request is a state machine**, `received → envelope → planned → streaming → settled`. Phase B is
 a _different context type_ with no envelope methods on it, so the mistake every other framework

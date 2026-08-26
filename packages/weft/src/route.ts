@@ -208,6 +208,20 @@ export interface RouteModule {
    */
   etag?: boolean
   /**
+   * The values each of this route's parameters can take, when they are a set the application knows.
+   *
+   * This is what makes a parameterised page a file. L0 refuses a pattern with a parameter because
+   * there is no single URL a file could answer — but a route that says its `category` is one of two
+   * things has two URLs, and each one can be rendered, proved invariant and written out. Nothing
+   * infers the set: a list of categories is the application's knowledge, and a framework guessing at
+   * it would be a framework writing files for URLs nobody asked for.
+   *
+   * Every parameter in the pattern has to be here, or the route is refused with the missing ones
+   * named — a partial enumeration would silently write files for some URLs and leave the rest to the
+   * kernel, which is the one outcome nobody could debug.
+   */
+  params?: Record<string, readonly string[]>
+  /**
    * Extra value names to send to the browser.
    *
    * The framework already works out which values a client-owned derived expression reads and

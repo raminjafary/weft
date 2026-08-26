@@ -38,6 +38,7 @@ import type { App } from './serve.ts'
  */
 export type StaticRefusal =
   | 'L0_PARAMS'
+  | 'L0_TOO_MANY'
   | 'L0_READS'
   | 'L0_ISOLATED'
   | 'L0_LIVE'
@@ -52,7 +53,15 @@ export type StaticRefusal =
   | 'L0_REGION'
   | 'L0_FAILED'
 
-export type StaticVerdict = { static: true } | { static: false; code: StaticRefusal; reason: string }
+export type StaticVerdict =
+  | {
+      static: true
+      /** One entry per enumerated combination, for a parameterised route. */ params?: Record<
+        string,
+        string
+      >[]
+    }
+  | { static: false; code: StaticRefusal; reason: string }
 
 export interface StaticInput {
   pattern: string
@@ -66,6 +75,35 @@ export interface StaticInput {
     declaration: SlotDeclaration
     streams: boolean
   }[]
+}
+
+/**
+ * How many files one route may become.
+ *
+ * A cap rather than a warning, because the failure it prevents is silent: three parameters with
+ * fifty values each is 125,000 documents, and a build that wrote them would look like it was
+ * working. Where the crossover actually is depends on how expensive the render is and how many of
+ * those URLs anybody visits, which is a deployment's knowledge — so the refusal names the number
+ * and hands the decision back.
+ */
+const MAX_DOCUMENTS = 1_000
+
+/** Every combination of the declared values, in declaration order so the output is stable. */
+function product(
+  names: readonly string[],
+  declared: Record<string, readonly string[]>,
+): Record<string, string>[] {
+  let out: Record<string, string>[] = [{}]
+  for (const name of names) {
+    const values = declared[name] ?? []
+    out = out.flatMap((row) => values.map((value) => ({ ...row, [name]: value })))
+  }
+  return out
+}
+
+/** A pattern with its parameters filled in: the URL a file answers. */
+function fill(pattern: string, params: Record<string, string>): string {
+  return pattern.replace(/:([A-Za-z0-9_]+)/g, (_, name: string) => params[name] ?? '')
 }
 
 function readsOf(fragment: CompiledFragment): string[] {
@@ -83,13 +121,35 @@ function isolatedIn(fragment: CompiledFragment): TemplateIR | undefined {
  * than the mechanism, because the reader is someone asking why their page is not a file.
  */
 export function staticVerdict(input: StaticInput): StaticVerdict {
-  const { pattern, module: declared, shell, slots } = input
+  const { pattern, module: declared_, shell, slots } = input
 
-  if (pattern.includes(':') || pattern.includes('*')) {
+  /**
+   * A parameterised route is a file per value, when the values are a set the application declared.
+   *
+   * The refusal used to be unconditional and the reason was sound: a pattern with a parameter has no
+   * single URL. What it was missing is that a route saying its `category` is one of two things has
+   * *two* URLs, and each is as provable as any other document. A wildcard is still refused, because
+   * a set nobody can enumerate is not a set.
+   */
+  const names = [...pattern.matchAll(/:([A-Za-z0-9_]+)/g)].map((match) => match[1] as string)
+  if (pattern.includes('*')) {
     return {
       static: false,
       code: 'L0_PARAMS',
-      reason: `${pattern} takes a parameter, so it has no single URL a file could answer`,
+      reason: `${pattern} matches a wildcard, so the set of URLs it answers is not enumerable`,
+    }
+  }
+  const declared = declared_.params ?? {}
+  const missing = names.filter((name) => !declared[name]?.length)
+  if (missing.length) {
+    return {
+      static: false,
+      code: 'L0_PARAMS',
+      reason:
+        `${pattern} takes ${missing.map((name) => `:${name}`).join(', ')} and does not say what ` +
+        `${missing.length === 1 ? 'it can be' : 'they can be'}. Declare params on the route and each ` +
+        `value becomes its own file; a partial enumeration would write files for some URLs and leave ` +
+        `the rest to the kernel`,
     }
   }
 
@@ -111,9 +171,18 @@ export function staticVerdict(input: StaticInput): StaticVerdict {
     }
   }
 
+  /**
+   * A `route:` read of a parameter whose values are declared is not a reason to refuse.
+   *
+   * It is the opposite: it is the read that makes the enumeration *worth* doing. Every other read
+   * is a function of a request nobody can enumerate — a cookie, an identity, a clock — and a
+   * declared parameter is a function of a set the application wrote down. So those reads are taken
+   * out of the refusal, and one file is written per value.
+   */
+  const enumerable = new Set(names.map((name) => `route:${name}`))
   for (const fragment of [shell, ...slots.map((slot) => slot.fragment)]) {
     if (!fragment) continue
-    const reads = readsOf(fragment)
+    const reads = readsOf(fragment).filter((read) => !enumerable.has(read))
     if (reads.length) {
       return {
         static: false,
@@ -162,7 +231,7 @@ export function staticVerdict(input: StaticInput): StaticVerdict {
     }
   }
 
-  if (declared.guard) {
+  if (declared_.guard) {
     return {
       static: false,
       code: 'L0_GUARD',
@@ -170,7 +239,16 @@ export function staticVerdict(input: StaticInput): StaticVerdict {
     }
   }
 
-  return { static: true }
+  if (!names.length) return { static: true }
+  const combinations = product(names, declared_.params ?? {})
+  if (combinations.length > MAX_DOCUMENTS) {
+    return {
+      static: false,
+      code: 'L0_TOO_MANY',
+      reason: `${pattern} enumerates to ${combinations.length} documents, past the ${MAX_DOCUMENTS} this build will write. A file per URL stops being cheaper than a render somewhere, and where that is is a deployment's decision rather than a silent one`,
+    }
+  }
+  return { static: true, params: combinations }
 }
 
 /** One document, resolved. The manifest is what a deployment reads; the body is the file. */
@@ -335,58 +413,72 @@ export async function prerender(app: App): Promise<Prerendered> {
       continue
     }
 
+    /**
+     * One document per URL, which for a parameterised route is one per declared combination.
+     *
+     * Each is proved on its own. Two values of one parameter are two different documents and the
+     * invariance test says nothing about the second because it passed for the first — a loader that
+     * reads a cookie only when the category is `household` is exactly the bug this catches.
+     */
+    for (const params of route.static.params ?? [{}]) {
+      await one(route, params)
+    }
+  }
+
+  async function one(route: App['routes'][number], params: Record<string, string>): Promise<void> {
+    const path = fill(route.pattern, params)
     let plain
     let hostile
     try {
-      plain = await renderOnce(app, route.pattern, { label: 'a bare request' })
-      hostile = await renderOnce(app, route.pattern, HOSTILE)
+      plain = await renderOnce(app, path, { label: 'a bare request' })
+      hostile = await renderOnce(app, path, HOSTILE)
     } catch (error) {
       refused.push({
-        pattern: route.pattern,
+        pattern: path,
         code: 'L0_FAILED',
         reason: `rendering it at build time threw: ${(error as Error).message}`,
       })
-      continue
+      return
     }
 
     if (plain.status !== 200) {
       refused.push({
-        pattern: route.pattern,
+        pattern: path,
         code: 'L0_STATUS',
         reason: `it answered ${plain.status}, and only a 200 is a document`,
       })
-      continue
+      return
     }
     if (plain.degraded.length) {
       refused.push({
-        pattern: route.pattern,
+        pattern: path,
         code: 'L0_DEGRADED',
         reason: `a slot degraded while the build rendered it, and a placeholder frozen into a file is a failure that stops looking like one — ${plain.degraded.join('; ')}`,
       })
-      continue
+      return
     }
     if (plain.headers.getSetCookie().length) {
       refused.push({
-        pattern: route.pattern,
+        pattern: path,
         code: 'L0_SET_COOKIE',
         reason: 'it sets a cookie, and a cookie baked into a file is one visitor handing theirs to everybody',
       })
-      continue
+      return
     }
     if (!same(plain.body, hostile.body)) {
       refused.push({
-        pattern: route.pattern,
+        pattern: path,
         code: 'L0_VARIES',
-        reason: `its bytes change with ${await culprit(app, route.pattern, plain.body)}. Something it renders reads the request without the compiler seeing it — a loader, an html thunk or a head function`,
+        reason: `its bytes change with ${await culprit(app, path, plain.body)}. Something it renders reads the request without the compiler seeing it — a loader, an html thunk or a head function`,
       })
-      continue
+      return
     }
 
     const body = plain.body
     documents.push({
       pattern: route.pattern,
-      path: route.pattern,
-      file: fileFor(route.pattern),
+      path,
+      file: fileFor(path),
       bytes: body.byteLength,
       etag: await entityTag(body),
       headers: headersFor(plain.headers),

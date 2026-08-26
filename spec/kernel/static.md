@@ -143,12 +143,66 @@ is not "3× faster pages" — it is what one origin process has left to spend on
 do need it. The tier's real argument is the directory: these two documents need no origin at
 all.
 
+## A file per URL, when the URLs are a set somebody declared
+
+The refusal used to be unconditional and its reason was sound: a pattern with a parameter has no
+single URL a file could answer. What it was missing is that a route saying its `category` is one of
+two things has _two_ URLs, and each one is as provable as any other document.
+
+```ts
+export default defineRoute({
+  params: { category: ['pantry', 'household'] },
+  slots: { … },
+})
+```
+
+Four decisions make that safe rather than convenient.
+
+**Nothing is inferred.** A list of categories is the application's knowledge. A framework that
+guessed at it would write files for URLs nobody asked for, and be wrong in a way nobody would
+notice until a category was added.
+
+**A partial enumeration is refused.** Every parameter in the pattern has to be declared or the route
+is `L0_PARAMS` with the missing ones named. Writing files for some URLs of a route and leaving the
+rest to the kernel is the one outcome nobody could debug — two visitors on one route getting answers
+from two different tiers, for reasons neither the build nor the request can explain.
+
+**A `route:` read of a declared parameter stops being a refusal**, and it is the read that makes the
+enumeration worth doing. Every other read is a function of a request nobody can enumerate — a
+cookie, an identity, a clock. A declared parameter is a function of a set that is written down.
+
+**Each combination is proved on its own.** The invariance probe runs per URL, not per route: a
+passing test for `pantry` says nothing about `household`, and a loader that reads a cookie only when
+the category is one of them is exactly the bug this catches. And there is a ceiling — 1,000
+documents per route, `L0_TOO_MANY` past it, because three parameters with fifty values each is
+125,000 files and a build that wrote them would look like it was working.
+
+A wildcard is still refused. A set nobody can enumerate is not a set.
+
+## Uploading it, over HTTP and nothing else
+
+`weft upload --to <url> --header <k=v>` PUTs the build directory to an object store. There is no
+SDK, no credential chain and no provider-shaped configuration, because there does not need to be:
+every object store worth using accepts an authenticated `PUT` at a URL, and the authentication is a
+header the deployment already knows how to produce. A framework that took a dependency on one
+provider's client would have to take one on the next, and the thing being uploaded is a directory of
+files with paths and headers, which is what HTTP is for.
+
+Three properties, each a decision rather than a detail:
+
+- **An immutable object already there is skipped.** Every asset URL carries a digest of its
+  contents, so a URL that exists already has the right bytes — and a HEAD is cheaper than a PUT by
+  the size of the object.
+- **A document is never skipped.** An L0 path is a stable URL whose contents change with every
+  build, which is the exact inverse. It goes up with the `Cache-Control` the build proved it may
+  carry, read from the manifest rather than re-derived — deriving it twice is how a file and an
+  origin come to disagree.
+- **A failure is per object and does not stop the upload.** A half-uploaded deployment is bad; a
+  half-uploaded deployment nobody can enumerate is worse. `weft upload` exits non-zero and prints
+  every object with its status.
+
 ## What this does not do yet
 
-- **No parameterised routes.** A route with an enumerable parameter set — a flag axis, a list of
-  categories the application could declare — is the obvious next tier, and nothing declares that
-  set today, so there is nothing to enumerate.
-- **No CDN upload.** The directory is uploadable; the framework does not upload it.
 - **The kernel is not invoked at serve time, and the process still is.** Serving from
   `weft start` is one map lookup rather than a render, and that is the local demonstration of
   the claim. Serving with the origin off entirely is what the directory is for.

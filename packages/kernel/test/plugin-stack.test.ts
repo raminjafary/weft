@@ -148,6 +148,11 @@ test('the same stack lets an authenticated request through to the compiled route
 
 // ── scoped registration, and the two checks at registration ──────────────────────────
 
+/** The same plugin without its scope: two of these in one graph provide one key twice. */
+function unscoped(name: string): Plugin {
+  return { name, role: 'filter', provides: ['who'] }
+}
+
 /**
  * Encapsulation, resolved rather than evaluated. Two plugins that provide the same key are
  * ambiguous when they are in one graph and are not ambiguous when they are in two — which is the
@@ -171,14 +176,7 @@ test('two plugins under disjoint scopes are not in each other’s graph', () => 
   // A route in neither gets neither, and a global plugin gets both.
   assert.deepEqual(scoped.forPath('/').filters, [])
   // And in one graph, the same pair is refused.
-  assert.throws(
-    () =>
-      resolvePlugins([
-        { ...admin, scope: undefined },
-        { ...shop, scope: undefined },
-      ]),
-    /E_PLUGIN_AMBIGUOUS/,
-  )
+  assert.throws(() => resolvePlugins([unscoped('audit'), unscoped('session')]), /E_PLUGIN_AMBIGUOUS/)
 })
 
 test('an unscoped plugin is in every scope’s graph, which is what unscoped means', () => {

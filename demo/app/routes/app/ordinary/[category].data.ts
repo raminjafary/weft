@@ -54,6 +54,16 @@ export default defineRoute({
    */
   etag: true,
   /**
+   * The two categories this page has, which is what makes a parameterised page a file.
+   *
+   * L0 refuses a pattern with a parameter because there is no single URL a file could answer. This
+   * route has two, and the build renders each one, proves each one invariant on its own, and writes
+   * both — so `weft start` answers them before the kernel is reached. Nothing infers this list: it
+   * is the application's knowledge, and a framework guessing at it would write files for URLs
+   * nobody asked for.
+   */
+  params: { category: ['pantry', 'household'] },
+  /**
    * What the response itself advertises, which is a different question from what the store holds.
    * Without it the document is `no-store` — nothing is cached by accident here — and a validator on
    * a response the reader was told not to keep is a validator for nobody.
