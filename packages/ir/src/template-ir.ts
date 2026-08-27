@@ -97,6 +97,19 @@ export interface Hole {
    */
   isolated?: boolean
   /**
+   * For a `list` hole: the binding each row's zero-based position is supplied as.
+   *
+   * Absent unless the row callback names a second parameter, and absent is the fast path — a row
+   * that does not ask for its index is rendered against the item object itself, with no per-row
+   * allocation. Only a list that asks pays, which matters because the row loop is the hot one: the
+   * feed scenario renders fifty of them per request.
+   *
+   * The index is supplied by whatever renders the rows rather than carried in the item, because it
+   * is a fact about the position and not about the value. Two identical items at different
+   * positions are still one row template and one cache entry.
+   */
+  rowIndex?: BindingId
+  /**
    * For a `text` hole: the ordinal of the marker comment its value follows, counted in
    * document order within the fragment and skipping list-hole subtrees. Absent means the
    * value is the only text child of the element at `path`.

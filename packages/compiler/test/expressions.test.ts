@@ -290,3 +290,40 @@ test('a branch decided by a signal is refused, rather than rendering once and go
   assert.match(error.message, /signal on/)
   assert.match(error.message, /conditional value/)
 })
+
+test('a row may name its position, and one that does not pays nothing for it', async () => {
+  const compiled = await compileSource(
+    PRELUDE +
+      'export default fragment(({ xs }: { xs: { a: string }[] }) => ' +
+      '<ul>{xs.map((x, i) => <li data-i={i}>{x.a}</li>)}</ul>)',
+    'test.tsx',
+  )
+  const fragment = compiled.fragments[0]
+  assert.ok(fragment)
+  assert.equal(fragment.entry.holes[0]?.rowIndex, 'i')
+  const byVersion = new Map(fragment.templates.map((t) => [t.version, t]))
+  assert.equal(
+    decode(
+      render(fragment.entry, { xs: [{ a: 'P' }, { a: 'Q' }] } as unknown as Values, (v: string) =>
+        byVersion.get(v),
+      ),
+    ),
+    '<ul><li data-i="0">P</li><li data-i="1">Q</li></ul>',
+  )
+
+  // The row loop is the hot one, so a list that does not ask for its index must not be spread.
+  const plain = await compileSource(
+    PRELUDE +
+      'export default fragment(({ xs }: { xs: { a: string }[] }) => <ul>{xs.map((x) => <li>{x.a}</li>)}</ul>)',
+    'test.tsx',
+  )
+  assert.equal(plain.fragments[0]?.entry.holes[0]?.rowIndex, undefined)
+})
+
+test('a value from outside the row is still refused, index or no index', async () => {
+  const error = await refusal(
+    'export default fragment(({ xs, outer }: { xs: string[]; outer: string }) => ' +
+      '<ul>{xs.map((x, i) => <li>{outer}</li>)}</ul>)',
+  )
+  assert.equal(error.code, 'E_OUT_OF_ROW_SCOPE')
+})

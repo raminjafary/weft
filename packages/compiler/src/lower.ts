@@ -55,6 +55,15 @@ export interface Scope {
   ctxParam?: string
   /** Set inside a list row: the map callback's parameter name. */
   itemParam?: string
+  /**
+   * Set inside a list row that named a second parameter: the row's position.
+   *
+   * A row is its own template and receives only its item, which is what makes a row count a value
+   * and not a re-render. The index is the one exception the position itself justifies: it is a fact
+   * about where the row sits, supplied by whatever renders the rows, so it costs the row no closure
+   * over the outer scope and the list no cache identity.
+   */
+  indexParam?: string
   /** Fragments this one may render, by the name it refers to them as. */
   components?: Map<string, ComponentRef>
   /**
@@ -276,6 +285,10 @@ function classifyBySyntax(expr: Node, input: LowerInput, em: Emitter): Classifie
         'E_ITEM_NOT_A_VALUE',
         `${ident} is the row itself; interpolate one of its fields`,
       )
+    }
+    if (scope.indexParam && ident === scope.indexParam) {
+      // A number, so nothing it renders into can hold markup.
+      return { binding: ident, escape: 'proven-safe' }
     }
     if (scope.itemParam) throw outOfRowScope(input, expr, ident)
     if (ident === 'children' && scope.props.has('children')) {
@@ -1107,10 +1120,21 @@ function lowerList(
   input: LowerInput,
 ): void {
   const arrayBinding = classify(list.array, input, em)
-  const param = nodes(list.callback.params)[0]
+  const params = nodes(list.callback.params)
+  const param = params[0]
   if (!param || param.type !== 'Identifier') {
     throw fail(input, list.callback, 'E_MAP_PARAM', 'the row callback needs a single named parameter')
   }
+  const indexParam = params[1]
+  if (indexParam !== undefined && node(indexParam).type !== 'Identifier') {
+    throw fail(
+      input,
+      indexParam,
+      'E_MAP_PARAM',
+      "a row callback's second parameter is its position and has to be a plain name",
+    )
+  }
+  const indexName = indexParam ? name(node(indexParam)) : undefined
 
   const body = node(list.callback.body)
   const rowRoot = body.type === 'BlockStatement' ? returnedJsx(body, input) : body
@@ -1130,7 +1154,13 @@ function lowerList(
     file: input.file,
     source: input.source,
     ...(input.types ? { types: input.types } : {}),
-    scope: { ...input.scope, itemParam: name(param), signals: input.scope.signals, locals: new Set() },
+    scope: {
+      ...input.scope,
+      itemParam: name(param),
+      ...(indexName ? { indexParam: indexName } : {}),
+      signals: input.scope.signals,
+      locals: new Set(),
+    },
   })
 
   // A row may render an instance of its own, and those reads are still this fragment's:
@@ -1144,6 +1174,9 @@ function lowerList(
     binding: arrayBinding.binding,
     path,
     provenance: id,
+    // Named on the hole so the renderer knows to supply it, and absent when unused so the row loop
+    // keeps its fast path.
+    ...(indexName ? { rowIndex: indexName } : {}),
   })
   em.nested.push({ holeIndex, id, kind: 'row', lowered })
 }

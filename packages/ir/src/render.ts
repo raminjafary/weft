@@ -176,6 +176,21 @@ function writeValue(
       if (hole.nested) {
         const nested = resolve?.(hole.nested)
         if (!nested) throw new Error(`E_NESTED_UNRESOLVED: hole ${hole.index} needs template ${hole.nested}`)
+        const at = hole.rowIndex
+        // The spread happens only for a list that named its index, so the common row costs nothing.
+        if (at !== undefined) {
+          for (let i = 0; i < value.length; i++) {
+            cursor = writeTemplate(
+              nested,
+              { ...(value[i] as Values), [at]: i },
+              resolve,
+              out,
+              cursor,
+              undefined,
+            )
+          }
+          return cursor
+        }
         for (const item of value) {
           cursor = writeTemplate(nested, item as Values, resolve, out, cursor, undefined)
         }

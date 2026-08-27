@@ -40,6 +40,7 @@ imports, and the compiler recognises them by resolving the import rather than by
 | `{'literal'}`, `{42}`                         | folded into the segment — no hole at all                                            |
 | `{raw(x)}`                                    | a `trusted-raw` hole whose provenance is the source text of `x`                     |
 | `{rows.map((row) => …)}`                      | a `list` hole plus a nested template, sealed first so the parent names its version  |
+| `{rows.map((row, i) => …)}`                   | the same, plus `rowIndex` on the hole: the position, supplied per row               |
 | `onEvent={imported}`                          | a wiring `event` op carrying an intent id derived from the module and export        |
 | `signal()` read                               | a hole plus a wiring op, since only a signal can change on the client               |
 | `{a * 2}`, `{qty() > 9}`, `{(a + b) / 2}`     | a hole plus a `derived` entry: the expression tree, wired only if it reads a signal |
@@ -347,3 +348,18 @@ refused rather than shipped as a control that looks live.
 A conditional whose arms are _values_ is still one hole and a `cond` entry. The arms decide which
 lowering applies: markup arms seal templates, value arms do not, and a conditional mixing the two is
 refused rather than guessed at.
+
+## A row's position
+
+`{rows.map((row, i) => …)}` names the index, and the hole records the binding as `rowIndex`. The
+position is supplied by whatever renders the rows rather than carried in the item, because it is a
+fact about where a row sits and not about its value — so two identical items at different positions
+are still one row template and one cache entry.
+
+A list that does not name an index keeps the fast path: no `rowIndex`, no per-row spread. That
+distinction is worth the field, because the row loop is the hot one — the feed scenario renders fifty
+rows a request and throughput is measured on it.
+
+Everything else about row scope is unchanged. A value from outside the row is still
+`E_OUT_OF_ROW_SCOPE`, and a signal read inside one is still `E_SIGNAL_IN_LIST`: the index is the one
+exception, and the position is what justifies it.
