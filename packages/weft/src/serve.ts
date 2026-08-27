@@ -1415,10 +1415,7 @@ export async function appHandler(app: App): Promise<Handler> {
       if (typeof value === 'string') headers.set(key, value)
       else if (Array.isArray(value)) for (const v of value) headers.append(key, v)
     }
-    const body =
-      req.method === 'GET' || req.method === 'HEAD'
-        ? undefined
-        : await new Response(Readable.toWeb(req) as never).arrayBuffer()
+    const body = req.method === 'GET' || req.method === 'HEAD' ? undefined : await requestBody(req)
     const incoming = new Request(url, { method: req.method ?? 'GET', headers, ...(body ? { body } : {}) })
 
     /**
@@ -1704,6 +1701,55 @@ export function bootPrelude(app: App): string {
 /** Put it on a port. */
 export async function serveApp(app: App): Promise<Serving> {
   return serveHandler(await appHandler(app))
+}
+
+/**
+ * The bytes a request carried, from a host that may already have read them.
+ *
+ * Reading the stream is right when the framework owns the socket and wrong everywhere else. A
+ * serverless platform with a body parser consumes the request to hand the handler a parsed
+ * `req.body`, and what arrives here is a stream that will never emit another byte and never emit
+ * `end` — so reading it does not fail, it waits, until the platform's own timeout ends the
+ * request. On the documentation deployment that was every `POST`: an intent, a token, and a 404
+ * alike, each one a 504 after thirty seconds, each one answered locally in ten milliseconds.
+ *
+ * So the parsed body is asked for first, and a stream already ended is not read at all. Neither is
+ * a guess about the platform: `body` is either there or it is not, and `readableEnded` is the
+ * stream saying so itself.
+ */
+async function requestBody(req: IncomingMessage): Promise<ArrayBuffer | undefined> {
+  const held = (req as IncomingMessage & { body?: unknown }).body
+  if (held !== undefined && held !== null) return encodeBody(held, req.headers['content-type'] ?? '')
+  // Nothing left to read, and on some hosts nothing to wait for either.
+  if (req.readableEnded) return undefined
+  return new Response(Readable.toWeb(req) as never).arrayBuffer()
+}
+
+/**
+ * A parsed body, put back the way it arrived.
+ *
+ * Lossless for the two shapes a host hands over untouched — bytes and text — and a reconstruction
+ * for the one it does not. A form is rebuilt through `URLSearchParams` rather than joined by hand
+ * because a repeated field is a list and a checkbox group is a repeated field, which is the case
+ * a naive re-encode drops.
+ */
+/** A view's own bytes, detached from whatever buffer it was a window onto. */
+function bytes(value: Uint8Array): ArrayBuffer {
+  return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) as ArrayBuffer
+}
+
+function encodeBody(held: unknown, type: string): ArrayBuffer {
+  if (held instanceof Uint8Array) return bytes(held)
+  if (typeof held === 'string') return bytes(utf8.encode(held))
+  if (type.includes('x-www-form-urlencoded')) {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(held as Record<string, unknown>)) {
+      if (Array.isArray(value)) for (const one of value) params.append(key, String(one))
+      else params.append(key, String(value))
+    }
+    return bytes(utf8.encode(params.toString()))
+  }
+  return bytes(utf8.encode(JSON.stringify(held)))
 }
 
 /**
