@@ -129,6 +129,13 @@ export interface Lowered {
    */
   components: string[]
   /**
+   * Set when this template's markup interpolated its list item directly.
+   *
+   * Read by the list hole that owns the row, because the row is lowered before its hole is emitted
+   * and the two are lowered through separate emitters.
+   */
+  rowValue?: string
+  /**
    * Whether the template is exactly one element and nothing else. An instance occupies one
    * element position in its caller, so a child with two roots — or with a bare text root —
    * would shift every sibling after it.
@@ -145,6 +152,13 @@ interface Emitter {
   markers: number
   derived: DerivedDecl[]
   components: string[]
+  /**
+   * Set while lowering a row whose markup interpolates the item itself.
+   *
+   * Read by the list hole that owns the row, so the renderer knows to wrap each item rather than
+   * spread it. It lives on the emitter because the row is lowered before its hole is emitted.
+   */
+  rowValue?: string
 }
 
 function escapeStatic(text: string, attr: boolean): string {
@@ -224,6 +238,7 @@ export function lower(input: LowerInput): Lowered {
     nested: em.nested,
     markers: em.markers,
     components: em.components,
+    ...(em.rowValue ? { rowValue: em.rowValue } : {}),
     singleRoot,
   }
 }
@@ -279,12 +294,10 @@ function classifyBySyntax(expr: Node, input: LowerInput, em: Emitter): Classifie
       throw fail(input, expr, 'E_SIGNAL_NOT_READ', `${ident} is a signal — read it as ${ident}()`)
     }
     if (scope.itemParam && ident === scope.itemParam) {
-      throw fail(
-        input,
-        expr,
-        'E_ITEM_NOT_A_VALUE',
-        `${ident} is the row itself; interpolate one of its fields`,
-      )
+      // The item itself, which a row over primitives has nothing else to name. Recorded on the list
+      // hole so the renderer wraps each one; a row that reads fields never reaches this line.
+      em.rowValue = ident
+      return { binding: ident, escape: 'escape' }
     }
     if (scope.indexParam && ident === scope.indexParam) {
       // A number, so nothing it renders into can hold markup.
@@ -1229,9 +1242,10 @@ function lowerList(
     binding: arrayBinding.binding,
     path,
     provenance: id,
-    // Named on the hole so the renderer knows to supply it, and absent when unused so the row loop
-    // keeps its fast path.
+    // Named on the hole so the renderer knows to supply them, and absent when unused so the row
+    // loop keeps its fast path.
     ...(indexName ? { rowIndex: indexName } : {}),
+    ...(lowered.rowValue ? { rowValue: lowered.rowValue } : {}),
   })
   em.nested.push({ holeIndex, id, kind: 'row', lowered })
 }

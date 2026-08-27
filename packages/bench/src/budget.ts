@@ -134,11 +134,20 @@ export const BUDGETS: ByteBudget[] = [
     id: 'kernel-render',
     label: 'Server kernel plus a catalogue of fragments a client can ask for by opaque id',
     entry: kernelSrc('entry-render.ts'),
-    // Moved from 14,336 for the same 7 B, on the rule the table already applies to `entry-transport`,
-    // `entry-region` and `entry-region-channel`: a watermark moves when a capability lands on it.
-    limit: 14464,
+    /**
+     * Moved from 14,336 to 14,592, in two steps and for two capabilities.
+     *
+     * 14,336 → 14,464 for `cond` (conditional values); → 14,592 for a row naming its position or
+     * interpolating its item. Both are watermarks moving under a capability, which is the rule this
+     * table already applies to `entry-transport`, `entry-region` and `entry-region-channel`.
+     *
+     * The second step is deliberately larger than the 2 B that forced it. Bumping a watermark by the
+     * exact overage makes the next commit do it again, which turns a gate into a ritual; ~126 B of
+     * room means the next addition here argues with a number instead.
+     */
+    limit: 14592,
     limitNote:
-      'no design figure; its own entry, because a deployment whose clients cannot name a renderable should not carry the dispatch. Moved from 14,336',
+      'no design figure; its own entry, because a deployment whose clients cannot name a renderable should not carry the dispatch. Moved from 14,336 via 14,464',
   },
   {
     id: 'kernel-region',

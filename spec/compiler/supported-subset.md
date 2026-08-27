@@ -41,6 +41,7 @@ imports, and the compiler recognises them by resolving the import rather than by
 | `{raw(x)}`                                    | a `trusted-raw` hole whose provenance is the source text of `x`                     |
 | `{rows.map((row) => …)}`                      | a `list` hole plus a nested template, sealed first so the parent names its version  |
 | `{rows.map((row, i) => …)}`                   | the same, plus `rowIndex` on the hole: the position, supplied per row               |
+| `{names.map((n) => …)}` over primitives       | the same, plus `rowValue`: the item wrapped per row                                 |
 | `onEvent={imported}`                          | a wiring `event` op carrying an intent id derived from the module and export        |
 | `signal()` read                               | a hole plus a wiring op, since only a signal can change on the client               |
 | `{a * 2}`, `{qty() > 9}`, `{(a + b) / 2}`     | a hole plus a `derived` entry: the expression tree, wired only if it reads a signal |
@@ -361,6 +362,11 @@ A list that does not name an index keeps the fast path: no `rowIndex`, no per-ro
 distinction is worth the field, because the row loop is the hot one — the feed scenario renders fifty
 rows a request and throughput is measured on it.
 
+A row may also interpolate the item itself. `{names.map((n) => <li>{n}</li>)}` over a `string[]` was
+`E_ITEM_NOT_A_VALUE` — a row's holes are filled from the item's fields, so a primitive had no field to
+name — and the hole now records `rowValue` and the item is wrapped per row. Same rule as the index:
+absent is the fast path, so a row that reads fields is handed the item object untouched.
+
 Everything else about row scope is unchanged. A value from outside the row is still
-`E_OUT_OF_ROW_SCOPE`, and a signal read inside one is still `E_SIGNAL_IN_LIST`: the index is the one
-exception, and the position is what justifies it.
+`E_OUT_OF_ROW_SCOPE`, and a signal read inside one is still `E_SIGNAL_IN_LIST`: the position and the
+item are the two exceptions, and both are facts the row loop already has.

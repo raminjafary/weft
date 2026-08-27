@@ -97,6 +97,18 @@ export interface Hole {
    */
   isolated?: boolean
   /**
+   * For a `list` hole: the binding each item is supplied as, when a row interpolates the item itself.
+   *
+   * A row's holes are normally filled from the item's *fields*, which is why an item has to be an
+   * object — and made `names.map((n) => <li>{n}</li>)` over a `string[]` refuse, for no reason a
+   * reader of that line would guess. When the row names the item directly this records the binding,
+   * and whatever renders the rows wraps each one.
+   *
+   * Absent is the fast path, the same as `rowIndex`: a row that reads fields is handed the item
+   * object with no wrapping at all.
+   */
+  rowValue?: BindingId
+  /**
    * For a `list` hole: the binding each row's zero-based position is supplied as.
    *
    * Absent unless the row callback names a second parameter, and absent is the fast path — a row

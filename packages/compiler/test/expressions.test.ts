@@ -354,3 +354,32 @@ test('a conditional mixing a shape and a value is refused, not half-rendered', a
   assert.equal(error.code, 'E_BRANCH_MIXES_SHAPE_AND_VALUE')
   assert.match(error.message, /Wrap the value in an element/)
 })
+
+test('a row may interpolate its item directly, and a row reading fields still cannot', async () => {
+  const compiled = await compileSource(
+    PRELUDE +
+      'export default fragment(({ names }: { names: string[] }) => <ul>{names.map((n) => <li>{n}</li>)}</ul>)',
+    'test.tsx',
+  )
+  const fragment = compiled.fragments[0]
+  assert.ok(fragment)
+  assert.equal(fragment.entry.holes[0]?.rowValue, 'n')
+  const byVersion = new Map(fragment.templates.map((t) => [t.version, t]))
+  // Escaped, like any other hole: an item is a value and not markup.
+  assert.equal(
+    decode(
+      render(fragment.entry, { names: ['a', '<b>x</b>'] } as unknown as Values, (v: string) =>
+        byVersion.get(v),
+      ),
+    ),
+    '<ul><li>a</li><li>&lt;b&gt;x&lt;/b&gt;</li></ul>',
+  )
+
+  // A row that reads fields must keep the unwrapped fast path.
+  const fields = await compileSource(
+    PRELUDE +
+      'export default fragment(({ xs }: { xs: { a: string }[] }) => <ul>{xs.map((x) => <li>{x.a}</li>)}</ul>)',
+    'test.tsx',
+  )
+  assert.equal(fields.fragments[0]?.entry.holes[0]?.rowValue, undefined)
+})
