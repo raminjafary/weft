@@ -1,4 +1,4 @@
-import { fragment } from 'weft'
+import { fragment } from '@weft/core'
 
 /**
  * The bytes a region sends when it degrades: honest, cheap, and visibly incomplete.

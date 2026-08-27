@@ -1,4 +1,4 @@
-import { fragment, type Ctx } from 'weft'
+import { fragment, type Ctx } from '@weft/core'
 import { setQuantity } from '../intents/cart.ts'
 
 interface Line {

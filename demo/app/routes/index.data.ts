@@ -1,4 +1,4 @@
-import { defineRoute } from 'weft'
+import { defineRoute } from '@weft/core'
 import { SHOWCASES } from '../lib/showcases.ts'
 
 /**

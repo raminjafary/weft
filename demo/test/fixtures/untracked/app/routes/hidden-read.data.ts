@@ -1,4 +1,4 @@
-import { defineRoute } from 'weft'
+import { defineRoute } from '@weft/core'
 
 /**
  * The read the compiler cannot see.

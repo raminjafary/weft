@@ -3,7 +3,7 @@
 The request kernel: a two-phase envelope, streaming, cache keys, intents, channels and ports.
 
 Part of [weft](https://github.com/raminjafary/weft), a TypeScript fullstack framework that
-negotiates the wire form of a piece of UI per request. Applications import `weft`, which drives this.
+negotiates the wire form of a piece of UI per request. Applications import `@weft/core`, which drives this.
 
 ```sh
 npm install @weft/kernel

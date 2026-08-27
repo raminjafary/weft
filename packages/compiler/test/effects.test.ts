@@ -4,7 +4,7 @@ import { cacheClassOf, explain, flagAxes, keyComponents, requiresTtl, varyOn } f
 import { compileSource } from '../src/compile.ts'
 import { CompileError } from '../src/errors.ts'
 
-const PRELUDE = "import { fragment } from 'weft'\nimport { newCart } from './flags.ts'\n"
+const PRELUDE = "import { fragment } from '@weft/core'\nimport { newCart } from './flags.ts'\n"
 
 async function effects(body: string) {
   const out = await compileSource(PRELUDE + body, 'test.tsx')

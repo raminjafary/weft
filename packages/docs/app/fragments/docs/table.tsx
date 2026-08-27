@@ -1,4 +1,4 @@
-import { fragment } from 'weft'
+import { fragment } from '@weft/core'
 
 /**
  * One cell, as data rather than as markup.

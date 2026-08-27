@@ -1,4 +1,4 @@
-import { fragment } from 'weft'
+import { fragment } from '@weft/core'
 import { newCart } from './flags.ts'
 
 /**

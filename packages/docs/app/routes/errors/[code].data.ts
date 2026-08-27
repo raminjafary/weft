@@ -1,4 +1,4 @@
-import { defineRoute } from 'weft'
+import { defineRoute } from '@weft/core'
 import { GENERATED, shell } from '../../lib/shell.ts'
 import { errorByCode } from '../../lib/errors.ts'
 import { codeIds, errorBody } from '../../lib/errors-page.ts'

@@ -1,4 +1,4 @@
-import { PROFILE_VERSION, type Profile } from 'weft'
+import { PROFILE_VERSION, type Profile } from '@weft/core'
 
 /**
  * A recording, as the framework writes it — typed against the real interface rather than transcribed.

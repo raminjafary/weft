@@ -1,5 +1,5 @@
 import { readsOf, render, type Values } from '@weft/ir'
-import { adoptScript, fragmentIR, type CompiledFragment } from 'weft'
+import { adoptScript, fragmentIR, type CompiledFragment } from '@weft/core'
 
 /**
  * A live example: a fragment this application compiled, rendered with values this page supplies.

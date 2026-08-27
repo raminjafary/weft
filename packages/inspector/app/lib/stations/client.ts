@@ -2,7 +2,7 @@ import { DEFAULT_STAGING } from '@weft/client'
 import { baseRenderId, clientView, deltaPayload, render, type Values } from '@weft/ir'
 import { explain, field, panel, pick, pre, press, readout, slider } from '../pages.ts'
 import { numeric, type StationHandler } from './kind.ts'
-import { adoptScript, allTemplates, fragmentIR } from 'weft'
+import { adoptScript, allTemplates, fragmentIR } from '@weft/core'
 
 const n = (v: number): string => v.toLocaleString('en-US')
 

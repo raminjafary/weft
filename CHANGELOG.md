@@ -203,6 +203,7 @@ the commits scoped to that package.
 
 ### 📦 Build & Dependencies
 
+* **repo:** a release is one command, and every version it writes comes from the commits ([c949c45](https://github.com/raminjafary/weft/commit/c949c458b7bf4a012014498a0cf37e493dc42fef))
 * **repo:** the documentation site deploys to vercel as one function ([6f6df10](https://github.com/raminjafary/weft/commit/6f6df10417e1057760268f180503607fe6aaab18))
 * **deps:** Pin dependencies ([a678dfe](https://github.com/raminjafary/weft/commit/a678dfe7461c41ebc8d7c6a2bb626ca2aa5faf18))
 * **deps:** update pnpm to v11.24.0 ([c6b1420](https://github.com/raminjafary/weft/commit/c6b14208387866d08407c56e9b0c02b2e56242f6))

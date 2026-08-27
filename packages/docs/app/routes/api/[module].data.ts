@@ -1,4 +1,4 @@
-import { defineRoute } from 'weft'
+import { defineRoute } from '@weft/core'
 import { apiContents } from '../../lib/contents.ts'
 import { GENERATED, shell } from '../../lib/shell.ts'
 import { moduleBody, moduleIds, moduleOutline } from '../../lib/api-page.ts'

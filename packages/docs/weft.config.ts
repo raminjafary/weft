@@ -1,4 +1,4 @@
-import { defineConfig } from 'weft'
+import { defineConfig } from '@weft/core'
 
 /**
  * The documentation site, as a deployment.

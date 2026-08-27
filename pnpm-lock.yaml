@@ -17,6 +17,9 @@ importers:
       '@types/node':
         specifier: 26.3.0
         version: 26.3.0
+      '@weft/core':
+        specifier: workspace:*
+        version: link:packages/weft
       commitizen:
         specifier: 4.3.2
         version: 4.3.2(@types/node@26.3.0)(typescript@7.0.2)
@@ -44,9 +47,6 @@ importers:
       typescript:
         specifier: 7.0.2
         version: 7.0.2
-      weft:
-        specifier: workspace:*
-        version: link:packages/weft
 
   benchmarks/rr7:
     dependencies:
@@ -62,7 +62,7 @@ importers:
 
   demo:
     dependencies:
-      weft:
+      '@weft/core':
         specifier: workspace:*
         version: link:../packages/weft
 
@@ -103,6 +103,9 @@ importers:
       '@weft/client':
         specifier: workspace:*
         version: link:../client
+      '@weft/core':
+        specifier: workspace:*
+        version: link:../weft
       '@weft/plan':
         specifier: workspace:*
         version: link:../plan
@@ -112,9 +115,6 @@ importers:
       playwright:
         specifier: 1.62.1
         version: 1.62.1
-      weft:
-        specifier: workspace:*
-        version: link:../weft
 
   packages/client: {}
 
@@ -130,13 +130,13 @@ importers:
         specifier: '>=5.7.0'
         version: 7.0.2
     devDependencies:
-      weft:
+      '@weft/core':
         specifier: workspace:*
         version: link:../weft
 
   packages/create-weft:
     dependencies:
-      weft:
+      '@weft/core':
         specifier: workspace:*
         version: link:../weft
 
@@ -145,6 +145,9 @@ importers:
       '@weft/compiler':
         specifier: workspace:*
         version: link:../compiler
+      '@weft/core':
+        specifier: workspace:*
+        version: link:../weft
       '@weft/ir':
         specifier: workspace:*
         version: link:../ir
@@ -154,9 +157,6 @@ importers:
       oxc-parser:
         specifier: 0.146.0
         version: 0.146.0
-      weft:
-        specifier: workspace:*
-        version: link:../weft
 
   packages/inspector:
     dependencies:
@@ -172,6 +172,9 @@ importers:
       '@weft/compiler':
         specifier: workspace:*
         version: link:../compiler
+      '@weft/core':
+        specifier: workspace:*
+        version: link:../weft
       '@weft/ir':
         specifier: workspace:*
         version: link:../ir
@@ -184,9 +187,6 @@ importers:
       '@weft/warp':
         specifier: workspace:*
         version: link:../warp
-      weft:
-        specifier: workspace:*
-        version: link:../weft
 
   packages/ir: {}
 

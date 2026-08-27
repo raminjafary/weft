@@ -1,6 +1,6 @@
 import { budgets, deltas, forms, versions } from '../api.ts'
 import { escapeHtml, explain, field, panel, pick, pre, press, readout, slider } from '../pages.ts'
-import { ageOf, appProfile, MIN_SAMPLES } from 'weft'
+import { ageOf, appProfile, MIN_SAMPLES } from '@weft/core'
 import type { StationHandler } from './kind.ts'
 
 const n = (value: number): string => value.toLocaleString('en-US')

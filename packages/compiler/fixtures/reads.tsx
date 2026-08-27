@@ -1,4 +1,4 @@
-import { fragment } from 'weft'
+import { fragment } from '@weft/core'
 
 /**
  * The shape from the design: take the context, and every read through it taints. Nothing

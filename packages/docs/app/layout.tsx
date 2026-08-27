@@ -1,4 +1,4 @@
-import { fragment, raw } from 'weft'
+import { fragment, raw } from '@weft/core'
 import Mark from './fragments/chrome/mark.tsx'
 
 interface NavItem {

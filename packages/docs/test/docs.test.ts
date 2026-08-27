@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createApp, serveApp, type Serving } from 'weft/server'
+import { createApp, serveApp, type Serving } from '@weft/core/server'
 import { after } from 'node:test'
 import { renderExample } from '../app/lib/example.ts'
 import { PAGES } from '../app/lib/pages.ts'
@@ -116,8 +116,8 @@ test('no page, and no glossary entry, points at something that does not exist', 
  */
 test('every runtime export of every package appears in the API reference', async () => {
   const specifiers: Record<string, string> = {
-    weft: 'weft',
-    'weft-server': 'weft/server',
+    weft: '@weft/core',
+    'weft-server': '@weft/core/server',
     kernel: '@weft/kernel',
     plan: '@weft/plan',
     ir: '@weft/ir',
@@ -427,7 +427,9 @@ test('every framework name a sketch imports actually exists', () => {
 
   for (const file of files) {
     const source = readFileSync(join(ROOT, file), 'utf8')
-    for (const match of source.matchAll(/import \{([^}]*)\} from '(weft(?:\/server)?|@weft\/[a-z]+)'/g)) {
+    for (const match of source.matchAll(
+      /import \{([^}]*)\} from '(@weft\/core(?:\/server)?|@weft\/[a-z]+)'/g,
+    )) {
       const specifier = match[2] as string
       const names = exported.get(specifier)
       assert.ok(names, `a sketch imports from '${specifier}', which the API walk does not cover`)
@@ -536,7 +538,7 @@ test('the intent on the intents page is dispatchable', async () => {
  * cannot see a type, and never flag the thing that is certainly correct.
  */
 test('the live hints read types, name the holes the compiler names, and admit what they cannot see', () => {
-  const source = `import { fragment } from 'weft'
+  const source = `import { fragment } from '@weft/core'
 
 interface Props { label: string; count: number; unit: string }
 

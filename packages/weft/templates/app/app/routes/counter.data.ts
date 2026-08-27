@@ -1,4 +1,4 @@
-import { defineRoute } from 'weft'
+import { defineRoute } from '@weft/core'
 import { read } from '../intents/counter.ts'
 
 export default defineRoute({

@@ -4,7 +4,7 @@ import { frame, type Frame } from '@weft/warp'
 import { feedItems } from '../data.ts'
 import { field, panel, pick, pre, press, readout, slider } from '../pages.ts'
 import { numeric, type StationHandler } from './kind.ts'
-import { fragmentIR, listHole } from 'weft'
+import { fragmentIR, listHole } from '@weft/core'
 
 const n = (v: number): string => v.toLocaleString('en-US')
 

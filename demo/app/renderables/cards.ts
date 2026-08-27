@@ -1,4 +1,4 @@
-import { defineRenderable } from 'weft'
+import { defineRenderable } from '@weft/core'
 import { catalogue } from '../lib/data.ts'
 
 /**

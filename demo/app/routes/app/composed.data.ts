@@ -1,4 +1,4 @@
-import { defineRoute } from 'weft'
+import { defineRoute } from '@weft/core'
 import { cartOf } from '../../lib/data.ts'
 
 /**

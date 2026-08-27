@@ -1,4 +1,4 @@
-import { defineRoute } from 'weft'
+import { defineRoute } from '@weft/core'
 import { coverageBody } from '../lib/index-page.ts'
 
 /**

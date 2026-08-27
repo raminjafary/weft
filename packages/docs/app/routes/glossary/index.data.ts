@@ -1,4 +1,4 @@
-import { defineRoute } from 'weft'
+import { defineRoute } from '@weft/core'
 import { shell } from '../../lib/shell.ts'
 import { glossaryBody } from '../../lib/glossary.ts'
 import { glossaryOutline } from '../../lib/outlines.ts'

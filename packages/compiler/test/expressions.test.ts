@@ -24,7 +24,7 @@ import { CompileError } from '../src/errors.ts'
  * one is a sentence somebody will read instead of a stack trace.
  */
 
-const PRELUDE = "import { fragment, signal } from 'weft'\n"
+const PRELUDE = "import { fragment, signal } from '@weft/core'\n"
 const decode = (b: Uint8Array) => new TextDecoder().decode(b)
 
 async function only(source: string): Promise<TemplateIR> {

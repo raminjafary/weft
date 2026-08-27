@@ -1,4 +1,4 @@
-import { fragment, type Ctx } from 'weft'
+import { fragment, type Ctx } from '@weft/core'
 
 /**
  * One identity read, and the region can never be a shared cache entry.

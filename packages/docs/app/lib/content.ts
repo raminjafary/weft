@@ -454,7 +454,7 @@ app/routes/guide/layouts.data.ts   fills contents, body, outline`,
     ) +
     sketch(
       'ts',
-      `import { defineRoute } from 'weft'
+      `import { defineRoute } from '@weft/core'
 
 export default defineRoute({
   head: { title: 'Cart' },
@@ -542,7 +542,7 @@ export default defineRoute({
     sketch(
       'ts',
       `// app/intents/cart.ts
-import { defineIntent } from 'weft'
+import { defineIntent } from '@weft/core'
 
 export const add = defineIntent<{ sku: string; qty: number }>({
   name: 'cart.add',                       // for logs and \`weft why\`. Never on the wire
@@ -1112,8 +1112,8 @@ weft verify --probe   # ask each remote what it is serving right now`,
       'ts',
       `import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createApp } from 'weft/server'
-import { fragmentIR } from 'weft'
+import { createApp } from '@weft/core/server'
+import { fragmentIR } from '@weft/core'
 import { render } from '@weft/ir'
 
 test('the badge renders its label', async () => {
@@ -1240,7 +1240,7 @@ weft why /blog/:slug   # the plan for one route, and where each fact came from`,
     sketch(
       'ts',
       `// weft.config.ts
-import { defineConfig, redisLeases } from 'weft'
+import { defineConfig, redisLeases } from '@weft/core'
 import { workerPool } from '@weft/adapters'
 
 export default defineConfig({

@@ -13,7 +13,7 @@ import { cookieSession, memoryStore, staticFlags } from '@weft/adapters'
 import { factsFrom, plan, shell, slot, validatePlan } from '@weft/plan'
 import { escapeHtml, field, panel, pick, pre, press, readout } from '../pages.ts'
 import type { StationHandler } from './kind.ts'
-import { allFragments, appPorts, fragmentIR } from 'weft'
+import { allFragments, appPorts, fragmentIR } from '@weft/core'
 
 /**
  * The introspection stations: what the compiler inferred, what the kernel derived from it, and

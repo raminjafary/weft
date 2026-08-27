@@ -48,7 +48,7 @@ mkdir -p app/routes`,
       sketch(
         'tsx',
         `// app/routes/index.tsx
-import { fragment } from 'weft'
+import { fragment } from '@weft/core'
 
 export default fragment(() => (
   <section>
@@ -87,7 +87,7 @@ export default fragment(() => (
       sketch(
         'tsx',
         `// app/layout.tsx
-import { fragment, raw } from 'weft'
+import { fragment, raw } from '@weft/core'
 
 interface Props {
   title: string
@@ -126,7 +126,7 @@ export default fragment(({ title, css, runtime, body, aside }: Props) => (
       sketch(
         'ts',
         `// app/routes/index.data.ts
-import { defineRoute } from 'weft'
+import { defineRoute } from '@weft/core'
 
 export default defineRoute({
   head: { title: 'Shop' },
@@ -158,7 +158,7 @@ export default defineRoute({
       sketch(
         'tsx',
         `// app/fragments/today.tsx
-import { fragment } from 'weft'
+import { fragment } from '@weft/core'
 
 interface Item { sku: string; name: string; price: number }
 
@@ -283,7 +283,7 @@ export default defineRoute({
       sketch(
         'ts',
         `// app/intents/cart.ts
-import { defineIntent } from 'weft'
+import { defineIntent } from '@weft/core'
 
 export const add = defineIntent<{ sku: string }>({
   name: 'cart.add',

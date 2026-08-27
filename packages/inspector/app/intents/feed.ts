@@ -1,4 +1,4 @@
-import { defineIntent } from 'weft'
+import { defineIntent } from '@weft/core'
 import { advance } from '../lib/data.ts'
 
 /**

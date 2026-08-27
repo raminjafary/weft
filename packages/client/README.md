@@ -3,7 +3,7 @@
 The client runtime: signals, adoption, deltas, epochs, template residency and a frame router.
 
 Part of [weft](https://github.com/raminjafary/weft), a TypeScript fullstack framework that
-negotiates the wire form of a piece of UI per request. `weft` serves this to the browser for you.
+negotiates the wire form of a piece of UI per request. `@weft/core` serves this to the browser for you.
 
 ```sh
 npm install @weft/client

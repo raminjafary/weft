@@ -1,4 +1,4 @@
-import { fragment, signal } from 'weft'
+import { fragment, signal } from '@weft/core'
 import { setQuantity } from '../intents/cart.ts'
 
 interface InteractiveProps {

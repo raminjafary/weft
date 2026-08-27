@@ -1,4 +1,4 @@
-import { defineRoute } from 'weft'
+import { defineRoute } from '@weft/core'
 
 /**
  * What this route declares. Placement, cache policy and data — and deliberately no cache key,

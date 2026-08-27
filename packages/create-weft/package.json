@@ -41,7 +41,7 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "weft": "workspace:*"
+    "@weft/core": "workspace:*"
   },
   "engines": {
     "node": ">=22.18.0"

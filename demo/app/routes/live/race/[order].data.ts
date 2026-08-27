@@ -1,4 +1,4 @@
-import { defineRoute } from 'weft'
+import { defineRoute } from '@weft/core'
 import { lane, laneName, lanesFrom, type RaceLane } from '../../../lib/race.ts'
 
 /**

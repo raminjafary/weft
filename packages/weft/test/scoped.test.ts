@@ -97,7 +97,7 @@ async function scratch(files: Record<string, string>): Promise<string> {
   return root
 }
 
-const CARD = `import { fragment } from 'weft'
+const CARD = `import { fragment } from '@weft/core'
 
 interface Props {
   title: string
@@ -110,7 +110,7 @@ export default fragment(({ title }: Props) => (
 ))
 `
 
-const PAGE = `import { fragment } from 'weft'
+const PAGE = `import { fragment } from '@weft/core'
 import Card from '../fragments/card.tsx'
 
 export default fragment(() => (

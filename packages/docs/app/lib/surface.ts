@@ -136,11 +136,13 @@ function resolveWithin(from: string, specifier: string, root: string): string | 
   if (specifier.startsWith('.')) {
     const base = posix.join(posix.dirname(from.split('\\').join('/')), specifier)
     candidates.push(base, `${base}.ts`, `${base}/index.ts`)
-  } else if (specifier === 'weft') {
+  } else if (specifier === '@weft/core') {
     candidates.push(posix.join(root, 'packages/weft/src/index.ts'))
-  } else if (specifier === 'weft/server') {
+  } else if (specifier === '@weft/core/server') {
     candidates.push(posix.join(root, 'packages/weft/src/server.ts'))
   } else if (specifier.startsWith('@weft/')) {
+    // After the two above, because `@weft/core` lives in `packages/weft` rather than the
+    // `packages/core` this branch would otherwise look for.
     candidates.push(posix.join(root, `packages/${specifier.slice('@weft/'.length)}/src/index.ts`))
   }
   for (const candidate of candidates) {
@@ -243,16 +245,16 @@ function collect(file: string, out: Collected, seen: Set<string>, root: string):
 const MODULES: readonly Omit<ApiModule, 'entries'>[] = [
   {
     id: 'weft',
-    specifier: 'weft',
-    title: 'weft',
+    specifier: '@weft/core',
+    title: '@weft/core',
     blurb:
       'The authoring surface, and the only module an application’s own code has to know about. Everything here is either a declaration the compiler reads statically or a typed identity function.',
     entry: 'packages/weft/src/index.ts',
   },
   {
     id: 'weft-server',
-    specifier: 'weft/server',
-    title: 'weft/server',
+    specifier: '@weft/core/server',
+    title: '@weft/core/server',
     blurb:
       'The front door’s own parts, exported so a deployment that needs its own entry point can build one. Discovery, compilation, plan generation, the build and the server.',
     entry: 'packages/weft/src/server.ts',

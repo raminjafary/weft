@@ -1,5 +1,5 @@
-import { scopeAttribute, scopeCss } from 'weft/server'
-import { fragmentIR } from 'weft'
+import { scopeAttribute, scopeCss } from '@weft/core/server'
+import { fragmentIR } from '@weft/core'
 import { escapeHtml, field, panel, pick, pre, press, readout } from '../pages.ts'
 import type { StationHandler } from './kind.ts'
 

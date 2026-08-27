@@ -1,4 +1,4 @@
-import { fragment, raw } from 'weft'
+import { fragment, raw } from '@weft/core'
 
 /**
  * The one deliberate escape hatch in this demo: a fragment whose single hole is `trusted-raw`.

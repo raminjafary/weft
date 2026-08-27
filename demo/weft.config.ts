@@ -1,4 +1,4 @@
-import { bindingExecutor, bySession, defineConfig, generateSigningKeys, regionService } from 'weft'
+import { bindingExecutor, bySession, defineConfig, generateSigningKeys, regionService } from '@weft/core'
 
 /**
  * A signing key, generated on boot.

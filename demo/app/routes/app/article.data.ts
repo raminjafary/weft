@@ -1,7 +1,7 @@
-import { defineRoute } from 'weft'
+import { defineRoute } from '@weft/core'
 import { ARTICLE } from '../../lib/data.ts'
 import { panel } from '../../lib/controls.ts'
-import { fragmentIR, listHole } from 'weft'
+import { fragmentIR, listHole } from '@weft/core'
 
 /**
  * An article: the case where almost nothing should ship.

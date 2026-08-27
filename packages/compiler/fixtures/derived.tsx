@@ -1,4 +1,4 @@
-import { fragment, signal } from 'weft'
+import { fragment, signal } from '@weft/core'
 import { addToCart, setQuantity } from './intents.ts'
 
 export default fragment(({ sku, price }: { sku: number; price: number }) => {

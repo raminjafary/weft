@@ -86,7 +86,7 @@ source through `weft dev`.
 it has caught a real `node:http` import. Anything platform-specific belongs in `@weft/adapters` or
 behind a port.
 
-**The scaffold templates live in `weft`, not in `create-weft`.** `packages/weft/templates/{app,minimal}`
+**The scaffold templates live in `@weft/core`, not in `create-weft`.** `packages/weft/templates/{app,minimal}`
 is what `npm create weft` writes; `create-weft` only parses argv and calls `scaffold()`. A scaffold
 that shipped its own copy of the templates would generate an application the framework has stopped
 supporting. Changing a template means running the result:

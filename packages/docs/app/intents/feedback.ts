@@ -1,4 +1,4 @@
-import { defineIntent } from 'weft'
+import { defineIntent } from '@weft/core'
 
 /**
  * The one thing on this site that writes, so the intents page has something real to point at.

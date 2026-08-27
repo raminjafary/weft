@@ -10,8 +10,8 @@ import { ROOT } from './workspace.mjs'
  * one place a new package has to be described — the table is otherwise generated.
  */
 const DESCRIPTIONS = {
-  weft: 'The framework. The CLI, the conventions, and what an application imports',
-  'create-weft': '`npm create weft` — a shim over the templates that ship inside `weft`',
+  '@weft/core': 'The framework. The CLI, the conventions, and what an application imports',
+  'create-weft': '`npm create weft` — a shim over the templates that ship inside `@weft/core`',
   '@weft/ir': 'The template IR: what a compiled fragment is',
   '@weft/warp': 'The frame vocabulary that carries it',
   '@weft/compiler': 'TSX to IR, on Oxc, with the type-driven escape class',
@@ -26,7 +26,7 @@ const DESCRIPTIONS = {
 
 /** Published packages first, in install order rather than alphabetical: what you install, then what it pulls in. */
 const ORDER = [
-  'weft',
+  '@weft/core',
   'create-weft',
   '@weft/ir',
   '@weft/warp',

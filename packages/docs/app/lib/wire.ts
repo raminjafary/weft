@@ -1,5 +1,5 @@
 import { deltaPayload, patchPayload, render, type Values } from '@weft/ir'
-import { fragmentIR } from 'weft'
+import { fragmentIR } from '@weft/core'
 import { table } from './markup.ts'
 
 /**

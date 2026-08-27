@@ -13,7 +13,7 @@
     "routes": "weft routes"
   },
   "dependencies": {
-    "weft": "workspace:*",
+    "@weft/core": "workspace:*",
     "@weft/adapters": "workspace:*",
     "@weft/bench": "workspace:*",
     "@weft/client": "workspace:*",

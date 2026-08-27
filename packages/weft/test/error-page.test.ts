@@ -37,7 +37,7 @@ async function siteWith(files: Record<string, string>): Promise<Serving> {
   return serving
 }
 
-const HOME = `import { fragment } from 'weft'
+const HOME = `import { fragment } from '@weft/core'
 
 export default fragment(() => <p>home</p>)
 `
@@ -58,7 +58,7 @@ test('a path that matches nothing is a 404 that says so and does not list the ro
 test('an application replaces the error page by writing app/layouts/error.tsx, and nothing else', async () => {
   const serving = await siteWith({
     'app/routes/index.tsx': HOME,
-    'app/layouts/error.tsx': `import { fragment, raw } from 'weft'
+    'app/layouts/error.tsx': `import { fragment, raw } from '@weft/core'
 
 export default fragment(({ status, code, detail }: { status: string; code: string; detail: string }) => (
   <>

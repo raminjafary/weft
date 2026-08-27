@@ -1,4 +1,4 @@
-import { fragment, raw } from 'weft'
+import { fragment, raw } from '@weft/core'
 
 export interface FigureProps {
   /** Shown above the block. Empty means no caption bar at all. */

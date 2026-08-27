@@ -26,7 +26,7 @@ import { infer } from '../infer.ts'
  */
 const MAX_BYTES = 8 * 1024
 
-export const STARTER = `import { fragment } from 'weft'
+export const STARTER = `import { fragment } from '@weft/core'
 
 interface Props { label: string; count: number }
 

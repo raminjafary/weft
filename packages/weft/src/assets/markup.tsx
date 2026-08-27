@@ -1,4 +1,4 @@
-import { fragment, raw } from 'weft'
+import { fragment, raw } from '@weft/core'
 
 /**
  * The framework's one deliberately-unescaped fragment, and the reason a slot can be markup.

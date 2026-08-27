@@ -1,4 +1,4 @@
-import { fragment } from 'weft'
+import { fragment } from '@weft/core'
 import ProductCard from './card.tsx'
 
 interface OrdinaryProps {

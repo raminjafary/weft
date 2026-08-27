@@ -1,4 +1,4 @@
-import { defineConfig } from 'weft'
+import { defineConfig } from '@weft/core'
 
 /**
  * What this deployment binds. Everything is optional, and an application with no config file gets

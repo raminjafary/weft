@@ -1,4 +1,4 @@
-import { build, createApp, discover, loadBuild, loadConfig, serveApp } from 'weft/server'
+import { build, createApp, discover, loadBuild, loadConfig, serveApp } from '@weft/core/server'
 import { describeLink, withLink, type LinkOptions } from './link.ts'
 import { summarize, type Summary } from '../stats.ts'
 import { laneDeliversEvents, launchEngine, type EngineName, type PageLike } from './browser.ts'

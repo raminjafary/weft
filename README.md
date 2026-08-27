@@ -74,7 +74,7 @@ no template.
 
 ```tsx
 // app/routes/index.tsx
-import { fragment } from 'weft'
+import { fragment } from '@weft/core'
 
 export default fragment(({ name, steps }: Props) => (
   <>
@@ -93,7 +93,7 @@ derived from what the compiler saw the page read.
 
 ```ts
 // app/routes/index.data.ts
-import { asset, defineRoute } from 'weft'
+import { asset, defineRoute } from '@weft/core'
 
 export default defineRoute({
   head: { title: 'my-app', description: 'A weft application.' },
@@ -110,7 +110,7 @@ dispatch answers a `fetch`.
 
 ```ts
 // app/intents/counter.ts
-import { defineIntent } from 'weft'
+import { defineIntent } from '@weft/core'
 
 export const bump = defineIntent<{ by: number }>({
   name: 'counter.bump',
@@ -363,8 +363,8 @@ table.
 
 | Package           | Version                                                 | What it is                                                                  |
 | ----------------- | ------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `weft`            | [`0.1.0`](https://www.npmjs.com/package/weft)           | The framework. The CLI, the conventions, and what an application imports    |
-| `create-weft`     | [`0.1.0`](https://www.npmjs.com/package/create-weft)    | `npm create weft` — a shim over the templates that ship inside `weft`       |
+| `@weft/core`      | [`0.1.0`](https://www.npmjs.com/package/@weft/core)     | The framework. The CLI, the conventions, and what an application imports    |
+| `create-weft`     | [`0.1.0`](https://www.npmjs.com/package/create-weft)    | `npm create weft` — a shim over the templates that ship inside `@weft/core` |
 | `@weft/ir`        | [`0.1.0`](https://www.npmjs.com/package/@weft/ir)       | The template IR: what a compiled fragment is                                |
 | `@weft/warp`      | [`0.1.0`](https://www.npmjs.com/package/@weft/warp)     | The frame vocabulary that carries it                                        |
 | `@weft/compiler`  | [`0.1.0`](https://www.npmjs.com/package/@weft/compiler) | TSX to IR, on Oxc, with the type-driven escape class                        |

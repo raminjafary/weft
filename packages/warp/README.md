@@ -3,7 +3,7 @@
 Warp/1 — the binary frame codec the channel speaks.
 
 Part of [weft](https://github.com/raminjafary/weft), a TypeScript fullstack framework that
-negotiates the wire form of a piece of UI per request. Applications import `weft`; this package is
+negotiates the wire form of a piece of UI per request. Applications import `@weft/core`; this package is
 the envelope everything else travels in.
 
 ```sh

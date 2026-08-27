@@ -1,4 +1,4 @@
-import { fragment } from 'weft'
+import { fragment } from '@weft/core'
 
 /** One identity read is enough to make a fragment private, whatever else it does. */
 export default fragment(async (ctx) => {

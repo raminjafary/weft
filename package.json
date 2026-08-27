@@ -52,7 +52,7 @@
     "prettier": "3.9.6",
     "rolldown": "1.2.5",
     "typescript": "7.0.2",
-    "weft": "workspace:*"
+    "@weft/core": "workspace:*"
   },
   "workspaces": [
     "packages/*"

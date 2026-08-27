@@ -1,4 +1,4 @@
-import { build, createApp, discover, loadBuild, loadConfig, serveApp } from 'weft/server'
+import { build, createApp, discover, loadBuild, loadConfig, serveApp } from '@weft/core/server'
 import { laneDeliversEvents, launchEngine, type EngineName } from './browser.ts'
 import { reachableUrl } from './device.ts'
 

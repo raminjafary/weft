@@ -13,6 +13,7 @@ import {
 } from '@weft/ir'
 import {
   BOOLEAN_ATTRIBUTES,
+  FRAMEWORK_MODULE,
   bindsToProperty,
   VOID_ELEMENTS,
   isSurviving,
@@ -386,7 +387,7 @@ function classifyBySyntax(expr: Node, input: LowerInput, em: Emitter): Classifie
         return { binding: called, escape: numeric ? 'proven-safe' : 'escape', signal }
       }
       const imported = scope.imports.get(called)
-      if (imported && imported.exported === 'raw' && imported.module === 'weft') {
+      if (imported && imported.exported === 'raw' && imported.module === FRAMEWORK_MODULE) {
         const argument = nodes(expr.arguments)[0]
         if (!argument) throw fail(input, expr, 'E_RAW_EMPTY', 'raw() needs an argument')
         const inner = classify(argument, input, em)

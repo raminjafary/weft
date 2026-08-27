@@ -655,9 +655,14 @@ export function drawnDependencies(): readonly (readonly [string, string])[] {
   )
 }
 
-/** A node id back to the name its `package.json` carries. Two of the twelve are not scoped. */
+/**
+ * A node id back to the name its `package.json` carries.
+ *
+ * The framework's node is `weft` because that is the command and the directory; the package is
+ * `@weft/core`, because npm already serves a `weft` belonging to somebody else.
+ */
 function packageName(id: string): string {
-  if (id === 'weft') return 'weft'
+  if (id === 'weft') return '@weft/core'
   if (id === 'create') return 'create-weft'
   return `@weft/${id}`
 }

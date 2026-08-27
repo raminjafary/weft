@@ -1,4 +1,4 @@
-import type { RegionRenderer, RegionRequest } from 'weft'
+import type { RegionRenderer, RegionRequest } from '@weft/core'
 
 /**
  * The third tier: a region composed by a region.

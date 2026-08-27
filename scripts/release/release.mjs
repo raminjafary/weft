@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { GATES, RELEASE_BRANCH } from './config.mjs'
+import { FRAMEWORK_PACKAGE, GATES, RELEASE_BRANCH } from './config.mjs'
 import { commitsIn, releaseTags, today, unknownScopes } from './lib/commits.mjs'
 import { readChangelog, renderChangelog, sectionFor, writeChangelog } from './lib/changelog.mjs'
 import { packageEntries, releaseBoundaries, rootEntries, versionsAtBoundaries } from './lib/history.mjs'
@@ -114,7 +114,12 @@ async function main() {
   }
 
   const plan = buildPlan({ packages, commits, firstRelease })
-  const version = firstRelease ? packages.get('weft').version : bump(rootManifest.version, plan.rootLevel)
+  const framework = packages.get(FRAMEWORK_PACKAGE)
+  if (!framework)
+    fail(`no ${FRAMEWORK_PACKAGE} in packages/. Update FRAMEWORK_PACKAGE in scripts/release/config.mjs.`)
+  // A first release is tagged at the version the framework's manifest already carries, which is
+  // where this project starts; every one after it bumps the repository's own number.
+  const version = firstRelease ? framework.version : bump(rootManifest.version, plan.rootLevel)
   const tag = `v${version}`
   if (tags.includes(tag))
     refuse(

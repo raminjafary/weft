@@ -1,5 +1,5 @@
 {
-  "name": "weft",
+  "name": "@weft/core",
   "version": "0.1.0",
   "description": "The framework. A folder is an application: routes from the file tree, a plan generated from it, and one command that serves it.",
   "keywords": [

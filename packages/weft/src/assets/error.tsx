@@ -1,4 +1,4 @@
-import { fragment, raw } from 'weft'
+import { fragment, raw } from '@weft/core'
 
 /**
  * Everything the framework knows about a request that could not be answered.

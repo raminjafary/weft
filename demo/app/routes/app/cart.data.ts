@@ -1,4 +1,4 @@
-import { defineRoute } from 'weft'
+import { defineRoute } from '@weft/core'
 import { cartValues } from '../../lib/data.ts'
 import { field, panel, pick } from '../../lib/controls.ts'
 import { LOG } from '../../lib/showcase.ts'

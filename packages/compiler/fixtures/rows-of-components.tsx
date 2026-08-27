@@ -1,4 +1,4 @@
-import { fragment } from 'weft'
+import { fragment } from '@weft/core'
 import { setQuantity } from './intents.ts'
 
 /** One instance per row, so the row template names a child template of its own. */

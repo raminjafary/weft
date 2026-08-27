@@ -120,3 +120,12 @@ export const GATES = [
 
 /** The branch a release may be cut from. */
 export const RELEASE_BRANCH = 'main'
+
+/**
+ * The package whose version is the repository's, and therefore the tag's.
+ *
+ * `@weft/core` rather than `weft` because npm already serves a `weft` belonging to somebody else.
+ * The command is still `weft`, so is the directory, and so is the commit scope — this is the one
+ * spelling that is a package name.
+ */
+export const FRAMEWORK_PACKAGE = '@weft/core'

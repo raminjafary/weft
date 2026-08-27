@@ -1,4 +1,4 @@
-import { defineRoute } from 'weft'
+import { defineRoute } from '@weft/core'
 import { progress, railCard, soFar } from '../../lib/rails.ts'
 import { tutorialContents } from '../../lib/contents.ts'
 import { shell } from '../../lib/shell.ts'

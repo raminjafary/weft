@@ -13,7 +13,7 @@
     "routes": "weft routes"
   },
   "dependencies": {
-    "weft": "workspace:*",
+    "@weft/core": "workspace:*",
     "@weft/compiler": "workspace:*",
     "@weft/ir": "workspace:*",
     "oxc-parser": "0.146.0",

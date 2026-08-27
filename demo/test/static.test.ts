@@ -14,7 +14,7 @@ import {
   type App,
   type BuildReport,
   type Serving,
-} from 'weft/server'
+} from '@weft/core/server'
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url))
 
@@ -217,7 +217,7 @@ test('a route that declares it is not a file is refused with its own reason', as
     await mkdir(join(root, 'app/routes'), { recursive: true })
     await writeFile(
       join(root, 'app/routes/index.data.ts'),
-      `import { defineRoute } from 'weft'
+      `import { defineRoute } from '@weft/core'
 
 export default defineRoute({
   head: { title: 'declared' },

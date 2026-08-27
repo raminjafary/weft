@@ -33,7 +33,7 @@ test('every language escapes the markup characters it emits', () => {
 
 test('the text survives the round trip byte for byte', () => {
   const sources: [string, string][] = [
-    ['tsx', "import { fragment } from 'weft'\nexport default fragment(() => <p>hi {x}</p>)"],
+    ['tsx', "import { fragment } from '@weft/core'\nexport default fragment(() => <p>hi {x}</p>)"],
     ['ts', '/* block */ export const n: number = 1e9 // trailing'],
     ['sh', 'weft build demo --devtools  # a comment'],
     ['json', '{"kind":"text","n":-12.5,"ok":true,"nil":null}'],

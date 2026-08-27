@@ -63,6 +63,6 @@
     "access": "public"
   },
   "devDependencies": {
-    "weft": "workspace:*"
+    "@weft/core": "workspace:*"
   }
 }

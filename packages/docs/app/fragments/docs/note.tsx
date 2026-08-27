@@ -1,4 +1,4 @@
-import { fragment } from 'weft'
+import { fragment } from '@weft/core'
 
 export interface NoteProps {
   /** `why`, `refused` or `careful` — the class decides the accent, so it is a value not a branch. */

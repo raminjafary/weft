@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { createApp, serveApp } from 'weft/server'
-import { fragmentIR, slotHoles } from 'weft'
+import { createApp, serveApp } from '@weft/core/server'
+import { fragmentIR, slotHoles } from '@weft/core'
 import { SHOWCASES } from '../app/lib/showcases.ts'
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url))
