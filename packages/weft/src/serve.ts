@@ -5,6 +5,7 @@ import { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import { patchPayload } from '@weft/ir'
 import { entityTag, matchesTag } from './entity.ts'
+import { isScopedSheet, scopeAttribute, scopeCss, scopeStem } from './scoped.ts'
 import { frame, str, type Frame } from '@weft/warp'
 import {
   boundedDb,
@@ -267,20 +268,22 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   const intents = await loadIntents(root, discovered.intents)
   const store = config.store ?? memoryStore({ maxBytes: 64 * 1024 * 1024 })
 
-  // A fragment's colocated stylesheet, by the file the compiler named it with and by the
-  // absolute path the convention found it at — the two disagree, and both are asked.
+  // A fragment's colocated stylesheets, by the file the compiler named it with and by the absolute
+  // path the convention found it at — the two disagree, and both are asked. Global first, scoped
+  // after, which is the order that lets a component take the shared look and then differ from it.
   const styleOf = (() => {
-    const table = new Map<string, string>()
-    const put = (file: string | undefined, css: string | undefined): void => {
-      if (file && css) table.set(file, css)
+    const table = new Map<string, string[]>()
+    const put = (file: string | undefined, ...sheets: (string | undefined)[]): void => {
+      const found = sheets.filter((sheet): sheet is string => Boolean(sheet))
+      if (file && found.length) table.set(file, found)
     }
-    put(discovered.layout, discovered.layoutCss)
-    for (const layout of discovered.nested) put(layout.file, layout.css)
-    for (const route of discovered.routes) put(route.file, route.css)
-    for (const slot of discovered.slots) put(slot.file, slot.css)
-    for (const fragment of discovered.fragments) put(fragment.file, fragment.css)
+    put(discovered.layout, discovered.layoutCss, discovered.layoutScopedCss)
+    for (const layout of discovered.nested) put(layout.file, layout.css, layout.scopedCss)
+    for (const route of discovered.routes) put(route.file, route.css, route.scopedCss)
+    for (const slot of discovered.slots) put(slot.file, slot.css, slot.scopedCss)
+    for (const fragment of discovered.fragments) put(fragment.file, fragment.css, fragment.scopedCss)
     const byRelative = new Map([...table].map(([file, css]) => [relative(root, file), css]))
-    return (file: string): string | undefined => table.get(file) ?? byRelative.get(file)
+    return (file: string): readonly string[] => table.get(file) ?? byRelative.get(file) ?? []
   })()
 
   // The asset table cannot be built until the generator has said which stylesheets each route
@@ -408,11 +411,28 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   for (const file of config.css) {
     shared.push(`/* ${file} */\n${await readFile(join(root, file), 'utf8')}`)
   }
+  /**
+   * A scoped sheet, narrowed once and reused by every page that links it.
+   *
+   * The rewrite is pure — one file, one attribute — so it is memoised by path rather than repeated
+   * per route. On this site that is the difference between narrowing the contents rail's sheet once
+   * and narrowing it twenty-three times.
+   */
+  const narrowed = new Map<string, string>()
+  const sheet = async (file: string): Promise<string> => {
+    const held = narrowed.get(file)
+    if (held !== undefined) return held
+    const body = await readFile(file, 'utf8')
+    const text = isScopedSheet(file) ? scopeCss(body, scopeAttribute(relative(root, scopeStem(file)))) : body
+    narrowed.set(file, text)
+    return text
+  }
+
   const pageCss = new Map<string, string>()
   for (const route of routes) {
     const parts = [...shared]
     for (const file of route.css) {
-      parts.push(`/* ${relative(root, file)} */\n${await readFile(file, 'utf8')}`)
+      parts.push(`/* ${relative(root, file)} */\n${await sheet(file)}`)
     }
     pageCss.set(route.pattern, parts.join('\n\n'))
   }

@@ -5,6 +5,7 @@ import process from 'node:process'
 import { compileFiles } from '@weft/compiler'
 import type { Resolver, TemplateIR } from '@weft/ir'
 import type { Discovered } from './convention.ts'
+import { scopeAttribute, scopeStem } from './scoped.ts'
 
 /**
  * The application's own fragments, compiled by the real compiler, once.
@@ -124,6 +125,23 @@ function pick(
   return chosen
 }
 
+/**
+ * Every `.scoped.css` the convention found, wherever in the tree it found it.
+ *
+ * One place that knows all six kinds of sheet, so the build and anything that wants to report on
+ * scoping ask the same question rather than each walking `Discovered` their own way.
+ */
+export function scopedSheets(discovered: Discovered): string[] {
+  return [
+    discovered.layoutScopedCss,
+    ...discovered.nested.map((n) => n.scopedCss),
+    ...discovered.routes.map((r) => r.scopedCss),
+    ...discovered.layouts.map((l) => l.scopedCss),
+    ...discovered.slots.map((s) => s.scopedCss),
+    ...discovered.fragments.map((f) => f.scopedCss),
+  ].filter((file): file is string => Boolean(file))
+}
+
 /** Compile everything the convention found, in dependency order, with the framework's own files staged. */
 export async function compileApp(
   discovered: Discovered,
@@ -151,9 +169,22 @@ export async function compileApp(
   // compiler saw are the same bytes even if the file changes mid-build.
   const sources = new Map<string, string>()
   for (const file of files) sources.set(file, await readFile(file, 'utf8'))
+  /**
+   * Which files bring a scoped stylesheet, and therefore what attribute their elements carry.
+   *
+   * The build is the only layer that knows both halves — the convention found the sheets, the
+   * compiler seals the templates — so the pairing is made here and nowhere else. The id comes from
+   * the shared stem, so the sheet derives the same one on its own when it is rewritten.
+   */
+  const scoped = new Map<string, string>()
+  for (const file of scopedSheets(discovered)) {
+    scoped.set(`${scopeStem(file)}.tsx`, scopeAttribute(relative(root, scopeStem(file))))
+  }
+
   const { modules, diagnostics } = await compileFiles(files, {
     root,
     ...(options.types === false ? { types: false } : {}),
+    ...(scoped.size ? { cssScopes: (file: string) => scoped.get(file) } : {}),
   })
 
   const byFile = new Map(modules.map((m) => [m.file, m]))

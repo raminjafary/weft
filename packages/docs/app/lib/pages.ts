@@ -115,6 +115,14 @@ export const PAGES: readonly Page[] = [
     ],
   },
   {
+    slug: 'scoped-styles',
+    title: 'A component’s own stylesheet',
+    lede: 'Name a sheet `.scoped.css` and its selectors reach the elements that component declares, and nothing else on the page.',
+    group: 'render',
+    covers: ['compiler/scoped-styles.md'],
+    examples: [],
+  },
+  {
     slug: 'layouts',
     title: 'Layouts, and documents that nest',
     lede: 'A route names one document. That document may be a chain, and the chain comes from the directory tree.',

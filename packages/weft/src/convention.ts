@@ -1,5 +1,5 @@
 import { readdir, access } from 'node:fs/promises'
-import { join, relative, sep } from 'node:path'
+import { basename, join, relative, sep } from 'node:path'
 
 /**
  * The folder convention, read once.
@@ -18,6 +18,7 @@ import { join, relative, sep } from 'node:path'
  *   app/routes/docs/[...].tsx   /docs/*
  *   app/routes/x.data.ts        x.tsx's declaration: head, cache, load, guard, slots
  *   app/routes/x.css            x.tsx's own stylesheet, linked only by the pages that use it
+ *   app/routes/x.scoped.css     the same, narrowed to the elements x.tsx declares. See `scoped.ts`
  *   app/client.ts               the application's own client code, loaded after adoption
  *
  * A route is a `.tsx`, or a `.data.ts` that says what renders its body — a page whose content is
@@ -39,6 +40,8 @@ export interface DiscoveredRoute {
   data?: string
   /** The sibling `.css`, if the page brought its own. */
   css?: string
+  /** The sibling `.scoped.css`, narrowed to the elements this page's template declares. */
+  scopedCss?: string
   /** How specific this route is, for a stable order in a generated table. */
   depth: number
 }
@@ -49,6 +52,8 @@ export interface DiscoveredNamed {
   file: string
   data?: string
   css?: string
+  /** The sibling `.scoped.css`, narrowed to the elements this fragment declares. */
+  scopedCss?: string
 }
 
 /**
@@ -69,6 +74,8 @@ export interface DiscoveredNested {
   scope: string
   file: string
   css?: string
+  /** The sibling `layout.scoped.css`, narrowed to the elements this layout declares. */
+  scopedCss?: string
   /** Segments in the scope, so a chain sorts outermost-first without re-parsing the pattern. */
   depth: number
 }
@@ -80,6 +87,8 @@ export interface Discovered {
   /** Absent when the application has no layout of its own and gets the framework's. */
   layout?: string
   layoutCss?: string
+  /** `app/layout.scoped.css`: the document's own rules, narrowed to the elements it declares. */
+  layoutScopedCss?: string
   routes: DiscoveredRoute[]
   /** Alternate documents. A route names one, or gets `layout.tsx`. */
   layouts: DiscoveredNamed[]
@@ -215,7 +224,7 @@ export async function discover(root: string, srcDir = 'app'): Promise<Discovered
   const nested: DiscoveredNested[] = []
   const pages: string[] = []
   for (const file of files) {
-    const stem = file.replace(/\.data\.ts$|\.tsx$|\.css$/, '')
+    const stem = file.replace(/\.data\.ts$|\.tsx$|\.scoped\.css$|\.css$/, '')
     if (stem.endsWith(`${sep}layout`)) {
       if (file.endsWith('.data.ts')) {
         throw new ConventionError(
@@ -231,6 +240,7 @@ export async function discover(root: string, srcDir = 'app'): Promise<Discovered
       const found = nested.find((entry) => entry.scope === scope)
       const held = found ?? { scope, file: '', depth: scope === '/' ? 0 : scope.split('/').length - 1 }
       if (file.endsWith('.tsx')) held.file = file
+      else if (file.endsWith('.scoped.css')) held.scopedCss = file
       else held.css = file
       if (!found) nested.push(held)
       continue
@@ -247,12 +257,13 @@ export async function discover(root: string, srcDir = 'app'): Promise<Discovered
 
   // One entry per route, keyed by the stem the files share, so a `.tsx` and a `.data.ts` of the
   // same name are one route and either of them alone is also one.
-  const stems = new Map<string, { tsx?: string; data?: string; css?: string }>()
+  const stems = new Map<string, { tsx?: string; data?: string; css?: string; scoped?: string }>()
   for (const file of pages) {
-    const stem = file.replace(/\.data\.ts$|\.tsx$|\.css$/, '')
+    const stem = file.replace(/\.data\.ts$|\.tsx$|\.scoped\.css$|\.css$/, '')
     const entry = stems.get(stem) ?? {}
     if (file.endsWith('.data.ts')) entry.data = file
     else if (file.endsWith('.tsx')) entry.tsx = file
+    else if (file.endsWith('.scoped.css')) entry.scoped = file
     else if (file.endsWith('.css')) entry.css = file
     else continue
     stems.set(stem, entry)
@@ -263,6 +274,14 @@ export async function discover(root: string, srcDir = 'app'): Promise<Discovered
       throw new ConventionError(
         'E_ORPHAN_CSS',
         `${relative(root, stem)}.css has neither a page nor a declaration beside it, so nothing links it`,
+      )
+    }
+    if (entry.scoped && !entry.tsx) {
+      throw new ConventionError(
+        'E_SCOPED_NO_TEMPLATE',
+        `${relative(root, entry.scoped)} has no ${basename(stem)}.tsx beside it. A scoped sheet is ` +
+          `narrowed to the elements a template declares, and a route whose body is markup from a ` +
+          `declaration has none to narrow it to — name the file ${basename(stem)}.css to make it global`,
       )
     }
     const rel = relative(routesDir, `${stem}.tsx`)
@@ -281,6 +300,7 @@ export async function discover(root: string, srcDir = 'app'): Promise<Discovered
       ...(entry.tsx ? { file: entry.tsx } : {}),
       ...(entry.data ? { data: entry.data } : {}),
       ...(entry.css ? { css: entry.css } : {}),
+      ...(entry.scoped ? { scopedCss: entry.scoped } : {}),
     })
   }
 
@@ -294,11 +314,13 @@ export async function discover(root: string, srcDir = 'app'): Promise<Discovered
         .replace(/\.tsx$/, '')
       const data = file.replace(/\.tsx$/, '.data.ts')
       const css = file.replace(/\.tsx$/, '.css')
+      const scoped = file.replace(/\.tsx$/, '.scoped.css')
       out.push({
         name,
         file,
         ...((await exists(data)) ? { data } : {}),
         ...((await exists(css)) ? { css } : {}),
+        ...((await exists(scoped)) ? { scopedCss: scoped } : {}),
       })
     }
     return out
@@ -306,6 +328,7 @@ export async function discover(root: string, srcDir = 'app'): Promise<Discovered
 
   const layout = join(base, 'layout.tsx')
   const layoutCss = join(base, 'layout.css')
+  const layoutScopedCss = join(base, 'layout.scoped.css')
   const styles = join(base, 'styles.css')
   const client = join(base, 'client.ts')
 
@@ -314,6 +337,7 @@ export async function discover(root: string, srcDir = 'app'): Promise<Discovered
     srcDir,
     ...((await exists(layout)) ? { layout } : {}),
     ...((await exists(layoutCss)) ? { layoutCss } : {}),
+    ...((await exists(layoutScopedCss)) ? { layoutScopedCss } : {}),
     routes: routes.sort((a, b) => b.depth - a.depth || a.pattern.localeCompare(b.pattern)),
     layouts: await named('layouts'),
     nested: nested.sort((a, b) => a.depth - b.depth || a.scope.localeCompare(b.scope)),

@@ -13,6 +13,7 @@ import {
 } from './client.ts'
 import { byteBudgets, devices, profileStation, sharedDeltas, wireForms } from './measure.ts'
 import { capabilities, discovery, signedIntents } from './authority.ts'
+import { scopedStyles } from './scoped.ts'
 import { staticDocuments } from './static.ts'
 import { composition } from './composition.ts'
 import { blockingControl, components, epochs, streaming, streamingOrder } from './stream.ts'
@@ -38,6 +39,7 @@ import {
  */
 export const HANDLERS: Record<string, StationHandler> = {
   composition,
+  'scoped-styles': scopedStyles,
   authority: capabilities,
   'signed-intents': signedIntents,
   discovery,

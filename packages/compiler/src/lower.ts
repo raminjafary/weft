@@ -191,6 +191,19 @@ export interface LowerInput {
   /** When present, escaping is decided by the value's type rather than by its syntax. */
   types?: TypeOracle
   /**
+   * The scope this fragment's stylesheet was rewritten under, when it brought a scoped one.
+   *
+   * Every element the fragment declares gets it as an attribute, so a selector carrying the same
+   * attribute matches this fragment's elements and nothing else on the page. It is stamped here
+   * rather than applied in the browser because a template is data: the attribute becomes part of
+   * the sealed bytes, costs one attribute per element on the wire and nothing at all at runtime.
+   *
+   * It stops at a component boundary. A `<Card/>` is its own sealed template and does not inherit
+   * this, which is the whole point — a parent that could reach into a child's markup would make the
+   * child's shape part of the parent's contract.
+   */
+  cssScope?: string
+  /**
    * A derived table to append to rather than start. Children markup is lowered into a
    * template of its own but stays in its caller's binding namespace, so the two share one
    * table — otherwise both would allocate `d0` for different expressions and the shared
@@ -723,6 +736,7 @@ function lowerElement(element: Node, path: number[], em: Emitter, input: LowerIn
   }
 
   emit(em, `<${tag}`)
+  if (input.cssScope) emit(em, ` ${input.cssScope}`)
   for (const raw of nodes(opening.attributes)) lowerAttribute(raw, path, em, input, tag)
   emit(em, '>')
 

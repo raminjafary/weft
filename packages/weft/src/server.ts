@@ -18,7 +18,15 @@ export {
   type DiscoveredNested,
   type DiscoveredRoute,
 } from './convention.ts'
-export { compileApp, frameworkStyles, slotHoles, type CompiledApp, type CompiledFragment } from './compile.ts'
+export {
+  compileApp,
+  frameworkStyles,
+  scopedSheets,
+  slotHoles,
+  type CompiledApp,
+  type CompiledFragment,
+} from './compile.ts'
+export { isScopedSheet, scopeAttribute, scopeCss, scopeStem } from './scoped.ts'
 export { generateRoutes, navOf, GenerateError, type Generated, type GeneratedRoute } from './routes.ts'
 export { loadIntents, moduleIdOf, type IntentManifest, type ManifestEntry } from './intents.ts'
 export { loadConfig, type ResolvedConfig } from './config.ts'

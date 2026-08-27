@@ -739,8 +739,11 @@ export interface GenerateOptions {
    * not exist yet at generation time, and pretending otherwise would mean an unrevved URL.
    */
   styleHref(pattern: string): string
-  /** A fragment file's colocated stylesheet, if it brought one. */
-  styleOf(file: string): string | undefined
+  /**
+   * A fragment file's colocated stylesheets, in cascade order: the global `.css` first, then the
+   * `.scoped.css` narrowed to that fragment's own elements. Either may be absent.
+   */
+  styleOf(file: string): readonly string[]
   /** Where a live slot's base render is recorded, so its first refresh can be a delta. */
   store: StorePort
   /** What this deployment bound. A loader is handed the services half of it. */
@@ -1002,14 +1005,9 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     rendered.add(fragment)
     for (const child of composedIn(compiled, fragment)) rendered.add(child)
   }
-  const css = [
-    ...new Set(
-      [...rendered]
-        .map((fragment) => options.styleOf(fragment.file))
-        .filter((value): value is string => Boolean(value)),
-    ),
-  ]
+  const css = [...new Set([...rendered].flatMap((fragment) => options.styleOf(fragment.file)))]
   if (route.css && !css.includes(route.css)) css.push(route.css)
+  if (route.scopedCss && !css.includes(route.scopedCss)) css.push(route.scopedCss)
 
   const head = module_.head
   const extra = module_.layoutValues

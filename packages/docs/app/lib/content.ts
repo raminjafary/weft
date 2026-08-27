@@ -323,6 +323,82 @@ weft why /blog/:slug # the generated plan for one route, as JSON`,
         'point.',
     ),
 
+  'scoped-styles': () =>
+    prose(
+      'Put a <code>.css</code> beside a fragment and every page that renders it links that sheet. Name ' +
+        'the file <code>.scoped.css</code> instead and the sheet is <em>narrowed</em>: its selectors ' +
+        'reach the elements that fragment declares, and nothing else on the page.',
+      'It is the same idea Vue, Svelte and Angular ship. What is different here is when it happens. A ' +
+        'template is data rather than a function, so the compiler writes a scope attribute into the ' +
+        'sealed bytes at build time — there is no hydration step, nothing injected in the browser, and ' +
+        'no mangled class name to read past in devtools. The class in the sheet is the class in the ' +
+        'markup; only its reach changed.',
+    ) +
+    sketch(
+      'tsx',
+      `// app/fragments/card.tsx
+export default fragment(({ title }: Props) => (
+  <div class="card">
+    <h3 class="title">{title}</h3>
+  </div>
+))`,
+    ) +
+    sketch(
+      'css',
+      `/* app/fragments/card.scoped.css, as you write it */
+.card { border: 1px solid red }
+.card .title { font-weight: 700 }
+
+/* as it is served */
+.card[data-w-d901a5ad] { border: 1px solid red }
+.card .title[data-w-d901a5ad] { font-weight: 700 }`,
+    ) +
+    heading('Opting in, by filename', 'opting-in') +
+    prose(
+      'Both files may sit beside one fragment, and they cascade in that order — global first, scoped ' +
+        'after — so a component can take the shared look and then say what is different about it.',
+    ) +
+    table(
+      ['File', 'Reach'],
+      [
+        [
+          '<code>card.css</code>',
+          'Global. Linked by the pages that render <code>card</code>, as it always was',
+        ],
+        ['<code>card.scoped.css</code>', 'Narrowed to the elements <code>card.tsx</code> declares'],
+      ],
+    ) +
+    prose(
+      'The filename carries the decision because the decision has to be visible. A marker inside the ' +
+        'file would put it where a reader of a diff does not look, and a config list would put it in a ' +
+        'third place that can disagree with both. Renaming the file is the whole of the change.',
+      'It works for every kind of template the convention knows: <code>app/layout.scoped.css</code>, ' +
+        '<code>app/routes/&lt;dir&gt;/layout.scoped.css</code>, <code>app/routes/about.scoped.css</code>, ' +
+        'and the same beside a slot, an alternate layout or a fragment.',
+    ) +
+    heading('Where the scope stops', 'boundary') +
+    prose(
+      'At a component boundary. A <code>&lt;Card/&gt;</code> rendered inside another fragment is its own ' +
+        'sealed template and carries its own scope, so the parent’s rules do not reach into it.',
+    ) +
+    note(
+      'refused',
+      'There is no :deep()',
+      'A parent that could style a child’s internals would make the child’s markup part of the parent’s ' +
+        'contract — the child could not change shape without breaking a caller it cannot see, and the ' +
+        'coupling would be invisible from the child’s own file. When a parent needs to influence a ' +
+        'child, the child takes a prop and decides for itself.',
+    ) +
+    heading('What it costs', 'cost') +
+    prose(
+      'Nothing at runtime, and one attribute per element on the wire. The attribute is derived from the ' +
+        'file’s path rather than its contents, so editing a template or its sheet never changes it and a ' +
+        'cached stylesheet survives a typo fix.',
+      'A scoped sheet beside a route whose body is markup rather than a template is ' +
+        '<code>E_SCOPED_NO_TEMPLATE</code>: there are no elements to narrow it to, and a sheet that ' +
+        'silently applied to nothing is one that appears to work until somebody looks.',
+    ),
+
   layouts: () =>
     prose(
       'A route names one document, and its <code>&lt;slot&gt;</code> holes are the boundaries the route ' +

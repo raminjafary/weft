@@ -64,6 +64,13 @@ export interface CompileOptions {
   composedElsewhere?: ReadonlySet<string>
   /** Where this file's text comes from. Defaults to reading the path. */
   read?: SourceReader
+  /**
+   * The scope attribute to stamp on every element this module's fragments declare.
+   *
+   * Supplied by the build, which is the only layer that knows whether a scoped stylesheet sits
+   * beside this file. Absent means unscoped, which is what a module with no scoped sheet gets.
+   */
+  cssScope?: string
 }
 
 function moduleId(file: string, root?: string): string {
@@ -399,7 +406,15 @@ export async function compileSource(
       ...(ctxParam ? { ctxParam } : {}),
     }
     const id = `${moduleId(file, options?.root)}#${found.exportName}`
-    const input = { id, root: body, scope, file, source, ...(options?.types ? { types: options.types } : {}) }
+    const input = {
+      id,
+      root: body,
+      scope,
+      file,
+      source,
+      ...(options?.types ? { types: options.types } : {}),
+      ...(options?.cssScope ? { cssScope: options.cssScope } : {}),
+    }
     const root = body.type === 'BlockStatement' ? returnedJsx(body, input) : body
 
     const effects = inferEffects({ fn, file, source, ...(ctxParam ? { ctxParam } : {}) })
@@ -642,8 +657,15 @@ function orderByDependency(facts: Map<string, ModuleFacts>): string[] {
  */
 export async function compileFiles(
   files: string[],
-  options?: Omit<CompileOptions, 'types' | 'external' | 'composedElsewhere' | 'read'> & {
+  options?: Omit<CompileOptions, 'types' | 'external' | 'composedElsewhere' | 'read' | 'cssScope'> & {
     types?: boolean
+    /**
+     * The scope attribute for a file, when a scoped stylesheet sits beside it.
+     *
+     * A function rather than a map because the caller keys it by whatever it has — the build knows
+     * absolute paths, and the file set here is the same set it discovered.
+     */
+    cssScopes?: (file: string) => string | undefined
     /**
      * A file set that exists only in memory, keyed by the same paths passed in `files`.
      *
@@ -722,6 +744,7 @@ export async function compileFiles(
           ...(composedElsewhere.has(file)
             ? { composedElsewhere: composedElsewhere.get(file) as Set<string> }
             : {}),
+          ...(options?.cssScopes?.(file) ? { cssScope: options.cssScopes(file) as string } : {}),
         }),
       )
     }

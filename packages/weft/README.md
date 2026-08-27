@@ -40,6 +40,7 @@ app/
   routes/[slug].tsx        /:slug
   routes/x.data.ts         x.tsx's head, cache policy, loader, guard and slots
   routes/x.css             linked only by the pages that render x
+  routes/x.scoped.css      the same, narrowed to the elements x.tsx declares
   fragments/<name>.tsx     a component, referenced by name from a route's slots
   slots/<name>.tsx         fills the layout hole of that name on every route
   intents/**.ts            mutations. The manifest is generated from this directory

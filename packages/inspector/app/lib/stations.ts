@@ -58,6 +58,16 @@ export const STATIONS: readonly Station[] = [
     group: 'stream',
   },
 
+  {
+    id: 'scoped-styles',
+    title: 'Scoped styles',
+    shows: 'The attribute the compiler stamps on a fragment’s elements, and the same one narrowing its sheet',
+    control: 'A fragment, and a selector to watch the transform place the attribute in',
+    covers: ['compiler/scoped-styles.md'],
+    status: 'live',
+    group: 'render',
+  },
+
   // ── the client runtime ─────────────────────────────────────────────────────────────
   {
     id: 'adoption',
