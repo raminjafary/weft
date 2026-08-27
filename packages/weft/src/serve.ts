@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { access, readFile } from 'node:fs/promises'
 import { basename, dirname, join, relative } from 'node:path'
-import { Readable } from 'node:stream'
+import { Readable, type Duplex } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import { patchPayload, render } from '@weft/ir'
 import { entityTag, matchesTag } from './entity.ts'
@@ -212,6 +212,25 @@ export interface Connection {
 export interface Serving {
   url: string
   app: App
+  close(): Promise<void>
+}
+
+/**
+ * An application that answers requests, with nothing yet listening.
+ *
+ * `weft start` puts this on a TCP port. A host that owns the socket — a serverless function, a
+ * process manager that hands a listener down, a test that drives the handler directly — takes the
+ * two callbacks instead. The split exists because binding a port is the one thing in a deployment
+ * that is genuinely the platform's decision, and a framework that can only be reached by opening
+ * one has decided it for every platform that does not work that way.
+ */
+export interface Handler {
+  app: App
+  /** A request, answered. Never throws: a failure below it becomes the error document. */
+  handle(req: IncomingMessage, res: ServerResponse): void
+  /** A channel open. Ends the socket when the path is not one, which is what a 404 is here. */
+  upgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void
+  /** Stop the periodic work. Nothing is listening, so there is no socket to close. */
   close(): Promise<void>
 }
 
@@ -1074,8 +1093,8 @@ function channelContext(
   return { ...reads, ...services(ports), phase: 'render', defer: () => {} }
 }
 
-/** Put it on a port. Everything interesting already happened in `createApp`. */
-export async function serveApp(app: App): Promise<Serving> {
+/** Make it answerable. Everything interesting already happened in `createApp`. */
+export async function appHandler(app: App): Promise<Handler> {
   const { assets, at, authority, config, documents, intents, keysFor, recorder, routes, store, hub } = app
   const table = createRouter<RouteResolver>(routes.map((route) => route.entry))
   /**
@@ -1265,7 +1284,7 @@ export async function serveApp(app: App): Promise<Serving> {
       intents: dispatchOverHttp,
     })
 
-  const server: Server = createServer((req, res) => {
+  function respond(req: IncomingMessage, res: ServerResponse): void {
     void handle(req, res).catch((error: unknown) => {
       if (res.headersSent) {
         res.end()
@@ -1299,7 +1318,7 @@ export async function serveApp(app: App): Promise<Serving> {
         }),
       )
     })
-  })
+  }
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? config.host}`)
@@ -1619,11 +1638,30 @@ export async function serveApp(app: App): Promise<Serving> {
     })
   }
 
-  server.on('upgrade', (req, socket, head) => {
+  function upgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? config.host}`)
     remember(url, req.headers.cookie)
     if (!channel.upgrade(req, socket as never, head)) socket.end('HTTP/1.1 404 Not Found\r\n\r\n')
-  })
+  }
+
+  return {
+    app,
+    handle: respond,
+    upgrade,
+    close: async () => {
+      if (flushing) clearInterval(flushing)
+      // Written on the way out as well as periodically: the last thirty seconds of a run are
+      // exactly the ones a `weft profile` after a load test wants to include.
+      if (recorder) await writeProfile(config.root, config.outDir, recorder.profile())
+    },
+  }
+}
+
+/** Put a handler on a TCP port. */
+export async function serveHandler(handler: Handler): Promise<Serving> {
+  const { config } = handler.app
+  const server: Server = createServer(handler.handle)
+  server.on('upgrade', handler.upgrade)
 
   // `localhost` rather than `127.0.0.1`: on macOS `localhost` resolves to ::1 first, and a server
   // bound only to the IPv4 loopback is one the browser cannot reach at the address printed in
@@ -1637,18 +1675,20 @@ export async function serveApp(app: App): Promise<Serving> {
 
   return {
     url: `http://${config.host}:${address.port}/`,
-    app,
+    app: handler.app,
     close: async () => {
-      if (flushing) clearInterval(flushing)
-      // Written on the way out as well as periodically: the last thirty seconds of a run are
-      // exactly the ones a `weft profile` after a load test wants to include.
-      if (recorder) await writeProfile(config.root, config.outDir, recorder.profile())
+      await handler.close()
       await new Promise<void>((resolve) => {
         server.closeAllConnections()
         server.close(() => resolve())
       })
     },
   }
+}
+
+/** Put it on a port. */
+export async function serveApp(app: App): Promise<Serving> {
+  return serveHandler(await appHandler(app))
 }
 
 /**

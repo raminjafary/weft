@@ -3,14 +3,14 @@ import { spawn } from 'node:child_process'
 import { basename, join, resolve } from 'node:path'
 import process from 'node:process'
 import { build, formatReport } from './build.ts'
-import { loadBuild } from './build.ts'
 import { loadConfig } from './config.ts'
 import { discover } from './convention.ts'
 import { dev, RESTART_CODE } from './dev.ts'
 import { verifyRegions } from '@weft/plan'
 import { formatRegionGraph, regionProbe } from '@weft/kernel'
 import { decide, formatProfile, readProfile } from './profile.ts'
-import { createApp, serveApp } from './serve.ts'
+import { createApp, serveHandler } from './serve.ts'
+import { startHandler } from './start.ts'
 import { DEVTOOLS_PATH } from './devtools.ts'
 import { scaffold, type Template } from './scaffold.ts'
 import { uploadBuild } from './upload.ts'
@@ -151,10 +151,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'start') {
-    const config = await loadConfig(root, overrides)
-    const discovered = await discover(root, config.srcDir)
-    const compiled = await loadBuild(discovered, config)
-    const serving = await serveApp(await createApp(root, { ...overrides, mode: 'start', compiled }))
+    const serving = await serveHandler(await startHandler(root, overrides))
     out(
       banner(
         'start',

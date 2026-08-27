@@ -6,7 +6,18 @@
  * CLI is a framework you cannot embed, and because the CLI itself should have no privileged
  * access to anything an application could not reach.
  */
-export { createApp, serveApp, type App, type CreateOptions, type Mode, type Serving } from './serve.ts'
+export {
+  appHandler,
+  createApp,
+  serveApp,
+  serveHandler,
+  type App,
+  type CreateOptions,
+  type Handler,
+  type Mode,
+  type Serving,
+} from './serve.ts'
+export { startHandler } from './start.ts'
 export { build, loadBuild, formatReport, type BuildReport, type IrManifest } from './build.ts'
 export { dev, type DevServer } from './dev.ts'
 export {
