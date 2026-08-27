@@ -128,7 +128,11 @@ export function fromJSON(input: unknown): ParseResult {
   const check = validateTemplate(ir)
   if (!check.ok) {
     throw new Error(
-      `E_INVALID_DOCUMENT:\n${check.errors.map((e) => `  ${e.code} at ${e.at}: ${e.message}`).join('\n')}`,
+      `E_INVALID_DOCUMENT: read as Template IR ${ir.irVersion || 'of an unstated version'}, and ` +
+        `${check.errors.length} of the rules a template must satisfy do not hold. A document that ` +
+        `parsed but does not validate is a document written by something other than this compiler, ` +
+        `or by a version of it that sealed a shape this one has retired:\n` +
+        check.errors.map((e) => `  ${e.code} at ${e.at}: ${e.message}`).join('\n'),
     )
   }
 
