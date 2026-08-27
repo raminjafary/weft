@@ -1,4 +1,4 @@
-import { fragment, raw } from '@weft/core'
+import { fragment, raw } from '@weftjs/core'
 
 interface NavItem {
   href: string

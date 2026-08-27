@@ -8,9 +8,9 @@ import {
   type CacheClass,
   type Hole,
   type WireForm,
-} from '@weft/ir'
-import { requestFacts, resolveKey, type Ports, type ResolvedKey } from '@weft/kernel'
-import { factsFrom, why, type Plan, type SlotFacts, type SlotSpec, type WhyReport } from '@weft/plan'
+} from '@weftjs/ir'
+import { requestFacts, resolveKey, type Ports, type ResolvedKey } from '@weftjs/kernel'
+import { factsFrom, why, type Plan, type SlotFacts, type SlotSpec, type WhyReport } from '@weftjs/plan'
 import type { CompiledFragment } from '../compile.ts'
 import type { App } from '../serve.ts'
 
@@ -24,7 +24,7 @@ import type { App } from '../serve.ts'
  * one you were looking at would be the wrong one.
  *
  * The same argument decides where the numbers come from. Bytes are read off assets that exist,
- * key reasons come from `resolveKey`, and the DAG comes from `@weft/plan`'s `why`. A number
+ * key reasons come from `resolveKey`, and the DAG comes from `@weftjs/plan`'s `why`. A number
  * nobody measured is not printed.
  */
 export class DevtoolsError extends Error {
@@ -309,7 +309,7 @@ export interface WhyPage {
 /**
  * `weft why`, for a route, against this request.
  *
- * The DAG, the waves, the critical path and the budget diagnostics are `@weft/plan`'s `why` —
+ * The DAG, the waves, the critical path and the budget diagnostics are `@weftjs/plan`'s `why` —
  * the same function and the same input the CLI has, so the page cannot say something the
  * command would not. What the page adds is the half the CLI has no request for: the cache key
  * each slot resolves to *now*, and the one line from `resolveKey` saying which read put

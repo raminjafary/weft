@@ -10,7 +10,7 @@ import {
   UNARY_OPS,
   type UnaryOp,
   type WiringEntry,
-} from '@weft/ir'
+} from '@weftjs/ir'
 import {
   BOOLEAN_ATTRIBUTES,
   FRAMEWORK_MODULE,

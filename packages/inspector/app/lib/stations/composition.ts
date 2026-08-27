@@ -1,4 +1,4 @@
-import { createComposer, regionStream, type Ports, type RegionBinding, type RegionSpec } from '@weft/kernel'
+import { createComposer, regionStream, type Ports, type RegionBinding, type RegionSpec } from '@weftjs/kernel'
 import {
   bindingExecutor,
   cookieSession,
@@ -7,7 +7,7 @@ import {
   regionService,
   staticFlags,
   svcExecutor,
-} from '@weft/adapters'
+} from '@weftjs/adapters'
 import { escapeHtml, field, panel, pick, pre, press, readout } from '../pages.ts'
 import { control, type StationHandler } from './kind.ts'
 
@@ -173,7 +173,7 @@ export const composition: StationHandler = async (ctx) => {
         ],
         {
           what: `A region resolved through the registry and rendered where the registry says it lives. The check on arrival is what makes this safe rather than convenient: a region announces itself, may write only into its own hole, and may not send a frame that belongs to whoever owns the page.`,
-          from: 'createComposer() and readRegion() in @weft/kernel, against regionService() in @weft/adapters',
+          from: 'createComposer() and readRegion() in @weftjs/kernel, against regionService() in @weftjs/adapters',
           caveat:
             'A region over a live channel is not wired yet, so this is the document path. The contract check here is per response; the deploy-time one that queries every region does not exist.',
           tryThis:

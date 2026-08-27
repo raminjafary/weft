@@ -1,4 +1,4 @@
-import { fragment, signal } from '@weft/core'
+import { fragment, signal } from '@weftjs/core'
 import { quantity } from '../../intents/quantity.ts'
 
 /**

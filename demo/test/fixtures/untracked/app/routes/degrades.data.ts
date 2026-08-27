@@ -1,4 +1,4 @@
-import { defineRoute } from '@weft/core'
+import { defineRoute } from '@weftjs/core'
 
 /**
  * A page that fails to render at build time.

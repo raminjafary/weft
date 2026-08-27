@@ -1,5 +1,5 @@
-import type { WireForm } from '@weft/ir'
-import { type ExceedPolicy, type PolicyClass, type RegionContract } from '@weft/kernel'
+import type { WireForm } from '@weftjs/ir'
+import { type ExceedPolicy, type PolicyClass, type RegionContract } from '@weftjs/kernel'
 
 /**
  * The plan.

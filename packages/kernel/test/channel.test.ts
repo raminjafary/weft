@@ -7,8 +7,8 @@ import {
   seal,
   TEMPLATE_IR_VERSION,
   type TemplateIR,
-} from '@weft/ir'
-import { WARP_VERSION, frame, negotiate, residentFrame, str, type Frame } from '@weft/warp'
+} from '@weftjs/ir'
+import { WARP_VERSION, frame, negotiate, residentFrame, str, type Frame } from '@weftjs/warp'
 import { createHub, serverCapabilities, type ChannelSink } from '../src/channel.ts'
 import { baseKey, DEFAULT_REFRESH_TTL, heldFrame, parseHeld, recordBase, selectForm } from '../src/refresh.ts'
 
@@ -27,11 +27,11 @@ async function priceList(): Promise<TemplateIR> {
     ),
   )
 }
-import { memoryStore } from '@weft/adapters'
+import { memoryStore } from '@weftjs/adapters'
 
 /**
  * The channel without a socket. The bindings are tested over real ones in
- * `@weft/adapters`; what is here is the part that has to be true before any of them can be:
+ * `@weftjs/adapters`; what is here is the part that has to be true before any of them can be:
  * what this build says it can serve, and what it refuses.
  */
 function sink(): ChannelSink & { frames: Frame[] } {
@@ -48,7 +48,7 @@ function sink(): ChannelSink & { frames: Frame[] } {
 }
 
 test('the advertised IR version is the one this build emits, not a number written beside it', () => {
-  // The bug this gate exists for: `SERVER_DEFAULTS.ir` in @weft/warp said 1.0.0 while the
+  // The bug this gate exists for: `SERVER_DEFAULTS.ir` in @weftjs/warp said 1.0.0 while the
   // emitter was on 2.4.0, so every current client negotiated an IR major mismatch and was
   // served markup only. Warp cannot see the IR's version, so the composition lives here.
   const capabilities = serverCapabilities()

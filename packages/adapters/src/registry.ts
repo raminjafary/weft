@@ -1,5 +1,5 @@
-import { intentId } from '@weft/compiler'
-import type { Intent, RegionBinding, Registry } from '@weft/kernel'
+import { intentId } from '@weftjs/compiler'
+import type { Intent, RegionBinding, Registry } from '@weftjs/kernel'
 
 /**
  * A registry built from a manifest, which is the deployment shape a bundler produces: every

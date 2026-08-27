@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { resolve } from 'node:path'
-import { scaffold, type Template } from '@weft/core/server'
+import { scaffold, type Template } from '@weftjs/core/server'
 
 /**
  * `npm create weft`.

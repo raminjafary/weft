@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { cookieSession, memoryStore, staticFlags } from '@weft/adapters'
+import { cookieSession, memoryStore, staticFlags } from '@weftjs/adapters'
 import { gated, misbehaving, rejected, stack } from '../fixtures/plugins.ts'
 import { cartRoute } from '../fixtures/cart-route.ts'
 import {
@@ -50,9 +50,9 @@ test('the stack orders itself from what each plugin reads and provides', () => {
     waves.map((wave) => wave.map((p) => p.name).sort()),
     [
       // Disjoint: nothing they read is provided by anything here.
-      ['@weft/csp', '@weft/session', '@weft/tracing'],
+      ['@weftjs/csp', '@weftjs/session', '@weftjs/tracing'],
       // i18n reads ctx.session; analytics reads ctx.nonce and is also held by `before`.
-      ['@acme/analytics', '@weft/i18n'],
+      ['@acme/analytics', '@weftjs/i18n'],
     ],
   )
 })
@@ -74,7 +74,7 @@ test('a filter ends the request before a single enricher runs', async () => {
   const schedule = resolvePlugins(gated)
   assert.deepEqual(
     schedule.filters.map((p) => p.name),
-    ['@weft/auth'],
+    ['@weftjs/auth'],
   )
   const denied = await runPlugins(schedule, context(''))
   assert.equal(denied.response?.status, 302)

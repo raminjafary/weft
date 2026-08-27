@@ -1,4 +1,4 @@
-import { fragment } from '@weft/core'
+import { fragment } from '@weftjs/core'
 
 interface Block {
   kind: string

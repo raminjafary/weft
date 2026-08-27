@@ -1,4 +1,4 @@
-import { allFragments, defineRoute } from '@weft/core'
+import { allFragments, defineRoute } from '@weftjs/core'
 import { shell } from '../lib/shell.ts'
 import { landingBody } from '../lib/landing.ts'
 import { exampleCount } from '../lib/content.ts'

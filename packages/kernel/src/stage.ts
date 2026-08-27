@@ -1,4 +1,4 @@
-import { frame, str, type Frame } from '@weft/warp'
+import { frame, str, type Frame } from '@weftjs/warp'
 import type { Channel, SlotFrames, SlotRender, WarmHandler } from './channel.ts'
 import type { StorePort, TelemetryPort } from './ports.ts'
 import { surgicalRefresh, type RefreshTtl } from './refresh.ts'

@@ -1,4 +1,4 @@
-import { memoryStore, cookieSession, staticFlags } from '@weft/adapters'
+import { memoryStore, cookieSession, staticFlags } from '@weftjs/adapters'
 import {
   createCapabilityModel,
   createEnvelope,
@@ -13,7 +13,7 @@ import {
   type DiscoveredRoute,
   type EnvelopeContext,
   type Ports,
-} from '@weft/kernel'
+} from '@weftjs/kernel'
 import { escapeHtml, field, panel, pick, pre, press, readout } from '../pages.ts'
 import type { StationHandler } from './kind.ts'
 
@@ -110,7 +110,7 @@ export const capabilities: StationHandler = async (ctx) => {
         ],
         {
           what: `Two callers put through the real capability model, with the role table printed above. A denial names what was missing rather than saying no, because a 403 nobody can explain is a 403 somebody works around.`,
-          from: 'createCapabilityModel + roleGrants in @weft/kernel — the same functions the intent dispatch is given',
+          from: 'createCapabilityModel + roleGrants in @weftjs/kernel — the same functions the intent dispatch is given',
           caveat:
             'The grants here come from a table on this page. A deployment resolves roles from whatever it knows about a subject; nothing else changes.',
           tryThis:
@@ -204,7 +204,7 @@ export const signedIntents: StationHandler = async (ctx) => {
         ],
         {
           what: `A token minted and checked, live. The claims below are the ones the signature covers: the intent, the reader, a digest of the payload, an expiry and a nonce — so a valid token for one call is not a valid token for another.`,
-          from: 'createIntentSigner + createIntentVerifier in @weft/kernel, over WebCrypto Ed25519',
+          from: 'createIntentSigner + createIntentVerifier in @weftjs/kernel, over WebCrypto Ed25519',
           caveat:
             'The key is generated per render, so a token from one load of this page cannot be checked by the next. A deployment holds its keys and rotates them by adding one to the bundle.',
           tryThis:
@@ -296,7 +296,7 @@ export const discovery: StationHandler = async (ctx) => {
         ],
         {
           what: `A subtree of the plan, extended the way a client extends it. Each record is something that would otherwise cost a document fetch: the shell a route renders into, its region names, its stylesheet, the templates those regions need, and the routes readers go to next.`,
-          from: 'createExtender in @weft/kernel — the same function the front door gives the channel hub',
+          from: 'createExtender in @weftjs/kernel — the same function the front door gives the channel hub',
           caveat:
             'The catalogue here is written on this page so the prefixes are stable. In an application it is the generated route table, and `shared` is computed against the page the connection is actually on.',
           tryThis:

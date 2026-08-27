@@ -231,7 +231,7 @@ export const BUDGETS: ByteBudget[] = [
      * The entry stays, because a gate on how much code there *is* is worth having and this is a
      * good one — minified bytes are a proxy for logic that comments and formatting do not move. It
      * stops claiming to be the number a reader on a phone pays. That number is measured by
-     * `measureClientJs` in `@weft/weft`, gated by `budget({ js, grow })`, and reported by
+     * `measureClientJs` in `@weftjs/core`, gated by `budget({ js, grow })`, and reported by
      * `weft build`.
      */
     id: 'front-door',

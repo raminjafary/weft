@@ -1,5 +1,5 @@
 {
-  "name": "@weft/compiler",
+  "name": "@weftjs/compiler",
   "version": "0.1.0",
   "description": "TSX to Template IR, with effect inference and escape elision.",
   "keywords": [
@@ -45,7 +45,7 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@weft/ir": "workspace:*",
+    "@weftjs/ir": "workspace:*",
     "oxc-parser": "0.146.0"
   },
   "peerDependencies": {
@@ -63,6 +63,6 @@
     "access": "public"
   },
   "devDependencies": {
-    "@weft/core": "workspace:*"
+    "@weftjs/core": "workspace:*"
   }
 }

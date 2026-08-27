@@ -35,6 +35,38 @@ export function publishedVersions(name) {
 }
 
 /**
+ * Whether this account may publish under a scope.
+ *
+ * `npm access list packages <scope>` is not this check, though it looks like it: it is a public
+ * listing that answers for `@babel` as readily as for your own, so an unpublished scope somebody else
+ * holds comes back as an empty success. That read is what told this repository `@weft/*` was free
+ * when it was not, through a rename, a release rehearsal and a push.
+ *
+ * `npm org ls` does distinguish the three cases, because membership is the thing it reports: it fails
+ * for a scope that names no organisation, succeeds with the roster for one you belong to, and
+ * succeeds empty for one you do not. A scope equal to your own username needs no organisation at all,
+ * so it is answered before any of that.
+ */
+function claimScope(scope, user) {
+  if (user && scope === user) return { ok: true, why: 'your own user scope' }
+
+  const org = run('npm', ['org', 'ls', scope], { allowFailure: true })
+  if (!org.ok) {
+    return {
+      ok: false,
+      why: `no npm organisation named ${scope}. Create it at npmjs.com/org/create, or rename the package.`,
+    }
+  }
+  if (!org.output.trim()) {
+    return {
+      ok: false,
+      why: `the @${scope} scope exists and ${user ?? 'this account'} is not a member of it. Publishing would be refused.`,
+    }
+  }
+  return { ok: true, why: `a member of @${scope}` }
+}
+
+/**
  * Whether this account could publish this name at all.
  *
  * Worth its own check because the failure it catches is the worst one available: a release that has
@@ -44,14 +76,8 @@ export function publishedVersions(name) {
  */
 export function claim(name, user) {
   if (name.startsWith('@')) {
-    const scope = name.slice(1).split('/')[0]
-    const scopeResult = run('npm', ['access', 'list', 'packages', scope], { allowFailure: true })
-    if (/scope not found/i.test(scopeResult.output)) {
-      return {
-        ok: false,
-        why: `the @${scope} scope does not exist. Create the npm organisation, or rename the package.`,
-      }
-    }
+    const scope = claimScope(name.slice(1).split('/')[0], user)
+    if (!scope.ok) return scope
   }
 
   const existing = run('npm', ['view', name, 'version'], { allowFailure: true })

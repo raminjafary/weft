@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { leaseCoalescer } from '../src/coalesce.ts'
-import { memoryStore } from '@weft/adapters'
+import { memoryStore } from '@weftjs/adapters'
 
 /**
  * Two concurrent misses on one key. The lease was implemented and tested a session ago and

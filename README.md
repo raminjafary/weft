@@ -74,7 +74,7 @@ no template.
 
 ```tsx
 // app/routes/index.tsx
-import { fragment } from '@weft/core'
+import { fragment } from '@weftjs/core'
 
 export default fragment(({ name, steps }: Props) => (
   <>
@@ -93,7 +93,7 @@ derived from what the compiler saw the page read.
 
 ```ts
 // app/routes/index.data.ts
-import { asset, defineRoute } from '@weft/core'
+import { asset, defineRoute } from '@weftjs/core'
 
 export default defineRoute({
   head: { title: 'my-app', description: 'A weft application.' },
@@ -110,7 +110,7 @@ dispatch answers a `fetch`.
 
 ```ts
 // app/intents/counter.ts
-import { defineIntent } from '@weft/core'
+import { defineIntent } from '@weftjs/core'
 
 export const bump = defineIntent<{ by: number }>({
   name: 'counter.bump',
@@ -332,7 +332,7 @@ pnpm inspect    # every mechanism, running  :4180
 pnpm docs:dev   # the documentation site    :4190
 ```
 
-All three are weft applications. `demo/` imports `weft` and nothing else; `@weft/inspector` reaches
+All three are weft applications. `demo/` imports `weft` and nothing else; `@weftjs/inspector` reaches
 into the kernel, the plan layer and the adapters, because taking those apart is what it is for; and
 **the documentation site is itself a weft application** — 14 routes, 27 sealed templates, and 370
 files after a build, most of it generated from the source rather than written beside it so it cannot
@@ -361,20 +361,20 @@ table.
 
 <!-- versions:start -->
 
-| Package           | Version                                                 | What it is                                                                  |
-| ----------------- | ------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `@weft/core`      | [`0.1.0`](https://www.npmjs.com/package/@weft/core)     | The framework. The CLI, the conventions, and what an application imports    |
-| `create-weft`     | [`0.1.0`](https://www.npmjs.com/package/create-weft)    | `npm create weft` — a shim over the templates that ship inside `@weft/core` |
-| `@weft/ir`        | [`0.1.0`](https://www.npmjs.com/package/@weft/ir)       | The template IR: what a compiled fragment is                                |
-| `@weft/warp`      | [`0.1.0`](https://www.npmjs.com/package/@weft/warp)     | The frame vocabulary that carries it                                        |
-| `@weft/compiler`  | [`0.1.0`](https://www.npmjs.com/package/@weft/compiler) | TSX to IR, on Oxc, with the type-driven escape class                        |
-| `@weft/client`    | [`0.1.0`](https://www.npmjs.com/package/@weft/client)   | Adoption, signals, deltas, patches, navigation                              |
-| `@weft/kernel`    | [`0.1.0`](https://www.npmjs.com/package/@weft/kernel)   | Routing, the request lifecycle, cache keys, waves, epochs, surgical refresh |
-| `@weft/plan`      | [`0.1.0`](https://www.npmjs.com/package/@weft/plan)     | The plan DSL, validation against inferred effects, plugins, `weft why`      |
-| `@weft/adapters`  | [`0.1.0`](https://www.npmjs.com/package/@weft/adapters) | The fourteen ports, implemented                                             |
-| `@weft/bench`     | _not published_                                         | The measurement harness, and the gates it enforces                          |
-| `@weft/docs`      | _not published_                                         | The documentation site, which is a weft application                         |
-| `@weft/inspector` | _not published_                                         | A station per capability, each with a control you can turn                  |
+| Package             | Version                                                   | What it is                                                                    |
+| ------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `@weftjs/core`      | [`0.1.0`](https://www.npmjs.com/package/@weftjs/core)     | The framework. The CLI, the conventions, and what an application imports      |
+| `create-weft`       | [`0.1.0`](https://www.npmjs.com/package/create-weft)      | `npm create weft` — a shim over the templates that ship inside `@weftjs/core` |
+| `@weftjs/ir`        | [`0.1.0`](https://www.npmjs.com/package/@weftjs/ir)       | The template IR: what a compiled fragment is                                  |
+| `@weftjs/warp`      | [`0.1.0`](https://www.npmjs.com/package/@weftjs/warp)     | The frame vocabulary that carries it                                          |
+| `@weftjs/compiler`  | [`0.1.0`](https://www.npmjs.com/package/@weftjs/compiler) | TSX to IR, on Oxc, with the type-driven escape class                          |
+| `@weftjs/client`    | [`0.1.0`](https://www.npmjs.com/package/@weftjs/client)   | Adoption, signals, deltas, patches, navigation                                |
+| `@weftjs/kernel`    | [`0.1.0`](https://www.npmjs.com/package/@weftjs/kernel)   | Routing, the request lifecycle, cache keys, waves, epochs, surgical refresh   |
+| `@weftjs/plan`      | [`0.1.0`](https://www.npmjs.com/package/@weftjs/plan)     | The plan DSL, validation against inferred effects, plugins, `weft why`        |
+| `@weftjs/adapters`  | [`0.1.0`](https://www.npmjs.com/package/@weftjs/adapters) | The fourteen ports, implemented                                               |
+| `@weftjs/bench`     | _not published_                                           | The measurement harness, and the gates it enforces                            |
+| `@weftjs/docs`      | _not published_                                           | The documentation site, which is a weft application                           |
+| `@weftjs/inspector` | _not published_                                           | A station per capability, each with a control you can turn                    |
 
 <!-- versions:end -->
 

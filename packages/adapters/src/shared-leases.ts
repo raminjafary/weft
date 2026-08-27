@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { open, readFile, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { Lease, StorePort } from '@weft/kernel'
+import type { Lease, StorePort } from '@weftjs/kernel'
 
 /**
  * Leases that more than one process agrees about, over a directory.

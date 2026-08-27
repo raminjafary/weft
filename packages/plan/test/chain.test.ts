@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import type { EffectSet } from '@weft/ir'
+import type { EffectSet } from '@weftjs/ir'
 import { assertPlan, plan, shell, slot, validatePlan, type SlotFacts } from '../src/index.ts'
 
 function effects(reads: string[]): EffectSet {

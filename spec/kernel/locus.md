@@ -138,13 +138,13 @@ the missing primitive.
 `live` is what is painted. Staged epochs exist alongside it, fully resolved and completely
 invisible.
 
-**Server side** (`createEpochs` in `@weft/kernel`): `stage(epoch, slot, frame)` rewrites the
+**Server side** (`createEpochs` in `@weftjs/kernel`): `stage(epoch, slot, frame)` rewrites the
 frame to carry the epoch, so it paints nothing; `commit(epoch, transition)` emits every staged
 frame followed by one `COMMIT` naming the slots. Staging into `live` is `E_STAGE_LIVE`, open
 epochs are bounded (`E_TOO_MANY_EPOCHS`), and committing an epoch with nothing in it is
 `E_NO_SUCH_EPOCH`.
 
-**Client side** (`createEpochs` in `@weft/client`): staged deltas are held per slot per epoch;
+**Client side** (`createEpochs` in `@weftjs/client`): staged deltas are held per slot per epoch;
 `commit` applies them all inside one `batch`, optionally wrapped in a same-document View
 Transition where the engine has one. A later frame for the same slot supersedes the earlier
 one rather than queueing a write nobody would see.
@@ -196,7 +196,7 @@ entry below.
 
 - **`deferred` is preemptible at await points and nothing more**, which is what it says. The
   worker pool is what a budget being a _limit_ requires, and it exists — `pool:` in
-  `@weft/adapters`.
+  `@weftjs/adapters`.
 - **No per-request CPU accounting on the request thread**, and it is not a gap that can be
   closed there. Several renders and the stream interleave on that thread, so a `cpuUsage` delta
   around one render measures all of them — `RenderOutcome.cpuMs` is therefore absent on `inline`

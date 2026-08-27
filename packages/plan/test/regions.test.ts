@@ -7,8 +7,8 @@ import {
   type EffectSet,
   type TemplateIR,
   type Values,
-} from '@weft/ir'
-import { createKernel, formatRegionGraph, regionProbe, type Ports } from '@weft/kernel'
+} from '@weftjs/ir'
+import { createKernel, formatRegionGraph, regionProbe, type Ports } from '@weftjs/kernel'
 import {
   bindingExecutor,
   cookieSession,
@@ -18,7 +18,7 @@ import {
   staticFlags,
   svcExecutor,
   topology,
-} from '@weft/adapters'
+} from '@weftjs/adapters'
 import {
   cspOf,
   hopsOf,

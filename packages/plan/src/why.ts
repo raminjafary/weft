@@ -1,5 +1,5 @@
-import { explain } from '@weft/ir'
-import { criticalPath, type DagNode, type ResolvedKey, schedule } from '@weft/kernel'
+import { explain } from '@weftjs/ir'
+import { criticalPath, type DagNode, type ResolvedKey, schedule } from '@weftjs/kernel'
 import type { Plan, SlotSpec } from './dsl.ts'
 import { hopsOf, validatePlan, type SlotFacts } from './validate.ts'
 

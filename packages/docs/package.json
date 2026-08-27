@@ -1,5 +1,5 @@
 {
-  "name": "@weft/docs",
+  "name": "@weftjs/docs",
   "version": "0.1.0",
   "private": true,
   "description": "The documentation site. Every example on it is a fragment this application compiled, so an example that does not work is a build that does not pass.",
@@ -13,11 +13,11 @@
     "routes": "weft routes"
   },
   "dependencies": {
-    "@weft/core": "workspace:*",
-    "@weft/compiler": "workspace:*",
-    "@weft/ir": "workspace:*",
+    "@weftjs/core": "workspace:*",
+    "@weftjs/compiler": "workspace:*",
+    "@weftjs/ir": "workspace:*",
     "oxc-parser": "0.146.0",
-    "@weft/kernel": "workspace:*"
+    "@weftjs/kernel": "workspace:*"
   },
   "engines": {
     "node": ">=22.18.0"

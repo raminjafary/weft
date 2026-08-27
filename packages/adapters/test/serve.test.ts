@@ -8,8 +8,8 @@ import {
   type EffectSet,
   type Hole,
   type TemplateIR,
-} from '@weft/ir'
-import { createKernel, type KernelRoute, type Ports } from '@weft/kernel'
+} from '@weftjs/ir'
+import { createKernel, type KernelRoute, type Ports } from '@weftjs/kernel'
 import { memoryStore } from '../src/memory-store.ts'
 import { cookieSession } from '../src/session.ts'
 import { staticFlags } from '../src/flags.ts'

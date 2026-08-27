@@ -1,4 +1,4 @@
-import type { RenderContext } from '@weft/core'
+import type { RenderContext } from '@weftjs/core'
 import type { PageParts } from '../pages.ts'
 
 /**

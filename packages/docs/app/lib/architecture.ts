@@ -1,4 +1,4 @@
-import { criticalPath, schedule, type DagNode } from '@weft/kernel'
+import { criticalPath, schedule, type DagNode } from '@weftjs/kernel'
 import { escapeHtml } from './escape.ts'
 import { graph, type GraphEdge, type GraphNode } from './graph.ts'
 import { artifacts } from './versions.ts'
@@ -36,17 +36,17 @@ function heading(n: string, title: string, lede: string): string {
 
 /** Where each package sits, and what it is allowed to know. The columns are the dependency depth. */
 const PACKAGES: readonly GraphNode[] = [
-  { id: 'ir', x: 10, y: 24, w: 168, h: 50, title: '@weft/ir', at: 0 },
-  { id: 'warp', x: 10, y: 108, w: 168, h: 50, title: '@weft/warp', at: 0.3 },
-  { id: 'client', x: 10, y: 192, w: 168, h: 50, title: '@weft/client', at: 0.6 },
-  { id: 'compiler', x: 250, y: 60, w: 168, h: 50, title: '@weft/compiler', at: 1.1 },
-  { id: 'kernel', x: 250, y: 200, w: 168, h: 50, title: '@weft/kernel', accent: true, at: 1.5 },
-  { id: 'plan', x: 520, y: 40, w: 168, h: 50, title: '@weft/plan', at: 2 },
-  { id: 'adapters', x: 520, y: 180, w: 168, h: 50, title: '@weft/adapters', at: 2.3 },
+  { id: 'ir', x: 10, y: 24, w: 168, h: 50, title: '@weftjs/ir', at: 0 },
+  { id: 'warp', x: 10, y: 108, w: 168, h: 50, title: '@weftjs/warp', at: 0.3 },
+  { id: 'client', x: 10, y: 192, w: 168, h: 50, title: '@weftjs/client', at: 0.6 },
+  { id: 'compiler', x: 250, y: 60, w: 168, h: 50, title: '@weftjs/compiler', at: 1.1 },
+  { id: 'kernel', x: 250, y: 200, w: 168, h: 50, title: '@weftjs/kernel', accent: true, at: 1.5 },
+  { id: 'plan', x: 520, y: 40, w: 168, h: 50, title: '@weftjs/plan', at: 2 },
+  { id: 'adapters', x: 520, y: 180, w: 168, h: 50, title: '@weftjs/adapters', at: 2.3 },
   { id: 'weft', x: 790, y: 110, w: 168, h: 50, title: 'weft', accent: true, at: 2.8 },
-  { id: 'docs', x: 1080, y: 20, w: 168, h: 50, title: '@weft/docs', at: 3.4 },
-  { id: 'inspector', x: 1080, y: 100, w: 168, h: 50, title: '@weft/inspector', at: 3.6 },
-  { id: 'bench', x: 1080, y: 180, w: 168, h: 50, title: '@weft/bench', at: 3.8 },
+  { id: 'docs', x: 1080, y: 20, w: 168, h: 50, title: '@weftjs/docs', at: 3.4 },
+  { id: 'inspector', x: 1080, y: 100, w: 168, h: 50, title: '@weftjs/inspector', at: 3.6 },
+  { id: 'bench', x: 1080, y: 180, w: 168, h: 50, title: '@weftjs/bench', at: 3.8 },
   { id: 'create', x: 1080, y: 260, w: 168, h: 50, title: 'create-weft', at: 4 },
 ]
 
@@ -55,7 +55,7 @@ const PACKAGES: readonly GraphNode[] = [
  *
  * `verify()` reads each package's own manifest and refuses to render a dependency that is not
  * declared there — so an arrow on this page cannot outlive the dependency it draws. What the figure
- * deliberately does *not* draw is every edge: `weft` depends on `@weft/ir` as well as on the kernel
+ * deliberately does *not* draw is every edge: `weft` depends on `@weftjs/ir` as well as on the kernel
  * that depends on it, and drawing both says nothing the first one did not. Direction is the claim.
  */
 const DEPENDS: readonly (readonly [string, string])[] = [
@@ -112,7 +112,7 @@ function packages(): string {
     graph(nodes, edges, { height: 400, cycle: 6.4, baselines: [21, 38, 53], noteMono: true }),
     `The real workspace dependency graph, animated in <code>pnpm build</code> order: ` +
       `${PACKAGES.slice(0, 8)
-        .map((each) => enc(each.title.replace('@weft/', '')))
+        .map((each) => enc(each.title.replace('@weftjs/', '')))
         .join(
           ' · ',
         )}. Every arrow is an actual dependency, and a test fails the build if one stops being one.`,
@@ -194,7 +194,7 @@ function request(): string {
  * Nine slots, and the kernel's own scheduler run over them.
  *
  * The waves, the start times, the critical path and the sequential total are all computed by
- * `schedule()` and `criticalPath()` from `@weft/kernel` — the functions the request path itself
+ * `schedule()` and `criticalPath()` from `@weftjs/kernel` — the functions the request path itself
  * calls. Nothing on this figure is a number somebody worked out and typed: change a duration here
  * and every bar, every keyframe and both totals move, because they are all derived from it.
  */
@@ -549,7 +549,7 @@ function three(): string {
       what: 'spec/',
       says: 'the reference: the mechanism, its refusals, and what each deliberately does not do',
     },
-    { what: '@weft/inspector', says: 'the live version: a station per capability, each with a control' },
+    { what: '@weftjs/inspector', says: 'the live version: a station per capability, each with a control' },
     { what: 'this guide', says: 'the introduction: what it is, in order, with examples that run' },
   ]
   return `<div class="arch-three">${items
@@ -585,7 +585,7 @@ export function architecture(counts: ArchCounts): string {
     ${heading(
       '1',
       'Ten packages, and what each one is allowed to know',
-      'The dependency direction is the design. <code>@weft/ir</code> and <code>@weft/warp</code> are data ' +
+      'The dependency direction is the design. <code>@weftjs/ir</code> and <code>@weftjs/warp</code> are data ' +
         'formats with no dependencies at all; the kernel knows about those two and nothing else, which is ' +
         'what lets the same kernel run on Node, Deno, Bun, a worker and the edge with no adapter to choose. ' +
         'The client package sits beside the server rather than under it, so one code path serves a socket, ' +
@@ -659,10 +659,10 @@ export function drawnDependencies(): readonly (readonly [string, string])[] {
  * A node id back to the name its `package.json` carries.
  *
  * The framework's node is `weft` because that is the command and the directory; the package is
- * `@weft/core`, because npm already serves a `weft` belonging to somebody else.
+ * `@weftjs/core`, because npm already serves a `weft` belonging to somebody else.
  */
 function packageName(id: string): string {
-  if (id === 'weft') return '@weft/core'
+  if (id === 'weft') return '@weftjs/core'
   if (id === 'create') return 'create-weft'
-  return `@weft/${id}`
+  return `@weftjs/${id}`
 }

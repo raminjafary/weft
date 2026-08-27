@@ -1,4 +1,4 @@
-import { fragment } from '@weft/core'
+import { fragment } from '@weftjs/core'
 
 /**
  * What the reader gets when the search deployment cannot answer, or answers with a contract this

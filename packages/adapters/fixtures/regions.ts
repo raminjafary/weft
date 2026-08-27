@@ -6,14 +6,14 @@
  * region's deployment is refused by the shell, and a service that echoed back whatever it was
  * asked for would make that check unfalsifiable.
  */
-import { frame, type Frame } from '@weft/warp'
+import { frame, type Frame } from '@weftjs/warp'
 import {
   createComposer,
   probeRegions,
   regionGraph,
   type ComposeOptions,
   type RegionRequest,
-} from '@weft/kernel'
+} from '@weftjs/kernel'
 import { bindingExecutor, regionService, type RegionAnswer } from '../src/remote-executors.ts'
 import { manifestRegistry } from '../src/registry.ts'
 

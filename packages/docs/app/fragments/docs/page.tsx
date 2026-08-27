@@ -1,4 +1,4 @@
-import { fragment, raw } from '@weft/core'
+import { fragment, raw } from '@weftjs/core'
 import Note from './note.tsx'
 import Table from './table.tsx'
 import type { Cell } from './table.tsx'

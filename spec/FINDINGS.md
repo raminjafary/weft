@@ -262,7 +262,7 @@ carry it.
 ## Clarified: a flag axis is also a key component
 
 The design says a flag is "an axis rather than a key component", and `keyComponents()` in
-`@weft/ir` excludes `flag:` reads accordingly. The design's own worked example puts one in the
+`@weftjs/ir` excludes `flag:` reads accordingly. The design's own worked example puts one in the
 key:
 
 ```
@@ -312,7 +312,7 @@ statement about the next phase, not this one.
 `spec/kernel/ports.md` states the rule absolutely — the kernel imports nothing but the WinterTC
 Minimum Common Web API — so a test was written to enforce it. It failed immediately:
 `serveRoute` had lived in `packages/kernel` since the streaming work and imports `node:http`
-and `node:stream`. It moved to `@weft/adapters`.
+and `node:stream`. It moved to `@weftjs/adapters`.
 
 Worth recording because the rule had been written down for weeks and read by people who
 believed it. A design constraint that is not a gate is a design constraint that is already
@@ -601,7 +601,7 @@ done that rather than merely reported a number.
 
 ## Caught by the first client that actually negotiated: the server advertised an IR it stopped emitting
 
-`SERVER_DEFAULTS.ir` in `@weft/warp` said `1.0.0`. The emitter has been on `2.4.0` since IR
+`SERVER_DEFAULTS.ir` in `@weftjs/warp` said `1.0.0`. The emitter has been on `2.4.0` since IR
 2.0.0 landed. So `negotiate` saw an IR **major** mismatch on every current client and returned
 `forms: ['html']` — markup only, no delta, no patch. Phase 6's entire mechanism was
 unreachable through the default negotiation.
@@ -615,7 +615,7 @@ major mismatch". The test was enforcing the bug. And the repeat-visit benchmark 
 `ir: '2.1.0'` against the same default, so its `WARP` frame had been advertising `html` while
 the page applied deltas anyway.
 
-The fix is not a corrected constant. `@weft/warp` owns the Warp version and the template IR is
+The fix is not a corrected constant. `@weftjs/warp` owns the Warp version and the template IR is
 versioned separately, on purpose — so a default in that package could only ever state an IR
 version it cannot see. `negotiate`'s second argument is now required, `SERVER_DEFAULTS` is
 gone, and the composition lives in the one place that can see both versions:

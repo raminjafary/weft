@@ -1,4 +1,4 @@
-import type { ConfigPort, DeploymentPort } from '@weft/kernel'
+import type { ConfigPort, DeploymentPort } from '@weftjs/kernel'
 
 /**
  * Which build is answering, and where it is running.

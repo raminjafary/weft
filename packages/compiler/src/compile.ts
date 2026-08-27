@@ -11,7 +11,7 @@ import {
   type SignalDecl,
   type TemplateIR,
   unionEffects,
-} from '@weft/ir'
+} from '@weftjs/ir'
 import { name, node, nodes, type Node } from './ast.ts'
 import { CompileError, locate, type Loc } from './errors.ts'
 import { inferEffects } from './effects.ts'

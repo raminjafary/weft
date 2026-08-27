@@ -14,5 +14,5 @@
 export * from './entry-channel.ts'
 export { payloadKey } from './refresh.ts'
 export type { PatchEncoder } from './refresh.ts'
-export { patchPayload } from '@weft/ir'
-export type { PatchPayload, PatchWrite, PatchOp } from '@weft/ir'
+export { patchPayload } from '@weftjs/ir'
+export type { PatchPayload, PatchWrite, PatchOp } from '@weftjs/ir'

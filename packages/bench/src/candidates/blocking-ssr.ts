@@ -1,7 +1,7 @@
 import type { Candidate, ServeHandle } from '../candidate.ts'
 import { compiledFor, compileScenario, withRows } from '../compiled.ts'
 import { sleep, type Scenario } from '../workloads/index.ts'
-import { render } from '@weft/ir'
+import { render } from '@weftjs/ir'
 import { createServer } from 'node:http'
 
 /**

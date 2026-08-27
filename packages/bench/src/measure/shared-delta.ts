@@ -1,6 +1,6 @@
-import { baseRenderId, deltaPayload, type Values } from '@weft/ir'
-import { memoryStore } from '@weft/adapters'
-import { deltaKey, recordBase, recoverBase } from '@weft/kernel'
+import { baseRenderId, deltaPayload, type Values } from '@weftjs/ir'
+import { memoryStore } from '@weftjs/adapters'
+import { deltaKey, recordBase, recoverBase } from '@weftjs/kernel'
 import { compileScenario, withRows } from '../compiled.ts'
 import type { Scenario } from '../workloads/index.ts'
 

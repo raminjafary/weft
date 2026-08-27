@@ -1,9 +1,9 @@
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'node:http'
-import { compileFiles } from '@weft/compiler'
-import type { TemplateIR } from '@weft/ir'
-import { serveRoute } from '@weft/adapters'
-import type { Order, Route } from '@weft/kernel'
+import { compileFiles } from '@weftjs/compiler'
+import type { TemplateIR } from '@weftjs/ir'
+import { serveRoute } from '@weftjs/adapters'
+import type { Order, Route } from '@weftjs/kernel'
 import { launchEngine, type EngineName } from './browser.ts'
 import { reachableUrl } from './device.ts'
 

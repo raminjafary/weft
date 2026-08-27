@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url'
-import { compileFiles } from '@weft/compiler'
-import type { Resolver, TemplateIR, Values } from '@weft/ir'
+import { compileFiles } from '@weftjs/compiler'
+import type { Resolver, TemplateIR, Values } from '@weftjs/ir'
 import type { Scenario } from './workloads/index.ts'
 
 export interface Compiled {

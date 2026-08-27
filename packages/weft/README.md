@@ -27,7 +27,7 @@ npm run dev          # http://localhost:3000
 Or add it to a project you already have:
 
 ```sh
-npm install @weft/core
+npm install @weftjs/core
 npx weft create my-app --template minimal
 ```
 
@@ -52,7 +52,7 @@ A page is a fragment — a declaration the compiler reads and never runs:
 
 ```tsx
 // app/routes/index.tsx
-import { fragment } from '@weft/core'
+import { fragment } from '@weftjs/core'
 
 export default fragment(({ name, steps }: Props) => (
   <>
@@ -71,7 +71,7 @@ derived from what the compiler saw the page read:
 
 ```ts
 // app/routes/index.data.ts
-import { defineRoute } from '@weft/core'
+import { defineRoute } from '@weftjs/core'
 
 export default defineRoute({
   head: { title: 'my-app', description: 'A weft application.' },
@@ -86,7 +86,7 @@ answers a `fetch`:
 
 ```ts
 // app/intents/counter.ts
-import { defineIntent } from '@weft/core'
+import { defineIntent } from '@weftjs/core'
 
 export const bump = defineIntent<{ by: number }>({
   name: 'counter.bump',

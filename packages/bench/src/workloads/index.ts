@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import type { Values } from '@weft/ir'
+import type { Values } from '@weftjs/ir'
 
 export interface Scenario {
   id: string

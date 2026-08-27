@@ -1,4 +1,4 @@
-import { renderHoleIn, resolveDerived, type Resolver, type TemplateIR, type Values } from '@weft/ir'
+import { renderHoleIn, resolveDerived, type Resolver, type TemplateIR, type Values } from '@weftjs/ir'
 
 const utf8 = new TextEncoder()
 

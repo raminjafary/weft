@@ -1,5 +1,5 @@
 {
-  "name": "@weft/plan",
+  "name": "@weftjs/plan",
   "version": "0.1.0",
   "description": "The plan layer: a declaration of placement, validated against what the compiler inferred.",
   "keywords": [
@@ -41,8 +41,8 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@weft/ir": "workspace:*",
-    "@weft/kernel": "workspace:*"
+    "@weftjs/ir": "workspace:*",
+    "@weftjs/kernel": "workspace:*"
   },
   "engines": {
     "node": ">=22.18.0"
@@ -51,7 +51,7 @@
     "access": "public"
   },
   "devDependencies": {
-    "@weft/compiler": "workspace:*",
-    "@weft/adapters": "workspace:*"
+    "@weftjs/compiler": "workspace:*",
+    "@weftjs/adapters": "workspace:*"
   }
 }

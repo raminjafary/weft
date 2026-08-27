@@ -9,9 +9,9 @@ import {
   WARP_VERSION,
   type Frame,
   type FrameKind,
-} from '@weft/warp'
-import { TEMPLATE_IR_VERSION } from '@weft/ir'
-import { collectingTelemetry, cookieSession, memoryStore, staticFlags } from '@weft/adapters'
+} from '@weftjs/warp'
+import { TEMPLATE_IR_VERSION } from '@weftjs/ir'
+import { collectingTelemetry, cookieSession, memoryStore, staticFlags } from '@weftjs/adapters'
 import {
   announceRegion,
   channelRegions,

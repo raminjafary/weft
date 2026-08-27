@@ -1,13 +1,13 @@
-# @weft/ir
+# @weftjs/ir
 
 The Template IR: sealed, versioned templates, their effects, and the renderer that fills them.
 
 Part of [weft](https://github.com/raminjafary/weft), a TypeScript fullstack framework that
-negotiates the wire form of a piece of UI per request. Applications import `@weft/core`; this package is
+negotiates the wire form of a piece of UI per request. Applications import `@weftjs/core`; this package is
 what the compiler writes and what every other layer reads.
 
 ```sh
-npm install @weft/ir
+npm install @weftjs/ir
 ```
 
 ## What it is

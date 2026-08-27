@@ -1,8 +1,8 @@
-import type { AssetPort, PreloadLink } from '@weft/kernel'
+import type { AssetPort, PreloadLink } from '@weftjs/kernel'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { stripTypeScriptTypes } from 'node:module'
 import { extname, join, relative, resolve, sep } from 'node:path'
-import { fastHash, short } from '@weft/ir'
+import { fastHash, short } from '@weftjs/ir'
 
 /**
  * Every URL the browser fetches, revved.
@@ -385,12 +385,27 @@ export async function buildAssets(input: AssetInput): Promise<AssetTable> {
 }
 
 /**
+ * The bare specifiers the front door rewrites, and the module tree each one resolves into.
+ *
+ * Exported, and the only statement of this anywhere. `measureClientJs` needs the same pair to walk
+ * the graph a page downloads, and while it held its own copy the two could drift — which they did,
+ * silently, when the scope moved from `@weft` to `@weftjs`. A stale copy here is an unresolvable
+ * import in the browser; a stale copy there is a byte figure that stops following two thirds of the
+ * runtime and reports a smaller number than the truth. In a repository whose claims are measurements
+ * the second failure is the worse one, because nothing about it looks broken.
+ */
+export const REWRITTEN_SPECIFIERS: Record<string, string> = {
+  '@weftjs/client': 'runtime',
+  '@weftjs/warp': 'warp',
+}
+
+/**
  * A client module on its way to the browser: types stripped, and bare specifiers rewritten to
  * the paths those packages are mounted at. That is the whole of it. The alternative is a
  * bundler, and the alternative to a bundler is two replacements.
  *
  * The extension is the *target's*, which is the only source of it that is ever right. Trees do
- * not agree: an application's own `client.ts` is always source, a published `@weft/client` is
+ * not agree: an application's own `client.ts` is always source, a published `@weftjs/client` is
  * always built, and this repository serves its framework from source beside packages resolved to
  * their `dist`. Written with the importing tree's extension, every such pair produced a specifier
  * for a file that is not there — a 404 on the runtime, from a page that otherwise looked fine.
@@ -404,9 +419,12 @@ export function browserModule(
   const stripped = tree.ext === '.ts' ? stripTypeScriptTypes(source, { mode: 'strip' }) : source
   const root = mountedAt.replace(/\/[a-z]+\/$/, '')
   const extOf = (name: string): string => trees.get(`${root}/${name}/`)?.ext ?? tree.ext
-  return stripped
-    .replace(/(['"])@weft\/client\1/g, `'${root}/runtime/index${extOf('runtime')}'`)
-    .replace(/(['"])@weft\/warp\1/g, `'${root}/warp/index${extOf('warp')}'`)
+  let out = stripped
+  for (const [specifier, name] of Object.entries(REWRITTEN_SPECIFIERS)) {
+    const quoted = new RegExp(`(['"])${specifier.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}\\1`, 'g')
+    out = out.replace(quoted, `'${root}/${name}/index${extOf(name)}'`)
+  }
+  return out
 }
 
 /**

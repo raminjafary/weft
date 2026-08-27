@@ -1,4 +1,4 @@
-import type { DbPort, DbQuery, TelemetryPort } from '@weft/kernel'
+import type { DbPort, DbQuery, TelemetryPort } from '@weftjs/kernel'
 
 /**
  * Where a loader's data comes from, named rather than anonymous.

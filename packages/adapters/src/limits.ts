@@ -1,4 +1,4 @@
-import type { LimitDecision, LimitPort, LimitRequest, StorePort } from '@weft/kernel'
+import type { LimitDecision, LimitPort, LimitRequest, StorePort } from '@weftjs/kernel'
 
 /**
  * A rate limiter, and the shape of the one decision the kernel refused to make.

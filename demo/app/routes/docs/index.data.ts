@@ -1,4 +1,4 @@
-import { defineRoute } from '@weft/core'
+import { defineRoute } from '@weftjs/core'
 import { toc, TOPICS } from '../../lib/docs.ts'
 
 /**

@@ -12,7 +12,7 @@ import {
   verifySealed,
   type TemplateIR,
   type Values,
-} from '@weft/ir'
+} from '@weftjs/ir'
 import { compileFile, compileFiles, compileSource, type CompiledFragment } from '../src/compile.ts'
 import { CompileError } from '../src/errors.ts'
 import { intentId } from '../src/intents.ts'
@@ -24,7 +24,7 @@ async function compile(source: string) {
   return compileSource(source, 'test.tsx')
 }
 
-const PRELUDE = "import { fragment, signal, raw } from '@weft/core'\nimport { save } from './intents.ts'\n"
+const PRELUDE = "import { fragment, signal, raw } from '@weftjs/core'\nimport { save } from './intents.ts'\n"
 
 async function only(source: string): Promise<TemplateIR> {
   const out = await compile(PRELUDE + source)
@@ -168,12 +168,12 @@ test('a handler compiles to an intent id, never to server code', async () => {
  */
 test('an intent id does not depend on where it was imported from', async () => {
   const shallow = await compileSource(
-    "import { fragment } from '@weft/core'\nimport { save } from './lib/intents.ts'\n" +
+    "import { fragment } from '@weftjs/core'\nimport { save } from './lib/intents.ts'\n" +
       'export default fragment(() => <form onSubmit={save}>x</form>)',
     'app/page.tsx',
   )
   const deep = await compileSource(
-    "import { fragment } from '@weft/core'\nimport { save } from '../lib/intents.ts'\n" +
+    "import { fragment } from '@weftjs/core'\nimport { save } from '../lib/intents.ts'\n" +
       'export default fragment(() => <form onSubmit={save}>x</form>)',
     'app/nested/page.tsx',
   )
@@ -744,13 +744,13 @@ test('the same attribute on an element that is not a control stays an attribute'
 const VIRTUAL = new Map([
   [
     'app/fragments/badge.tsx',
-    `import { fragment } from '@weft/core'
+    `import { fragment } from '@weftjs/core'
 export default fragment(({ label }: { label: string }) => <span class="badge">{label}</span>)
 `,
   ],
   [
     'app/fragments/card.tsx',
-    `import { fragment } from '@weft/core'
+    `import { fragment } from '@weftjs/core'
 import Badge from './badge.tsx'
 export default fragment(({ title, label }: { title: string; label: string }) => (
   <article><h3>{title}</h3><Badge label={label} /></article>
@@ -790,7 +790,7 @@ test('a virtual import naming a file nobody supplied is refused by name', async 
   const sources = new Map([
     [
       'a.tsx',
-      `import { fragment } from '@weft/core'
+      `import { fragment } from '@weftjs/core'
 export default fragment(() => <p>a</p>)
 `,
     ],
@@ -806,7 +806,7 @@ test('a virtual compile escapes rather than eliding, and says so', async () => {
   const sources = new Map([
     [
       'total.tsx',
-      `import { fragment } from '@weft/core'
+      `import { fragment } from '@weftjs/core'
 export default fragment(({ total }: { total: number }) => <p>{total}</p>)
 `,
     ],

@@ -1,4 +1,4 @@
-import { frame, type Frame } from '@weft/warp'
+import { frame, type Frame } from '@weftjs/warp'
 
 /**
  * Fresh data without a changed view.

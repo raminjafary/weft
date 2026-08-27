@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { discover } from '../src/convention.ts'
 import { compileApp } from '../src/compile.ts'
-import { render } from '@weft/ir'
+import { render } from '@weftjs/ir'
 import { isScopedSheet, scopeAttribute, scopeCss, scopeStem } from '../src/scoped.ts'
 
 /**
@@ -97,7 +97,7 @@ async function scratch(files: Record<string, string>): Promise<string> {
   return root
 }
 
-const CARD = `import { fragment } from '@weft/core'
+const CARD = `import { fragment } from '@weftjs/core'
 
 interface Props {
   title: string
@@ -110,7 +110,7 @@ export default fragment(({ title }: Props) => (
 ))
 `
 
-const PAGE = `import { fragment } from '@weft/core'
+const PAGE = `import { fragment } from '@weftjs/core'
 import Card from '../fragments/card.tsx'
 
 export default fragment(() => (

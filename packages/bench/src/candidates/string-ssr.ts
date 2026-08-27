@@ -1,4 +1,11 @@
-import { componentValues, resolveDerived, type Hole, type Json, type TemplateIR, type Values } from '@weft/ir'
+import {
+  componentValues,
+  resolveDerived,
+  type Hole,
+  type Json,
+  type TemplateIR,
+  type Values,
+} from '@weftjs/ir'
 import type { Candidate, ServeHandle, ServeOptions, UpdatePayloads } from '../candidate.ts'
 import { compileScenario, compiledFor, type Compiled } from '../compiled.ts'
 import { sleep, type Scenario } from '../workloads/index.ts'

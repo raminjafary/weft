@@ -1,4 +1,4 @@
-import { defineIntent } from '@weft/core'
+import { defineIntent } from '@weftjs/core'
 import { CATALOGUE_SKUS, cartOf, catalogue } from '../lib/data.ts'
 
 /**

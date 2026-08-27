@@ -1,4 +1,4 @@
-import { fragment } from '@weft/core'
+import { fragment } from '@weftjs/core'
 
 export interface MarkProps {
   /** Rendered size in CSS pixels. The geometry is a 24-unit grid, so any size holds. */

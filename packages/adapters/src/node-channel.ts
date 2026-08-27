@@ -9,8 +9,8 @@ import {
   preamble,
   type AnyFrame,
   type Frame,
-} from '@weft/warp'
-import type { ChannelBinding, ChannelHub, ChannelSink } from '@weft/kernel'
+} from '@weftjs/warp'
+import type { ChannelBinding, ChannelHub, ChannelSink } from '@weftjs/kernel'
 import { acceptWebSocket, type WebSocketConnection } from './node-websocket.ts'
 
 /**

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { TEMPLATE_IR_VERSION } from '@weft/ir'
-import { frame, readResident, residentFrame, str, WARP_VERSION, type Frame } from '@weft/warp'
-import type { ChannelSink } from '@weft/kernel'
+import { TEMPLATE_IR_VERSION } from '@weftjs/ir'
+import { frame, readResident, residentFrame, str, WARP_VERSION, type Frame } from '@weftjs/warp'
+import type { ChannelSink } from '@weftjs/kernel'
 import { createApp, serveApp, type Serving } from '../src/serve.ts'
 
 const ROOT = fileURLToPath(new URL('../../../demo/', import.meta.url))

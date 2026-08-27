@@ -1,4 +1,4 @@
-import { defineRoute } from '@weft/core'
+import { defineRoute } from '@weftjs/core'
 import { shell } from '../../lib/shell.ts'
 import { guideContents } from '../../lib/contents.ts'
 import { GROUPS, PAGES } from '../../lib/pages.ts'

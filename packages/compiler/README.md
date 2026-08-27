@@ -1,4 +1,4 @@
-# @weft/compiler
+# @weftjs/compiler
 
 TSX to Template IR, with effect inference and a type-driven escape class.
 
@@ -6,7 +6,7 @@ Part of [weft](https://github.com/raminjafary/weft), a TypeScript fullstack fram
 negotiates the wire form of a piece of UI per request. `weft build` and `weft dev` run this for you.
 
 ```sh
-npm install @weft/compiler
+npm install @weftjs/compiler
 ```
 
 ## What it is

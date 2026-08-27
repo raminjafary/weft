@@ -3,7 +3,7 @@
  *
  * The release tooling is written here rather than delegated to a generic tool because this is a
  * workspace of eleven packages whose versions move independently: a commit scoped `compiler` has
- * to bump `@weft/compiler`, and then everything that depends on it, because pnpm rewrites
+ * to bump `@weftjs/compiler`, and then everything that depends on it, because pnpm rewrites
  * `workspace:*` to an exact version at pack time and a dependent left behind would publish a
  * dependency range pointing at a version it was never tested against.
  */
@@ -109,12 +109,21 @@ export const README_MARKERS = {
   end: '<!-- versions:end -->',
 }
 
-/** The gates a release runs before it writes anything. Order matters: build before test, since tests import built declarations. */
+/**
+ * The gates a release runs before it writes anything.
+ *
+ * `build` comes before `typecheck` and `test`, and the order is load-bearing rather than tidy. A
+ * package's `exports` point at `dist`, so a program that imports `@weftjs/adapters` is checked
+ * against that package's built declarations — not its sources. Typechecking first therefore checks
+ * against whatever `dist` was last written, which is stale on any checkout that has not built since
+ * the code changed, and wrong in both directions: it fails for reasons that are not in the diff, and
+ * it passes on types that are no longer the ones being shipped.
+ */
 export const GATES = [
   { script: 'format:check', why: 'formatting' },
   { script: 'lint', why: 'lint' },
+  { script: 'build', why: 'the build every tarball ships, and the declarations the rest checks against' },
   { script: 'typecheck', why: 'types' },
-  { script: 'build', why: 'the build every tarball ships' },
   { script: 'test', why: 'the test suite and its gates' },
 ]
 
@@ -124,8 +133,8 @@ export const RELEASE_BRANCH = 'main'
 /**
  * The package whose version is the repository's, and therefore the tag's.
  *
- * `@weft/core` rather than `weft` because npm already serves a `weft` belonging to somebody else.
+ * `@weftjs/core` rather than `weft` because npm already serves a `weft` belonging to somebody else.
  * The command is still `weft`, so is the directory, and so is the commit scope — this is the one
  * spelling that is a package name.
  */
-export const FRAMEWORK_PACKAGE = '@weft/core'
+export const FRAMEWORK_PACKAGE = '@weftjs/core'

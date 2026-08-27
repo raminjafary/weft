@@ -1,4 +1,4 @@
-import type { SchedulerPort } from '@weft/kernel'
+import type { SchedulerPort } from '@weftjs/kernel'
 
 /**
  * Who decides what runs first, and how much of it runs at once.

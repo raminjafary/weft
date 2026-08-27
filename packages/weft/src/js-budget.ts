@@ -2,7 +2,7 @@ import { brotliCompressSync, constants } from 'node:zlib'
 import { stripTypeScriptTypes } from 'node:module'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { AssetTable, ModuleTree } from './assets.ts'
+import { REWRITTEN_SPECIFIERS, type AssetTable, type ModuleTree } from './assets.ts'
 import type { GeneratedRoute } from './routes.ts'
 
 /**
@@ -48,12 +48,6 @@ const BROTLI = { params: { [constants.BROTLI_PARAM_QUALITY]: 11 } }
 function compressed(source: string): { raw: number; brotli: number } {
   const bytes = Buffer.from(source, 'utf8')
   return { raw: bytes.byteLength, brotli: brotliCompressSync(bytes, BROTLI).byteLength }
-}
-
-/** Bare specifiers the front door rewrites, and the tree each one resolves into. */
-const REWRITTEN: Record<string, string> = {
-  '@weft/client': 'runtime',
-  '@weft/warp': 'warp',
 }
 
 function importsOf(source: string): string[] {
@@ -104,7 +98,7 @@ export async function measureClientJs(assets: AssetTable, appClient?: string): P
         queue.push(new URL(specifier, `file:///${href.replace(/^\//, '')}`).pathname)
         continue
       }
-      const tree = REWRITTEN[specifier]
+      const tree = REWRITTEN_SPECIFIERS[specifier]
       if (!tree) continue
       const target = trees.find(([prefix]) => prefix.endsWith(`/${tree}/`))
       if (target) queue.push(`${target[0]}index${target[1].ext}`)

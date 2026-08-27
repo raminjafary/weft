@@ -75,7 +75,7 @@ It returns whether the hints actually went out, rather than void:
 | Called after `planned`                   | `E_HINTS_AFTER_COMMIT`         |
 
 103 is H2/H3 only. An HTTP/1.1 client simply waits for the final response, and Firefox has
-an implementation that is off by default. `nodeTransport` in `@weft/adapters` implements it
+an implementation that is off by default. `nodeTransport` in `@weftjs/adapters` implements it
 over `ServerResponse.writeEarlyHints`, which Node exposes on HTTP/1.1 too, where a client is
 entitled to ignore it — hence the boolean.
 

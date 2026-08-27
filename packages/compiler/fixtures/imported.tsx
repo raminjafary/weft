@@ -1,4 +1,4 @@
-import { fragment, signal } from '@weft/core'
+import { fragment, signal } from '@weftjs/core'
 import { Badge } from './badge.tsx'
 import { addToCart } from './intents.ts'
 

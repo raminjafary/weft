@@ -1,5 +1,5 @@
 {
-  "name": "@weft/inspector",
+  "name": "@weftjs/inspector",
   "version": "0.1.0",
   "private": true,
   "description": "The framework inspecting itself: a station per mechanism, each one a page you can drive.",
@@ -13,15 +13,15 @@
     "routes": "weft routes"
   },
   "dependencies": {
-    "@weft/core": "workspace:*",
-    "@weft/adapters": "workspace:*",
-    "@weft/bench": "workspace:*",
-    "@weft/client": "workspace:*",
-    "@weft/compiler": "workspace:*",
-    "@weft/ir": "workspace:*",
-    "@weft/kernel": "workspace:*",
-    "@weft/plan": "workspace:*",
-    "@weft/warp": "workspace:*"
+    "@weftjs/core": "workspace:*",
+    "@weftjs/adapters": "workspace:*",
+    "@weftjs/bench": "workspace:*",
+    "@weftjs/client": "workspace:*",
+    "@weftjs/compiler": "workspace:*",
+    "@weftjs/ir": "workspace:*",
+    "@weftjs/kernel": "workspace:*",
+    "@weftjs/plan": "workspace:*",
+    "@weftjs/warp": "workspace:*"
   },
   "engines": {
     "node": ">=22.18.0"

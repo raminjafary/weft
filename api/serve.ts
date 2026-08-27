@@ -2,7 +2,7 @@ import { access } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { startHandler, type Handler } from '@weft/core/server'
+import { startHandler, type Handler } from '@weftjs/core/server'
 
 /**
  * The documentation site, as a Vercel function.

@@ -1,8 +1,15 @@
-import { render, type Values } from '@weft/ir'
-import { createEnvelope, createReads, lifecycle, renderContext, requestFacts, type Ports } from '@weft/kernel'
-import { cookieSession, memoryStore, staticFlags } from '@weft/adapters'
-import { staticVerdict } from '@weft/core/server'
-import { fragmentIR, type RenderContext } from '@weft/core'
+import { render, type Values } from '@weftjs/ir'
+import {
+  createEnvelope,
+  createReads,
+  lifecycle,
+  renderContext,
+  requestFacts,
+  type Ports,
+} from '@weftjs/kernel'
+import { cookieSession, memoryStore, staticFlags } from '@weftjs/adapters'
+import { staticVerdict } from '@weftjs/core/server'
+import { fragmentIR, type RenderContext } from '@weftjs/core'
 import { field, panel, pick, pre, press, readout } from '../pages.ts'
 import type { StationHandler } from './kind.ts'
 

@@ -1,4 +1,4 @@
-import { fragment } from '@weft/core'
+import { fragment } from '@weftjs/core'
 
 /**
  * A slot the layout leaves, filled on every route that does not fill it itself.

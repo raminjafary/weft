@@ -6,7 +6,7 @@ import { createIntentDispatch, defineIntent, type Intent } from '../src/intent.t
 import { createIntentRouter, serveIntent } from '../src/intent-http.ts'
 import { requestFacts, type Ports, type Registry } from '../src/ports.ts'
 import { lifecycle } from '../src/request.ts'
-import { cookieSession, memoryStore, staticFlags } from '@weft/adapters'
+import { cookieSession, memoryStore, staticFlags } from '@weftjs/adapters'
 
 /**
  * The only thing allowed to write. What is asserted here is mostly what an intent is *not*

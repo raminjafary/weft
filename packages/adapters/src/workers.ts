@@ -1,4 +1,4 @@
-import type { EntryMeta, Lease, StoreEntry, StorePort } from '@weft/kernel'
+import type { EntryMeta, Lease, StoreEntry, StorePort } from '@weftjs/kernel'
 
 /**
  * The host the kernel was written for, and the one it had no adapter for.

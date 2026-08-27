@@ -1,4 +1,4 @@
-import { frame, type Frame } from '@weft/warp'
+import { frame, type Frame } from '@weftjs/warp'
 import type { Channel, SlotFrames } from './channel.ts'
 import type { Composer, RegionRequest, RegionSpec } from './region.ts'
 

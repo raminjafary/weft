@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { render, type Values } from '@weft/ir'
-import { str } from '@weft/warp'
-import { collectingTelemetry, cookieSession, memoryStore, staticFlags } from '@weft/adapters'
+import { render, type Values } from '@weftjs/ir'
+import { str } from '@weftjs/warp'
+import { collectingTelemetry, cookieSession, memoryStore, staticFlags } from '@weftjs/adapters'
 import { cartRoute, compileFixture, LINES, PRIVATE, SHELL } from '../fixtures/cart-route.ts'
 import { createKernel, recordBase, surgicalRefresh, type Ports } from '../src/index.ts'
 

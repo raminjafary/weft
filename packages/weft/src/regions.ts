@@ -1,4 +1,4 @@
-import type { RegionBinding, Renderable, Registry } from '@weft/kernel'
+import type { RegionBinding, Renderable, Registry } from '@weftjs/kernel'
 
 /**
  * The registry the front door binds, which is two ports wearing one interface.

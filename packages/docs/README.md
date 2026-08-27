@@ -1,4 +1,4 @@
-# @weft/docs
+# @weftjs/docs
 
 The documentation site, and it is a weft application.
 
@@ -43,7 +43,7 @@ paragraph about it.
 | Error reference      | Every `packages/*/src`, scanned for named refusals, with the message and the file that raises it |
 | CLI reference        | The `HELP` string `weft --help` prints, parsed into commands and options                         |
 | Byte budgets         | `packages/bench/src/budget.ts`, so the ceiling on the page is the one the gate compares against  |
-| Wire-format versions | The constants a build stamps on a document — `@weft/ir`, and `packages/warp/src/version.ts`      |
+| Wire-format versions | The constants a build stamps on a document — `@weftjs/ir`, and `packages/warp/src/version.ts`    |
 | Wire-form sizes      | `render`, `patchPayload` and `deltaPayload` over one example, measured when the page renders     |
 | Search               | The site's own registries, matched per request. No index is built and none is downloaded         |
 
@@ -65,7 +65,7 @@ can find, in the same change.
 
 The three things still do three jobs. This site is the introduction, in order, with examples that
 run. `spec/` is the reference: the mechanism, its refusals, and what it deliberately does not do.
-`@weft/inspector` is the live version, a station per mechanism with a control.
+`@weftjs/inspector` is the live version, a station per mechanism with a control.
 
 ## What the site uses, that you can go and look at
 

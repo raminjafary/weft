@@ -186,5 +186,5 @@ test('the adapter reaches for no host runtime, which is what makes it the Worker
     [],
     'a Workers adapter that imported node: would be an adapter for Node',
   )
-  assert.deepEqual(imports, ['@weft/kernel'], 'and the only thing it needs is the port it implements')
+  assert.deepEqual(imports, ['@weftjs/kernel'], 'and the only thing it needs is the port it implements')
 })

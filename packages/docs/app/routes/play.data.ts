@@ -1,4 +1,4 @@
-import { defineRoute } from '@weft/core'
+import { defineRoute } from '@weftjs/core'
 import { shell } from '../lib/shell.ts'
 import { compilePlayground, playBody, STARTER, type Outcome } from '../lib/play.ts'
 

@@ -10,34 +10,34 @@ import { ROOT } from './workspace.mjs'
  * one place a new package has to be described — the table is otherwise generated.
  */
 const DESCRIPTIONS = {
-  '@weft/core': 'The framework. The CLI, the conventions, and what an application imports',
-  'create-weft': '`npm create weft` — a shim over the templates that ship inside `@weft/core`',
-  '@weft/ir': 'The template IR: what a compiled fragment is',
-  '@weft/warp': 'The frame vocabulary that carries it',
-  '@weft/compiler': 'TSX to IR, on Oxc, with the type-driven escape class',
-  '@weft/kernel': 'Routing, the request lifecycle, cache keys, waves, epochs, surgical refresh',
-  '@weft/client': 'Adoption, signals, deltas, patches, navigation',
-  '@weft/plan': 'The plan DSL, validation against inferred effects, plugins, `weft why`',
-  '@weft/adapters': 'The fourteen ports, implemented',
-  '@weft/bench': 'The measurement harness, and the gates it enforces',
-  '@weft/docs': 'The documentation site, which is a weft application',
-  '@weft/inspector': 'A station per capability, each with a control you can turn',
+  '@weftjs/core': 'The framework. The CLI, the conventions, and what an application imports',
+  'create-weft': '`npm create weft` — a shim over the templates that ship inside `@weftjs/core`',
+  '@weftjs/ir': 'The template IR: what a compiled fragment is',
+  '@weftjs/warp': 'The frame vocabulary that carries it',
+  '@weftjs/compiler': 'TSX to IR, on Oxc, with the type-driven escape class',
+  '@weftjs/kernel': 'Routing, the request lifecycle, cache keys, waves, epochs, surgical refresh',
+  '@weftjs/client': 'Adoption, signals, deltas, patches, navigation',
+  '@weftjs/plan': 'The plan DSL, validation against inferred effects, plugins, `weft why`',
+  '@weftjs/adapters': 'The fourteen ports, implemented',
+  '@weftjs/bench': 'The measurement harness, and the gates it enforces',
+  '@weftjs/docs': 'The documentation site, which is a weft application',
+  '@weftjs/inspector': 'A station per capability, each with a control you can turn',
 }
 
 /** Published packages first, in install order rather than alphabetical: what you install, then what it pulls in. */
 const ORDER = [
-  '@weft/core',
+  '@weftjs/core',
   'create-weft',
-  '@weft/ir',
-  '@weft/warp',
-  '@weft/compiler',
-  '@weft/client',
-  '@weft/kernel',
-  '@weft/plan',
-  '@weft/adapters',
-  '@weft/bench',
-  '@weft/docs',
-  '@weft/inspector',
+  '@weftjs/ir',
+  '@weftjs/warp',
+  '@weftjs/compiler',
+  '@weftjs/client',
+  '@weftjs/kernel',
+  '@weftjs/plan',
+  '@weftjs/adapters',
+  '@weftjs/bench',
+  '@weftjs/docs',
+  '@weftjs/inspector',
 ]
 
 export function renderVersionTable(packages, versions) {

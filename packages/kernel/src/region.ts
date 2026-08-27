@@ -1,4 +1,4 @@
-import type { EffectSet } from '@weft/ir'
+import type { EffectSet } from '@weftjs/ir'
 import {
   createBinaryDecoder,
   encodeStream,
@@ -10,7 +10,7 @@ import {
   type AnyFrame,
   type Frame,
   type FrameKind,
-} from '@weft/warp'
+} from '@weftjs/warp'
 import type { Reads } from './context.ts'
 import { degrade, inlineExecutor, type ExceedPolicy, type KernelExecutor } from './executor.ts'
 import type { Ports, RegionBinding, RegionContract } from './ports.ts'

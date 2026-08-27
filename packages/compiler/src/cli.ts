@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { explain, stringify } from '@weft/ir'
+import { explain, stringify } from '@weftjs/ir'
 import { compileFiles } from './compile.ts'
 import { CompileError } from './errors.ts'
 

@@ -1,4 +1,4 @@
-import { defineIntent } from '@weft/core'
+import { defineIntent } from '@weftjs/core'
 
 /**
  * A mutation. It runs on the server, it declares what it writes, and the client never carries its

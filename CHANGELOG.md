@@ -227,6 +227,8 @@ the commits scoped to that package.
 
 ### 🚚 Chores
 
+* **repo:** the byte budgets the merged tree measures, and the inspector's first one ([e478c68](https://github.com/raminjafary/weft/commit/e478c680aaa201dde492eb60fb716205da55476d))
+* **repo:** the merge's byte budget, and the twelve new commits in the changelogs ([676f741](https://github.com/raminjafary/weft/commit/676f741e09f8e1bdc972ad12dc7870f255dbac88))
 * **repo:** the byte budgets record what this round of fixes cost ([0a447ea](https://github.com/raminjafary/weft/commit/0a447ea64a39685724af730d1d7b4b6a51065576))
 * **repo:** the next-steps list is local now, and gitignored ([9c3b791](https://github.com/raminjafary/weft/commit/9c3b791576fd48f197fd3646e55a3cdbbcd8ab6b))
 

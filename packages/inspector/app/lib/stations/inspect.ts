@@ -1,4 +1,4 @@
-import { cacheClassOf, requiresTtl, varyOn, type EffectSet } from '@weft/ir'
+import { cacheClassOf, requiresTtl, varyOn, type EffectSet } from '@weftjs/ir'
 import {
   cacheHeaders,
   createRouter,
@@ -8,12 +8,12 @@ import {
   PORTS,
   type PortName,
   type Ports,
-} from '@weft/kernel'
-import { cookieSession, memoryStore, staticFlags } from '@weft/adapters'
-import { factsFrom, plan, shell, slot, validatePlan } from '@weft/plan'
+} from '@weftjs/kernel'
+import { cookieSession, memoryStore, staticFlags } from '@weftjs/adapters'
+import { factsFrom, plan, shell, slot, validatePlan } from '@weftjs/plan'
 import { escapeHtml, field, panel, pick, pre, press, readout } from '../pages.ts'
 import type { StationHandler } from './kind.ts'
-import { allFragments, appPorts, fragmentIR } from '@weft/core'
+import { allFragments, appPorts, fragmentIR } from '@weftjs/core'
 
 /**
  * The introspection stations: what the compiler inferred, what the kernel derived from it, and
@@ -98,7 +98,7 @@ export const effects: StationHandler = async (ctx) => {
         ],
         {
           what: `What the compiler inferred from one file, and everything the kernel derives from it. The cache class, the Vary header, whether a TTL is mandatory and which wire forms are available are all consequences of the read set — none of them is a setting.`,
-          from: 'compileFiles() in @weft/compiler, then cacheClassOf / varyOn / requiresTtl in @weft/ir',
+          from: 'compileFiles() in @weftjs/compiler, then cacheClassOf / varyOn / requiresTtl in @weftjs/ir',
           caveat:
             'It shows what the fragment reads, not what the values are. Resolving those reads against a request is the cache-keys station.',
           tryThis:
@@ -154,7 +154,7 @@ export const contagion: StationHandler = async () => {
         ],
         {
           what: `What contagion costs, and what isolating an instance saves. A private fragment inlined into a shared parent makes the parent private — the third row is that page. Making it a slot means the kernel composes two cache entries at stream time, so the expensive shared bytes stay shared.`,
-          from: 'cacheClassOf() in @weft/ir over the real effect sets of shell.tsx and greeting.tsx',
+          from: 'cacheClassOf() in @weftjs/ir over the real effect sets of shell.tsx and greeting.tsx',
           caveat:
             'The compiler isolates an instance automatically when a child is private and its caller is not. This station shows the classes; the effects station shows where they came from.',
           tryThis:
@@ -237,7 +237,7 @@ export const cacheKeys: StationHandler = async (ctx) => {
         ],
         {
           what: `A cache key resolved from what the code read. The compiler recorded which reads taint the fragment; the kernel resolved their values and hashed them with the fragment's content address. Change a control above and the key changes — which is what turns a hit into a miss, and is the only way a key ever changes.`,
-          from: 'resolveKey() and cacheHeaders() in @weft/kernel, against a real Request',
+          from: 'resolveKey() and cacheHeaders() in @weftjs/kernel, against a real Request',
           caveat:
             'These are resolved keys, not store contents. Whether a key is a hit depends on what has been written, which is the stampede station.',
           tryThis:
@@ -295,7 +295,7 @@ export const routing: StationHandler = async (ctx) => {
         ],
         {
           what: `A path matched against a real route table. The order the patterns are tried in is computed when the table is built, so /product/new wins over /product/:sku without either declaring a priority.`,
-          from: 'createRouter() in @weft/kernel — the same matcher every page on this site went through',
+          from: 'createRouter() in @weftjs/kernel — the same matcher every page on this site went through',
           caveat:
             'The table is path-only for documents. A method match belongs with intents, and that table is separate: see the intents station.',
           tryThis:
@@ -404,7 +404,7 @@ export const shellBoundaries: StationHandler = async () => {
     body: async () =>
       readout('Six plans, checked against the shell the compiler produced', rows, {
         what: `The plan layer is checked against the compiler, never the reverse. A slot naming a hole the shell does not leave, a hole nothing fills, and a cache class contradicting an inferred read set are all build errors — and each one names the thing that caused it rather than saying the plan is invalid.`,
-        from: 'validatePlan() in @weft/plan, against the real shell.tsx and the real fragment effect sets',
+        from: 'validatePlan() in @weftjs/plan, against the real shell.tsx and the real fragment effect sets',
         caveat:
           'These are validation results, not lowering results. `lowerPlan` validates before it lowers, so an invalid plan cannot become a route at all.',
         tryThis:
@@ -443,7 +443,7 @@ function describe(name: PortName, bound: Ports): string {
     case 'transport':
       return 'nodeTransport, per response, because 103 goes out on a socket'
     default:
-      return 'bound in @weft/adapters'
+      return 'bound in @weftjs/adapters'
   }
 }
 
@@ -482,7 +482,7 @@ export const portsStation: StationHandler = async () => {
     body: async () =>
       readout(`All ${PORTS.length}`, rows, {
         what: `A port has exactly one active implementation and answers “who does this job”. Replacing one cannot change an invariant: cache keys are still derived from effects, render is still read-only, the envelope still has two phases. Any that are declared and not implemented are not stubs — calling them throws a named error.`,
-        from: 'PORTS and unimplemented() in @weft/kernel; every row describes the port answering this request',
+        from: 'PORTS and unimplemented() in @weftjs/kernel; every row describes the port answering this request',
         caveat:
           'A port being implemented says nothing about how good the implementation is. The store here is an isolate-local map with a byte ceiling, and it says so in its own coherence field.',
         tryThis:

@@ -5,7 +5,7 @@ import {
   type TemplateIR,
   type Values,
   type WireForm,
-} from '@weft/ir'
+} from '@weftjs/ir'
 import {
   bool,
   frame,
@@ -22,7 +22,7 @@ import {
   WARP_VERSION,
   type Negotiation,
   type ServerCapabilities,
-} from '@weft/warp'
+} from '@weftjs/warp'
 import { createEpochs, type Epochs, type Transition } from './epoch.ts'
 
 import type { EnvelopeContext } from './context.ts'
@@ -49,7 +49,7 @@ import {
  *
  * What is here is binding-agnostic on purpose. A streamed response with discrete POSTs up,
  * an SSE stream, and a WebSocket differ in how bytes move and in nothing else, so they are
- * three `ChannelSink` implementations in `@weft/adapters` and one state machine here. The
+ * three `ChannelSink` implementations in `@weftjs/adapters` and one state machine here. The
  * differences that are real are named where they bite: SSE cannot carry binary, so it uses
  * text framing and pays base64 on bodies, and the streamed binding has no upstream at all,
  * so an upstream frame arriving with no live downstream is `E_NO_DOWNSTREAM` rather than a

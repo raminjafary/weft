@@ -8,7 +8,7 @@ import {
   type ComposeOptions,
   type RegionRenderer,
   type RegionRequest,
-} from '@weft/core'
+} from '@weftjs/core'
 
 /**
  * The other side of the boundary: a region, as a module.

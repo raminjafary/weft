@@ -47,7 +47,7 @@ reads = [flag:new-cart, ...]                 → an axis, not a key component
 ```
 
 `cacheClassOf`, `keyComponents`, `flagAxes`, `varyOn`, `requiresTtl` and `explain` all live
-in `@weft/ir` and take nothing but the effect set. `explain` is what a `weft why` would
+in `@weftjs/ir` and take nothing but the effect set. `explain` is what a `weft why` would
 print, and the compiler already prints it per template:
 
 ```

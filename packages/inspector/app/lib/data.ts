@@ -1,4 +1,4 @@
-import type { Values } from '@weft/ir'
+import type { Values } from '@weftjs/ir'
 
 /**
  * The demo's data, generated deterministically from a seed.

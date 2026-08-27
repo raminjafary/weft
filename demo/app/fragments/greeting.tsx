@@ -1,4 +1,4 @@
-import { fragment, type Ctx } from '@weft/core'
+import { fragment, type Ctx } from '@weftjs/core'
 
 /**
  * The smallest fragment that changes a page's cache class. One identity read and this region can

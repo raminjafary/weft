@@ -25,7 +25,7 @@ import {
   type Readable,
   type StagedNav,
   type Region,
-} from '@weft/client'
+} from '@weftjs/client'
 import {
   createBinaryDecoder,
   encodeStream,
@@ -33,7 +33,7 @@ import {
   WARP_VERSION,
   type Frame,
   type FrameKind,
-} from '@weft/warp'
+} from '@weftjs/warp'
 
 /**
  * The client, for every application.

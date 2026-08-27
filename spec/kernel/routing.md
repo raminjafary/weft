@@ -4,12 +4,12 @@ The two halves built before this one were a kernel that took a hand-assembled ro
 layer that produced a plan, with nothing joining them. This is the join, and it is deliberately
 three small pieces rather than one framework feature.
 
-| Piece                         | Knows about                                   | Lives in       |
-| ----------------------------- | --------------------------------------------- | -------------- |
-| `createRouter`                | paths and params. Nothing else                | `@weft/kernel` |
-| `factsFrom` / `fillableHoles` | what the compiler emitted                     | `@weft/plan`   |
-| `lowerPlan`                   | a plan, some facts, and one bindings object   | `@weft/plan`   |
-| `kernel.serve`                | how to put the three together for one request | `@weft/kernel` |
+| Piece                         | Knows about                                   | Lives in         |
+| ----------------------------- | --------------------------------------------- | ---------------- |
+| `createRouter`                | paths and params. Nothing else                | `@weftjs/kernel` |
+| `factsFrom` / `fillableHoles` | what the compiler emitted                     | `@weftjs/plan`   |
+| `lowerPlan`                   | a plan, some facts, and one bindings object   | `@weftjs/plan`   |
+| `kernel.serve`                | how to put the three together for one request | `@weftjs/kernel` |
 
 ## The router
 

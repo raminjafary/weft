@@ -1,5 +1,5 @@
 {
-  "name": "@weft/bench",
+  "name": "@weftjs/bench",
   "version": "0.1.0",
   "private": true,
   "description": "The measurement harness. Every claim in the specs is a number this produced.",
@@ -24,17 +24,17 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@weft/compiler": "workspace:*",
-    "@weft/ir": "workspace:*",
-    "@weft/kernel": "workspace:*"
+    "@weftjs/compiler": "workspace:*",
+    "@weftjs/ir": "workspace:*",
+    "@weftjs/kernel": "workspace:*"
   },
   "devDependencies": {
     "playwright": "1.62.1",
-    "@weft/adapters": "workspace:*",
-    "@weft/plan": "workspace:*",
-    "@weft/client": "workspace:*",
-    "@weft/warp": "workspace:*",
-    "@weft/core": "workspace:*"
+    "@weftjs/adapters": "workspace:*",
+    "@weftjs/plan": "workspace:*",
+    "@weftjs/client": "workspace:*",
+    "@weftjs/warp": "workspace:*",
+    "@weftjs/core": "workspace:*"
   },
   "engines": {
     "node": ">=22.18.0"

@@ -5,7 +5,7 @@
  *
  * Its own entry because it is its own capability with its own cost, and because the
  * alternative is charging it to a figure that was set before it existed. The bindings that
- * move the bytes are in `@weft/adapters`; nothing here knows whether it is talking to a
+ * move the bytes are in `@weftjs/adapters`; nothing here knows whether it is talking to a
  * streamed response, an SSE stream or a socket.
  */
 export * from './entry-channel.ts'

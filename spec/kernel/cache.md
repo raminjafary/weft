@@ -56,7 +56,7 @@ high-cardinality cache key, which is the same mistake as putting the clock in th
 ## A correction to the design: an axis is also a key component
 
 The design's prose says a flag is "an axis rather than a key component", and `keyComponents()`
-in `@weft/ir` excludes `flag:` reads accordingly. The design's own worked example includes
+in `@weftjs/ir` excludes `flag:` reads accordingly. The design's own worked example includes
 one:
 
 ```

@@ -5,10 +5,10 @@ import {
   scenario,
   segmentsCandidate,
   stringSsrCandidate,
-} from '@weft/bench'
-import { fillerSize } from '@weft/kernel'
-import { TEMPLATE_IR_VERSION } from '@weft/ir'
-import { WARP_VERSION } from '@weft/warp'
+} from '@weftjs/bench'
+import { fillerSize } from '@weftjs/kernel'
+import { TEMPLATE_IR_VERSION } from '@weftjs/ir'
+import { WARP_VERSION } from '@weftjs/warp'
 
 /**
  * Every number this demo shows comes from here, and everything here calls the benchmark harness.
@@ -46,7 +46,7 @@ export async function budgets(): Promise<BudgetReport> {
   const sizes = await measureBudgets()
   return {
     provenance: {
-      from: 'measureBudgets() in @weft/bench — Rolldown, minified, brotli quality 11',
+      from: 'measureBudgets() in @weftjs/bench — Rolldown, minified, brotli quality 11',
       caveat:
         'These are bundle sizes, not transfer sizes: a real response also carries HTTP framing, and a real deployment may not tree-shake identically to Rolldown. The ceilings marked “no design figure” are watermarks whose only job is to make a regression visible.',
     },
@@ -83,7 +83,7 @@ export async function deltas(clients: number): Promise<DeltaReport> {
   const report = await measureSharedDelta(scenario('feed'), clients)
   return {
     provenance: {
-      from: 'measureSharedDelta() in @weft/bench — the same differ on both sides, over the same templates',
+      from: 'measureSharedDelta() in @weftjs/bench — the same differ on both sides, over the same templates',
       caveat:
         'Phoenix is not running here. The per-connection figure is a real per-connection differ in this harness, so what is compared is the architecture and not BEAM scheduling, Phoenix wire encoding, or its tracked comprehensions. Both arrival patterns are shown because only one of them favours this design.',
     },
@@ -112,7 +112,7 @@ export async function forms(id: string): Promise<FormsReport> {
   const report = await checkScenario(scenario(id), [segmentsCandidate, stringSsrCandidate])
   return {
     provenance: {
-      from: 'checkScenario() in @weft/bench — the same differential test the harness refuses to publish numbers without',
+      from: 'checkScenario() in @weftjs/bench — the same differential test the harness refuses to publish numbers without',
       caveat:
         'This proves the forms agree byte for byte. It says nothing about which form is faster to apply, which is a separate axis measured in a real engine.',
     },
@@ -131,7 +131,7 @@ export interface VersionReport {
 export function versions(): VersionReport {
   return {
     provenance: {
-      from: 'the version constants in @weft/ir and @weft/warp, and fillerSize() in @weft/kernel',
+      from: 'the version constants in @weftjs/ir and @weftjs/warp, and fillerSize() in @weftjs/kernel',
       caveat:
         'The filler figure is the cost of out-of-order streaming and nothing else. In-order streaming does not load it, which is why the streaming-order station reports it only when you switch.',
     },

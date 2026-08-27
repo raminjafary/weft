@@ -51,7 +51,7 @@ const TABS: readonly Tab[] = [
     note: 'what a page declares',
     path: 'app/routes/cart.data.ts',
     lang: 'ts',
-    code: `import { defineRoute } from '@weft/core'
+    code: `import { defineRoute } from '@weftjs/core'
 
 export default defineRoute({
   head: { title: 'Cart' },
@@ -70,7 +70,7 @@ export default defineRoute({
     note: 'sealed into a template',
     path: 'app/fragments/cart/total.tsx',
     lang: 'tsx',
-    code: `import { fragment } from '@weft/core'
+    code: `import { fragment } from '@weftjs/core'
 
 export default fragment(({ rows, total }: Prices) => (
   <div class="prices">
@@ -112,7 +112,7 @@ FRAME cart/total delta r_41c8->r_5d02
     note: 'the one thing that writes',
     path: 'app/intents/quantity.ts',
     lang: 'ts',
-    code: `import { defineIntent } from '@weft/core'
+    code: `import { defineIntent } from '@weftjs/core'
 
 export const quantity = defineIntent<{ qty: number }>({
   name: 'docs.quantity',

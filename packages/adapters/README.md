@@ -1,4 +1,4 @@
-# @weft/adapters
+# @weftjs/adapters
 
 The ports, implemented: Node HTTP, channels, stores, sessions, flags, leases and a worker pool.
 
@@ -7,7 +7,7 @@ negotiates the wire form of a piece of UI per request. Eleven of the fourteen po
 front door with no configuration at all.
 
 ```sh
-npm install @weft/adapters
+npm install @weftjs/adapters
 ```
 
 ## What it is

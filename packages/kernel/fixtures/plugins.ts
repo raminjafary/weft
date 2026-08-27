@@ -8,7 +8,7 @@ import { definePlugin, type Plugin } from '../src/plugins.ts'
  * Nothing here declares an integer priority, and nothing here can write a cache key.
  */
 export const session = definePlugin({
-  name: '@weft/session',
+  name: '@weftjs/session',
   role: 'enricher',
   reads: ['cookie:sid'],
   provides: ['ctx.session'],
@@ -17,7 +17,7 @@ export const session = definePlugin({
 
 /** Reads what session provides, so the edge exists without anybody writing `after`. */
 export const i18n = definePlugin({
-  name: '@weft/i18n',
+  name: '@weftjs/i18n',
   role: 'enricher',
   reads: ['cookie:locale', 'header:accept-language', 'ctx.session'],
   provides: ['ctx.locale'],
@@ -29,7 +29,7 @@ export const i18n = definePlugin({
 
 /** Disjoint from everything: no reads anybody provides, so it shares a wave with session. */
 export const tracing = definePlugin({
-  name: '@weft/tracing',
+  name: '@weftjs/tracing',
   role: 'enricher',
   reads: ['header:traceparent'],
   provides: ['ctx.trace'],
@@ -41,7 +41,7 @@ export const tracing = definePlugin({
  * relationship captures that. This is what `before` is for, and why it stays rare.
  */
 export const csp = definePlugin({
-  name: '@weft/csp',
+  name: '@weftjs/csp',
   role: 'enricher',
   before: ['@acme/analytics'],
   provides: ['ctx.nonce'],
@@ -63,7 +63,7 @@ export const analytics = definePlugin({
 
 /** A filter, because it can end the request. Sequential, phase A, may write the envelope. */
 export const auth = definePlugin({
-  name: '@weft/auth',
+  name: '@weftjs/auth',
   role: 'filter',
   reads: ['cookie:sid'],
   onRequest: (ctx) => {

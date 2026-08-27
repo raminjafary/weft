@@ -1,4 +1,4 @@
-import type { FlagPort, FlagValue, RequestFacts } from '@weft/kernel'
+import type { FlagPort, FlagValue, RequestFacts } from '@weftjs/kernel'
 
 /**
  * A flag is a graph partition rather than a runtime `if`, which is why `axes()` is on the

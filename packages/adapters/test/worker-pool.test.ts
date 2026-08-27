@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { isHardLimit } from '@weft/kernel'
+import { isHardLimit } from '@weftjs/kernel'
 import { collectingTelemetry } from '../src/telemetry.ts'
 import { workerPool } from '../src/worker-pool.ts'
 

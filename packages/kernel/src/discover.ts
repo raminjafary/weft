@@ -1,4 +1,4 @@
-import { frame, type Frame } from '@weft/warp'
+import { frame, type Frame } from '@weftjs/warp'
 import type { Channel, WarmHandler } from './channel.ts'
 import type { TelemetryPort } from './ports.ts'
 

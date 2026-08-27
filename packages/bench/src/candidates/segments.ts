@@ -6,7 +6,7 @@ import {
   resolveDerived,
   type TemplateIR,
   type Values,
-} from '@weft/ir'
+} from '@weftjs/ir'
 import type { Candidate, ServeHandle, ServeOptions, UpdatePayloads } from '../candidate.ts'
 import { compileScenario, compiledFor, withRows, type Compiled } from '../compiled.ts'
 import { sleep } from '../workloads/index.ts'

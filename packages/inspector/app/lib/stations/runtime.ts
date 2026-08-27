@@ -1,4 +1,4 @@
-import { createSegmentMemo, render, renderIncremental, TEMPLATE_IR_VERSION, type Values } from '@weft/ir'
+import { createSegmentMemo, render, renderIncremental, TEMPLATE_IR_VERSION, type Values } from '@weftjs/ir'
 import {
   createEnvelope,
   criticalPath,
@@ -14,13 +14,13 @@ import {
   linkHeader,
   schedule,
   serverCapabilities,
-} from '@weft/kernel'
-import { memoryStore, workerPool } from '@weft/adapters'
-import { encodeStream, frame, negotiate, residentFrame, warpFrame } from '@weft/warp'
+} from '@weftjs/kernel'
+import { memoryStore, workerPool } from '@weftjs/adapters'
+import { encodeStream, frame, negotiate, residentFrame, warpFrame } from '@weftjs/warp'
 import { feedItems } from '../data.ts'
 import { escapeHtml, field, panel, pick, pre, press, readout, slider } from '../pages.ts'
 import { numeric, type StationHandler } from './kind.ts'
-import { fragmentIR, listHole } from '@weft/core'
+import { fragmentIR, listHole } from '@weftjs/core'
 
 const n = (v: number): string => v.toLocaleString('en-US')
 const utf8 = new TextEncoder()
@@ -101,7 +101,7 @@ export const waves: StationHandler = async (ctx) => {
             ],
             {
               what: `A render DAG, its waves, and its critical path. The waves are what can run at once; the critical path is the only thing that decides how long the page takes. Adding a dependency moves the critical path and leaves the sequential figure exactly where it was, which is the difference between the two numbers.`,
-              from: 'schedule() and criticalPath() in @weft/kernel, over the design’s own worked example',
+              from: 'schedule() and criticalPath() in @weftjs/kernel, over the design’s own worked example',
               caveat:
                 'The costs here are declared, not measured. `weft why` labels an unmeasured timing as unmeasured for exactly this reason.',
               tryThis:
@@ -191,7 +191,7 @@ export const budgets: StationHandler = async (ctx) => {
         ],
         {
           what: `A slot given a CPU budget it cannot keep. Both executors report the breach — a budget's job is also to tell you the damage happened — and both messages say whether the work was actually stopped, because a message that does not say is a message that reads like a limit was enforced.`,
-          from: 'inlineExecutor(), deferredExecutor() and degrade() in @weft/kernel',
+          from: 'inlineExecutor(), deferredExecutor() and degrade() in @weftjs/kernel',
           caveat:
             'This slot sleeps rather than spinning, so `deferred` could in principle abort it at the await. The worker-pool station uses a synchronous loop, which is the case neither of these can touch.',
           tryThis:
@@ -302,7 +302,7 @@ export const workerPoolStation: StationHandler = async (ctx) => {
         ],
         {
           what: `The difference between a budget that reports and a budget that stops the work. Set the loop above the budget and switch executors: on the pool the wall clock stops at the budget, and on the request thread it stops when the loop finishes. That is the only reason to pay for a thread.`,
-          from: 'workerPool() in @weft/adapters and the executors in @weft/kernel, running renderers.ts by name',
+          from: 'workerPool() in @weftjs/adapters and the executors in @weftjs/kernel, running renderers.ts by name',
           caveat:
             'A pooled render has to be reachable by name — `ExecutorPort.run` takes a closure and a closure cannot cross a crash domain. A slot naming a pool with no address is a build error, not a request-time surprise.',
           tryThis:
@@ -399,7 +399,7 @@ export const incremental: StationHandler = async (ctx) => {
         ],
         {
           what: `A rendered nested template is a pure function of its version and its values, so it is content-addressed and reusable. A long list where a few rows changed costs a few row renders. A *reordered* list costs none, because the key is the content and not the index.`,
-          from: 'renderIncremental() and createSegmentMemo() in @weft/ir, over the real feed fragment',
+          from: 'renderIncremental() and createSegmentMemo() in @weftjs/ir, over the real feed fragment',
           caveat:
             'Only nested templates are memoised. A text hole is one escape scan and one encode, and hashing its value would cost more than rendering it. The memo is also process-local, because render() is synchronous and a shared tier could not answer it.',
           tryThis: 'Turn reorder on. Every row is reused, which an index-keyed memo could not do.',
@@ -490,7 +490,7 @@ export const negotiation: StationHandler = async (ctx) => {
         ],
         {
           what: `Capability variance is not a special case here: a browser, a webview and a stale cache are the same problem and get the same mechanism. Every downgrade is named and visible rather than being a silent fallback.`,
-          from: 'negotiate() in @weft/warp against serverCapabilities() in @weft/kernel',
+          from: 'negotiate() in @weftjs/warp against serverCapabilities() in @weftjs/kernel',
           caveat:
             'The server side of this composition is the one place that can see both the Warp version and the IR version. A default in either package alone was wrong for months — see spec/FINDINGS.md.',
           tryThis:
@@ -564,7 +564,7 @@ export const warp: StationHandler = async (ctx) => {
         ],
         {
           what: `The frames a document arrives with. WARP states the versions and the strategy the server settled on; SHELL names the entry template; TPL carries a template the client does not hold. A warm visit skips every TPL, which is the entire repeat-visit claim.`,
-          from: 'warpFrame(), encodeStream() and residentFrame() in @weft/warp, over the real feed templates',
+          from: 'warpFrame(), encodeStream() and residentFrame() in @weftjs/warp, over the real feed templates',
           caveat:
             'This is the frame vocabulary, not a live channel. The channel station is the one where these travel over a socket.',
           tryThis:
@@ -632,7 +632,7 @@ export const escaping: StationHandler = async (ctx) => {
           what:
             `The escape class of every hole comes from the syntax around it, decided at compile time. A value the compiler cannot prove safe is escaped; ` +
             `a value passed through raw() is not, and the compiler records where that decision was made. The two panes below are the same string rendered both ways.`,
-          from: 'render() in @weft/ir over the real article.tsx and markup.tsx holes',
+          from: 'render() in @weftjs/ir over the real article.tsx and markup.tsx holes',
           caveat:
             'Escape elision is kept for correctness and for native codec boundaries. It is measured at no throughput gain, and the repo says so.',
           tryThis:
@@ -708,7 +708,7 @@ export const envelope: StationHandler = async () => {
         ],
         {
           what: `What is irreducibly lost after the first body byte: a real status code, an HttpOnly cookie, Cache-Control, Vary, and a redirect a crawler will follow. Rather than document that, the lifecycle splits — phase A owns the envelope and phase B gets a context type with none of it on it.`,
-          from: 'createEnvelope() and lifecycle() in @weft/kernel, run on this request',
+          from: 'createEnvelope() and lifecycle() in @weftjs/kernel, run on this request',
           caveat:
             'A deferred effect waits for the next request on the connection, and is dropped if there is no next request. That is why only idempotent effects qualify, and why `deferrable` refuses anything that reads as consent, payment or a nonce by name.',
           tryThis:
@@ -760,7 +760,7 @@ export const earlyHints: StationHandler = async () => {
         ],
         {
           what: `103 Early Hints decouples asset discovery from committing to a response. The links can go out before the server knows the status, and the envelope stays open — which removes the most common reason to want a late header.`,
-          from: 'linkHeader() in @weft/kernel; the transport port is nodeTransport, which is writing this response',
+          from: 'linkHeader() in @weftjs/kernel; the transport port is nodeTransport, which is writing this response',
           caveat:
             'nodeTransport reports whether writeEarlyHints actually ran. On HTTP/1.1 a client simply waits for the final response, so a “sent” here is not a “used”. The one bug this found is in spec/FINDINGS.md: Node rejects a comma-joined Link value and wants an array, which only a two-link page reveals.',
           tryThis:
@@ -832,7 +832,7 @@ export const stampede: StationHandler = async (ctx) => {
         ],
         {
           what: `N requests miss the same cacheable key at once. Without a lease they all render, which turns a cold cache into an incident. With one, a single renderer fills the key and the rest are handed its result.`,
-          from: 'leaseCoalescer() in @weft/kernel over a real memoryStore, run on this request',
+          from: 'leaseCoalescer() in @weftjs/kernel over a real memoryStore, run on this request',
           caveat:
             'The wait is bounded: on expiry a waiter renders anyway, because a duplicated render is worse than a hit and much better than a request hanging behind a renderer that died. This polls, because an isolate-local map cannot announce a fill — a store with pub/sub should subscribe, and the kernel deliberately has no opinion about which.',
           tryThis:

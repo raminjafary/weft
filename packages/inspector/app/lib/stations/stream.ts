@@ -1,10 +1,10 @@
-import { render, type Values } from '@weft/ir'
-import { createEpochs, fillerSize, splitAtSlots } from '@weft/kernel'
-import { frame, type Frame } from '@weft/warp'
+import { render, type Values } from '@weftjs/ir'
+import { createEpochs, fillerSize, splitAtSlots } from '@weftjs/kernel'
+import { frame, type Frame } from '@weftjs/warp'
 import { feedItems } from '../data.ts'
 import { field, panel, pick, pre, press, readout, slider } from '../pages.ts'
 import { numeric, type StationHandler } from './kind.ts'
-import { fragmentIR, listHole } from '@weft/core'
+import { fragmentIR, listHole } from '@weftjs/core'
 
 const n = (v: number): string => v.toLocaleString('en-US')
 
@@ -74,7 +74,7 @@ export const streaming: StationHandler = async (ctx) => {
         ],
         {
           what: `A fragment that reads something slow becomes a hole by construction, so the shell is never downstream of the query. The cuts below are real: they were computed by running the same function the kernel runs, on the shell of the page you are reading.`,
-          from: 'splitAtSlots() in @weft/kernel, over the real compiled shell',
+          from: 'splitAtSlots() in @weftjs/kernel, over the real compiled shell',
           caveat:
             'These are byte offsets, not timings. Loopback has no network in it, so a first-byte number measured here would be a number about this machine. The dashboard is where the latency is real.',
           tryThis:
@@ -156,7 +156,7 @@ export const streamingOrder: StationHandler = async (ctx) => {
       race +
       (await readout(`${order}`, rows, {
         what: `Two live streams of the same three regions, one in each order. The left frame sent its shell with an anchor at each slot and then filled whichever region resolved first; the right frame streamed each region where it sits, so its fast lane could not arrive until the slow lane above it had. Each region prints the millisecond it was rendered at, so the difference survives the page finishing.`,
-        from: 'streamRoute() in @weft/kernel serving /live/race, twice, with the latencies above',
+        from: 'streamRoute() in @weftjs/kernel serving /live/race, twice, with the latencies above',
         caveat:
           'Loopback has no network in it, so these numbers are server-side waiting only. On a real link out-of-order also wins on the bytes that arrive first, which the streaming station is about.',
         tryThis:
@@ -290,9 +290,9 @@ export const epochs: StationHandler = async (ctx) => {
         ],
         {
           what: `An epoch is data that has arrived and resolved and is painting nothing. Any number of them coexist with what is live, and one COMMIT flips every slot staged in one of them together — so the page never shows a half-updated state, a background revalidation can sit staged through a half-typed form, and an optimistic update is a staged epoch committed immediately.`,
-          from: 'createEpochs() in @weft/kernel, staged and committed on this request',
+          from: 'createEpochs() in @weftjs/kernel, staged and committed on this request',
           caveat:
-            'This is the server half. The client half is in @weft/client and is where the paint actually happens — the intents station drives both ends over a real channel.',
+            'This is the server half. The client half is in @weftjs/client and is where the paint actually happens — the intents station drives both ends over a real channel.',
           tryThis:
             'Type in the box, set commit to yes, and press apply. The commit is a page load here, so the box clears — over a channel it would not, which is the difference the cart showcase demonstrates.',
         },

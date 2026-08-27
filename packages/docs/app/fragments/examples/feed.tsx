@@ -1,4 +1,4 @@
-import { fragment, type Ctx } from '@weft/core'
+import { fragment, type Ctx } from '@weftjs/core'
 
 interface Item {
   id: number

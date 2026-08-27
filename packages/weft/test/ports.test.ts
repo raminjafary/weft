@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { staticConfig, staticDeployment } from '@weft/adapters'
+import { staticConfig, staticDeployment } from '@weftjs/adapters'
 import { createApp, serveApp, type Serving } from '../src/serve.ts'
 import { weftAssets } from '../src/assets.ts'
 import { services } from '../src/context.ts'

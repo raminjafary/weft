@@ -9,8 +9,8 @@
     "paths": {
       "/runtime/*": ["./packages/client/src/*"],
       "/warp/*": ["./packages/warp/src/*"],
-      "@weft/core": ["./packages/weft/src/index.ts"],
-      "@weft/core/server": ["./packages/weft/src/server.ts"]
+      "@weftjs/core": ["./packages/weft/src/index.ts"],
+      "@weftjs/core/server": ["./packages/weft/src/server.ts"]
     },
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,

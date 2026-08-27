@@ -79,7 +79,7 @@ const MARGIN = 12
  * How far the widest note in a node reaches past its own box.
  *
  * A note is set at 11.5px and is not clipped, so `a station per mechanism` runs past the 168-unit
- * box `@weft/inspector` sits in. Ignoring that put the drawing's boxes on centre and its *text*
+ * box `@weftjs/inspector` sits in. Ignoring that put the drawing's boxes on centre and its *text*
  * against the edge; adding a fixed allowance to the right instead made the margins visibly unequal.
  * So the reach is estimated from the text — an average advance width per character, which is close
  * enough at this size — and the viewBox grows only when a note actually needs it.

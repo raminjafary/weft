@@ -1,5 +1,5 @@
 {
-  "name": "@weft/demo",
+  "name": "@weftjs/demo",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,6 +11,6 @@
     "routes": "weft routes"
   },
   "dependencies": {
-    "@weft/core": "workspace:*"
+    "@weftjs/core": "workspace:*"
   }
 }

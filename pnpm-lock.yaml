@@ -17,7 +17,7 @@ importers:
       '@types/node':
         specifier: 26.3.0
         version: 26.3.0
-      '@weft/core':
+      '@weftjs/core':
         specifier: workspace:*
         version: link:packages/weft
       commitizen:
@@ -62,54 +62,54 @@ importers:
 
   demo:
     dependencies:
-      '@weft/core':
+      '@weftjs/core':
         specifier: workspace:*
         version: link:../packages/weft
 
   packages/adapters:
     dependencies:
-      '@weft/compiler':
+      '@weftjs/compiler':
         specifier: workspace:*
         version: link:../compiler
-      '@weft/kernel':
+      '@weftjs/kernel':
         specifier: workspace:*
         version: link:../kernel
-      '@weft/warp':
+      '@weftjs/warp':
         specifier: workspace:*
         version: link:../warp
     devDependencies:
-      '@weft/client':
+      '@weftjs/client':
         specifier: workspace:*
         version: link:../client
-      '@weft/ir':
+      '@weftjs/ir':
         specifier: workspace:*
         version: link:../ir
 
   packages/bench:
     dependencies:
-      '@weft/compiler':
+      '@weftjs/compiler':
         specifier: workspace:*
         version: link:../compiler
-      '@weft/ir':
+      '@weftjs/ir':
         specifier: workspace:*
         version: link:../ir
-      '@weft/kernel':
+      '@weftjs/kernel':
         specifier: workspace:*
         version: link:../kernel
     devDependencies:
-      '@weft/adapters':
+      '@weftjs/adapters':
         specifier: workspace:*
         version: link:../adapters
-      '@weft/client':
+      '@weftjs/client':
         specifier: workspace:*
         version: link:../client
-      '@weft/core':
+      '@weftjs/core':
         specifier: workspace:*
         version: link:../weft
-      '@weft/plan':
+      '@weftjs/plan':
         specifier: workspace:*
         version: link:../plan
-      '@weft/warp':
+      '@weftjs/warp':
         specifier: workspace:*
         version: link:../warp
       playwright:
@@ -120,7 +120,7 @@ importers:
 
   packages/compiler:
     dependencies:
-      '@weft/ir':
+      '@weftjs/ir':
         specifier: workspace:*
         version: link:../ir
       oxc-parser:
@@ -130,28 +130,28 @@ importers:
         specifier: '>=5.7.0'
         version: 7.0.2
     devDependencies:
-      '@weft/core':
+      '@weftjs/core':
         specifier: workspace:*
         version: link:../weft
 
   packages/create-weft:
     dependencies:
-      '@weft/core':
+      '@weftjs/core':
         specifier: workspace:*
         version: link:../weft
 
   packages/docs:
     dependencies:
-      '@weft/compiler':
+      '@weftjs/compiler':
         specifier: workspace:*
         version: link:../compiler
-      '@weft/core':
+      '@weftjs/core':
         specifier: workspace:*
         version: link:../weft
-      '@weft/ir':
+      '@weftjs/ir':
         specifier: workspace:*
         version: link:../ir
-      '@weft/kernel':
+      '@weftjs/kernel':
         specifier: workspace:*
         version: link:../kernel
       oxc-parser:
@@ -160,31 +160,31 @@ importers:
 
   packages/inspector:
     dependencies:
-      '@weft/adapters':
+      '@weftjs/adapters':
         specifier: workspace:*
         version: link:../adapters
-      '@weft/bench':
+      '@weftjs/bench':
         specifier: workspace:*
         version: link:../bench
-      '@weft/client':
+      '@weftjs/client':
         specifier: workspace:*
         version: link:../client
-      '@weft/compiler':
+      '@weftjs/compiler':
         specifier: workspace:*
         version: link:../compiler
-      '@weft/core':
+      '@weftjs/core':
         specifier: workspace:*
         version: link:../weft
-      '@weft/ir':
+      '@weftjs/ir':
         specifier: workspace:*
         version: link:../ir
-      '@weft/kernel':
+      '@weftjs/kernel':
         specifier: workspace:*
         version: link:../kernel
-      '@weft/plan':
+      '@weftjs/plan':
         specifier: workspace:*
         version: link:../plan
-      '@weft/warp':
+      '@weftjs/warp':
         specifier: workspace:*
         version: link:../warp
 
@@ -192,33 +192,33 @@ importers:
 
   packages/kernel:
     dependencies:
-      '@weft/ir':
+      '@weftjs/ir':
         specifier: workspace:*
         version: link:../ir
-      '@weft/warp':
+      '@weftjs/warp':
         specifier: workspace:*
         version: link:../warp
     devDependencies:
-      '@weft/adapters':
+      '@weftjs/adapters':
         specifier: workspace:*
         version: link:../adapters
-      '@weft/compiler':
+      '@weftjs/compiler':
         specifier: workspace:*
         version: link:../compiler
 
   packages/plan:
     dependencies:
-      '@weft/ir':
+      '@weftjs/ir':
         specifier: workspace:*
         version: link:../ir
-      '@weft/kernel':
+      '@weftjs/kernel':
         specifier: workspace:*
         version: link:../kernel
     devDependencies:
-      '@weft/adapters':
+      '@weftjs/adapters':
         specifier: workspace:*
         version: link:../adapters
-      '@weft/compiler':
+      '@weftjs/compiler':
         specifier: workspace:*
         version: link:../compiler
 
@@ -226,25 +226,25 @@ importers:
 
   packages/weft:
     dependencies:
-      '@weft/adapters':
+      '@weftjs/adapters':
         specifier: workspace:*
         version: link:../adapters
-      '@weft/client':
+      '@weftjs/client':
         specifier: workspace:*
         version: link:../client
-      '@weft/compiler':
+      '@weftjs/compiler':
         specifier: workspace:*
         version: link:../compiler
-      '@weft/ir':
+      '@weftjs/ir':
         specifier: workspace:*
         version: link:../ir
-      '@weft/kernel':
+      '@weftjs/kernel':
         specifier: workspace:*
         version: link:../kernel
-      '@weft/plan':
+      '@weftjs/plan':
         specifier: workspace:*
         version: link:../plan
-      '@weft/warp':
+      '@weftjs/warp':
         specifier: workspace:*
         version: link:../warp
 

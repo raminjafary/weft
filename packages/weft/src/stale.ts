@@ -1,4 +1,4 @@
-import type { ChannelHub, RegionBinding } from '@weft/kernel'
+import type { ChannelHub, RegionBinding } from '@weftjs/kernel'
 import type { GeneratedRoute } from './routes.ts'
 
 /**

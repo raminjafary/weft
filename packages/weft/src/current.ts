@@ -1,4 +1,4 @@
-import type { Ports } from '@weft/kernel'
+import type { Ports } from '@weftjs/kernel'
 import type { AssetTable } from './assets.ts'
 import type { Decisions, Profile } from './profile.ts'
 import type { CompiledApp, CompiledFragment } from './compile.ts'

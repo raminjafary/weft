@@ -13,7 +13,7 @@ import {
   type EnvelopeContext,
   type Ports,
 } from '../src/index.ts'
-import { cookieSession, memoryStore, staticFlags } from '@weft/adapters'
+import { cookieSession, memoryStore, staticFlags } from '@weftjs/adapters'
 
 function context(cookie = 'locale=ar'): EnvelopeContext {
   const ports: Ports = {
@@ -30,7 +30,7 @@ function context(cookie = 'locale=ar'): EnvelopeContext {
 }
 
 const i18n = definePlugin({
-  name: '@weft/i18n',
+  name: '@weftjs/i18n',
   role: 'enricher',
   reads: ['cookie:locale'],
   provides: ['ctx.locale'],
@@ -39,7 +39,7 @@ const i18n = definePlugin({
 })
 
 const analytics = definePlugin({
-  name: '@weft/analytics',
+  name: '@weftjs/analytics',
   role: 'enricher',
   reads: ['ctx.locale'],
   onRequest: () => ({}),
@@ -49,7 +49,7 @@ test('an edge is inferred from provides and reads, with nobody writing after:', 
   const { waves } = resolvePlugins([analytics, i18n])
   assert.deepEqual(
     waves.map((w) => w.map((p) => p.name)),
-    [['@weft/i18n'], ['@weft/analytics']],
+    [['@weftjs/i18n'], ['@weftjs/analytics']],
   )
 })
 

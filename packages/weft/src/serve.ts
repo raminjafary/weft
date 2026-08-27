@@ -3,10 +3,10 @@ import { access, readFile } from 'node:fs/promises'
 import { basename, dirname, join, relative } from 'node:path'
 import { Readable, type Duplex } from 'node:stream'
 import { fileURLToPath } from 'node:url'
-import { patchPayload, render } from '@weft/ir'
+import { patchPayload, render } from '@weftjs/ir'
 import { entityTag, matchesTag } from './entity.ts'
 import { isScopedSheet, scopeAttribute, scopeCss, scopeStem } from './scoped.ts'
-import { frame, str, type Frame } from '@weft/warp'
+import { frame, str, type Frame } from '@weftjs/warp'
 import {
   boundedDb,
   channelHandlers,
@@ -19,7 +19,7 @@ import {
   nodeTransport,
   prioScheduler,
   staticFlags,
-} from '@weft/adapters'
+} from '@weftjs/adapters'
 import {
   channelRegions,
   createComposer,
@@ -52,8 +52,8 @@ import {
   type RegionSpec,
   type SlotRequest,
   type StorePort,
-} from '@weft/kernel'
-import { verifyRegions, type VerifyReport } from '@weft/plan'
+} from '@weftjs/kernel'
+import { verifyRegions, type VerifyReport } from '@weftjs/plan'
 import {
   browserModule,
   buildAssets,
@@ -477,8 +477,8 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     publicDir: join(root, 'public'),
     assets: appAssets,
     client: await ownTree(),
-    runtime: await packageTree('@weft/client'),
-    warp: await packageTree('@weft/warp'),
+    runtime: await packageTree('@weftjs/client'),
+    warp: await packageTree('@weftjs/warp'),
     ...(discovered.client ? { app: { dir: dirname(discovered.client), ext: '.ts' as const } } : {}),
     // Dev must never cache: a stylesheet you just edited, served as immutable, is a framework
     // that lies to you for a year.

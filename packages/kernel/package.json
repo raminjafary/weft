@@ -1,5 +1,5 @@
 {
-  "name": "@weft/kernel",
+  "name": "@weftjs/kernel",
   "version": "0.1.0",
   "description": "The request kernel: two-phase envelope, streaming, cache, intents, channels, ports.",
   "keywords": [
@@ -42,8 +42,8 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@weft/ir": "workspace:*",
-    "@weft/warp": "workspace:*"
+    "@weftjs/ir": "workspace:*",
+    "@weftjs/warp": "workspace:*"
   },
   "engines": {
     "node": ">=22.18.0"
@@ -52,7 +52,7 @@
     "access": "public"
   },
   "devDependencies": {
-    "@weft/adapters": "workspace:*",
-    "@weft/compiler": "workspace:*"
+    "@weftjs/adapters": "workspace:*",
+    "@weftjs/compiler": "workspace:*"
   }
 }

@@ -1,11 +1,11 @@
-import { createBinaryDecoder, encodeStream, num, type AnyFrame } from '@weft/warp'
+import { createBinaryDecoder, encodeStream, num, type AnyFrame } from '@weftjs/warp'
 import type { Ports, RegionBinding } from './ports.ts'
 import type { RegionAnnouncement, RegionOutcome } from './region.ts'
 import { announceRegion, readRegion, RegionError } from './region.ts'
 
 /**
  * The executor name a plan uses for a region it has not resolved yet, repeated here rather than
- * imported: `@weft/plan` depends on the kernel and not the other way round, and one string is a
+ * imported: `@weftjs/plan` depends on the kernel and not the other way round, and one string is a
  * better price than an edge in the wrong direction. `spec/plan/regions.md` is where it is defined.
  */
 const REGION_EXECUTOR = 'region'

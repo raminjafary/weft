@@ -1,4 +1,4 @@
-import { unimplemented, type DbQuery, type Ports, type RenderContext } from '@weft/kernel'
+import { unimplemented, type DbQuery, type Ports, type RenderContext } from '@weftjs/kernel'
 
 /**
  * What a route's own code may reach that is not a read of the request.

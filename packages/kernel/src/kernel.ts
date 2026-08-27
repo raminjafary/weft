@@ -1,4 +1,4 @@
-import type { EffectSet, Resolver, TemplateIR, Values } from '@weft/ir'
+import type { EffectSet, Resolver, TemplateIR, Values } from '@weftjs/ir'
 import { cacheHeaders, resolveKey, type CachePolicy, type ResolvedKey } from './cache.ts'
 import {
   createReads,

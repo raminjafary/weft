@@ -1,5 +1,5 @@
 {
-  "name": "@weft/warp",
+  "name": "@weftjs/warp",
   "version": "0.1.0",
   "description": "Warp/1: the binary frame codec the channel speaks.",
   "keywords": [

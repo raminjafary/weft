@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { intentId } from '@weft/compiler'
-import { defineIntent, type Intent } from '@weft/kernel'
+import { intentId } from '@weftjs/compiler'
+import { defineIntent, type Intent } from '@weftjs/kernel'
 import { manifestRegistry } from '../src/registry.ts'
 
 const noop = defineIntent({ name: 'noop', writes: [], run: () => {} }) as Intent<never>

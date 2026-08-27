@@ -1,4 +1,4 @@
-import { fastHash, short } from '@weft/ir'
+import { fastHash, short } from '@weftjs/ir'
 
 /**
  * Scoped stylesheets: `card.scoped.css` beside `card.tsx`.

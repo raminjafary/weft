@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { cookieSession, staticFlags } from '@weft/adapters'
+import { cookieSession, staticFlags } from '@weftjs/adapters'
 import { byteReport, devtoolsFor, fragmentReport, routeReport, whyPage } from '../src/devtools.ts'
 import { createApp, serveApp, type App, type Serving } from '../src/serve.ts'
 

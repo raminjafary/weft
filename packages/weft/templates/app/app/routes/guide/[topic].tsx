@@ -1,4 +1,4 @@
-import { fragment } from '@weft/core'
+import { fragment } from '@weftjs/core'
 import Card from '../../fragments/card.tsx'
 
 interface Note {

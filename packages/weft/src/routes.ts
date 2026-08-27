@@ -8,7 +8,7 @@ import {
   unionEffects,
   type DerivedExpr,
   type Values,
-} from '@weft/ir'
+} from '@weftjs/ir'
 import {
   createRouter,
   recordBase,
@@ -19,7 +19,7 @@ import {
   type RouteEntry,
   type RouteResolver,
   type StorePort,
-} from '@weft/kernel'
+} from '@weftjs/kernel'
 import {
   every,
   factsFrom,
@@ -35,7 +35,7 @@ import {
   type RouteBindings,
   type SlotBinding,
   type SlotFacts,
-} from '@weft/plan'
+} from '@weftjs/plan'
 import { composedIn, slotHoles, type CompiledApp, type CompiledFragment } from './compile.ts'
 import { withServices } from './context.ts'
 import type { Decisions, Recorder, SlotDecision } from './profile.ts'

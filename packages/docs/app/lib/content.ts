@@ -7,7 +7,7 @@ import { commands, options, tagline } from './cli.ts'
 import { budgets, siteWeight } from './budgets.ts'
 import { artifacts } from './versions.ts'
 import { wireTable } from './wire.ts'
-import { intentId } from '@weft/compiler'
+import { intentId } from '@weftjs/compiler'
 import { exampleProfileJson } from './profile-example.ts'
 
 /**
@@ -454,7 +454,7 @@ app/routes/guide/layouts.data.ts   fills contents, body, outline`,
     ) +
     sketch(
       'ts',
-      `import { defineRoute } from '@weft/core'
+      `import { defineRoute } from '@weftjs/core'
 
 export default defineRoute({
   head: { title: 'Cart' },
@@ -542,7 +542,7 @@ export default defineRoute({
     sketch(
       'ts',
       `// app/intents/cart.ts
-import { defineIntent } from '@weft/core'
+import { defineIntent } from '@weftjs/core'
 
 export const add = defineIntent<{ sku: string; qty: number }>({
   name: 'cart.add',                       // for logs and \`weft why\`. Never on the wire
@@ -1112,9 +1112,9 @@ weft verify --probe   # ask each remote what it is serving right now`,
       'ts',
       `import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createApp } from '@weft/core/server'
-import { fragmentIR } from '@weft/core'
-import { render } from '@weft/ir'
+import { createApp } from '@weftjs/core/server'
+import { fragmentIR } from '@weftjs/core'
+import { render } from '@weftjs/ir'
 
 test('the badge renders its label', async () => {
   await createApp(process.cwd(), { mode: 'dev', port: 0 })
@@ -1240,8 +1240,8 @@ weft why /blog/:slug   # the plan for one route, and where each fact came from`,
     sketch(
       'ts',
       `// weft.config.ts
-import { defineConfig, redisLeases } from '@weft/core'
-import { workerPool } from '@weft/adapters'
+import { defineConfig, redisLeases } from '@weftjs/core'
+import { workerPool } from '@weftjs/adapters'
 
 export default defineConfig({
   port: 3000,

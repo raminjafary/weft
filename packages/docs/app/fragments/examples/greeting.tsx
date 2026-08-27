@@ -1,4 +1,4 @@
-import { fragment, type Ctx } from '@weft/core'
+import { fragment, type Ctx } from '@weftjs/core'
 
 /**
  * A fragment that reads the request, and therefore keys on it.

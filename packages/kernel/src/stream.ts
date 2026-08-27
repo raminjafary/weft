@@ -1,4 +1,4 @@
-import type { Resolver, TemplateIR, Values } from '@weft/ir'
+import type { Resolver, TemplateIR, Values } from '@weftjs/ir'
 import { fillerBytes } from './filler.ts'
 import { anchorFor, splitAtSlots, type Splitter } from './split.ts'
 

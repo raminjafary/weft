@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { byAddress, bySession, bySubject, countingLimits, memoryStore } from '@weft/adapters'
-import { TEMPLATE_IR_VERSION } from '@weft/ir'
-import { frame, residentFrame, str, WARP_VERSION, type Frame } from '@weft/warp'
-import type { ChannelSink, LimitRequest } from '@weft/kernel'
+import { byAddress, bySession, bySubject, countingLimits, memoryStore } from '@weftjs/adapters'
+import { TEMPLATE_IR_VERSION } from '@weftjs/ir'
+import { frame, residentFrame, str, WARP_VERSION, type Frame } from '@weftjs/warp'
+import type { ChannelSink, LimitRequest } from '@weftjs/kernel'
 import { createApp, serveApp, type Serving } from '../src/serve.ts'
 
 /**

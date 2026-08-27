@@ -1,4 +1,4 @@
-import { fragment, signal } from '@weft/core'
+import { fragment, signal } from '@weftjs/core'
 import { addToCart, setQuantity } from './intents.ts'
 
 const Price = fragment(({ amount }: { amount: number }) => <span class="price">{amount / 100}</span>)

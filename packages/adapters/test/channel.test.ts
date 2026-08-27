@@ -8,7 +8,7 @@ import {
   type Hole,
   type TemplateIR,
   type Values,
-} from '@weft/ir'
+} from '@weftjs/ir'
 import {
   type Channel,
   type ChannelHub,
@@ -21,7 +21,7 @@ import {
   lifecycle,
   requestFacts,
   type SlotRender,
-} from '@weft/kernel'
+} from '@weftjs/kernel'
 import { cookieSession } from '../src/session.ts'
 import { staticFlags } from '../src/flags.ts'
 import {
@@ -33,14 +33,14 @@ import {
   WARP_VERSION,
   type AnyFrame,
   type Frame,
-} from '@weft/warp'
+} from '@weftjs/warp'
 import {
   type Adopted,
   type ChannelFrame,
   createChannelClient,
   createEpochs as createClientEpochs,
   type Region,
-} from '@weft/client'
+} from '@weftjs/client'
 import { memoryStore } from '../src/memory-store.ts'
 import { mountChannel, upFrames } from '../src/node-channel.ts'
 import { collectingTelemetry } from '../src/telemetry.ts'

@@ -1,4 +1,4 @@
-import { fragment } from '@weft/core'
+import { fragment } from '@weftjs/core'
 
 /**
  * The smallest weft application there is. One file, no data file, no layout, no config.

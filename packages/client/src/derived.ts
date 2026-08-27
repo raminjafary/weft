@@ -10,7 +10,7 @@ export function evaluate(expr: ClientExpr, read: (id: string) => Json | undefine
   if (expr.k === 'lit') return expr.v
   if (expr.k === 'ref') return read(expr.id) ?? null
   if (expr.k === 'un') return unary(expr.op, evaluate(expr.a, read))
-  // Truthiness, lazily; `??` and `||` lower onto it. See `@weft/ir`'s `DerivedExpr` for why.
+  // Truthiness, lazily; `??` and `||` lower onto it. See `@weftjs/ir`'s `DerivedExpr` for why.
   if (expr.k === 'cond') return evaluate(expr.a, read) ? evaluate(expr.b, read) : evaluate(expr.c, read)
   return binary(expr.op, evaluate(expr.a, read), evaluate(expr.b, read))
 }

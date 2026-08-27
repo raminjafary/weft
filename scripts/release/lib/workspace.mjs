@@ -58,9 +58,9 @@ function workspaceDependencies(manifest) {
 /**
  * The published packages, in an order where a package always follows what it depends on.
  *
- * Publishing in this order means a consumer resolving `weft` can always resolve the `@weft/*`
+ * Publishing in this order means a consumer resolving `weft` can always resolve the `@weftjs/*`
  * versions its manifest pins, even mid-release. `devDependencies` are excluded from the edges —
- * they form cycles here (`@weft/kernel` dev-depends on `@weft/adapters`, which depends on the
+ * they form cycles here (`@weftjs/kernel` dev-depends on `@weftjs/adapters`, which depends on the
  * kernel) and they are not part of what an installer has to resolve.
  */
 export function publishOrder(packages) {

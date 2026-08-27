@@ -1,4 +1,4 @@
-# @weft/plan
+# @weftjs/plan
 
 The plan layer: a declaration of placement, validated against what the compiler inferred.
 
@@ -7,7 +7,7 @@ negotiates the wire form of a piece of UI per request. `weft build` generates a 
 tree; this is the language it is generated into.
 
 ```sh
-npm install @weft/plan
+npm install @weftjs/plan
 ```
 
 ## What it is

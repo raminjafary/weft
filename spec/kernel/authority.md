@@ -117,7 +117,7 @@ make its whole _cache_ shared to get it: a much larger decision, made for a reas
 do with caching.
 
 Split, a process-local cache can take shared leases. `sharedLeases(store, { dir })` in
-`@weft/adapters` is that: an exclusive create in a directory every process can see, which is atomic on
+`@weftjs/adapters` is that: an exclusive create in a directory every process can see, which is atomic on
 a local filesystem, so exactly one caller gets the lease and the rest are told it is held. It replaces
 one method and leaves `scope` alone, because it does not make the cache shared.
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFile, rm } from 'node:fs/promises'
+import { readFile, readdir, rm } from 'node:fs/promises'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
@@ -33,6 +33,14 @@ after(async () => {
   if (dir) await rm(dir, { recursive: true, force: true })
 })
 
+/**
+ * Comments removed, because the served source carries doc comments and several of them name the
+ * package they document. A quoted occurrence in code is a specifier; the same words in a comment
+ * are not.
+ */
+const code = (source: string): string =>
+  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
+
 test('every URL the manifest names is a file in the build', async () => {
   const out = await built()
   const manifest = JSON.parse(await readFile(join(out, 'assets', 'manifest.json'), 'utf8')) as Record<
@@ -59,6 +67,49 @@ test('every module the deployment would answer for is a file in the build', asyn
     const file = join(out, 'assets', href.replace(/^\//, ''))
     await assert.doesNotReject(readFile(file), `${href} is servable and not in the build`)
   }
+})
+
+/**
+ * No served module may name a workspace package.
+ *
+ * `browserModule` rewrites `@weftjs/client` and `@weftjs/warp` to the URLs they are mounted at,
+ * because a browser cannot resolve a package name. The rewrite holds those two names as literals
+ * inside regular expressions, so renaming a package silently disarms it — which is what happened
+ * when the scope moved from `@weft` to `@weftjs`. Every one of 943 tests still passed, the build
+ * still succeeded, and the first page load in a browser would have failed on an unresolvable
+ * import.
+ *
+ * The check is a quoted-string search rather than an import parse, for two reasons. The boot module
+ * is served as type-stripped source, where the import is spread over twenty lines and no
+ * line-anchored pattern sees the `from` clause — the first version of this test missed the very bug
+ * it was written for on exactly that. And the names come from the workspace rather than from a list
+ * here, so the next rename is caught without anybody remembering to update this file.
+ */
+test('no module the deployment serves names a workspace package', async () => {
+  const out = await built()
+  const app = await createApp(ROOT, { mode: 'build', outDir: OUT })
+  const served = await moduleFiles(app.assets)
+  assert.ok(served.size > 0, 'no modules were mounted, so this asserts nothing')
+
+  const packages = fileURLToPath(new URL('../../', import.meta.url))
+  const names: string[] = []
+  for (const entry of await readdir(packages)) {
+    try {
+      names.push(JSON.parse(await readFile(join(packages, entry, 'package.json'), 'utf8')).name)
+    } catch {
+      // Not a package, so not a name a served module could be asking a browser to resolve.
+    }
+  }
+  assert.ok(names.length > 5, `only ${names.length} workspace packages found: the scan lost something`)
+
+  const offenders: string[] = []
+  for (const href of served.keys()) {
+    const source = code(await readFile(join(out, 'assets', href.replace(/^\//, '')), 'utf8'))
+    for (const name of names) {
+      if (source.includes(`'${name}'`) || source.includes(`"${name}"`)) offenders.push(`${href} → ${name}`)
+    }
+  }
+  assert.deepEqual(offenders.sort(), [], 'a browser cannot resolve these, so the page fails on load')
 })
 
 test('the boot module carries the prelude, so a CDN copy boots the same as a served one', async () => {

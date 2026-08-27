@@ -81,7 +81,7 @@ test('the kernel only reaches sideways into the two versioned wire packages', ()
 
 /**
  * The line count is a smell detector for the kernel absorbing work that belongs in a port. It
- * is not the byte budget — that is in `@weft/bench` — and it has now been re-derived three
+ * is not the byte budget — that is in `@weftjs/bench` — and it has now been re-derived three
  * times, each time because it was measuring something other than what it claims to.
  *
  * First it summed every file in `src/`, so routing appeared to blow it and the ceiling was

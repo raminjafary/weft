@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream'
 import { createServer, type Server } from 'node:http'
-import { fillerBytes, type Order, type Route, type SlotContent, streamRoute } from '@weft/kernel'
+import { fillerBytes, type Order, type Route, type SlotContent, streamRoute } from '@weftjs/kernel'
 
 /** Where to listen, and what handles a request the kernel does not. */
 export interface ServeOptions {

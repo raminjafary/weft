@@ -1,12 +1,12 @@
 import { budgets, deltas, forms, versions } from '../api.ts'
 import { escapeHtml, explain, field, panel, pick, pre, press, readout, slider } from '../pages.ts'
-import { ageOf, appProfile, MIN_SAMPLES } from '@weft/core'
+import { ageOf, appProfile, MIN_SAMPLES } from '@weftjs/core'
 import type { StationHandler } from './kind.ts'
 
 const n = (value: number): string => value.toLocaleString('en-US')
 
 /**
- * The measurement stations. Everything on them comes out of `@weft/bench`, which is the rule the
+ * The measurement stations. Everything on them comes out of `@weftjs/bench`, which is the rule the
  * design's build notes state and the reason these pages are worth trusting: a demo with its own
  * measurement path is a demo that will disagree with the harness.
  */

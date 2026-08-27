@@ -1,4 +1,4 @@
-# @weft/inspector
+# @weftjs/inspector
 
 The framework inspecting itself. A station per mechanism, and each one is a page you can drive:
 change a control, watch the number move, and read what produced it.
@@ -10,11 +10,11 @@ pnpm inspect
 ## Why it is not in the demo
 
 It used to be. It was the largest thing in `demo/` and the only part that imported
-`@weft/kernel`, `@weft/plan`, `@weft/adapters` and `@weft/warp` directly — because taking those
+`@weftjs/kernel`, `@weftjs/plan`, `@weftjs/adapters` and `@weftjs/warp` directly — because taking those
 apart is its whole purpose. That is not an application using a framework, and an application is
 what a demo is supposed to be. So the demo kept the five showcases and this took the stations.
 
-The distinction is worth holding: **`demo/` may only import `@weft/core`.** If a station needs
+The distinction is worth holding: **`demo/` may only import `@weftjs/core`.** If a station needs
 something, that is a fact about the framework's internals, not a gap in its front door. If the
 _demo_ needs something, the front door is missing it.
 

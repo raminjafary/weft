@@ -63,8 +63,8 @@ const NOTE = /limitNote:\s*('(?:[^'\\]|\\.)*'(?:\s*\+\s*'(?:[^'\\]|\\.)*')*)/
 
 /** Which package an entry's helper reaches into. The call says it, so no table has to. */
 const REACHES: Record<string, string> = {
-  src: '@weft/client',
-  kernelSrc: '@weft/kernel',
+  src: '@weftjs/client',
+  kernelSrc: '@weftjs/kernel',
   front: 'weft',
 }
 

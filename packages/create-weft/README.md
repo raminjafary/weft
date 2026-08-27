@@ -38,7 +38,7 @@ scaffold whose output is a placeholder teaches nothing about the framework it is
 A non-empty target directory is refused rather than merged — `E_NOT_EMPTY`, naming what is in the
 way.
 
-This package is a shim, deliberately. The templates and the scaffolder live in the `@weft/core` package
+This package is a shim, deliberately. The templates and the scaffolder live in the `@weftjs/core` package
 itself, because a scaffold that ships its own copy of them is a scaffold that will generate an
 application the framework has stopped supporting.
 

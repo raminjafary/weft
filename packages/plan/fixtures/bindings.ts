@@ -1,5 +1,5 @@
-import type { Values } from '@weft/ir'
-import { createRouter, type Router, type RouteResolver } from '@weft/kernel'
+import type { Values } from '@weftjs/ir'
+import { createRouter, type Router, type RouteResolver } from '@weftjs/kernel'
 import {
   compileFixture,
   CRITICAL,

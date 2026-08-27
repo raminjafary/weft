@@ -44,7 +44,7 @@ after(async () => {
 
 async function fixture(name: string, body: string): Promise<string> {
   const file = join(dir, `${name}.tsx`)
-  await writeFile(file, `import { fragment, signal, raw } from '@weft/core'\n${body}\n`)
+  await writeFile(file, `import { fragment, signal, raw } from '@weftjs/core'\n${body}\n`)
   return file
 }
 
@@ -121,7 +121,7 @@ test('a type error is reported and does not stop the template lowering', async (
 test('the oracle answers by exact span', async () => {
   const file = await fixture('span', 'export default fragment(({ n }: { n: number }) => <p>{n}</p>)')
   const oracle = createTypeOracle([file], dir)
-  const source = `import { fragment, signal, raw } from '@weft/core'\nexport default fragment(({ n }: { n: number }) => <p>{n}</p>)\n`
+  const source = `import { fragment, signal, raw } from '@weftjs/core'\nexport default fragment(({ n }: { n: number }) => <p>{n}</p>)\n`
   const start = source.lastIndexOf('{n}') + 1
   assert.equal(oracle.kindAt(file, start, start + 1), 'number')
   assert.equal(oracle.kindAt(file, 0, 3), 'other')

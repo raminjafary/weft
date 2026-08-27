@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, readFileSync, readdirSync } from 'node:fs'
+import { copyFileSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -31,6 +31,16 @@ for (const name of ORDER) {
   if (only.length && !only.includes(name)) continue
   const cwd = join(root, 'packages', name)
   process.stdout.write(`  ${name} … `)
+  /**
+   * `dist` is emptied first, because `tsc` writes and never prunes.
+   *
+   * A file it emitted once stays until something deletes it, and `files: ["dist"]` publishes the
+   * whole directory — so an artifact that stopped being generated goes on shipping. That is not
+   * hypothetical: turning `sourceMap` and `declarationMap` off left 378 stale `.map` files behind,
+   * every one of them a map pointing at a `src` the tarball does not carry, and the pack audit found
+   * them rather than a reader of this script. Rebuilding from empty costs about a second.
+   */
+  rmSync(join(cwd, 'dist'), { recursive: true, force: true })
   const result = spawnSync('pnpm', ['run', 'build'], { cwd, encoding: 'utf8' })
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim()
   if (result.status === 0) {

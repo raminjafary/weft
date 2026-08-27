@@ -8,8 +8,8 @@ import {
   seal,
   type Hole,
   type TemplateIR,
-} from '@weft/ir'
-import { str } from '@weft/warp'
+} from '@weftjs/ir'
+import { str } from '@weftjs/warp'
 import {
   createEpochs,
   createStaleRegistry,
@@ -22,7 +22,7 @@ import {
   selectForm,
   surgicalRefresh,
 } from '../src/index.ts'
-import { memoryStore } from '@weft/adapters'
+import { memoryStore } from '@weftjs/adapters'
 
 const decoder = new TextDecoder()
 

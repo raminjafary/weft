@@ -14,14 +14,14 @@ Not a preference — a constraint on what the kernel is allowed to know, which i
 
 - any `from 'node:…'` import under `packages/kernel/src`
 - `process.`, `Buffer`, CommonJS `require(`, `__dirname`
-- a relative import reaching outside `@weft/ir` and `@weft/warp`, the two versioned wire
+- a relative import reaching outside `@weftjs/ir` and `@weftjs/warp`, the two versioned wire
   packages
 - kernel source growing past 2,900 lines — a smell detector for the kernel absorbing work that
   belongs in a port, not the real gate. It moved from 2,500 when routing was added, because
   routing is one of the four jobs the design gives a kernel
 
 `serveRoute` used to live in the kernel and imported `node:http`. It moved to
-`@weft/adapters` when the gate was written, which is the gate doing its job on its first
+`@weftjs/adapters` when the gate was written, which is the gate doing its job on its first
 run.
 
 ## Measured

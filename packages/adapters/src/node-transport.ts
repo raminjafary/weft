@@ -1,6 +1,12 @@
 import { Readable } from 'node:stream'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { type Kernel, type KernelRoute, linkValue, type PreloadLink, type TransportPort } from '@weft/kernel'
+import {
+  type Kernel,
+  type KernelRoute,
+  linkValue,
+  type PreloadLink,
+  type TransportPort,
+} from '@weftjs/kernel'
 
 /**
  * The kernel takes a Request and returns a Response, and nothing more. This is the whole of

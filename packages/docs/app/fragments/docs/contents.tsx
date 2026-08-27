@@ -1,4 +1,4 @@
-import { fragment } from '@weft/core'
+import { fragment } from '@weftjs/core'
 
 /** One entry. `count` and `current` are strings because a hole is filled, never branched on. */
 export interface ContentsItem {

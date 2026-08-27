@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { memoryStore } from '@weft/adapters'
+import { memoryStore } from '@weftjs/adapters'
 import { createApp } from '../src/serve.ts'
 import { createSpeculation } from '../src/speculate.ts'
 import { adoptScript } from '../src/routes.ts'

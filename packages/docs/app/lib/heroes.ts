@@ -1,4 +1,4 @@
-import { criticalPath, schedule } from '@weft/kernel'
+import { criticalPath, schedule } from '@weftjs/kernel'
 import { escapeHtml } from './escape.ts'
 import { caption } from './openers.ts'
 import { siteWeight } from './budgets.ts'

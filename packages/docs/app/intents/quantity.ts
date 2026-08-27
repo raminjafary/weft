@@ -1,4 +1,4 @@
-import { defineIntent } from '@weft/core'
+import { defineIntent } from '@weftjs/core'
 
 /**
  * What makes the signals example on `/guide/the-client` respond to typing.

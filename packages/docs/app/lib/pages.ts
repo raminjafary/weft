@@ -13,7 +13,7 @@ import { votes } from '../intents/feedback.ts'
  *
  * - **This site** is the introduction: what the thing is, in order, with examples that run.
  * - **`spec/`** is the reference: the mechanism, its refusals, and what it deliberately does not do.
- * - **`@weft/inspector`** is the live version: a station per mechanism, with a control. Its own test
+ * - **`@weftjs/inspector`** is the live version: a station per mechanism, with a control. Its own test
  *   is the one that fails when a capability ships without coverage.
  */
 export interface Page {

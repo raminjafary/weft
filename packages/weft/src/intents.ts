@@ -1,12 +1,12 @@
 import { relative, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { intentId } from '@weft/compiler'
-import type { Intent, IntentLimit, IntentRoute, Registry } from '@weft/kernel'
+import { intentId } from '@weftjs/compiler'
+import type { Intent, IntentLimit, IntentRoute, Registry } from '@weftjs/kernel'
 
 /**
  * The intent manifest, generated from a directory.
  *
- * `manifestRegistry` in `@weft/adapters` has always been able to consume one of these; nothing
+ * `manifestRegistry` in `@weftjs/adapters` has always been able to consume one of these; nothing
  * produced one. This is that producer, and the derivation is deliberately the same function the
  * compiler used to write the id into a template's wiring — a manifest that spelled its own ids
  * could disagree with the templates, and that disagreement looks exactly like an intent that

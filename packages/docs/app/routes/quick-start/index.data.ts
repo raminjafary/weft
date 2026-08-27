@@ -1,4 +1,4 @@
-import { defineRoute } from '@weft/core'
+import { defineRoute } from '@weftjs/core'
 import { shell } from '../../lib/shell.ts'
 import { startContents } from '../../lib/contents.ts'
 import { IS_A_FILE, onThisPage } from '../../lib/rails.ts'
@@ -96,7 +96,7 @@ export default defineRoute({
           ['app/routes/index.tsx', 'app/routes/index.data.ts'],
           'tsx',
           `// app/routes/index.tsx
-import { fragment } from '@weft/core'
+import { fragment } from '@weftjs/core'
 
 export default fragment(({ user }: { user: User }) => (
   <main>

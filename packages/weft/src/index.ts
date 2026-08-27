@@ -145,8 +145,8 @@ export { generateSigningKeys, TOKEN_PATH, type AuthorityConfig } from './authori
  * an address, a session, a subject — written out, because a port whose only documentation is its
  * type is a port everybody implements slightly wrong once.
  */
-export { byAddress, bySession, bySubject, countingLimits } from '@weft/adapters'
-export type { CountingLimitOptions } from '@weft/adapters'
+export { byAddress, bySession, bySubject, countingLimits } from '@weftjs/adapters'
+export type { CountingLimitOptions } from '@weftjs/adapters'
 /**
  * Leases more than one process agrees about, which is what replay protection is made of.
  *
@@ -155,14 +155,14 @@ export type { CountingLimitOptions } from '@weft/adapters'
  * `sharedLeases` reaches every process on one machine, over a directory; `redisLeases` reaches every
  * instance of the deployment, over a socket. See `spec/kernel/authority.md` for what each one buys.
  */
-export { redisLeases, sharedLeases } from '@weft/adapters'
-export type { LeasedStore, RedisLeaseOptions, SharedLeaseOptions } from '@weft/adapters'
-export type { StorePort } from '@weft/kernel'
-export type { IntentLimit, LimitDecision, LimitPort, LimitRequest } from '@weft/kernel'
-export type { Grant, Grants, Decision, CapabilityModel, IntentClaims } from '@weft/kernel'
-export { defineIntent } from '@weft/kernel'
-export type { Intent, IntentContext, IntentResult, RenderContext, EnvelopeContext } from '@weft/kernel'
-export type { Values } from '@weft/ir'
+export { redisLeases, sharedLeases } from '@weftjs/adapters'
+export type { LeasedStore, RedisLeaseOptions, SharedLeaseOptions } from '@weftjs/adapters'
+export type { StorePort } from '@weftjs/kernel'
+export type { IntentLimit, LimitDecision, LimitPort, LimitRequest } from '@weftjs/kernel'
+export type { Grant, Grants, Decision, CapabilityModel, IntentClaims } from '@weftjs/kernel'
+export { defineIntent } from '@weftjs/kernel'
+export type { Intent, IntentContext, IntentResult, RenderContext, EnvelopeContext } from '@weftjs/kernel'
+export type { Values } from '@weftjs/ir'
 export type { LoaderContext, Services } from './context.ts'
 /**
  * Composition, from the front door.
@@ -176,7 +176,7 @@ export type { LoaderContext, Services } from './context.ts'
  * claim rests on: both ends of a tier boundary run this framework, so serving a region is a module
  * you export rather than a gateway you write. `topology` is the four named shapes as one field.
  */
-export { bindingExecutor, regionService, svcExecutor, topology } from '@weft/adapters'
+export { bindingExecutor, regionService, svcExecutor, topology } from '@weftjs/adapters'
 export type {
   BoundFetch,
   RegionAnswer,
@@ -186,8 +186,8 @@ export type {
   TopologyName,
   TopologyOptions,
   TopologyRegion,
-} from '@weft/adapters'
-export { manifestRegistry } from '@weft/adapters'
+} from '@weftjs/adapters'
+export { manifestRegistry } from '@weftjs/adapters'
 /**
  * The pieces a region that composes regions needs, which is the same set a shell needs.
  *
@@ -197,7 +197,7 @@ export { manifestRegistry } from '@weft/adapters'
  * `probeRegions` is what a region implements `probe` with so that `weft verify --probe` can report
  * the whole composite as one graph rather than as a hop count.
  */
-export { createComposer, formatRegionGraph, probeRegions, regionGraph } from '@weft/kernel'
+export { createComposer, formatRegionGraph, probeRegions, regionGraph } from '@weftjs/kernel'
 export type {
   ComposeOptions,
   Composer,
@@ -210,4 +210,4 @@ export type {
   RegionOutcome,
   RegionRequest,
   Registry,
-} from '@weft/kernel'
+} from '@weftjs/kernel'

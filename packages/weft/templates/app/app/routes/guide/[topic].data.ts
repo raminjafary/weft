@@ -1,4 +1,4 @@
-import { defineRoute } from '@weft/core'
+import { defineRoute } from '@weftjs/core'
 
 const TOPICS: Record<string, { intro: string; cards: [string, string][]; notes: [string, string][] }> = {
   routing: {

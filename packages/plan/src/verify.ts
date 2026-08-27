@@ -1,4 +1,10 @@
-import { readRegion, readRegionTree, type RegionBinding, type RegionNode, type Registry } from '@weft/kernel'
+import {
+  readRegion,
+  readRegionTree,
+  type RegionBinding,
+  type RegionNode,
+  type Registry,
+} from '@weftjs/kernel'
 import { REGION_EXECUTOR, type Plan } from './dsl.ts'
 import type { Issue } from './validate.ts'
 

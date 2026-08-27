@@ -1,6 +1,6 @@
-import { defineRoute } from '@weft/core'
+import { defineRoute } from '@weftjs/core'
 import { dashPanel } from '../../lib/data.ts'
-import type { ExceedPolicy } from '@weft/core'
+import type { ExceedPolicy } from '@weftjs/core'
 import { field, panel, pick, press, slider } from '../../lib/controls.ts'
 
 /** What a control is read through. A control on a server-rendered page is a query parameter. */

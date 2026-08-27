@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { memoryStore } from '@weft/adapters'
-import { TEMPLATE_IR_VERSION } from '@weft/ir'
-import { WARP_VERSION, frame, residentFrame, str, num, type Frame } from '@weft/warp'
+import { memoryStore } from '@weftjs/adapters'
+import { TEMPLATE_IR_VERSION } from '@weftjs/ir'
+import { WARP_VERSION, frame, residentFrame, str, num, type Frame } from '@weftjs/warp'
 import { createHub, type ChannelSink } from '../src/channel.ts'
 import { createExtender, planFrame, type DiscoveredRoute } from '../src/discover.ts'
 

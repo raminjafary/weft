@@ -15,7 +15,7 @@ import {
   type IntentVerifier,
   type Ports,
   type StorePort,
-} from '@weft/kernel'
+} from '@weftjs/kernel'
 import type { IntentManifest } from './intents.ts'
 
 /**
@@ -160,7 +160,7 @@ export async function resolveAuthority(
     diagnostics.push(
       `W_NO_RATE_LIMIT: ${limited.map((entry) => entry.name).join(', ')} declare a limit and no limits ` +
         `port is bound, so every call is E_NO_RATE_LIMIT. Bind weft.config.ts's \`limits\` — ` +
-        `countingLimits({ store, counted }) in @weft/adapters, where \`counted\` is the decision a ` +
+        `countingLimits({ store, counted }) in @weftjs/adapters, where \`counted\` is the decision a ` +
         `kernel cannot make for you`,
     )
   }
@@ -256,7 +256,7 @@ export async function resolveAuthority(
           `W_REPLAY_PROCESS_LOCAL: a spent nonce is remembered in '${store.name}', whose leases are ` +
             `process-scoped, so a signed intent is single-use per process rather than per deployment. ` +
             `sharedLeases(store, { dir }) makes it per machine and redisLeases(store, { url }) makes ` +
-            `it per deployment, both in @weft/adapters`,
+            `it per deployment, both in @weftjs/adapters`,
         )
       }
     } else if (signer) {

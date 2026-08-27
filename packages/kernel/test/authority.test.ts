@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { Buffer } from 'node:buffer'
 import process from 'node:process'
 import { test } from 'node:test'
-import { cookieSession, memoryStore, staticFlags } from '@weft/adapters'
+import { cookieSession, memoryStore, staticFlags } from '@weftjs/adapters'
 import { createCapabilityModel, covers, grantsOf, roleGrants, AuthorityError } from '../src/authority.ts'
 import { createEnvelope } from '../src/envelope.ts'
 import { createReads, envelopeContext, type EnvelopeContext } from '../src/context.ts'
@@ -228,7 +228,7 @@ test('a token spent in one process is spent as far as a second process is concer
   const { execFile } = await import('node:child_process')
   const { promisify } = await import('node:util')
   const { fileURLToPath } = await import('node:url')
-  const { sharedLeases } = await import('@weft/adapters')
+  const { sharedLeases } = await import('@weftjs/adapters')
   const run = promisify(execFile)
 
   const dir = await mkdtemp(join(tmpdir(), 'weft-replay-'))

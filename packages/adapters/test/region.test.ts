@@ -10,7 +10,7 @@ import {
   regionStream,
   type Ports,
   type RegionRequest,
-} from '@weft/kernel'
+} from '@weftjs/kernel'
 import {
   bindingExecutor,
   collectingTelemetry,

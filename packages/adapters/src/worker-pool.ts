@@ -1,7 +1,7 @@
 import { Worker } from 'node:worker_threads'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { type KernelExecutor, type RenderJob, type RenderOutcome, type TelemetryPort } from '@weft/kernel'
+import { type KernelExecutor, type RenderJob, type RenderOutcome, type TelemetryPort } from '@weftjs/kernel'
 
 /**
  * A real worker pool, which is what makes `.budget({ cpu })` a limit rather than a report.

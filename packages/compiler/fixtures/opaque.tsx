@@ -1,4 +1,4 @@
-import { fragment } from '@weft/core'
+import { fragment } from '@weftjs/core'
 
 /**
  * The escape hatch, and what it costs. `ctx.raw()` leaves effect tracking, so this fragment

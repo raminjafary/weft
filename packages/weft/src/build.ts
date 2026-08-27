@@ -1,6 +1,6 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
-import { parse, stringify, type TemplateIR } from '@weft/ir'
+import { parse, stringify, type TemplateIR } from '@weftjs/ir'
 import { bootPrelude, createApp } from './serve.ts'
 import { prerender, STATIC_DIR, type StaticManifest, type StaticRefusal } from './static.ts'
 import { checkJsBudgets, describeJsVerdict, measureClientJs } from './js-budget.ts'

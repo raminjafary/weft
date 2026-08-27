@@ -1,11 +1,11 @@
-import { defineRoute } from '@weft/core'
+import { defineRoute } from '@weftjs/core'
 import { SHOWCASES } from '../lib/showcases.ts'
 
 /**
  * The demo's index: the six shapes of page, and what makes each one hard.
  *
  * It used to list thirty-four stations, which is why this file used to import a station registry.
- * The stations moved to `@weft/inspector`, where taking the framework apart is the job — and this
+ * The stations moved to `@weftjs/inspector`, where taking the framework apart is the job — and this
  * page went back to being what a demo's index should be: the applications, and a link to the
  * inspector for anyone who wants the mechanisms underneath.
  */

@@ -7,9 +7,9 @@ import {
   type EffectSet,
   type Hole,
   type TemplateIR,
-} from '@weft/ir'
+} from '@weftjs/ir'
 import { createKernel, leaseCoalescer, type KernelRoute, type KernelSlot, type Ports } from '../src/index.ts'
-import { collectingTelemetry, cookieSession, memoryStore, staticFlags } from '@weft/adapters'
+import { collectingTelemetry, cookieSession, memoryStore, staticFlags } from '@weftjs/adapters'
 
 const utf8 = new TextEncoder()
 

@@ -111,7 +111,7 @@ export function isSurviving(child: Node): boolean {
  *
  * Lowering recognises `raw()` by where it came from, not by its name, so the specifier is part of
  * the source vocabulary this file holds the rest of. It is a constant because the package is named
- * `@weft/core` while the command, the directory and the commit scope are all `weft` — four spellings
+ * `@weftjs/core` while the command, the directory and the commit scope are all `weft` — four spellings
  * of one thing, and this is the only one the compiler compares against.
  */
-export const FRAMEWORK_MODULE = '@weft/core'
+export const FRAMEWORK_MODULE = '@weftjs/core'

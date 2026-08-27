@@ -1,10 +1,10 @@
 import { basename } from 'node:path'
-import type { CacheSpec, FormSpec, RefreshSpec, SlotBudgetSpec, SlotSpec } from '@weft/plan'
-import { cacheClassOf, type Hole } from '@weft/ir'
+import type { CacheSpec, FormSpec, RefreshSpec, SlotBudgetSpec, SlotSpec } from '@weftjs/plan'
+import { cacheClassOf, type Hole } from '@weftjs/ir'
 import type { App } from '../serve.ts'
 import { bytes, code, escape, list, maybe, pre, refusal, section, table, type Shell } from './html.ts'
 import { byteReport, fragmentReport, routeReport, whyPage, type RouteReport, type WhyPage } from './report.ts'
-import type { Ports } from '@weft/kernel'
+import type { Ports } from '@weftjs/kernel'
 
 /**
  * The six pages, each one a rendering of a report and never a derivation of its own.

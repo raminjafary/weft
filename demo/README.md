@@ -9,12 +9,12 @@ pnpm demo
 
 ## It imports nothing but `weft`
 
-Not `@weft/kernel`, not `@weft/plan`, not `@weft/adapters`. Its `package.json` depends on `weft`
+Not `@weftjs/kernel`, not `@weftjs/plan`, not `@weftjs/adapters`. Its `package.json` depends on `weft`
 alone, so it could not reach past the front door even by accident. If a page here needs something,
 that is a gap in the framework's front door rather than a reason to open a side one — and the demo
 is the thing that keeps finding those gaps.
 
-The stations that _do_ take the framework apart moved to `@weft/inspector`, where that is the job.
+The stations that _do_ take the framework apart moved to `@weftjs/inspector`, where that is the job.
 
 ## It has no client code
 

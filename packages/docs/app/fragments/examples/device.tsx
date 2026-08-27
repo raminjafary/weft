@@ -1,4 +1,4 @@
-import { fragment, type Ctx } from '@weft/core'
+import { fragment, type Ctx } from '@weftjs/core'
 
 /**
  * A read with three possible values, which is what makes it an ahead-of-time permutation.

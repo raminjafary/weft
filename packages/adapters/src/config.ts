@@ -1,4 +1,4 @@
-import type { ConfigPort } from '@weft/kernel'
+import type { ConfigPort } from '@weftjs/kernel'
 
 /**
  * What the deployment was configured with.

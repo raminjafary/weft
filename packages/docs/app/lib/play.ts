@@ -1,5 +1,5 @@
-import { compileFiles } from '@weft/compiler'
-import { render, stringify, type TemplateIR, type Values } from '@weft/ir'
+import { compileFiles } from '@weftjs/compiler'
+import { render, stringify, type TemplateIR, type Values } from '@weftjs/ir'
 import { escapeHtml } from './escape.ts'
 import { highlight } from './highlight.ts'
 import { infer } from '../infer.ts'
@@ -26,7 +26,7 @@ import { infer } from '../infer.ts'
  */
 const MAX_BYTES = 8 * 1024
 
-export const STARTER = `import { fragment } from '@weft/core'
+export const STARTER = `import { fragment } from '@weftjs/core'
 
 interface Props { label: string; count: number }
 

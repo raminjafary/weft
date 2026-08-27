@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { connect as connectTcp, type Socket } from 'node:net'
 import { connect as connectTls } from 'node:tls'
-import type { Lease, StorePort } from '@weft/kernel'
+import type { Lease, StorePort } from '@weftjs/kernel'
 
 /**
  * Leases a whole deployment agrees about, over a socket.

@@ -1,4 +1,4 @@
-import type { TemplateIR } from '@weft/ir'
+import type { TemplateIR } from '@weftjs/ir'
 import { splitAtSlots, type SlotSplit, type Splitter } from './split.ts'
 
 /**

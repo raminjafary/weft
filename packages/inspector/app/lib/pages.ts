@@ -1,5 +1,5 @@
-import { render, type Values } from '@weft/ir'
-import { fragmentIR, type CompiledFragment, type RenderContext } from '@weft/core'
+import { render, type Values } from '@weftjs/ir'
+import { fragmentIR, type CompiledFragment, type RenderContext } from '@weftjs/core'
 import type { StationStatus } from './stations.ts'
 
 /**

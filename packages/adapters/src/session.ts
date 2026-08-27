@@ -1,4 +1,4 @@
-import type { RequestFacts, SessionPort, SetCookie } from '@weft/kernel'
+import type { RequestFacts, SessionPort, SetCookie } from '@weftjs/kernel'
 
 /**
  * Cookies, tokens, identity — and nothing else. The whole reason this is swappable without

@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { cookieSession, staticFlags } from '@weft/adapters'
-import type { Ports } from '@weft/kernel'
+import { cookieSession, staticFlags } from '@weftjs/adapters'
+import type { Ports } from '@weftjs/kernel'
 import { document_, refusal, section } from './devtools/html.ts'
 import { DevtoolsError } from './devtools/report.ts'
 import { bytesPage, fragments, intents, overview, routes, why } from './devtools/pages.ts'

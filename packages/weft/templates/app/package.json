@@ -10,7 +10,7 @@
     "routes": "weft routes"
   },
   "dependencies": {
-    "@weft/core": "__WEFT_VERSION__"
+    "@weftjs/core": "__WEFT_VERSION__"
   },
   "devDependencies": {
     "@types/node": "26.4.0",

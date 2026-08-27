@@ -5,7 +5,7 @@ import {
   type Values,
   applyDelta,
   render,
-} from '@weft/ir'
+} from '@weftjs/ir'
 import type { Candidate } from './candidate.ts'
 import { segmentsCandidate } from './candidates/segments.ts'
 import { compileScenario, withRows } from './compiled.ts'

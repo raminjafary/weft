@@ -1,8 +1,8 @@
-import { DEFAULT_STAGING } from '@weft/client'
-import { baseRenderId, clientView, deltaPayload, render, type Values } from '@weft/ir'
+import { DEFAULT_STAGING } from '@weftjs/client'
+import { baseRenderId, clientView, deltaPayload, render, type Values } from '@weftjs/ir'
 import { explain, field, panel, pick, pre, press, readout, slider } from '../pages.ts'
 import { numeric, type StationHandler } from './kind.ts'
-import { adoptScript, allTemplates, fragmentIR } from '@weft/core'
+import { adoptScript, allTemplates, fragmentIR } from '@weftjs/core'
 
 const n = (v: number): string => v.toLocaleString('en-US')
 
@@ -83,7 +83,7 @@ export const adoption: StationHandler = async (ctx) => {
         ],
         {
           what: `A server-rendered region becoming interactive. One pass collects the marker comments, element paths are followed by index, and the result is a table from binding to the node that holds it — so the cost is a function of the number of bindings, not of the number of components.`,
-          from: 'adopt() in @weft/client, running in your browser on the region above',
+          from: 'adopt() in @weftjs/client, running in your browser on the region above',
           caveat:
             'The byte figure is the client template for this one fragment, uncompressed. On a repeat visit it is not sent at all, which is the residency station.',
           tryThis:
@@ -137,7 +137,7 @@ export const signals: StationHandler = async () => {
         ],
         {
           what: `A signal is a value with a list of nodes that read it, built at adoption from the wiring table. Writing it walks that list. There is no diffing, no reconciliation and no component boundary involved — which is why the cost is the number of readers rather than the size of the subtree.`,
-          from: 'the real signal and wiring declarations of interactive.tsx, plus @weft/client running above',
+          from: 'the real signal and wiring declarations of interactive.tsx, plus @weftjs/client running above',
           caveat:
             'This counts declared readers. Whether a write reaches the DOM depends on whether the value changed, which the derived-values station is about.',
           tryThis: 'Set the quantity to the same number twice. The second one changes nothing.',
@@ -228,7 +228,7 @@ export const controls: StationHandler = async (ctx) => {
         ],
         {
           what: `The bug this fixes is invisible until a user has typed. A server render sets an input's value attribute; the browser copies it to the property once. From then on the two disagree, and a framework that pushes updates to the attribute silently stops updating the control.`,
-          from: 'the real wiring table of interactive.tsx; the write happens in @weft/client',
+          from: 'the real wiring table of interactive.tsx; the write happens in @weftjs/client',
           caveat:
             'This station shows the declaration. The DOM behaviour is in your browser above — the mode switch is a page reload, so type after it loads.',
           tryThis:
@@ -292,7 +292,7 @@ export const deltas: StationHandler = async (ctx) => {
         ],
         {
           what: `A delta is the set of values that changed, keyed by the binding path that holds them. Applying one is one DOM write per entry: nothing is re-parsed and no region is re-projected, because the addressing came from the compiler rather than from a diff.`,
-          from: 'deltaPayload() in @weft/ir, over the real interactive.tsx and the values above',
+          from: 'deltaPayload() in @weftjs/ir, over the real interactive.tsx and the values above',
           caveat:
             'The comparison with a full render is a byte comparison. The apply-cost comparison is a browser measurement and lives in the benchmark harness, not here.',
           tryThis:
@@ -347,7 +347,7 @@ export const residency: StationHandler = async () => {
         ],
         {
           what: `Resident templates are the repeat-visit story: on a second visit the server sends no TPL frames at all, so the only work left is adoption. The numbers here are what this demo's templates weigh and what your browser is currently holding.`,
-          from: 'clientView() in @weft/ir for the sizes; openResident() in @weft/client for what you hold',
+          from: 'clientView() in @weftjs/ir for the sizes; openResident() in @weftjs/client for what you hold',
           caveat:
             'When there is no IndexedDB the store degrades to memory: correctness is unaffected and the second visit simply pays what the first one did.',
           tryThis: 'Press forget, then reload. Then reload again without pressing it.',
@@ -368,7 +368,7 @@ export const transport: StationHandler = async () => {
       </div>
       ${explain({
         what: `The live channel. Three bindings carry the same frames — a long-lived GET with discrete POSTs up, an SSE stream, and a WebSocket — and the state machine above them does not know which one it is talking to. This page uses the first, because it is the one that needs no upgrade and no second connection type.`,
-        from: 'createHub() in @weft/kernel and channelHandlers() in @weft/adapters, on this server',
+        from: 'createHub() in @weftjs/kernel and channelHandlers() in @weftjs/adapters, on this server',
         caveat:
           'SSE cannot carry binary, so it uses the text framing and pays base64 on every rendered body — which is why it is not the default. And the two half-duplex bindings answer on the *other* connection, so an upstream POST after the downstream has gone is E_NO_DOWNSTREAM rather than a silent 200.',
         tryThis:
@@ -398,7 +398,7 @@ export const intents: StationHandler = async () => {
       </div>
       ${explain({
         what: `An intent is the only thing in this framework allowed to write, and it declares the tags it may invalidate — an undeclared one throws, in production, because an undeclared write is a cache invalidation nobody can predict from reading the code. Watch the frame log: the optimistic path sends INTENT with an epoch, gets an ACK, and the server stages the real values into that same epoch and commits, so the guess is replaced in one paint. The failing path gets ok=false and no commit, and the client discards the epoch — nothing painted, so nothing has to be un-painted.`,
-        from: 'createIntentDispatch() and serveIntent() in @weft/kernel; the cart lives in demo/src/channel.ts',
+        from: 'createIntentDispatch() and serveIntent() in @weftjs/kernel; the cart lives in demo/src/channel.ts',
         caveat:
           'An unchecked capability is refused rather than allowed: an intent declaring one with no check bound is E_NO_CAPABILITY_CHECK. Signed intents and a real capability model are phase 7 and do not exist yet.',
         tryThis:
@@ -463,7 +463,7 @@ export const navigation: StationHandler = async () => {
         ],
         {
           what: `A staged route is an epoch one level up. An epoch is data fetched, resolved and painting nothing; staging is a whole route fetched, parsed and painting nothing. The click commits it, which is a DOM swap and not a request — so the scroll position, the tab order and the open channel all survive it.`,
-          from: "createStaging() in @weft/client, wired to links in the framework's own boot module",
+          from: "createStaging() in @weftjs/client, wired to links in the framework's own boot module",
           caveat:
             'A click on a route that is not staged yet is handed back to the browser rather than waited for. A document response streams — shell first, regions as they arrive — and a fetch of the same document has to be read to its last byte before anything can be parsed, so waiting would make a slow page slower than doing nothing at all.',
           tryThis:

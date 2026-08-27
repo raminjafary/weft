@@ -1,4 +1,4 @@
-import { build, createApp, discover, loadBuild, loadConfig, serveApp } from '@weft/core/server'
+import { build, createApp, discover, loadBuild, loadConfig, serveApp } from '@weftjs/core/server'
 import { measureHttp, type HttpSample } from './http.ts'
 import { summarize, type Summary } from '../stats.ts'
 

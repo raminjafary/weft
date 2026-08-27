@@ -1,5 +1,11 @@
-import { cacheClassOf, requiresTtl, unionEffects, type EffectSet, type WireForm } from '@weft/ir'
-import { type Consistency, type DagNode, PlanGraphError, schedule, W_CPU_BUDGET_ADVISORY } from '@weft/kernel'
+import { cacheClassOf, requiresTtl, unionEffects, type EffectSet, type WireForm } from '@weftjs/ir'
+import {
+  type Consistency,
+  type DagNode,
+  PlanGraphError,
+  schedule,
+  W_CPU_BUDGET_ADVISORY,
+} from '@weftjs/kernel'
 import {
   PlanError,
   REGION_EXECUTOR,

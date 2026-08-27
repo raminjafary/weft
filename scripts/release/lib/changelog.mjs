@@ -88,7 +88,7 @@ function bullet(item, repository, scopeless) {
 
 /**
  * A package's own changelog drops the scope prefix — every line in it is that package by
- * definition, and `**compiler:**` on every bullet of `@weft/compiler/CHANGELOG.md` is noise. A
+ * definition, and `**compiler:**` on every bullet of `@weftjs/compiler/CHANGELOG.md` is noise. A
  * multi-scope commit keeps the other scopes, because knowing what moved with it is the point.
  */
 function scope(commit, scopeless) {

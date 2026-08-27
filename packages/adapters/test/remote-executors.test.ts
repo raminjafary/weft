@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { after, test } from 'node:test'
 import { bindingExecutor, isolateExecutor, renderService, svcExecutor } from '../src/index.ts'
-import type { RenderJob } from '@weft/kernel'
+import type { RenderJob } from '@weftjs/kernel'
 
 // A URL rather than a path: an address's module specifier is resolved against it, and the other
 // side of every one of these crash domains resolves with `new URL`.

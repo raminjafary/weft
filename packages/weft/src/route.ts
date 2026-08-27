@@ -1,5 +1,5 @@
-import type { Values } from '@weft/ir'
-import type { EnvelopeContext, RegionContract, RenderContext } from '@weft/kernel'
+import type { Values } from '@weftjs/ir'
+import type { EnvelopeContext, RegionContract, RenderContext } from '@weftjs/kernel'
 import type { LoaderContext } from './context.ts'
 import type { ExceedPolicy, PolicyClass, WireForm } from './types.ts'
 

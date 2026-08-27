@@ -81,7 +81,7 @@ build people stop running.
 
 ```ts
 definePlugin({
-  name: '@weft/i18n',
+  name: '@weftjs/i18n',
   role: 'enricher',
   reads: ['cookie:locale'],
   provides: ['ctx.locale'],
@@ -149,7 +149,7 @@ coupling a fixture of a refusal should have.
 
 `packages/kernel/fixtures/plugins.ts` is a five-plugin stack, because the interesting
 properties of this layer only appear above two. It orders itself into two waves with nobody
-writing a priority integer, and `@weft/csp` is in it specifically to justify `before`: a nonce
+writing a priority integer, and `@weftjs/csp` is in it specifically to justify `before`: a nonce
 has to precede anything that adds a script tag, and no read/write relationship captures that.
 
 ## Where a slot may render

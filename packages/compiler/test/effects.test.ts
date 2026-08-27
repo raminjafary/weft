@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { cacheClassOf, explain, flagAxes, keyComponents, requiresTtl, varyOn } from '@weft/ir'
+import { cacheClassOf, explain, flagAxes, keyComponents, requiresTtl, varyOn } from '@weftjs/ir'
 import { compileSource } from '../src/compile.ts'
 import { CompileError } from '../src/errors.ts'
 
-const PRELUDE = "import { fragment } from '@weft/core'\nimport { newCart } from './flags.ts'\n"
+const PRELUDE = "import { fragment } from '@weftjs/core'\nimport { newCart } from './flags.ts'\n"
 
 async function effects(body: string) {
   const out = await compileSource(PRELUDE + body, 'test.tsx')

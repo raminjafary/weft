@@ -1,4 +1,4 @@
-# @weft/bench
+# @weftjs/bench
 
 The measurement harness. Every number in weft's specs is something this produced.
 
@@ -6,7 +6,7 @@ Part of [weft](https://github.com/raminjafary/weft), a TypeScript fullstack fram
 negotiates the wire form of a piece of UI per request.
 
 ```sh
-npm install -D @weft/bench
+npm install -D @weftjs/bench
 weft-bench list
 ```
 

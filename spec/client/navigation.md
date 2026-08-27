@@ -10,7 +10,7 @@ on, so tomorrow's prices could be staged into today's page and a different page 
 
 ## The model
 
-`createStaging` in `@weft/client` is an epoch one level up, keyed by URL rather than by slot.
+`createStaging` in `@weftjs/client` is an epoch one level up, keyed by URL rather than by slot.
 
 | Operation      | Meaning                                                                                  |
 | -------------- | ---------------------------------------------------------------------------------------- |

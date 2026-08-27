@@ -1,7 +1,7 @@
-import type { JobAddress, RegionBinding, RegionContract } from '@weft/kernel'
+import type { JobAddress, RegionBinding, RegionContract } from '@weftjs/kernel'
 import { bindingExecutor, svcExecutor, type BoundFetch } from './remote-executors.ts'
 import { manifestRegistry, type ManifestRegistry } from './registry.ts'
-import type { KernelExecutor } from '@weft/kernel'
+import type { KernelExecutor } from '@weftjs/kernel'
 
 /**
  * The design's four named topologies, as configuration rather than as modes.

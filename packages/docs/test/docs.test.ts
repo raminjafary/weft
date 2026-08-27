@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createApp, serveApp, type Serving } from '@weft/core/server'
+import { createApp, serveApp, type Serving } from '@weftjs/core/server'
 import { after } from 'node:test'
 import { renderExample } from '../app/lib/example.ts'
 import { PAGES } from '../app/lib/pages.ts'
@@ -116,15 +116,15 @@ test('no page, and no glossary entry, points at something that does not exist', 
  */
 test('every runtime export of every package appears in the API reference', async () => {
   const specifiers: Record<string, string> = {
-    weft: '@weft/core',
-    'weft-server': '@weft/core/server',
-    kernel: '@weft/kernel',
-    plan: '@weft/plan',
-    ir: '@weft/ir',
-    warp: '@weft/warp',
-    client: '@weft/client',
-    compiler: '@weft/compiler',
-    adapters: '@weft/adapters',
+    weft: '@weftjs/core',
+    'weft-server': '@weftjs/core/server',
+    kernel: '@weftjs/kernel',
+    plan: '@weftjs/plan',
+    ir: '@weftjs/ir',
+    warp: '@weftjs/warp',
+    client: '@weftjs/client',
+    compiler: '@weftjs/compiler',
+    adapters: '@weftjs/adapters',
   }
   for (const module of surface()) {
     const specifier = specifiers[module.id]
@@ -428,7 +428,7 @@ test('every framework name a sketch imports actually exists', () => {
   for (const file of files) {
     const source = readFileSync(join(ROOT, file), 'utf8')
     for (const match of source.matchAll(
-      /import \{([^}]*)\} from '(@weft\/core(?:\/server)?|@weft\/[a-z]+)'/g,
+      /import \{([^}]*)\} from '(@weftjs\/core(?:\/server)?|@weftjs\/[a-z]+)'/g,
     )) {
       const specifier = match[2] as string
       const names = exported.get(specifier)
@@ -538,7 +538,7 @@ test('the intent on the intents page is dispatchable', async () => {
  * cannot see a type, and never flag the thing that is certainly correct.
  */
 test('the live hints read types, name the holes the compiler names, and admit what they cannot see', () => {
-  const source = `import { fragment } from '@weft/core'
+  const source = `import { fragment } from '@weftjs/core'
 
 interface Props { label: string; count: number; unit: string }
 
@@ -805,7 +805,7 @@ test('an export links the specification documents that name it', () => {
 
 /** Only the two packages a build gates have a ceiling, and the mapping comes from the entry path. */
 test('the packages with a byte budget are the ones that ship somewhere', () => {
-  assert.ok(ceilingFor('@weft/kernel'), 'a deployment downloads the kernel')
-  assert.ok(ceilingFor('@weft/client'), 'a browser downloads the client')
-  assert.equal(ceilingFor('@weft/ir'), undefined, 'nothing gates a data format by bytes')
+  assert.ok(ceilingFor('@weftjs/kernel'), 'a deployment downloads the kernel')
+  assert.ok(ceilingFor('@weftjs/client'), 'a browser downloads the client')
+  assert.equal(ceilingFor('@weftjs/ir'), undefined, 'nothing gates a data format by bytes')
 })

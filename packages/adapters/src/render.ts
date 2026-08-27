@@ -1,5 +1,5 @@
-import { render, type Values } from '@weft/ir'
-import type { RenderJobIR, RenderPort } from '@weft/kernel'
+import { render, type Values } from '@weftjs/ir'
+import type { RenderJobIR, RenderPort } from '@weftjs/kernel'
 
 /**
  * Who turns a fragment and a value set into bytes.

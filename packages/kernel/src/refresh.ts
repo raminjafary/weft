@@ -7,8 +7,8 @@ import {
   type TemplateIR,
   type Values,
   type WireForm,
-} from '@weft/ir'
-import { frame, HELD_ONLY, reservedHeader, type Frame } from '@weft/warp'
+} from '@weftjs/ir'
+import { frame, HELD_ONLY, reservedHeader, type Frame } from '@weftjs/warp'
 import type { StorePort } from './ports.ts'
 
 /**
@@ -255,7 +255,7 @@ export interface SurgicalInput {
   /** The frame will carry an epoch. See `FormInput.staged`: a patch is not held. */
   staged?: boolean
   /**
-   * The patch encoder, when this deployment includes it. `patchPayload` from `@weft/ir` is the
+   * The patch encoder, when this deployment includes it. `patchPayload` from `@weftjs/ir` is the
    * implementation; passing it is what puts the second rung on the ladder. See
    * `entry-patch.ts` for what it costs.
    */

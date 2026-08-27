@@ -8,7 +8,7 @@ import {
   type KernelRoute,
   type Ports,
   type StorePort,
-} from '@weft/kernel'
+} from '@weftjs/kernel'
 import type { GeneratedRoute } from './routes.ts'
 
 /**

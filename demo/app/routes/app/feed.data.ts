@@ -1,8 +1,8 @@
-import { defineRoute } from '@weft/core'
+import { defineRoute } from '@weftjs/core'
 import { feedItems, at } from '../../lib/data.ts'
 import { field, panel, press, slider } from '../../lib/controls.ts'
 import { LOG } from '../../lib/showcase.ts'
-import { fragmentIR, listHole } from '@weft/core'
+import { fragmentIR, listHole } from '@weftjs/core'
 
 /**
  * A content-heavy feed, authored the way the design says an application is authored — except that

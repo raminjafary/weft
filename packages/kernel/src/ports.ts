@@ -1,4 +1,4 @@
-import type { CacheClass, Resolver, TemplateIR, Values } from '@weft/ir'
+import type { CacheClass, Resolver, TemplateIR, Values } from '@weftjs/ir'
 import type { Intent } from './intent.ts'
 import type { Renderable } from './render-intent.ts'
 
@@ -157,7 +157,7 @@ export interface StorePort {
    * is exactly as wide as the lease, and a deployment that wanted per-deployment single-use had to
    * make its whole *cache* shared to get it — which is a much larger decision, made for a reason that
    * has nothing to do with caching. Split, a process-local cache can take shared leases, which is
-   * what `sharedLeases` in `@weft/adapters` does. Absent, it is `scope`, which is what every store
+   * what `sharedLeases` in `@weftjs/adapters` does. Absent, it is `scope`, which is what every store
    * that has one answer for both means.
    */
   readonly leaseScope?: Scope

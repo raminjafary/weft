@@ -11,8 +11,8 @@ import type {
   Registry,
   StorePort,
   TelemetryPort,
-} from '@weft/kernel'
-import type { CountingLimitOptions } from '@weft/adapters'
+} from '@weftjs/kernel'
+import type { CountingLimitOptions } from '@weftjs/adapters'
 import type { AuthorityConfig } from './authority.ts'
 
 /** The one decision the `limits` port exists to refuse to make. See `WeftConfig.limits`. */

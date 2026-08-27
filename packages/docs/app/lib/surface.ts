@@ -128,7 +128,7 @@ function docFor(source: string, comments: readonly Comment[], start: number): st
  *
  * Relative paths are joined. Bare specifiers are resolved too, and that is not a convenience: the
  * front door re-exports whole packages — `weft` hands you `redisLeases` and `bindingExecutor` so an
- * application rarely imports `@weft/adapters` directly — and a walk that stopped at the package
+ * application rarely imports `@weftjs/adapters` directly — and a walk that stopped at the package
  * boundary would list the surface an application does not use and omit the one it does.
  */
 function resolveWithin(from: string, specifier: string, root: string): string | undefined {
@@ -136,14 +136,14 @@ function resolveWithin(from: string, specifier: string, root: string): string | 
   if (specifier.startsWith('.')) {
     const base = posix.join(posix.dirname(from.split('\\').join('/')), specifier)
     candidates.push(base, `${base}.ts`, `${base}/index.ts`)
-  } else if (specifier === '@weft/core') {
+  } else if (specifier === '@weftjs/core') {
     candidates.push(posix.join(root, 'packages/weft/src/index.ts'))
-  } else if (specifier === '@weft/core/server') {
+  } else if (specifier === '@weftjs/core/server') {
     candidates.push(posix.join(root, 'packages/weft/src/server.ts'))
-  } else if (specifier.startsWith('@weft/')) {
-    // After the two above, because `@weft/core` lives in `packages/weft` rather than the
+  } else if (specifier.startsWith('@weftjs/')) {
+    // After the two above, because `@weftjs/core` lives in `packages/weft` rather than the
     // `packages/core` this branch would otherwise look for.
-    candidates.push(posix.join(root, `packages/${specifier.slice('@weft/'.length)}/src/index.ts`))
+    candidates.push(posix.join(root, `packages/${specifier.slice('@weftjs/'.length)}/src/index.ts`))
   }
   for (const candidate of candidates) {
     try {
@@ -245,71 +245,71 @@ function collect(file: string, out: Collected, seen: Set<string>, root: string):
 const MODULES: readonly Omit<ApiModule, 'entries'>[] = [
   {
     id: 'weft',
-    specifier: '@weft/core',
-    title: '@weft/core',
+    specifier: '@weftjs/core',
+    title: '@weftjs/core',
     blurb:
       'The authoring surface, and the only module an application’s own code has to know about. Everything here is either a declaration the compiler reads statically or a typed identity function.',
     entry: 'packages/weft/src/index.ts',
   },
   {
     id: 'weft-server',
-    specifier: '@weft/core/server',
-    title: '@weft/core/server',
+    specifier: '@weftjs/core/server',
+    title: '@weftjs/core/server',
     blurb:
       'The front door’s own parts, exported so a deployment that needs its own entry point can build one. Discovery, compilation, plan generation, the build and the server.',
     entry: 'packages/weft/src/server.ts',
   },
   {
     id: 'kernel',
-    specifier: '@weft/kernel',
-    title: '@weft/kernel',
+    specifier: '@weftjs/kernel',
+    title: '@weftjs/kernel',
     blurb:
       'The document request path: the lifecycle, the two-phase envelope, routing, cache-key derivation, wave dispatch and the stream. It imports nothing but the WinterTC Minimum Common Web API, so the same kernel runs on Node, Deno, Bun, a worker and the edge unchanged — and everything a framework usually does that is not one of those jobs is a port on the other side of this module.',
     entry: 'packages/kernel/src/index.ts',
   },
   {
     id: 'plan',
-    specifier: '@weft/plan',
-    title: '@weft/plan',
+    specifier: '@weftjs/plan',
+    title: '@weftjs/plan',
     blurb:
       'Placement, declared and then checked against what the compiler inferred. A plan that contradicts a derivation loses, at build time, with the read that caused it named.',
     entry: 'packages/plan/src/index.ts',
   },
   {
     id: 'ir',
-    specifier: '@weft/ir',
-    title: '@weft/ir',
+    specifier: '@weftjs/ir',
+    title: '@weftjs/ir',
     blurb:
       'The sealed template format and the one rendering function. Versioned, because a wire format cannot be versioned retroactively.',
     entry: 'packages/ir/src/index.ts',
   },
   {
     id: 'warp',
-    specifier: '@weft/warp',
-    title: '@weft/warp',
+    specifier: '@weftjs/warp',
+    title: '@weftjs/warp',
     blurb: 'The frame protocol: negotiation, frames, and the codec. Also versioned, and for the same reason.',
     entry: 'packages/warp/src/index.ts',
   },
   {
     id: 'client',
-    specifier: '@weft/client',
-    title: '@weft/client',
+    specifier: '@weftjs/client',
+    title: '@weftjs/client',
     blurb:
       'The runtime: adoption, the signal graph, deltas, epochs, residency and navigation. Every capability is its own entry, so a page pays for what it uses.',
     entry: 'packages/client/src/index.ts',
   },
   {
     id: 'compiler',
-    specifier: '@weft/compiler',
-    title: '@weft/compiler',
+    specifier: '@weftjs/compiler',
+    title: '@weftjs/compiler',
     blurb:
       'TSX to sealed templates, on Oxc, with effect inference and type-driven escape elision. Also the virtual file set the playground on this site compiles through.',
     entry: 'packages/compiler/src/index.ts',
   },
   {
     id: 'adapters',
-    specifier: '@weft/adapters',
-    title: '@weft/adapters',
+    specifier: '@weftjs/adapters',
+    title: '@weftjs/adapters',
     blurb:
       'Implementations of the ports the kernel refuses to know about: stores, sessions, flags, executors, transports, limiters, a registry and the Workers entry.',
     entry: 'packages/adapters/src/index.ts',

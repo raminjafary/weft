@@ -244,7 +244,7 @@ test('only the lease is networked: the cache is where it was, and the store says
  * and the connection string and nothing else — no heap, no filesystem, no cache.
  */
 test('a token spent on one instance is E_INTENT_REPLAYED on another', async () => {
-  const { createIntentSigner, createIntentVerifier } = await import('@weft/kernel')
+  const { createIntentSigner, createIntentVerifier } = await import('@weftjs/kernel')
   const url = await server()
   const prefix = ns()
   const pair = (await crypto.subtle.generateKey({ name: 'Ed25519' }, true, [
@@ -285,7 +285,7 @@ test('a token spent on one instance is E_INTENT_REPLAYED on another', async () =
 })
 
 test('a verifier whose lease store is unreachable refuses the call rather than allowing it', async () => {
-  const { createIntentSigner, createIntentVerifier } = await import('@weft/kernel')
+  const { createIntentSigner, createIntentVerifier } = await import('@weftjs/kernel')
   const pair = (await crypto.subtle.generateKey({ name: 'Ed25519' }, true, [
     'sign',
     'verify',

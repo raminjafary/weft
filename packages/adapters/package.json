@@ -1,5 +1,5 @@
 {
-  "name": "@weft/adapters",
+  "name": "@weftjs/adapters",
   "version": "0.1.0",
   "description": "Port implementations: Node HTTP, channels, stores, sessions, flags, a worker pool.",
   "keywords": [
@@ -42,9 +42,9 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@weft/compiler": "workspace:*",
-    "@weft/kernel": "workspace:*",
-    "@weft/warp": "workspace:*"
+    "@weftjs/compiler": "workspace:*",
+    "@weftjs/kernel": "workspace:*",
+    "@weftjs/warp": "workspace:*"
   },
   "engines": {
     "node": ">=22.18.0"
@@ -53,7 +53,7 @@
     "access": "public"
   },
   "devDependencies": {
-    "@weft/ir": "workspace:*",
-    "@weft/client": "workspace:*"
+    "@weftjs/ir": "workspace:*",
+    "@weftjs/client": "workspace:*"
   }
 }

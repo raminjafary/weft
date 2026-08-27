@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { chainFor, createApp, discover, type DiscoveredNested } from '@weft/core/server'
+import { chainFor, createApp, discover, type DiscoveredNested } from '@weftjs/core/server'
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url))
 
@@ -26,7 +26,7 @@ async function fixture(name: string, files: Record<string, string>): Promise<str
   return root
 }
 
-const OUTER = (holes: string) => `import { fragment, raw } from '@weft/core'
+const OUTER = (holes: string) => `import { fragment, raw } from '@weftjs/core'
 
 interface Props {
   title: string
@@ -59,7 +59,7 @@ ${holes
 ))
 `
 
-const INNER = (holes: string) => `import { fragment } from '@weft/core'
+const INNER = (holes: string) => `import { fragment } from '@weftjs/core'
 
 interface Props {
 ${holes
@@ -78,7 +78,7 @@ ${holes
 ))
 `
 
-const PAGE = (slots: string[]) => `import { defineRoute } from '@weft/core'
+const PAGE = (slots: string[]) => `import { defineRoute } from '@weftjs/core'
 
 export default defineRoute({
   head: { title: 'fixture' },
@@ -205,7 +205,7 @@ test('a hole in a nested layout that nothing supplies fails the build with that 
   const root = await fixture('unfilled-value', {
     'app/layout.tsx': OUTER('panel body'),
     'app/routes/section/index.data.ts': PAGE(['panel', 'toc', 'body']),
-    'app/routes/section/layout.tsx': `import { fragment } from '@weft/core'
+    'app/routes/section/layout.tsx': `import { fragment } from '@weftjs/core'
 
 export default fragment(({ toc, body, subtitle }: { toc: string; body: string; subtitle: string }) => (
   <div class="wrap">

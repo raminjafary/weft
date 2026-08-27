@@ -11,7 +11,7 @@ compiler that silently miscompiles a template is worse than one that stops.
 ## Authoring surface
 
 ```tsx
-import { fragment, signal, raw } from '@weft/core'
+import { fragment, signal, raw } from '@weftjs/core'
 import { setQuantity } from './intents.ts'
 
 export default fragment(({ epoch, rows, total }) => (

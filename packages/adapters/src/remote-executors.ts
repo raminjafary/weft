@@ -1,5 +1,5 @@
 import { Worker } from 'node:worker_threads'
-import { regionProbeStream, regionStream, treeHops } from '@weft/kernel'
+import { regionProbeStream, regionStream, treeHops } from '@weftjs/kernel'
 import { workerEntry } from './worker-pool.ts'
 import type {
   JobAddress,
@@ -10,8 +10,8 @@ import type {
   RenderJob,
   RenderOutcome,
   TelemetryPort,
-} from '@weft/kernel'
-import type { Frame } from '@weft/warp'
+} from '@weftjs/kernel'
+import type { Frame } from '@weftjs/warp'
 
 /**
  * The three executor kinds that were declared and had nothing behind them: `isolate`, `binding`
@@ -369,7 +369,7 @@ export interface RegionRenderer {
    *
    * The recursive half of `weft verify --probe`: a tier is asked what it is serving, and a tier that
    * is itself a composite has to ask the tiers below it before it can answer. It is given the depth
-   * it has left to spend, and `probeRegions` in `@weft/plan` is this for a deployment whose regions
+   * it has left to spend, and `probeRegions` in `@weftjs/plan` is this for a deployment whose regions
    * come from a registry — which is every deployment running this framework.
    */
   probe?(depth: number): Promise<readonly RegionNode[]> | readonly RegionNode[]

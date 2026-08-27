@@ -14,9 +14,9 @@ import {
   readProfile,
   type Profile,
 } from '../src/profile.ts'
-import { frame, residentFrame, WARP_VERSION, type Frame } from '@weft/warp'
-import { TEMPLATE_IR_VERSION } from '@weft/ir'
-import type { ChannelSink } from '@weft/kernel'
+import { frame, residentFrame, WARP_VERSION, type Frame } from '@weftjs/warp'
+import { TEMPLATE_IR_VERSION } from '@weftjs/ir'
+import type { ChannelSink } from '@weftjs/kernel'
 
 const ROOT = fileURLToPath(new URL('../../../demo/', import.meta.url))
 

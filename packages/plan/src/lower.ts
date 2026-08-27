@@ -7,7 +7,7 @@ import {
   type TemplateIR,
   unionEffects,
   type Values,
-} from '@weft/ir'
+} from '@weftjs/ir'
 import {
   chainSplitter,
   createComposer,
@@ -27,7 +27,7 @@ import {
   type RenderPort,
   type RenderContext,
   type RouteResolver,
-} from '@weft/kernel'
+} from '@weftjs/kernel'
 import { PlanError, type CacheSpec, type Plan, type RegionDecl, type SlotSpec } from './dsl.ts'
 import { assertPlan, cspOf, type ValidateContext } from './validate.ts'
 

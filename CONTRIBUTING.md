@@ -66,27 +66,27 @@ pages you can open.
 
 Dependency order, which is also roughly the order a request travels through them:
 
-| Package          | What it owns                                                                      |
-| ---------------- | --------------------------------------------------------------------------------- |
-| `@weft/ir`       | The template IR: what a compiled fragment is                                      |
-| `@weft/warp`     | The frame vocabulary that carries it                                              |
-| `@weft/client`   | Adoption, signals, deltas, patches, navigation                                    |
-| `@weft/compiler` | TSX to IR, on Oxc, with effect inference and the escape class                     |
-| `@weft/kernel`   | Routing, lifecycle, cache keys, waves, epochs, surgical refresh, composition      |
-| `@weft/plan`     | The plan DSL, validation against inferred effects, plugins, `weft why`            |
-| `@weft/adapters` | The fourteen ports, implemented                                                   |
-| `weft`           | The CLI, the conventions, the scaffold templates, and what an application imports |
-| `@weft/bench`    | The measurement harness and the gates it enforces                                 |
-| `create-weft`    | A shim over the templates that ship inside `weft`                                 |
+| Package            | What it owns                                                                      |
+| ------------------ | --------------------------------------------------------------------------------- |
+| `@weftjs/ir`       | The template IR: what a compiled fragment is                                      |
+| `@weftjs/warp`     | The frame vocabulary that carries it                                              |
+| `@weftjs/client`   | Adoption, signals, deltas, patches, navigation                                    |
+| `@weftjs/compiler` | TSX to IR, on Oxc, with effect inference and the escape class                     |
+| `@weftjs/kernel`   | Routing, lifecycle, cache keys, waves, epochs, surgical refresh, composition      |
+| `@weftjs/plan`     | The plan DSL, validation against inferred effects, plugins, `weft why`            |
+| `@weftjs/adapters` | The fourteen ports, implemented                                                   |
+| `weft`             | The CLI, the conventions, the scaffold templates, and what an application imports |
+| `@weftjs/bench`    | The measurement harness and the gates it enforces                                 |
+| `create-weft`      | A shim over the templates that ship inside `weft`                                 |
 
-`@weft/docs` and `@weft/inspector` are private and are not built by `pnpm build`; they run from
+`@weftjs/docs` and `@weftjs/inspector` are private and are not built by `pnpm build`; they run from
 source through `weft dev`.
 
 **The kernel imports nothing but the WinterTC Minimum Common Web API.** There is a test for it, and
-it has caught a real `node:http` import. Anything platform-specific belongs in `@weft/adapters` or
+it has caught a real `node:http` import. Anything platform-specific belongs in `@weftjs/adapters` or
 behind a port.
 
-**The scaffold templates live in `@weft/core`, not in `create-weft`.** `packages/weft/templates/{app,minimal}`
+**The scaffold templates live in `@weftjs/core`, not in `create-weft`.** `packages/weft/templates/{app,minimal}`
 is what `npm create weft` writes; `create-weft` only parses argv and calls `scaffold()`. A scaffold
 that shipped its own copy of the templates would generate an application the framework has stopped
 supporting. Changing a template means running the result:
@@ -175,7 +175,7 @@ to refuse an older document. A test asserts the spec and the constants agree.
 
 **3. Implement it in the package that owns it.** If the kernel needs something from the platform, it
 goes behind a port — declared in [`spec/kernel/ports.md`](spec/kernel/ports.md), implemented in
-`@weft/adapters`, and refusing by name when it is not bound. A port that approximates is worse than
+`@weftjs/adapters`, and refusing by name when it is not bound. A port that approximates is worse than
 one that refuses; a store on an edge KV namespace refuses `lease` outright for exactly that reason.
 
 **4. Test it where it lives**, and prefer a test that would have caught the bug over one that
@@ -339,8 +339,8 @@ and publishes the current manifests, skipping anything already on the registry.
 
 #### What is published, and what is not
 
-Nine packages: `weft`, `create-weft`, and the seven `@weft/*` that `weft` depends on. `@weft/bench`,
-`@weft/docs` and `@weft/inspector` are `private` — nothing an application installs needs the
+Nine packages: `weft`, `create-weft`, and the seven `@weftjs/*` that `weft` depends on. `@weftjs/bench`,
+`@weftjs/docs` and `@weftjs/inspector` are `private` — nothing an application installs needs the
 measurement harness, the documentation site or the inspector.
 
 A tarball holds `dist`, the README, the changelog, the licence, and for `weft` its `bin` and

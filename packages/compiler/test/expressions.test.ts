@@ -7,7 +7,7 @@ import {
   type DerivedExpr,
   type TemplateIR,
   type Values,
-} from '@weft/ir'
+} from '@weftjs/ir'
 import { compileSource } from '../src/compile.ts'
 import { CompileError } from '../src/errors.ts'
 
@@ -24,7 +24,7 @@ import { CompileError } from '../src/errors.ts'
  * one is a sentence somebody will read instead of a stack trace.
  */
 
-const PRELUDE = "import { fragment, signal } from '@weft/core'\n"
+const PRELUDE = "import { fragment, signal } from '@weftjs/core'\n"
 const decode = (b: Uint8Array) => new TextDecoder().decode(b)
 
 async function only(source: string): Promise<TemplateIR> {
