@@ -23,29 +23,44 @@ const root = document.documentElement
 /* ── the theme toggle ─────────────────────────────────────────────────────── */
 
 /**
- * Three states, not two: light, dark, and *what the system says*.
+ * Three states internally, two to the reader, and never a click that changes nothing.
  *
- * A two-state toggle silently opts a reader out of their own setting the first time they touch it,
- * which is a worse default than the one it replaced. The cycle returns to `system`, and `system` is
- * the absence of the attribute rather than a third value the stylesheet has to know about.
+ * The obvious cycle — system, light, dark — has a hole in it: when the system says dark, the state
+ * *after* explicit dark is "system", which also renders dark. The palette does not move, so the
+ * toggle looks broken and the reader clicks again. Cycling by name is the mistake; what a reader is
+ * choosing is an appearance.
  *
- * The swap is a circular reveal out of the button, drawn by the View Transitions API: the new
- * palette is painted into a clip-path circle that grows to cover the viewport. That is the whole
- * trick — the browser snapshots both states and animates between them, so there is no second copy
- * of the page and nothing to keep in sync. Where the API is missing the palette simply changes,
- * which is what it did before.
+ * So the click is computed from the appearance in front of them: dark goes to light, light goes to
+ * dark, always. `system` is not a third click — it is what *storing nothing* means, and the reader
+ * arrives back at it whenever the value they picked is the one the system was already saying. Which
+ * is the right default to drift back towards: a reader who matches their system has not opted out
+ * of it, and should not have to.
  */
 function theme(): void {
   const button = document.querySelector<HTMLButtonElement>('[data-theme-toggle]')
-  if (!button) return
-  const order = ['system', 'light', 'dark'] as const
-  const next = () => order[(order.indexOf((root.dataset.theme ?? 'system') as never) + 1) % 3] as string
-  const say = () =>
-    button.setAttribute('aria-label', `Theme: ${root.dataset.theme ?? 'system'}. Switch to ${next()}`)
+  // A navigation that replaced the shell brought a new button; one that replaced only regions left
+  // this one alone. Marking it is what makes running this after every navigation safe.
+  if (!button || button.dataset.wired === 'yes') return
+  button.dataset.wired = 'yes'
+  const dark = matchMedia('(prefers-color-scheme: dark)')
+  const system = () => (dark.matches ? 'dark' : 'light')
+  const showing = () => root.dataset.theme ?? system()
+  const next = () => (showing() === 'dark' ? 'light' : 'dark')
+
+  const say = () => {
+    const follows = root.dataset.theme === undefined
+    button.setAttribute(
+      'aria-label',
+      `Theme: ${showing()}${follows ? ', following your system' : ''}. Switch to ${next()}`,
+    )
+    button.setAttribute('aria-pressed', showing() === 'dark' ? 'true' : 'false')
+  }
   say()
 
   const apply = (mode: string) => {
-    if (mode === 'system') {
+    if (mode === system()) {
+      // The reader picked what their system already says, so stop overriding it: they are back to
+      // following it, and a stored value that happens to agree today would stop agreeing tonight.
       delete root.dataset.theme
       try {
         localStorage.removeItem('weft-theme')
@@ -58,6 +73,9 @@ function theme(): void {
     }
     say()
   }
+
+  // A reader who changes their system setting while following it should see the label follow too.
+  dark.addEventListener('change', say)
 
   button.addEventListener('click', () => {
     const mode = next()
@@ -82,19 +100,20 @@ function theme(): void {
       document as Document & {
         startViewTransition?: (cb: () => void) => {
           ready: Promise<void>
+          finished: Promise<void>
           updateCallbackDone?: Promise<void>
         }
       }
     ).startViewTransition
     if (!start || matchMedia('(prefers-reduced-motion: reduce)').matches) return swap()
 
-    // The circle grows out of the toggle's own corner — the top right of the page, where the
-    // reader just clicked — rather than out of its centre, so the first frame is a quarter arc
-    // hugging the corner instead of a disc that appears to start slightly inside the page.
-    const box = button.getBoundingClientRect()
-    const x = box.right
-    const y = box.top
-    const reach = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))
+    // The corner of the page, not of the button. A circle centred a few pixels inside the viewport
+    // shows a sliver of the old palette down the top and right edges for the whole sweep, which is
+    // the one part of the frame a reader's eye is already on. From the corner itself the arc leaves
+    // nothing behind it.
+    const x = innerWidth
+    const y = 0
+    const reach = Math.hypot(innerWidth, innerHeight)
 
     let transition
     try {
@@ -131,8 +150,11 @@ const GLOWS =
   '.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit, .top-icon,' +
   ' .jump a, .contents a, .outline a, .tty-tab span, .pane-tab span, .panel-tab-in'
 
+let glowing = false
+
 function glow(): void {
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  if (glowing || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  glowing = true
   document.addEventListener(
     'pointermove',
     (event) => {
@@ -164,7 +186,8 @@ function glow(): void {
 function finder(): void {
   const form = document.querySelector<HTMLFormElement>('form.find')
   const input = form?.querySelector<HTMLInputElement>('input[name=q]')
-  if (!form || !input) return
+  if (!form || !input || form.dataset.wired === 'yes') return
+  form.dataset.wired = 'yes'
 
   const panel = document.createElement('div')
   panel.className = 'finder'
@@ -357,7 +380,43 @@ async function editor(): Promise<void> {
   paint()
 }
 
-theme()
-glow()
-finder()
-void editor()
+/**
+ * Everything, and again after every client-side navigation.
+ *
+ * A staged navigation of kind `document` replaces the shell — which means the header's button and
+ * the search form are new elements, and `data-js` is gone, because it was set by an inline script
+ * that ran once at parse time and a swapped document does not re-run it. That is why the theme
+ * toggle disappeared after the first click on a link: nothing was broken, the attribute the
+ * stylesheet gates on had simply left with the old document.
+ *
+ * So the flag is re-asserted here and every step is idempotent — the two that bind to an element
+ * mark it, the glow is delegated to `document` and binds once, and the editor is *meant* to run
+ * again, because `/play` arrives with a textarea that did not exist a moment ago.
+ *
+ * The inline script still sets `data-js` before paint on a real document request. That is the case
+ * this cannot cover, and the one where a control appearing late would be visible.
+ */
+function wire(): void {
+  root.dataset.js = 'on'
+  /**
+   * And the palette, for the same reason.
+   *
+   * `data-theme` is an attribute on `<html>`, and a staged navigation of kind `document` brings a
+   * new `<html>` from the server — which has never heard of a choice this reader made in the
+   * browser two clicks ago. So the theme reverted on the first link they followed. The stored value
+   * is the source of truth and this is the second place that reads it; the first is the inline
+   * script, which covers the case this one cannot: before the first paint.
+   */
+  try {
+    const stored = localStorage.getItem('weft-theme')
+    if (stored === 'light' || stored === 'dark') root.dataset.theme = stored
+    else delete root.dataset.theme
+  } catch {}
+  theme()
+  glow()
+  finder()
+  void editor()
+}
+
+wire()
+document.addEventListener('weft:navigated', wire)

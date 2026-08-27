@@ -3,7 +3,7 @@ import { access, readFile } from 'node:fs/promises'
 import { basename, dirname, join, relative } from 'node:path'
 import { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
-import { patchPayload } from '@weft/ir'
+import { patchPayload, render } from '@weft/ir'
 import { entityTag, matchesTag } from './entity.ts'
 import { isScopedSheet, scopeAttribute, scopeCss, scopeStem } from './scoped.ts'
 import { frame, str, type Frame } from '@weft/warp'
@@ -1106,6 +1106,61 @@ export async function serveApp(app: App): Promise<Serving> {
   // no bundle for a page that is not a route, so it borrows the first one's.
   const firstCss = routes[0] ? assets.pageCss(routes[0].pattern) : ''
 
+  /**
+   * The error page: `app/layouts/error.tsx` when the application wrote one, the framework's own
+   * when it did not.
+   *
+   * A named layout rather than a special file, because that is what it is — a document, discovered
+   * exactly the way every other document under `app/layouts/` is. Writing the file *is* the
+   * registration, and `error` is the name the framework looks for.
+   *
+   * It is deliberately not a route. A 404 has no path of its own, and giving it one would make it a
+   * page an application could link to — which is then a page that has to decide what to say when
+   * nothing has gone wrong.
+   *
+   * The values below are the contract, and `src/assets/error.tsx` documents each one. A replacement
+   * gets the same set: the status, the framework's own name for what happened, a sentence, the path
+   * that was asked for, and the stack — which is empty outside `weft dev`, because a trace names
+   * files and often the shape of the data being handled.
+   */
+  const errorFragment = app.compiled.fragments['layout:error'] ?? app.compiled.fragments.error
+  const errorDecoder = new TextDecoder()
+
+  function errorDocument(input: {
+    status: number
+    code: string
+    title: string
+    detail: string
+    path?: string
+    stack?: string
+  }): string {
+    const { status, code, title, detail, path = '', stack = '' } = input
+    if (!errorFragment) {
+      return `<!doctype html><meta charset="utf-8"><title>${escapeText(String(status))}</title>
+        <h1>${escapeText(String(status))}</h1><p>${escapeText(detail)}</p>`
+    }
+    return errorDecoder.decode(
+      render(
+        errorFragment.entry,
+        {
+          title,
+          description: detail,
+          css: firstCss,
+          status: String(status),
+          code,
+          detail,
+          path,
+          pathClass: path ? 'weft-error-subject' : 'weft-hidden',
+          stack,
+          stackClass: stack ? 'weft-error-stack' : 'weft-hidden',
+          backHref: '/',
+          backLabel: 'Go home',
+        },
+        errorFragment.resolve,
+      ),
+    )
+  }
+
   const http = serveIntent({
     registry: intents.registry,
     store,
@@ -1185,14 +1240,23 @@ export async function serveApp(app: App): Promise<Serving> {
       ports: { ...app.ports, transport: nodeTransport(res) },
       coalesce: leaseCoalescer(store, { pollMs: 5 }),
       routes: table,
-      notFound: () =>
+      notFound: (request) =>
         // Styled with whatever the first route links, because a 404 is not a route and has no
         // bundle of its own. An application with no routes at all gets an unstyled one.
+        //
+        // The path is named and the route table is not. That list was written for the person
+        // building the application and shown to everyone who mistyped a URL — on a deployment it is
+        // a map of the site handed to whoever asks for a path that does not exist. `weft routes`
+        // prints it for the one audience it was for.
         new Response(
-          notFound(
-            routes.map((r) => r.pattern),
-            firstCss,
-          ),
+          errorDocument({
+            status: 404,
+            code: 'E_NO_ROUTE',
+            title: 'This page does not exist',
+            detail:
+              'No route matches this path. It may have moved, or the link that brought you here may be out of date.',
+            path: new URL(request.url).pathname,
+          }),
           {
             status: 404,
             headers: { 'content-type': 'text/html; charset=utf-8' },
@@ -1207,8 +1271,33 @@ export async function serveApp(app: App): Promise<Serving> {
         res.end()
         return
       }
-      res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
-      res.end(`${(error as Error).stack ?? String(error)}\n`)
+      /**
+       * A stack trace in development, a sentence in production.
+       *
+       * The trace is the only useful thing here while you are building, and the one thing that must
+       * not go out otherwise: it names files, line numbers and often the shape of the data that was
+       * being handled. `mode` already knows which of the two this process is.
+       */
+      /**
+       * The trace in development, a sentence outside it.
+       *
+       * It is the only useful thing here while you are building, and the one thing that must not go
+       * out otherwise: a stack names files, line numbers and often the shape of the data that was
+       * being handled. In `weft dev` it is rendered into the page; anywhere else it is empty and the
+       * block that would have held it is not drawn.
+       */
+      const stack = app.mode === 'dev' ? ((error as Error).stack ?? String(error)) : ''
+      res.writeHead(500, { 'content-type': 'text/html; charset=utf-8' })
+      res.end(
+        errorDocument({
+          status: 500,
+          code: 'E_REQUEST_FAILED',
+          title: 'Something went wrong',
+          detail: 'This request could not be completed. Nothing you did caused it, and it has been recorded.',
+          path: req.url ?? '',
+          stack,
+        }),
+      )
     })
   })
 
@@ -1592,13 +1681,4 @@ function escapeText(value: string): string {
 
 function escapeAttribute(value: string): string {
   return escapeText(value).replace(/"/g, '&quot;')
-}
-
-function notFound(patterns: readonly string[], css: string): string {
-  const links = `<link rel="stylesheet" href="${css}">`
-  const list = patterns.map((p) => `<li><a href="${p}"><code>${p}</code></a></li>`).join('')
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>404</title>${links}</head>
-  <body><main class="weft-main"><h1>404</h1>
-  <p class="weft-lede">No route matches this path. The route table is the file tree, so this list is
-  every page that exists.</p><ul>${list}</ul></main></body></html>`
 }

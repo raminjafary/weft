@@ -6,9 +6,22 @@
  * them. That colocation is the whole reason the site can afford a landing page this specific.
  */
 
+/**
+ * The landing page is not one column, it is a stack of bands.
+ *
+ * So the page itself is unconstrained and each section centres its own content. Constraining the
+ * page instead is what left the measurement band as a dark slab floating between two white gutters:
+ * a band whose whole job is to be a change of ground has to reach the edges of the ground.
+ */
 .landing {
+  max-width: none;
+}
+
+.hero,
+.split-say,
+.deck {
   max-width: var(--shell);
-  margin: 0 auto;
+  margin-inline: auto;
 }
 
 /* ── the hero ─────────────────────────────────────────────────────────────── */
@@ -21,13 +34,6 @@
   align-items: start;
 }
 
-.hero-kicker {
-  margin: 0 0 20px;
-  font: 600 11.5px/1 var(--mono);
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
 
 .hero h1 {
   font-size: 50px;
@@ -114,7 +120,10 @@
   background: color-mix(in srgb, var(--surface) 55%, transparent);
 }
 
+/* Every tab is the height of the tallest, so the underline on the checked one lands on the strip's
+   own bottom edge rather than under a label that happens to be one line shorter. */
 .panel-tab {
+  display: flex;
   flex: 1;
   min-width: 0;
   cursor: pointer;
@@ -129,7 +138,10 @@
 }
 
 .panel-tab-in {
-  display: block;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-start;
   padding: 10px 13px;
   border-inline-end: 1px solid var(--line);
   border-block-end: 2px solid transparent;
@@ -246,8 +258,7 @@
   width: 46px;
   margin-block-start: 11px;
   border-radius: 2px;
-  background: var(--accent2-400);
-  opacity: 0.75;
+  background: var(--accent-300);
   transform-origin: left;
 }
 

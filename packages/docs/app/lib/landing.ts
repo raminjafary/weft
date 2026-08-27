@@ -130,7 +130,6 @@ export const quantity = defineIntent<{ qty: number }>({
 function hero(): string {
   return `<section class="hero">
     <div class="hero-say">
-      <p class="hero-kicker">TypeScript fullstack framework</p>
       <h1>A fullstack framework that negotiates how UI reaches the browser.</h1>
       <p class="hero-lede">The wire form of a piece of UI — full markup, a surgical delta, a patch — is chosen
         per request from a set of encodings the compiler has proven equivalent, instead of being frozen at

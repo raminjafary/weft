@@ -100,7 +100,12 @@ test('the kernel only reaches sideways into the two versioned wire packages', ()
  * caveat.
  */
 const LINE_CEILINGS: Record<string, number> = {
-  'entry-request.ts': 1800,
+  // Three lines, for a correctness fix the request path could not do without: cutting a shell at
+  // its slots now resolves derived values first and renders a component instance through the arm
+  // that knows how to project its props. Before it, every conditional and every composed component
+  // in a layout wrote nothing — silently, because a hole that writes no bytes looks exactly like a
+  // hole whose value was empty. See `splitAtSlots`.
+  'entry-request.ts': 1850,
   // Nested layouts: the request path plus the splice that assembles a chain of layouts into one
   // cut document. Its own entry because the chain walk did not fit in the 8 KB path — see
   // `spec/kernel/budgets.md`.

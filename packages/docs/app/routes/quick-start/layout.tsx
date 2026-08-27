@@ -3,7 +3,6 @@ import { fragment } from 'weft'
 interface Props {
   heading: string
   lede: string
-  headClass: string
   kickerClass: string
   kicker: string
   kickerNote: string
@@ -22,15 +21,21 @@ interface Props {
  * There is no breadcrumb here, because a section of one has nothing to be a trail through.
  */
 export default fragment(
-  ({ heading, lede, headClass, kickerClass, kicker, kickerNote, contents, body, outline }: Props) => (
+  ({ heading, lede, kickerClass, kicker, kickerNote, contents, body, outline }: Props) => (
     <div class="shell">
       <aside class="rail" aria-label="Getting started">
         <slot name="contents">{contents}</slot>
       </aside>
       <article>
-        <div class={headClass}>
-          <span class={kickerClass}>{kicker}</span>
-          <span class="hint">{kickerNote}</span>
+        <div class="head-slot">
+          {kicker ? (
+            <div class="head-line">
+              <span class={kickerClass}>{kicker}</span>
+              <span class="hint">{kickerNote}</span>
+            </div>
+          ) : (
+            <span class="none" />
+          )}
         </div>
         <h1>{heading}</h1>
         <p class="lede">{lede}</p>

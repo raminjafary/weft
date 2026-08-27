@@ -35,8 +35,8 @@ export interface CompiledFragment {
 /** Every sealed template this application has, by the name the convention gave it. */
 export interface CompiledApp {
   /**
-   * By logical name: `layout`, `markup`, `route:/blog/:slug`, `slot:header`, `fragment:card`,
-   * and `nested:/dashboard` for a layout scoped to a subtree of the route table.
+   * By logical name: `layout`, `error`, `markup`, `route:/blog/:slug`, `slot:header`,
+   * `fragment:card`, and `nested:/dashboard` for a layout scoped to a subtree of the route table.
    */
   fragments: Record<string, CompiledFragment>
   diagnostics: string[]
@@ -70,7 +70,7 @@ export async function stageAssets(root: string, outDir: string): Promise<Record<
    * or the whole new one. The temporary name carries the process id, so two writers cannot collide on
    * it either.
    */
-  for (const name of ['layout.tsx', 'markup.tsx']) {
+  for (const name of ['layout.tsx', 'markup.tsx', 'error.tsx']) {
     const to = join(target, name)
     const staging = `${to}.${process.pid.toString(36)}.tmp`
     await copyFile(join(ASSETS, name), staging)
@@ -153,6 +153,9 @@ export async function compileApp(
   const named: { name: string; file: string }[] = [
     { name: 'markup', file: staged.markup as string },
     { name: 'layout', file: discovered.layout ?? (staged.layout as string) },
+    // The framework's own, always compiled. `app/layouts/error.tsx` is discovered with every
+    // other named layout and takes precedence at render time — see `errorDocument` in serve.ts.
+    { name: 'error', file: staged.error as string },
     ...discovered.routes
       .filter((route) => route.file)
       .map((route) => ({ name: `route:${route.pattern}`, file: route.file as string })),

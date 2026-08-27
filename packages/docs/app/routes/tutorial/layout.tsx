@@ -3,11 +3,8 @@ import { fragment } from 'weft'
 interface Props {
   heading: string
   lede: string
-  /** `crumbs`, or `crumbs none` on an index page that has no trail to draw. */
-  crumbClass: string
+  /** The middle crumb. Empty draws no trail — a conditional, which a layout may carry. */
   section: string
-  /** `head-line`, or `head-line none` when the page has no kicker. */
-  headClass: string
   /** `kicker` for the accent line, `badge` for the chip a generated section wears. */
   kickerClass: string
   kicker: string
@@ -29,34 +26,34 @@ interface Props {
  * cut, streamed independently, with its own cache policy — which a shared component could not give.
  */
 export default fragment(
-  ({
-    heading,
-    lede,
-    crumbClass,
-    section,
-    headClass,
-    kickerClass,
-    kicker,
-    kickerNote,
-    contents,
-    body,
-    outline,
-  }: Props) => (
+  ({ heading, lede, section, kickerClass, kicker, kickerNote, contents, body, outline }: Props) => (
     <div class="shell">
       <aside class="rail" aria-label="Tutorial steps">
         <slot name="contents">{contents}</slot>
       </aside>
       <article>
-        <nav class={crumbClass} aria-label="Breadcrumb">
-          <a href="/tutorial">Tutorial</a>
-          <span>/</span>
-          <span>{section}</span>
-          <span>/</span>
-          <span aria-current="page">{heading}</span>
-        </nav>
-        <div class={headClass}>
-          <span class={kickerClass}>{kicker}</span>
-          <span class="hint">{kickerNote}</span>
+        <div class="crumb-slot">
+          {section ? (
+            <nav class="crumbs" aria-label="Breadcrumb">
+              <a href="/tutorial">Tutorial</a>
+              <span>/</span>
+              <span>{section}</span>
+              <span>/</span>
+              <span aria-current="page">{heading}</span>
+            </nav>
+          ) : (
+            <span class="none" />
+          )}
+        </div>
+        <div class="head-slot">
+          {kicker ? (
+            <div class="head-line">
+              <span class={kickerClass}>{kicker}</span>
+              <span class="hint">{kickerNote}</span>
+            </div>
+          ) : (
+            <span class="none" />
+          )}
         </div>
         <h1>{heading}</h1>
         <p class="lede">{lede}</p>

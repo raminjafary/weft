@@ -1,4 +1,4 @@
-import { renderHole, type Resolver, type TemplateIR, type Values } from '@weft/ir'
+import { renderHoleIn, resolveDerived, type Resolver, type TemplateIR, type Values } from '@weft/ir'
 
 const utf8 = new TextEncoder()
 
@@ -30,6 +30,14 @@ export type Splitter = (ir: TemplateIR, values: Values, resolve?: Resolver) => S
  * the shell is not, so they cannot share one cache entry.
  */
 export function splitAtSlots(ir: TemplateIR, values: Values, resolve?: Resolver): SlotSplit {
+  /**
+   * The derived values, first — the same step `writeTemplate` takes before it writes a byte.
+   *
+   * A shell is cut here rather than rendered, so nothing else was going to take it: a conditional
+   * or a template literal in a layout lowers to a hole bound to `d0`, and `d0` is in `ir.derived`
+   * rather than in the values the route supplied. Without this every one of them rendered empty.
+   */
+  const resolved = resolveDerived(ir.derived, values)
   const chunks: Uint8Array[] = []
   const slots: string[] = []
   let pending: Uint8Array[] = []
@@ -59,7 +67,10 @@ export function splitAtSlots(ir: TemplateIR, values: Values, resolve?: Resolver)
       slots.push(hole.binding)
       continue
     }
-    pending.push(renderHole(hole, values[hole.binding], resolve))
+    // The whole value set, not one value: a component instance projects several of the parent's
+    // bindings through its props, and a variant is gated on one while rendering a nested template.
+    // See `renderHoleIn`, and the note there about what rendering a layout's `<Mark/>` used to do.
+    pending.push(renderHoleIn(hole, resolved, resolve))
   }
   flush()
 

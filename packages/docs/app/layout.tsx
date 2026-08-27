@@ -1,4 +1,5 @@
 import { fragment, raw } from 'weft'
+import Mark from './fragments/chrome/mark.tsx'
 
 interface NavItem {
   href: string
@@ -29,11 +30,6 @@ interface ShellProps {
  * chrome every page shares: the head, the header, one `<slot>`, the footer. The heading and the
  * lede are *not* here — the design puts them inside the article column, to the right of the
  * contents rail, so the section layouts own them and the two pages with no rail render their own.
- *
- * The mark is inline rather than a component, and deliberately: a component instance inside a
- * *layout* renders nothing here — the shell's resolver does not carry a template that only the
- * layout names — so the geometry is written twice, at two sizes, as constant bytes in one sealed
- * template. `public/mark.svg` is the same six rectangles for the favicon.
  *
  * The search box is a `GET` to a route, which is what lets it sit in a layout that ships no
  * JavaScript of its own: there is nothing to initialise and no index to fetch. `app/client.ts`
@@ -76,27 +72,7 @@ export default fragment(
           <header class="top">
             <div class="top-in">
               <a class="brand" href="/">
-                <svg
-                  class="mark"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                  focusable="false"
-                >
-                  <g class="mark-warp">
-                    <rect x="4.6" y="2" width="2" height="20" rx="1" />
-                    <rect x="11" y="2" width="2" height="20" rx="1" />
-                    <rect x="17.4" y="2" width="2" height="20" rx="1" />
-                  </g>
-                  <g class="mark-weft">
-                    <rect x="1" y="7" width="22" height="2" rx="1" />
-                    <rect x="1" y="15" width="3.6" height="2" rx="1" />
-                    <rect x="6.6" y="15" width="4.4" height="2" rx="1" />
-                    <rect x="13" y="15" width="4.4" height="2" rx="1" />
-                    <rect x="19.4" y="15" width="3.6" height="2" rx="1" />
-                  </g>
-                </svg>
+                <Mark size="20" cls="mark" />
                 <span class="wordmark">weft</span>
               </a>
               <nav class="top-nav" aria-label="Sections">
@@ -162,27 +138,7 @@ export default fragment(
           </main>
           <footer class="foot">
             <div class="foot-in">
-              <svg
-                class="mark quiet"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-                focusable="false"
-              >
-                <g class="mark-warp">
-                  <rect x="4.6" y="2" width="2" height="20" rx="1" />
-                  <rect x="11" y="2" width="2" height="20" rx="1" />
-                  <rect x="17.4" y="2" width="2" height="20" rx="1" />
-                </g>
-                <g class="mark-weft">
-                  <rect x="1" y="7" width="22" height="2" rx="1" />
-                  <rect x="1" y="15" width="3.6" height="2" rx="1" />
-                  <rect x="6.6" y="15" width="4.4" height="2" rx="1" />
-                  <rect x="13" y="15" width="4.4" height="2" rx="1" />
-                  <rect x="19.4" y="15" width="3.6" height="2" rx="1" />
-                </g>
-              </svg>
+              <Mark size="18" cls="mark quiet" />
               <p>
                 Every example on this site is a fragment this application compiled. The source you read is the
                 file that produced the output beside it.

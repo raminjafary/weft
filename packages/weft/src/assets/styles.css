@@ -530,3 +530,78 @@ th {
   padding: 0.15rem 0.25rem;
   cursor: pointer;
 }
+
+/* ── the error page ──────────────────────────────────────────────────────────────── */
+
+/*
+ * `app/layouts/error.tsx` replaces this page entirely; these rules are what the framework's own
+ * one is drawn with. Centred and short: an error page's job is to say what happened and offer one
+ * way out, and everything else on it competes with those two.
+ */
+.weft-error {
+  max-width: 44rem;
+  padding-block: clamp(4rem, 12vh, 8rem);
+  text-align: center;
+}
+
+.weft-error-mark {
+  display: block;
+  margin: 0 auto 1.5rem;
+  color: var(--weft-accent);
+}
+
+.weft-error-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  margin: 0 0 0.75rem;
+  font-family: var(--weft-mono);
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  color: var(--weft-muted);
+}
+
+.weft-error-code {
+  padding: 0.15em 0.5em;
+  border: 1px solid var(--weft-line);
+  border-radius: 999px;
+}
+
+.weft-error h1 {
+  font-size: clamp(1.75rem, 1.2rem + 2vw, 2.5rem);
+  letter-spacing: -0.025em;
+}
+
+.weft-error .weft-lede {
+  margin-inline: auto;
+  max-width: 46ch;
+}
+
+.weft-error-subject {
+  font-family: var(--weft-mono);
+  font-size: 0.875rem;
+  color: var(--weft-muted);
+  overflow-wrap: anywhere;
+}
+
+.weft-error .weft-row {
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+/* Only ever rendered by `weft dev`. See the note on `stack` in `src/assets/error.tsx`. */
+.weft-error-stack {
+  margin-top: 2.5rem;
+  text-align: start;
+  max-height: 22rem;
+  overflow: auto;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* A hole the framework filled with nothing takes no space, rather than leaving an empty line. */
+.weft-hidden {
+  display: none;
+}

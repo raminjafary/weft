@@ -1864,7 +1864,28 @@ async function go(href: string, mode: 'push' | 'restore', y = 0): Promise<boolea
   if (!painted) return false
   state.nav = { ...state.nav, staged: state.nav.staged + 1, lastMs: Math.round(painted - started) }
   log('up', `NAV ${url.pathname}${url.search} ${state.nav.lastMs}ms`)
+  announceNavigation(url, held.kind)
   return true
+}
+
+/**
+ * `weft:navigated`, on the document, after a route change has painted.
+ *
+ * The one thing an application's own `client.ts` cannot work out for itself. It is imported once,
+ * at boot, and a staged navigation replaces the regions of the page without reloading anything — so
+ * code that wired something up to markup that has just been swapped has no way to know it needs to
+ * do it again. Every application that ships a client module and a router hits this; a framework
+ * that swaps the DOM owes it an event.
+ *
+ * `detail` says where and how, because the two answers differ: `regions` means this document
+ * survived and only its slots changed, and `document` means the whole shell was replaced.
+ */
+function announceNavigation(url: URL, kind: 'regions' | 'document'): void {
+  document.dispatchEvent(
+    new CustomEvent('weft:navigated', {
+      detail: { url: url.href, pathname: url.pathname, search: url.search, kind },
+    }),
+  )
 }
 
 /**

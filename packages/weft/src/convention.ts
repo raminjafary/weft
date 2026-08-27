@@ -20,6 +20,7 @@ import { basename, join, relative, sep } from 'node:path'
  *   app/routes/x.css            x.tsx's own stylesheet, linked only by the pages that use it
  *   app/routes/x.scoped.css     the same, narrowed to the elements x.tsx declares. See `scoped.ts`
  *   app/client.ts               the application's own client code, loaded after adoption
+ *   app/layouts/error.tsx       the 404 and the 500. Absent means the framework's own
  *
  * A route is a `.tsx`, or a `.data.ts` that says what renders its body — a page whose content is
  * markup rather than a template needs no template file, and requiring an empty one would be

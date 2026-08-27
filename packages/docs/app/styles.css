@@ -751,7 +751,9 @@ h2.hint {
     transparent 68%
   );
   background-repeat: no-repeat;
-  transition: --glow 240ms ease;
+  transition:
+    --glow 240ms ease,
+    border-color 240ms ease;
 }
 
 /* The edge. `mask-composite` keeps the padding box out, so what is left is the border itself. */
@@ -797,6 +799,14 @@ h2.hint {
   --glow: 1;
 }
 
+/* The edge, twice over. The masked ring above lights the part of the border nearest the cursor;
+   this lifts the whole border off the divider colour, so the element reads as picked up rather
+   than as having a bright spot on one side of it. */
+:is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit):hover,
+:is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit):focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+
 @media (prefers-reduced-motion: reduce) {
   :is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit),
   :is(.jump a, .contents a, .outline a, .top-icon) {
@@ -829,4 +839,19 @@ h2.hint {
 
 ::view-transition-new(root) {
   z-index: 2;
+}
+
+/**
+ * For the length of the sweep, the two decorations that are expensive to re-composite.
+ *
+ * A view transition animates a snapshot of the whole page, so a `backdrop-filter` behind a sticky
+ * header and a blurred halo behind every card are re-rasterised on every frame of it. Neither is
+ * doing anything for a reader who is watching a palette change.
+ */
+:root.theming .top {
+  backdrop-filter: none;
+}
+
+:root.theming :is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit)::after {
+  display: none;
 }

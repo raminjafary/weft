@@ -13,6 +13,7 @@ import { STEPS } from '../app/lib/tutorial.ts'
 import { TERMS } from '../app/lib/glossary.ts'
 import { surface } from '../app/lib/surface.ts'
 import { errorCodes } from '../app/lib/errors.ts'
+import { errorBody, errorsIndexBody } from '../app/lib/errors-page.ts'
 import { compilePlayground, STARTER } from '../app/lib/play.ts'
 import { infer } from '../app/infer.ts'
 import { commands, options } from '../app/lib/cli.ts'
@@ -571,4 +572,93 @@ export default fragment(({ label, count, unit }: Props, ctx) => {
     'reading identity is a read',
   )
   assert.equal(cacheClass, 'private', 'a fragment that reads identity is private, never shared')
+})
+
+/**
+ * A block whose body is a hole escapes it, which is the whole reason those bodies became holes —
+ * and the whole reason a caller must not write markup into one.
+ *
+ * It went wrong exactly once and was invisible until somebody read the page: a note on the error
+ * index carried `<strong>327</strong>`, and the compiler did its job and printed the tags. There is
+ * no way for the fragment to tell the difference between markup somebody meant and markup somebody
+ * forgot, so the check has to be here, on the values.
+ *
+ * Two things are deliberately not checked. Prose goes through `raw` in `fragments/docs/page.tsx`
+ * and carries this repository's own inline markup on purpose — 179 inline tags' worth. And a table
+ * cell holds extracted data, where an angle bracket is usually the point: eight of the framework's
+ * own refusal messages quote a `<slot name="body">` at you, and a cell that escapes one is a cell
+ * doing its job. What is checked is authored text — a note, a heading — where a tag can only be
+ * somebody having forgotten which side of the compiler they were on.
+ */
+test('nothing that reaches a hole carries markup, because a hole escapes it', () => {
+  const offenders: string[] = []
+  const check = (where: string, value: string) => {
+    if (/<\/?[a-z][a-z0-9]*[\s/>]/i.test(value)) offenders.push(`${where}: ${value.slice(0, 60)}…`)
+  }
+  for (const block of errorsIndexBody()) {
+    if (block.isNote) {
+      check('errors index note title', block.title)
+      check('errors index note body', block.body)
+    }
+    if (block.isHeading) check('errors index heading', block.text)
+  }
+  for (const code of ['E_ETAG_STREAMS', 'E_NO_ROUTE_FILE']) {
+    for (const block of errorBody(code)) {
+      if (block.isNote) {
+        check(`${code} note title`, block.title)
+        check(`${code} note body`, block.body)
+      }
+      if (block.isHeading) check(`${code} heading`, block.text)
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    'a hole escapes its value, so markup written into one reaches the reader as tags',
+  )
+})
+
+/**
+ * A layout may carry a conditional, and this is the page that proves it end to end.
+ *
+ * It could not, briefly, and the failure was invisible: cutting a shell at its slots resolved no
+ * derived values, so `{section ? … : …}` in a layout wrote nothing and nothing refused. The
+ * workaround was to decide a whole class name on the route's side and hide the trail with CSS —
+ * which is markup that lies about what is on the page. So this asserts the two states of the
+ * conditional itself: a guide *page* is inside a group and draws a trail through it, and the
+ * guide's index is not inside anything and draws none.
+ */
+test('a section layout draws its breadcrumb only on the pages that are inside something', async () => {
+  const serving = await serveApp(await app())
+  servers.push(serving)
+
+  const page = await (await fetch(new URL('/guide/intents', serving.url))).text()
+  assert.match(page, /class="crumbs"/, 'a guide page is inside a group, so it draws a trail')
+  assert.match(page, /<a href="\/guide">Guide<\/a>/, page.slice(0, 200))
+  assert.ok(
+    page.includes('Change'),
+    'the middle crumb is the group the page is in, which the route derives rather than states twice',
+  )
+
+  const index = await (await fetch(new URL('/guide', serving.url))).text()
+  assert.ok(
+    !index.includes('class="crumbs"'),
+    'the index is not inside anything, so the branch writes no nav at all — not a hidden one',
+  )
+})
+
+/**
+ * The mark is a component the document composes, which is a thing a layout could not do.
+ *
+ * A component instance inside a layout rendered nothing at all: the shell splitter reached the arm
+ * that writes zero bytes for a component, and a hole that writes nothing is indistinguishable from
+ * a hole whose value was empty. So this checks the bytes rather than the declaration.
+ */
+test('the document composes the mark, and the mark reaches the page', async () => {
+  const serving = await serveApp(await app())
+  servers.push(serving)
+  const home = await (await fetch(new URL('/', serving.url))).text()
+  assert.match(home, /<a class="brand" href="\/"><svg class="mark"/, home.slice(0, 400))
+  assert.match(home, /class="mark-warp"/, 'both threads of the mark, from the composed template')
+  assert.match(home, /class="mark quiet"/, 'and the footer instance, at its own size and tone')
 })

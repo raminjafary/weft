@@ -109,8 +109,14 @@ export default defineRoute({
        * slot's share of it — the build says so when it refuses. The ceiling is above where the
        * demo sits today on purpose: a budget set to the current number is a budget that fails on
        * the next honest comment, and `grow` is the half that notices drift anyway.
+       *
+       * It moved from 48kb when the runtime started announcing a navigation. `weft:navigated` is
+       * 116 bytes and it is the only way an application's own `client.ts` can know that a staged
+       * navigation replaced the markup it wired itself to — every application that ships a client
+       * module and a router needs it, so the framework pays for it rather than each of them
+       * re-deriving it from `popstate` and a MutationObserver.
        */
-      budget: { js: '48kb', grow: '2kb' },
+      budget: { js: '52kb', grow: '2kb' },
       // Tagged, because the cart counts are in these bytes and `cart.add` declares that it writes
       // `cart`. Without the tag the page would keep showing the count from before your click for
       // ten minutes, which is a cache doing exactly what it was told and exactly the wrong thing.

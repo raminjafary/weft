@@ -159,3 +159,80 @@ test('out-of-order, the shell carries an anchor for every hole in the chain', as
     'the nested toc resolved first and was sent first',
   )
 })
+
+/**
+ * A shell is *cut* rather than rendered, and for a long time that meant it was cut by a different
+ * switch from the one that renders — one with no arm for a component instance and no step that
+ * resolves derived values.
+ *
+ * Both failures were silent in the worst possible way: a hole that writes no bytes is
+ * indistinguishable from a hole whose value happened to be empty, so a `<Mark/>` in a layout and a
+ * `{on ? 'a' : 'b'}` in a layout each rendered nothing and nothing anywhere refused. These two
+ * tests are the reason that cannot come back.
+ */
+async function withComponent(): Promise<{ shell: TemplateIR; child: TemplateIR }> {
+  const child = assertValidTemplate(
+    await seal(
+      draftTemplate({
+        id: 'badge',
+        segments: ['<b class="', '">', '</b>'],
+        holes: [hole(0, 'tone', { kind: 'attr', attr: 'class', path: [0] }), hole(1, 'label', { path: [1] })],
+      }),
+    ),
+  )
+  const shell = assertValidTemplate(
+    await seal(
+      draftTemplate({
+        id: 'shell-with-component',
+        segments: ['<header>', '</header><main>', '</main>'],
+        derived: [
+          { id: 'd0', expr: { k: 'lit', v: 'hot' } },
+          {
+            id: 'd1',
+            expr: {
+              k: 'cond',
+              a: { k: 'ref', id: 'loud' },
+              b: { k: 'lit', v: 'YES' },
+              c: { k: 'lit', v: 'no' },
+            },
+          },
+        ],
+        holes: [
+          {
+            index: 0,
+            kind: 'component',
+            escape: 'trusted-raw',
+            binding: 'c0',
+            path: [0],
+            props: { tone: 'd0', label: 'd1' },
+            provenance: 'badge.tsx#default',
+            nested: child.version,
+          },
+          hole(1, 'body', { kind: 'slot', path: [1] }),
+        ],
+      }),
+    ),
+  )
+  return { shell, child }
+}
+
+test('cutting a shell renders a component instance, rather than writing nothing where it was', async () => {
+  const { shell, child } = await withComponent()
+  const split = splitAtSlots(shell, { loud: true }, (v) => (v === child.version ? child : undefined))
+
+  assert.deepEqual(split.slots, ['body'], 'the slot is still the only cut')
+  const before = decoder.decode(split.chunks[0] as Uint8Array)
+  assert.ok(before.includes('<b class="hot">'), before)
+  assert.ok(before.includes('YES'), 'the instance rendered, with its props projected from the parent')
+})
+
+test('cutting a shell resolves its derived values first, so a conditional in a layout is not empty', async () => {
+  const { shell, child } = await withComponent()
+  const resolve = (v: string) => (v === child.version ? child : undefined)
+
+  const yes = decoder.decode(splitAtSlots(shell, { loud: true }, resolve).chunks[0] as Uint8Array)
+  const no = decoder.decode(splitAtSlots(shell, { loud: false }, resolve).chunks[0] as Uint8Array)
+
+  assert.ok(yes.includes('YES'), yes)
+  assert.ok(no.includes('no') && !no.includes('YES'), no)
+})

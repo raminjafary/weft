@@ -94,6 +94,41 @@ export function renderHole(hole: Hole, value: Json | undefined, resolve?: Resolv
 }
 
 /**
+ * One hole's bytes, given the template's **whole** value set.
+ *
+ * The difference from `renderHole` is the holes that cannot be rendered from a single value. A
+ * component instance projects several of the parent's bindings through its props; a variant is
+ * gated on one binding and renders a nested template; `children` is the caller's markup, held in a
+ * frame rather than in the values. `renderHole` reaches `writeValue`, whose arms for those three
+ * write nothing at all — correctly, because `writeTemplate` has already handled them by the time it
+ * is called.
+ *
+ * So a caller that walks a template *itself* — the kernel cutting a shell at its slot boundaries —
+ * has to use this one. Using the other is how every `<Mark/>` in a layout came to render nothing:
+ * the component arm returned zero bytes, the shell was sent without it, and nothing anywhere
+ * refused, because a hole that writes nothing is indistinguishable from a hole whose value was
+ * empty.
+ *
+ * The values must already have been through `resolveDerived`. A caller that walks the template is
+ * also the caller that owns that step; `render` does it once at the top of `writeTemplate`.
+ */
+export function renderHoleIn(
+  hole: Hole,
+  values: Values,
+  resolve?: Resolver,
+  frame?: ChildrenFrame,
+): Uint8Array {
+  for (;;) {
+    try {
+      return scratch.slice(0, writeHole(hole, values, resolve, scratch, 0, frame))
+    } catch (e) {
+      if (e !== OVERFLOW) throw e
+      grow()
+    }
+  }
+}
+
+/**
  * The one rendering function. The server calls it to produce the `html` form and the
  * client calls it to project the `data` form, which is what makes the two provably
  * equal for a given template version and value set.

@@ -3,8 +3,6 @@ import { fragment } from 'weft'
 interface Props {
   heading: string
   lede: string
-  /** `head-line`, or `head-line none` when the page has no kicker. */
-  headClass: string
   /** `kicker` for the accent line, `badge` for the chip a generated section wears. */
   kickerClass: string
   kicker: string
@@ -22,7 +20,7 @@ interface Props {
  * the rest of the site already uses for the same job.
  */
 export default fragment(
-  ({ heading, lede, headClass, kickerClass, kicker, kickerNote, contents, body, outline }: Props) => (
+  ({ heading, lede, kickerClass, kicker, kickerNote, contents, body, outline }: Props) => (
     <div class="shell two">
       <aside class="rail" aria-label="Reference">
         <slot name="contents">{contents}</slot>
@@ -31,9 +29,15 @@ export default fragment(
         </div>
       </aside>
       <article>
-        <div class={headClass}>
-          <span class={kickerClass}>{kicker}</span>
-          <span class="hint">{kickerNote}</span>
+        <div class="head-slot">
+          {kicker ? (
+            <div class="head-line">
+              <span class={kickerClass}>{kicker}</span>
+              <span class="hint">{kickerNote}</span>
+            </div>
+          ) : (
+            <span class="none" />
+          )}
         </div>
         <h1>{heading}</h1>
         <p class="lede">{lede}</p>

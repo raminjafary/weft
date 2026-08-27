@@ -1,5 +1,14 @@
 import { pathToFileURL } from 'node:url'
-import { baseRenderId, clientOwned, clientView, readsOf, render, unionEffects, type Values } from '@weft/ir'
+import {
+  baseRenderId,
+  clientOwned,
+  clientView,
+  readsOf,
+  render,
+  unionEffects,
+  type DerivedExpr,
+  type Values,
+} from '@weft/ir'
 import {
   createRouter,
   recordBase,
@@ -304,6 +313,22 @@ function nestedFor(compiled: CompiledApp, discovered: Discovered, pattern: strin
     }
     return found
   })
+}
+
+/** Every binding a derived expression reads, however deep the tree goes. */
+function refsIn(expr: DerivedExpr): string[] {
+  switch (expr.k) {
+    case 'ref':
+      return [expr.id]
+    case 'un':
+      return refsIn(expr.a)
+    case 'bin':
+      return [...refsIn(expr.a), ...refsIn(expr.b)]
+    case 'cond':
+      return [...refsIn(expr.a), ...refsIn(expr.b), ...refsIn(expr.c)]
+    default:
+      return []
+  }
 }
 
 /** The hole every link in a chain fills: where the thing this document wraps goes. */
@@ -1063,8 +1088,36 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
   // chain is one document with one head, and a hole in the third layer is as unfilled as one in
   // the first.
   for (const layer of layers) {
+    /**
+     * A derived hole is not unfilled — it is computed, and what it is computed *from* is checked
+     * instead.
+     *
+     * `{title ? … : …}` and `` class={`note note-${kind}`} `` lower to a hole bound to `d0`, with
+     * the expression tree beside it in `entry.derived`. The renderer resolves those from the values
+     * it was handed before it writes a byte, so `d0` is never something a route could supply —
+     * counting it as unfilled made every conditional and every template literal in a layout an
+     * `E_LAYOUT_HOLE_UNFILLED` naming a binding nobody wrote and nobody could.
+     *
+     * Skipping them outright would be the other mistake: a typo inside the expression would then
+     * render nothing, silently, which is exactly what this check exists to prevent. So the tree is
+     * walked and every `ref` in it has to be supplied — a hole in a layout is still unfilled when
+     * what it reads is missing, whether it reads it directly or through an expression.
+     */
+    const derived = new Map((layer.entry.derived ?? []).map((entry) => [entry.id, entry.expr]))
     for (const hole of layer.entry.holes) {
       if (hole.kind === 'slot' || hole.kind === 'component') continue
+      const expr = derived.get(hole.binding)
+      if (expr) {
+        const missing = refsIn(expr).find((id) => !supplied.has(id) && !derived.has(id))
+        if (!missing) continue
+        throw new GenerateError(
+          'E_LAYOUT_HOLE_UNFILLED',
+          `${layer.file} computes a value from '${missing}', which neither the framework nor ${
+            route.data ?? route.pattern
+          } supplies. It may read ${[...supplied].join(', ')}, declare <slot> holes for regions, and ` +
+            `add anything else through defineRoute({ layoutValues })`,
+        )
+      }
       if (supplied.has(hole.binding)) continue
       throw new GenerateError(
         'E_LAYOUT_HOLE_UNFILLED',

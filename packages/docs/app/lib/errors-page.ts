@@ -37,7 +37,7 @@ export function errorsIndexBody(): Block[] {
       'Why it is extracted rather than written',
       `A reference of this size cannot be maintained by hand — one of the ${all.length} would go stale ` +
         'in the first month and there would be no way to tell which. So the page walks every package’s ' +
-        '<code>src/</code>, and a test walks the same tree and fails if a code exists in the source and ' +
+        'src/ directory, and a test walks the same tree and fails if a code exists in the source and ' +
         'not here. Adding a refusal to the framework adds a row without anybody remembering to.',
     ),
     table(
@@ -55,12 +55,15 @@ export function errorsIndexBody(): Block[] {
     note(
       'why',
       'Three states, because two would be a lie about one of them',
-      `<strong>${own}</strong> codes carry a sentence of their own. <strong>${wrapped}</strong> forward ` +
-        'the failure underneath instead — a parse error, a region that would not answer — and at runtime ' +
-        'they do say something; it is the cause’s sentence rather than one in the source, so there is ' +
-        'nothing here to quote. Calling those bare would be a complaint about this extractor dressed as ' +
-        `a complaint about the framework. <strong>${silent}</strong> say nothing at all, and that is the ` +
-        'number worth watching: the test fails if it rises above zero.',
+      // Plain text, deliberately. A note's body is a hole in `fragments/docs/note.tsx`, so the
+      // compiler escapes it — which is the whole reason it was made a hole, and means markup written
+      // here would reach the reader as `<strong>` in the middle of a sentence.
+      `${own} codes carry a sentence of their own. ${wrapped} forward the failure underneath instead ` +
+        '— a parse error, a region that would not answer — and at runtime they do say something; it is ' +
+        'the cause’s sentence rather than one in the source, so there is nothing here to quote. Calling ' +
+        `those bare would be a complaint about this extractor dressed as a complaint about the ` +
+        `framework. ${silent} say nothing at all, and that is the number worth watching: the test ` +
+        'fails if it rises above zero.',
     ),
   ]
 

@@ -51,23 +51,18 @@ export interface ShellInput {
 /**
  * What a route hands the layout chain. Spread it, then add whatever that page alone needs.
  *
- * The two `*Class` values are how an optional piece of chrome is expressed without a conditional.
- * A layout may not carry a derived expression — its holes come from here, and there is no render in
- * which to evaluate one — so `{section ? … : …}` in a layout is `E_LAYOUT_HOLE_UNFILLED`. Deciding
- * the whole class name on this side is one hole rather than two sealed templates, and it puts the
- * decision next to the value it depends on.
+ * An empty `section` or `kicker` is what a layout's own conditional branches on, rather than a
+ * class name decided here: a layout may carry a derived expression, and the branch belongs beside
+ * the markup it turns on and off. It briefly could not — see the note in `splitAtSlots` for what
+ * that cost and why it is fixed rather than worked around.
  */
 export function shell(input: ShellInput): Record<string, unknown> {
-  const section = input.section ?? ''
-  const kicker = input.kicker ?? ''
   return {
     heading: input.heading,
     lede: input.lede,
-    crumbClass: section ? 'crumbs' : 'crumbs none',
-    section,
-    headClass: kicker ? 'head-line' : 'head-line none',
+    section: input.section ?? '',
     kickerClass: input.kickerClass ?? 'kicker',
-    kicker,
+    kicker: input.kicker ?? '',
     kickerNote: input.kickerNote ?? '',
     versions: versionPill(),
     repo: REPO,
