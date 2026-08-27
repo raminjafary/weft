@@ -9,32 +9,111 @@ export function whoami() {
   return result.ok ? result.output.trim() : undefined
 }
 
+const TOKEN_ADVICE =
+  'Generate a classic Automation token at npmjs.com/settings/~/tokens — those bypass the code and ' +
+  'cover every package — and export it as NPM_TOKEN.'
+
 /**
- * Whether this account can publish without being asked for a one-time password.
+ * Whether this account can publish, unattended, every name this release needs.
  *
  * `auth-and-writes` means npm demands a fresh code for every publish. Nine packages is nine codes
- * inside a thirty-second window each, and a release that is not being watched by somebody holding a
- * phone has no way to answer — it would stop on the first `pnpm publish`, which is *after* the
- * commit, the tag and the push. An automation or granular token bypasses the prompt, which is what
- * this looks for.
+ * inside a thirty-second window each, and the publish step runs *after* the commit, the tag and the
+ * push — so the release that cannot answer the prompt is also the one that has already made itself
+ * irreversible.
  *
- * Read from the environment rather than from `~/.npmrc`, because a token in a file this could parse
- * is a token this could also print.
+ * The first version of this check exempted anything with a token in the environment, on the
+ * assumption that a token bypasses the prompt. That assumption cost a release: the token was a
+ * granular one with `bypass_2fa: false`, scoped to `@weftjs` alone, so eight packages stopped on the
+ * prompt and the ninth — unscoped `create-weft` — came back 403. Both facts were sitting in
+ * `npm token list --json` the whole time. Nothing is assumed here now: a token has to say it bypasses
+ * the code, and it has to say it covers every name.
+ *
+ * The token itself is read from the environment rather than from `~/.npmrc`, because a token this
+ * could parse is a token it could also print.
  */
-export function canPublishUnattended() {
-  if (process.env.NPM_TOKEN || process.env.NODE_AUTH_TOKEN) {
-    return { ok: true, why: 'a token in the environment, which bypasses the one-time password' }
+export function canPublishUnattended(names = []) {
+  const token = process.env.NPM_TOKEN ?? process.env.NODE_AUTH_TOKEN
+
+  // The account's own setting, asked only when there is no token. `npm profile get` needs a login
+  // session and fails under a token, so reading it first and treating the failure as "nothing to
+  // worry about" is how a token with `bypass_2fa: false` sailed through this check.
+  if (!token) {
+    const profile = run('npm', ['profile', 'get'], { allowFailure: true })
+    const mode = profile.ok ? /two-factor auth:\s*(\S+)/.exec(profile.output)?.[1] : undefined
+    if (!mode) return { ok: true, why: 'npm would not say what its two-factor setting is' }
+    if (mode !== 'auth-and-writes') return { ok: true, why: `two-factor auth: ${mode}` }
+    return {
+      ok: false,
+      why: `npm two-factor auth is auth-and-writes, so every publish asks for a code. ${TOKEN_ADVICE}`,
+    }
   }
-  const profile = run('npm', ['profile', 'get'], { allowFailure: true })
-  if (!profile.ok) return { ok: true, why: 'npm would not say, so this is not blocking the release' }
-  const mode = /two-factor auth:\s*(\S+)/.exec(profile.output)?.[1]
-  if (mode !== 'auth-and-writes') return { ok: true, why: `two-factor auth: ${mode ?? 'off'}` }
+
+  const capability = tokenCapability(token)
+  if (!capability) {
+    return {
+      ok: false,
+      why:
+        'there is a token in the environment, but npm would not say whether it bypasses the ' +
+        `two-factor code. Refusing rather than guessing: the guess is what broke the last release. ${TOKEN_ADVICE}`,
+    }
+  }
+  if (!capability.bypass) {
+    return {
+      ok: false,
+      why: `the token in the environment reports bypass_2fa: false, so every publish would stop on the code prompt. ${TOKEN_ADVICE}`,
+    }
+  }
+
+  const uncovered = names.filter((name) => !capability.covers(name))
+  if (uncovered.length) {
+    return {
+      ok: false,
+      why:
+        `the token in the environment does not cover ${uncovered.join(', ')} — it is limited to ` +
+        `${capability.scopes.join(', ') || 'nothing'}. An unscoped package needs a token that covers all packages. ${TOKEN_ADVICE}`,
+    }
+  }
+  return { ok: true, why: `a token that bypasses the code and covers all ${names.length} name(s)` }
+}
+
+/**
+ * What the token in use is allowed to do, or undefined if npm will not say.
+ *
+ * `npm token list --json` masks the token itself, so a row cannot be matched to the configured value
+ * by comparing them. The human listing does print a truncated form, and both commands return rows in
+ * the same order — so the truncation is matched there and the capability read from the row at the
+ * same index.
+ */
+function tokenCapability(token) {
+  const listed = run('npm', ['token', 'list', '--json'], { allowFailure: true })
+  const human = run('npm', ['token', 'list'], { allowFailure: true })
+  if (!listed.ok || !human.ok) return undefined
+
+  let rows
+  try {
+    rows = JSON.parse(listed.output)
+  } catch {
+    return undefined
+  }
+  if (!Array.isArray(rows) || !rows.length) return undefined
+
+  const head = token.slice(0, 8)
+  const tail = token.slice(-4)
+  const lines = human.output.split('\n').filter((line) => line.trim().startsWith('Token '))
+  let index = lines.findIndex((line) => line.includes(head) && line.includes(tail))
+  // A single token needs no matching, and is the common case for a machine that publishes.
+  if (index === -1 && rows.length === 1) index = 0
+  const row = rows[index]
+  if (!row) return undefined
+
+  const scopes = (row.scopes ?? []).map((entry) => entry.name)
   return {
-    ok: false,
-    why:
-      'npm two-factor auth is set to auth-and-writes, so every publish asks for a one-time password ' +
-      'and this release would stop after pushing. Create an automation token at ' +
-      'npmjs.com/settings/~/tokens and export it as NPM_TOKEN, or set `npm profile set two-factor auth-only`.',
+    bypass: row.bypass_2fa === true,
+    scopes,
+    // No scope list at all is npm's way of saying every package.
+    covers: (name) =>
+      scopes.length === 0 ||
+      scopes.some((scope) => name === scope || (scope.startsWith('@') && name.startsWith(`${scope}/`))),
   }
 }
 

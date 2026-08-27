@@ -70,9 +70,6 @@ async function main() {
   const npmUser = registry.whoami()
   if (npmUser) ok(`npm: ${npmUser}`)
   else refuse('not logged in to npm. Run `npm login` first.')
-  const unattended = registry.canPublishUnattended()
-  if (unattended.ok) ok(`npm writes: ${unattended.why}`)
-  else refuse(unattended.why)
   if (flags['no-github']) warn('github release skipped by --no-github')
   else {
     try {
@@ -165,6 +162,11 @@ async function main() {
     if (claim.ok) ok(`${release.name} — ${claim.why}`)
     else refuse(`${release.name}: ${claim.why}`)
   }
+  // Asked with the names in hand, because "can this account publish" is a different question per
+  // name: a token scoped to one organisation answers yes for eight of these and 403 for the ninth.
+  const unattended = registry.canPublishUnattended(plan.published.map((release) => release.name))
+  if (unattended.ok) ok(`unattended: ${unattended.why}`)
+  else refuse(unattended.why)
 
   const boundaries = releaseBoundaries({ version, date: today() })
   const versionsAt = versionsAtBoundaries(packages, boundaries, plan)
