@@ -11,10 +11,13 @@ interface ShellProps {
   description: string
   css: string
   runtime: string
-  heading: string
-  lede: string
   nav: NavItem[]
   body: string
+  /** `ir 2.6.0 · warp 1.8.0`, from the constants a build stamps. See `lib/shell.ts`. */
+  versions: string
+  repo: string
+  /** Theme restore and the scripting flag, inline so both land before the first frame. */
+  boot: string
   /** The framework's scroll restore, inlined so it runs before paint. See `SCROLL_PRELUDE`. */
   prelude: string
 }
@@ -22,17 +25,22 @@ interface ShellProps {
 /**
  * The document, and one slot.
  *
- * A documentation site is the case where a nested layout earns its keep, so this file deliberately
- * stops at the chrome every page shares: the head, the header, the search form, the heading and one
- * `<slot>`. What the guide pages need on top of that — a contents column, an outline — is
- * `app/routes/guide/layout.tsx`, which fills this `body` hole and leaves holes of its own. The
- * landing page and the playground are outside that subtree and get this document alone.
+ * A documentation site is the case where a nested layout earns its keep, so this file stops at the
+ * chrome every page shares: the head, the header, one `<slot>`, the footer. The heading and the
+ * lede are *not* here — the design puts them inside the article column, to the right of the
+ * contents rail, so the section layouts own them and the two pages with no rail render their own.
  *
- * The search form is a `GET` to a route, which is what lets it sit in a layout that ships no
- * JavaScript of its own: there is nothing to initialise and no index to fetch.
+ * The mark is inline rather than a component, and deliberately: a component instance inside a
+ * *layout* renders nothing here — the shell's resolver does not carry a template that only the
+ * layout names — so the geometry is written twice, at two sizes, as constant bytes in one sealed
+ * template. `public/mark.svg` is the same six rectangles for the favicon.
+ *
+ * The search box is a `GET` to a route, which is what lets it sit in a layout that ships no
+ * JavaScript of its own: there is nothing to initialise and no index to fetch. `app/client.ts`
+ * upgrades it to a ⌘K dropdown afterwards, and the form underneath it keeps working either way.
  */
 export default fragment(
-  ({ title, description, css, runtime, heading, lede, nav, body, prelude }: ShellProps) => (
+  ({ title, description, css, runtime, nav, body, versions, repo, boot, prelude }: ShellProps) => (
     <>
       {raw('<!doctype html>')}
       <html lang="en">
@@ -50,36 +58,136 @@ export default fragment(
           <meta name="color-scheme" content="light dark" />
           <title>{title}</title>
           <meta name="description" content={description} />
+          <link rel="icon" href="/mark.svg" type="image/svg+xml" />
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+          <link
+            rel="stylesheet"
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+          />
           <link rel="stylesheet" href={css} />
           <script type="module" src={runtime} />
+          {raw(boot)}
         </head>
         <body>
+          <a class="skip" href="#main">
+            Skip to content
+          </a>
           <header class="top">
-            <a class="brand" href="/">
-              weft
-            </a>
-            <nav>
-              {nav.map((item) => (
-                <a href={item.href} data-current={item.current}>
-                  {item.label}
+            <div class="top-in">
+              <a class="brand" href="/">
+                <svg
+                  class="mark"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <g class="mark-warp">
+                    <rect x="4.6" y="2" width="2" height="20" rx="1" />
+                    <rect x="11" y="2" width="2" height="20" rx="1" />
+                    <rect x="17.4" y="2" width="2" height="20" rx="1" />
+                  </g>
+                  <g class="mark-weft">
+                    <rect x="1" y="7" width="22" height="2" rx="1" />
+                    <rect x="1" y="15" width="3.6" height="2" rx="1" />
+                    <rect x="6.6" y="15" width="4.4" height="2" rx="1" />
+                    <rect x="13" y="15" width="4.4" height="2" rx="1" />
+                    <rect x="19.4" y="15" width="3.6" height="2" rx="1" />
+                  </g>
+                </svg>
+                <span class="wordmark">weft</span>
+              </a>
+              <nav class="top-nav" aria-label="Sections">
+                {nav.map((item) => (
+                  <a href={item.href} data-current={item.current}>
+                    {item.label}
+                  </a>
+                ))}
+              </nav>
+              <div class="top-end">
+                <form class="find" method="get" action="/search" role="search">
+                  <svg
+                    class="find-icon"
+                    width="13"
+                    height="13"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    aria-hidden="true"
+                  >
+                    <circle cx="6.8" cy="6.8" r="4.6" />
+                    <path d="M10.3 10.3 14 14" />
+                  </svg>
+                  <input
+                    id="q"
+                    type="search"
+                    name="q"
+                    placeholder="Search"
+                    autocomplete="off"
+                    aria-label="Search this site"
+                  />
+                  <kbd class="find-key" aria-hidden="true">
+                    ⌘K
+                  </kbd>
+                </form>
+                <span class="ver" title="The wire formats this build stamps on a document">
+                  {versions}
+                </span>
+                <a class="top-icon" href={repo} aria-label="Repository" rel="noreferrer">
+                  <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <path d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38v-1.35c-2.23.48-2.7-1.07-2.7-1.07-.36-.93-.89-1.18-.89-1.18-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.71 1.22 1.87.87 2.33.67.07-.52.28-.87.5-1.07-1.78-.2-3.65-.89-3.65-3.95 0-.87.31-1.59.83-2.15-.09-.2-.36-1.02.08-2.13 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.03 2.2-.82 2.2-.82.44 1.11.17 1.93.08 2.13.52.56.83 1.28.83 2.15 0 3.07-1.87 3.75-3.66 3.95.29.25.54.73.54 1.48v2.19c0 .21.14.46.55.38A8 8 0 0 0 8 0Z" />
+                  </svg>
                 </a>
-              ))}
-            </nav>
-            <form class="find" method="get" action="/search" role="search">
-              <input type="search" name="q" placeholder="Search" aria-label="Search this site" />
-              <button type="submit">Search</button>
-            </form>
+                <button class="top-icon theme" type="button" data-theme-toggle aria-label="Switch theme">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    aria-hidden="true"
+                  >
+                    <path d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8Z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </header>
-          <main>
-            <h1>{heading}</h1>
-            <p class="lede">{lede}</p>
+          <main id="main">
             <slot name="body">{body}</slot>
           </main>
           <footer class="foot">
-            <p>
-              Every example on this site is a fragment this application compiled. The source you read is the
-              file that produced the output beside it.
-            </p>
+            <div class="foot-in">
+              <svg
+                class="mark quiet"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <g class="mark-warp">
+                  <rect x="4.6" y="2" width="2" height="20" rx="1" />
+                  <rect x="11" y="2" width="2" height="20" rx="1" />
+                  <rect x="17.4" y="2" width="2" height="20" rx="1" />
+                </g>
+                <g class="mark-weft">
+                  <rect x="1" y="7" width="22" height="2" rx="1" />
+                  <rect x="1" y="15" width="3.6" height="2" rx="1" />
+                  <rect x="6.6" y="15" width="4.4" height="2" rx="1" />
+                  <rect x="13" y="15" width="4.4" height="2" rx="1" />
+                  <rect x="19.4" y="15" width="3.6" height="2" rx="1" />
+                </g>
+              </svg>
+              <p>
+                Every example on this site is a fragment this application compiled. The source you read is the
+                file that produced the output beside it.
+              </p>
+            </div>
           </footer>
           {raw(prelude)}
         </body>

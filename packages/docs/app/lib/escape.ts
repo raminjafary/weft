@@ -1,20 +1,7 @@
-const ESCAPES: Record<string, string> = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-  "'": '&#39;',
-}
-
 /**
- * Text into HTML text, and the reason this is a file of its own.
+ * The escaper, from where the rest of the site has always imported it.
  *
- * It lived in `markup.ts` until `highlight.ts` needed it, at which point the two imported each other
- * — `markup` for the highlighter, `highlight` for the escaper. That cycle happens to be harmless
- * (both bindings are only reached at render time, long after evaluation) which is exactly what makes
- * it worth removing rather than living with: the next thing added to either file is what would find
- * out that it is not harmless any more.
+ * It moved to `app/escape.ts` so `app/hl.ts` can reach it without a subdirectory — see the note
+ * there. Nothing that imports it from here had to change.
  */
-export function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (c) => ESCAPES[c] as string)
-}
+export { escapeHtml } from '../escape.ts'

@@ -1,4 +1,4 @@
-import { asset, defineRoute } from 'weft'
+import { defineRoute } from 'weft'
 
 /**
  * What this route declares. Placement, cache policy and data — and deliberately no cache key,
@@ -12,10 +12,6 @@ export default defineRoute({
   cache: { class: 'public', ttl: '1h' },
   load: () => ({
     name: '__NAME__',
-    // A revved URL: the digest of the file is in the path, so it is immutable for a year. Writing
-    // '/logo.svg' by hand also works and is served with no-store, because a URL that does not
-    // name its contents cannot be cached.
-    logo: asset('/logo.svg'),
     steps: [
       {
         n: '01',

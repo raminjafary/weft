@@ -117,7 +117,7 @@ export const PAGES: readonly Page[] = [
   {
     slug: 'scoped-styles',
     title: 'A component’s own stylesheet',
-    lede: 'Name a sheet `.scoped.css` and its selectors reach the elements that component declares, and nothing else on the page.',
+    lede: 'Name a sheet .scoped.css and its selectors reach the elements that component declares, and nothing else on the page.',
     group: 'render',
     covers: ['compiler/scoped-styles.md'],
     examples: [],
@@ -381,12 +381,19 @@ export const PAGES: readonly Page[] = [
 
 export const BY_SLUG: Record<string, Page> = Object.fromEntries(PAGES.map((page) => [page.slug, page]))
 
-export const GROUPS: { id: Page['group']; label: string }[] = [
-  { id: 'start', label: 'Start here' },
-  { id: 'render', label: 'Rendering' },
-  { id: 'deliver', label: 'Delivery' },
-  { id: 'change', label: 'Change' },
-  { id: 'operate', label: 'Operating it' },
+/**
+ * The five groups, and what each one is about.
+ *
+ * The `says` line is not decoration: the groups are the reading order, and a reader deciding where
+ * to start is choosing between "what the thing is" and "the client, and the only thing allowed to
+ * write" rather than between two nouns.
+ */
+export const GROUPS: { id: Page['group']; label: string; says: string }[] = [
+  { id: 'start', label: 'Start here', says: 'what the thing is' },
+  { id: 'render', label: 'Rendering', says: 'what a fragment is, and what it compiles to' },
+  { id: 'deliver', label: 'Delivery', says: 'reads, keys, streaming, and where a render runs' },
+  { id: 'change', label: 'Change', says: 'the client, and the only thing allowed to write' },
+  { id: 'operate', label: 'Operating it', says: 'ports, tiers, devices, versions' },
 ]
 
 /** The page before and after this one, so a guide reads as a sequence rather than a set. */
@@ -397,4 +404,10 @@ export function neighbours(slug: string): { previous?: Page; next?: Page } {
     ...(index > 0 ? { previous: PAGES[index - 1] as Page } : {}),
     ...(index < PAGES.length - 1 ? { next: PAGES[index + 1] as Page } : {}),
   }
+}
+
+/** The group label a page belongs to — the middle crumb. Empty for a slug that has no page. */
+export function groupOf(slug: string): string {
+  const page = BY_SLUG[slug]
+  return page ? (GROUPS.find((group) => group.id === page.group)?.label ?? '') : ''
 }

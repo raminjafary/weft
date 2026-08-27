@@ -1,5 +1,5 @@
 import { errorCodes } from './errors.ts'
-import { escapeHtml, note, prose, table } from './markup.ts'
+import { escapeHtml, note, prose } from './markup.ts'
 import { headingsOf } from './content.ts'
 import { PAGES } from './pages.ts'
 import { SECTIONS } from './sections.ts'
@@ -198,9 +198,6 @@ const LABEL: Record<ResultKind, string> = {
  */
 const ORDER: ResultKind[] = ['guide', 'heading', 'section', 'tutorial', 'term', 'error', 'api']
 
-/** Reference sections are capped, because forty symbols is a listing rather than an answer. */
-const SHOWN: Partial<Record<ResultKind, number>> = { api: 10, error: 10, heading: 8 }
-
 /** How much there is to search, so the empty state says something true rather than nothing. */
 export function indexSize(): number {
   return candidates().length
@@ -259,27 +256,7 @@ export function searchBody(query: string): string {
     )
   }
 
-  const groups = ORDER.map((kind) => {
-    const hits = results.filter((result) => result.kind === kind)
-    if (!hits.length) return ''
-    const cap = SHOWN[kind] ?? hits.length
-    const shown = hits.slice(0, cap)
-    const more =
-      hits.length > shown.length
-        ? `<p class="hint">and ${hits.length - shown.length} more in this section.</p>`
-        : ''
-    return (
-      `<h2>${LABEL[kind]}</h2>` +
-      table(
-        ['What', 'Why it matched'],
-        shown.map((result) => [
-          `<a href="${result.href}">${escapeHtml(result.title)}</a>`,
-          escapeHtml(result.detail),
-        ]),
-      ) +
-      more
-    )
-  }).join('')
+  const list = finderList(trimmed, 60)
 
   return (
     searchAgain(trimmed) +
@@ -287,6 +264,75 @@ export function searchBody(query: string): string {
       `${results.length} result${results.length === 1 ? '' : 's'} for ` +
         `<strong>${escapeHtml(trimmed)}</strong>, grouped by where the answer lives.`,
     ) +
-    groups
+    `<div class="finder-list" id="finder-list">${list}</div>`
   )
+}
+
+/** The kind chip on a hit, in the words a reader would use rather than the union's spelling. */
+const KIND: Record<ResultKind, string> = {
+  section: 'Section',
+  guide: 'Guide',
+  heading: 'Section',
+  tutorial: 'Step',
+  term: 'Term',
+  error: 'Refusal',
+  api: 'Export',
+}
+
+/** Where a hit lives. Shown under the title, so a reader knows which shelf they are being sent to. */
+const WHERE: Record<ResultKind, string> = {
+  section: 'This site',
+  guide: 'Guide',
+  heading: 'Guide',
+  tutorial: 'Tutorial',
+  term: 'Glossary',
+  error: 'Error reference',
+  api: 'API',
+}
+
+/** Mark the run of the query inside a line, so a reader can see why it matched. */
+function marked(text: string, query: string): string {
+  const at = text.toLowerCase().indexOf(query.toLowerCase())
+  if (at < 0 || !query) return escapeHtml(text)
+  return (
+    escapeHtml(text.slice(0, at)) +
+    `<mark>${escapeHtml(text.slice(at, at + query.length))}</mark>` +
+    escapeHtml(text.slice(at + query.length))
+  )
+}
+
+/**
+ * The results, as the ⌘K panel and the results page both draw them.
+ *
+ * One builder for both, deliberately: the panel is the page's own answer shown sooner, not a second
+ * search with a second idea of what a hit looks like. `app/client.ts` fetches `/search?q=` and lifts
+ * this list out of it, which is why the page and the panel can never disagree — there is only one
+ * of them, and no index was downloaded to draw either.
+ */
+export function finderList(query: string, limit = 24): string {
+  const trimmed = query.trim()
+  if (!trimmed) return ''
+  const results = search(trimmed)
+  if (!results.length) {
+    return `<div class="finder-empty">Nothing matches <strong>${escapeHtml(trimmed)}</strong>. Error codes are searchable by name, and exported names exactly.</div>`
+  }
+  let shown = 0
+  let first = true
+  const groups = ORDER.map((kind) => {
+    const hits = results.filter((result) => result.kind === kind)
+    if (!hits.length || shown >= limit) return ''
+    const take = hits.slice(0, Math.max(0, Math.min(hits.length, limit - shown)))
+    shown += take.length
+    return (
+      `<div class="finder-group">${LABEL[kind]}</div>` +
+      take
+        .map((result) => {
+          const here = first
+          first = false
+          return `<a class="finder-hit" href="${escapeHtml(result.href)}"${here ? ' aria-current="true"' : ''}><span class="finder-line"><span class="finder-kind">${KIND[result.kind]}</span><span class="finder-title">${marked(result.title, trimmed)}</span></span><span class="finder-where">${WHERE[result.kind]}</span><span class="finder-detail">${marked(result.detail, trimmed)}</span></a>`
+        })
+        .join('')
+    )
+  }).join('')
+  return `<div class="finder-count">${results.length} match${results.length === 1 ? '' : 'es'}</div>${groups}`
 }

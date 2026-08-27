@@ -1,4 +1,6 @@
 import type { ContentsGroup } from '../fragments/docs/contents.tsx'
+import { surface } from './surface.ts'
+import { STEPS } from './tutorial.ts'
 import { errorsByPackage, errorByCode } from './errors.ts'
 import { TERMS, slug } from './glossary.ts'
 import { GROUPS, PAGES } from './pages.ts'
@@ -90,4 +92,76 @@ export function errorsContents(current?: string): ContentsGroup[] {
       })),
     }
   })
+}
+
+/**
+ * The rail on the two pages that are not in a section: Quick Start, and the playground beside it.
+ *
+ * It is deliberately short. Somebody on Quick Start has not chosen a section yet, so the useful
+ * thing beside them is the other two ways in and the first few pages of the guide — not the whole
+ * twenty-two, which is what the guide's own rail is for.
+ */
+export function startContents(current: string): ContentsGroup[] {
+  const here = (href: string) => (href === current ? HERE : ELSEWHERE)
+  return [
+    {
+      label: 'Getting started',
+      items: [
+        { label: 'Quick Start', href: '/quick-start', count: '', current: here('/quick-start') },
+        { label: 'Tutorial', href: '/tutorial', count: '', current: here('/tutorial') },
+        { label: 'Playground', href: '/play', count: '', current: here('/play') },
+      ],
+    },
+    {
+      label: 'Guide · start here',
+      items: PAGES.slice(0, 4).map((page) => ({
+        label: page.title,
+        href: `/guide/${page.slug}`,
+        count: '',
+        current: ELSEWHERE,
+      })),
+    },
+  ]
+}
+
+/**
+ * The API reference's rail: every package, with how many names it exports.
+ *
+ * It was a hand-built `<ul>` until the rest of the site's rails became one sealed template — which
+ * is the argument for a component made by the thing that happened next: its markup drifted, and the
+ * stylesheet beside the fragment was not linked on the one page that did not render it.
+ */
+export function apiContents(current?: string): ContentsGroup[] {
+  return [
+    {
+      label: 'Packages',
+      items: surface().map((module) => ({
+        label: module.specifier,
+        href: `/api/${module.id}`,
+        count: String(module.entries.length),
+        current: module.id === current ? HERE : ELSEWHERE,
+      })),
+    },
+  ]
+}
+
+/**
+ * The tutorial's rail: the six steps, with the ones behind you marked.
+ *
+ * `count` carries the tick rather than the step number, because a step you have read is the one
+ * fact a reader wants from this column at a glance.
+ */
+export function tutorialContents(current?: string): ContentsGroup[] {
+  const at = STEPS.findIndex((step) => step.slug === current)
+  return [
+    {
+      label: 'Tutorial',
+      items: STEPS.map((step, index) => ({
+        label: step.title,
+        href: `/tutorial/${step.slug}`,
+        count: at >= 0 && index < at ? '✓' : '',
+        current: step.slug === current ? HERE : ELSEWHERE,
+      })),
+    },
+  ]
 }

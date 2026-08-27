@@ -69,27 +69,89 @@ run. `spec/` is the reference: the mechanism, its refusals, and what it delibera
 
 ## What the site uses, that you can go and look at
 
-| Capability                      | Where                                                                            |
-| ------------------------------- | -------------------------------------------------------------------------------- |
-| Nested layouts                  | `app/routes/{guide,tutorial,api}/layout.tsx`, each inside `app/layout.tsx`       |
-| Param routes with declared sets | One route serves all 21 guide pages; another serves all 326 error codes          |
-| The L0 tier                     | `weft build` writes the site as 370 files; the kernel serves none of them        |
-| A slot as a cache unit          | The contents column is its own region: one entry per section, not per page       |
-| Declared refusals               | `/play` and `/search` are the two pages that are not files, and both say why     |
-| The compiler's virtual file set | `/play` compiles what you type without writing it anywhere                       |
-| An intent, with no JavaScript   | The form on `/guide/intents` posts to `app/intents/feedback.ts` and works        |
-| A read as a cache axis          | `/search?q=` taints `route:q`, so every query is its own content-addressed entry |
+| Capability                       | Where                                                                             |
+| -------------------------------- | --------------------------------------------------------------------------------- |
+| Nested layouts                   | `app/routes/{guide,tutorial,api}/layout.tsx`, each inside `app/layout.tsx`        |
+| Param routes with declared sets  | One route serves all 21 guide pages; another serves all 326 error codes           |
+| The L0 tier                      | `weft build` writes the site as 370 files; the kernel serves none of them         |
+| A slot as a cache unit           | The contents column is its own region: one entry per section, not per page        |
+| Declared refusals                | `/play` and `/search` are the two pages that are not files, and both say why      |
+| The compiler's virtual file set  | `/play` compiles what you type without writing it anywhere                        |
+| An intent, with no JavaScript    | The form on `/guide/intents` posts to `app/intents/feedback.ts` and works         |
+| Per-page CSS bundles             | The landing page's 4 KB of hero and band is linked by `/` and by nothing else     |
+| A class hole instead of a branch | A layout may not carry a derived expression, so `shell()` decides the whole class |
+| A read as a cache axis           | `/search?q=` taints `route:q`, so every query is its own content-addressed entry  |
+
+## The look, and where it is decided
+
+The site has a design system rather than a stylesheet, and the split between the two files that
+carry it is the whole of it:
+
+- **`app/styles.css`** is the only file that _defines_ a value. One set of tonal ramps generated on
+  a shared lightness scale, and two role maps over them — light reads the ramps from the light end,
+  dark from the dark end, so a step means the same visual value in both and there is no second
+  palette to keep in sync. It also holds the motion vocabulary and the hover glow.
+- **`app/layout.css`** _spends_ those values on the document: the header, the footer, the three
+  shells a page can sit in, and the article vocabulary every page is made of.
+
+Everything else is colocated, which is what makes the per-page CSS bundle worth having: the
+contents rail's sheet is beside the fragment that renders it, and the landing page, the playground
+and Quick Start each carry a sheet the framework links to that page and to no other.
+
+Two things had to move for the browser to reach them. `app/hl.ts` and `app/escape.ts` sit at the
+top of `app/` rather than in `lib/`, because the framework serves `client.ts` **and its siblings**
+to the browser and refuses a path below that directory — deliberately, since the tree is a public
+surface and `lib/` is full of modules that open files. `lib/` re-exports both, so nothing that
+imported them had to change.
+
+## What the browser gets, and what it is for
+
+`app/client.ts` is the whole of this site's own browser code, and nothing in it may be
+load-bearing:
+
+| It adds                    | Over something that already works                                  |
+| -------------------------- | ------------------------------------------------------------------ |
+| A three-state theme toggle | A palette the stylesheet already picks from `prefers-color-scheme` |
+| ⌘K, over the header's form | A `GET` to `/search`, which is the same answer one paint later     |
+| A cursor-following glow    | A hover state that is a colour change without it                   |
+| A highlighted editor       | A `<textarea>` in a form that compiles on submit                   |
+| Live type hints            | The compile beside them, which is the authoritative answer         |
+
+The finder fetches `/search?q=` and lifts `#finder-list` out of the answer, which is why there is
+no index in the bundle: the list it shows is the one the page shows, built by the same function
+from the same registries. A prebuilt index would buy one round trip and cost a second copy of the
+content, downloaded by every reader whether they search or not.
+
+The hints are `app/infer.ts` — a scan that reads the props interface, finds the holes, and says
+what escape elision _would_ decide for each. It is a hint and the panel says so, because the
+playground's file set is virtual and a virtual compile has no checker to elide by. What it may
+claim is gated by a test.
 
 ## Structure
 
 ```
-app/layout.tsx                    the document: head, header, search form, one <slot>
-app/routes/<section>/layout.tsx   the section's chrome: contents, body, outline
+app/styles.css                    the only file that defines a value: ramps, roles, motion, glow
+app/layout.css                    the document: header, footer, the three shells, the article
+app/layout.tsx                    the document: head, header, search form, one <slot>, footer
+app/client.ts                     the theme, ⌘K, the glow, the editor. Nothing load-bearing
+app/hl.ts                         the highlighter, where the browser can also reach it
+app/infer.ts                      the live type hints. A scan, and it says so
+app/escape.ts                     text into HTML text, beside client.ts for the same reason
+app/routes/<section>/layout.tsx   the section's chrome: rail, article, outline
+app/routes/index.data.ts          the landing page, with index.css beside it
+app/routes/play.data.ts           the playground, with play.css beside it
+app/routes/quick-start/           a section of one, so the page it ends on has a rail
 app/routes/guide/[page].data.ts   every guide page, one route
 app/routes/errors/[code].data.ts  every refusal, one route
 app/routes/search.data.ts         a GET, so a search has a URL and needs no script
+app/fragments/chrome/             the mark
+app/fragments/docs/contents.tsx   the rail every section shares, and its sheet
 app/fragments/examples/*.tsx      the live examples
 app/intents/feedback.ts           the one thing on this site that writes
+app/lib/shell.ts                  the layout values every page supplies, written once
+app/lib/figures.ts                the figures, and the motion language they share
+app/lib/rails.ts                  what goes in an outline column
+app/lib/landing.ts                the landing page's body
 app/lib/pages.ts                  the guide's registry: order, groups, specs covered, examples
 app/lib/content.ts                the prose, per page
 app/lib/surface.ts                the API walk

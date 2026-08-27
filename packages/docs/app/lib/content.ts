@@ -1,4 +1,5 @@
 import { renderExample } from './example.ts'
+import { onThisPage, railCard } from './rails.ts'
 import { escapeHtml, example, heading, note, prose, sketch, table } from './markup.ts'
 import { BY_SLUG, neighbours, PAGES } from './pages.ts'
 import { commands, options, tagline } from './cli.ts'
@@ -1349,23 +1350,25 @@ export function guideOutline(slug: string): string {
   const page = BY_SLUG[slug]
   if (!page) return ''
   const specs = page.covers.length
-    ? `<h2 class="hint">Specified in</h2><ul class="contents">${page.covers
-        .map(
-          (doc) =>
-            `<li><a href="https://github.com/raminjafary/weft/blob/main/spec/${doc}"><code>spec/${doc}</code></a></li>`,
-        )
-        .join('')}</ul>`
+    ? railCard(
+        'Where this is specified',
+        `<div class="rail-links">${page.covers
+          .map(
+            (doc) =>
+              `<a href="https://github.com/raminjafary/weft/blob/main/spec/${doc}"><code>spec/${doc}</code></a>`,
+          )
+          .join('')}</div>`,
+      )
     : ''
   const examples = page.examples.length
-    ? `<h2 class="hint">Live on this page</h2><ul class="contents">${page.examples
-        .map((ex) => `<li><code>${ex.id}</code></li>`)
-        .join('')}</ul>`
+    ? railCard(
+        'Live on this page',
+        `<div class="rail-links">${page.examples.map((ex) => `<code>${ex.id}</code>`).join('')}</div>`,
+      )
     : ''
   const sections = headingsOf(slug)
-  const onThisPage = sections.length
-    ? `<h2 class="hint">On this page</h2><ul class="contents">${sections
-        .map((section) => `<li><a href="#${section.id}">${section.text}</a></li>`)
-        .join('')}</ul>`
-    : ''
-  return `${onThisPage}${specs}${examples}<p class="hint">The guide explains. <a href="https://github.com/raminjafary/weft/tree/main/spec"><code>spec/</code></a> is the reference, with every refusal. <code>pnpm inspect</code> is the live version, with a control.</p>`
+  const onThisPage_ = onThisPage(
+    sections.map((section, at) => ({ label: section.text, href: `#${section.id}`, current: at === 0 })),
+  )
+  return `${onThisPage_}${specs}${examples}<p class="hint">The guide explains. <a href="https://github.com/raminjafary/weft/tree/main/spec"><code>spec/</code></a> is the reference, with every refusal. <code>pnpm inspect</code> is the live version, with a control.</p>`
 }

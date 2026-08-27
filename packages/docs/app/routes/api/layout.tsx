@@ -2,28 +2,66 @@ import { fragment } from 'weft'
 
 interface Props {
   heading: string
+  lede: string
+  /** `crumbs`, or `crumbs none` on an index page that has no trail to draw. */
+  crumbClass: string
+  section: string
+  /** `head-line`, or `head-line none` when the page has no kicker. */
+  headClass: string
+  /** `kicker` for the accent line, `badge` for the chip a generated section wears. */
+  kickerClass: string
+  kicker: string
+  kickerNote: string
   contents: string
   body: string
   outline: string
 }
 
 /**
- * The API reference's layout: a module list, the module, and what it covers.
+ * The API reference's layout: the package list, the package, and what is in this module.
  *
- * A third file with the same three holes, for the reason given in `../tutorial/layout.tsx`. What is
+ * A third file with the same holes, for the reason given in `../tutorial/layout.tsx`. What is
  * different is what fills them: this section's body is generated from the source tree rather than
- * written, so the page is a view over the packages and not a copy of them.
+ * written, so the page is a view over the packages and not a copy of them — which is what the
+ * `generated` chip above the heading is there to say before anybody trusts a signature on it.
  */
-export default fragment(({ heading, contents, body, outline }: Props) => (
-  <div class="guide">
-    <aside class="guide-contents" aria-label={heading}>
-      <slot name="contents">{contents}</slot>
-    </aside>
-    <article class="guide-body api">
-      <slot name="body">{body}</slot>
-    </article>
-    <aside class="guide-outline" aria-label="What this module is">
-      <slot name="outline">{outline}</slot>
-    </aside>
-  </div>
-))
+export default fragment(
+  ({
+    heading,
+    lede,
+    crumbClass,
+    section,
+    headClass,
+    kickerClass,
+    kicker,
+    kickerNote,
+    contents,
+    body,
+    outline,
+  }: Props) => (
+    <div class="shell">
+      <aside class="rail" aria-label="Packages">
+        <slot name="contents">{contents}</slot>
+      </aside>
+      <article class="api">
+        <nav class={crumbClass} aria-label="Breadcrumb">
+          <a href="/api">API</a>
+          <span>/</span>
+          <span>{section}</span>
+          <span>/</span>
+          <span aria-current="page">{heading}</span>
+        </nav>
+        <div class={headClass}>
+          <span class={kickerClass}>{kicker}</span>
+          <span class="hint">{kickerNote}</span>
+        </div>
+        <h1>{heading}</h1>
+        <p class="lede">{lede}</p>
+        <slot name="body">{body}</slot>
+      </article>
+      <aside class="outline-rail" aria-label="On this page">
+        <slot name="outline">{outline}</slot>
+      </aside>
+    </div>
+  ),
+)

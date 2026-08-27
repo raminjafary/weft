@@ -1,0 +1,345 @@
+/**
+ * The playground's own sheet — an editor, two panels, and the strip between them.
+ *
+ * Beside `play.data.ts`, so the framework links it here and nowhere else. It is the heaviest page
+ * on the site and the only one that needs an editor; no reader of the guide should download it.
+ */
+
+.play {
+  max-width: var(--shell);
+  margin: 0 auto;
+}
+
+.play-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 30px var(--gutter) 26px;
+}
+
+.play-head h1 {
+  font-size: 32px;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+
+.play-head .lede {
+  max-width: 78ch;
+  margin: 10px 0 0;
+  font-size: 14.5px;
+}
+
+.play-do {
+  margin-inline-start: auto;
+  display: flex;
+  gap: 9px;
+}
+
+/* One divider between the panes, drawn by the grid's own background showing through the gap. */
+.play-panes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--line);
+  border-block: 1px solid var(--line);
+}
+
+.pane {
+  background: var(--bg);
+  padding: 22px var(--gutter) 30px;
+  min-width: 0;
+}
+
+.pane-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-block-end: 12px;
+}
+
+.pane-head.second {
+  margin-block-start: 24px;
+}
+
+.pane-head .eyebrow {
+  margin: 0;
+}
+
+.pane-path {
+  font: 12px/1 var(--mono);
+  color: var(--dim);
+}
+
+/* ── the editor ───────────────────────────────────────────────────────────── */
+
+/**
+ * A textarea over its own highlighted shadow.
+ *
+ * Both layers must agree on every metric that moves a glyph — font, size, line height, padding,
+ * tabs, wrapping — or the colour drifts from the caret as you type. They are set once, on the
+ * container, and inherited by both, which is the only arrangement that cannot fall out of step.
+ */
+.editor {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--code-bg);
+  overflow: hidden;
+
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.8;
+  tab-size: 2;
+}
+
+.editor-hl,
+.editor textarea {
+  margin: 0;
+  padding: 18px;
+  border: 0;
+  font: inherit;
+  line-height: inherit;
+  tab-size: inherit;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow: auto;
+}
+
+.editor-hl {
+  min-height: 300px;
+  color: var(--code-ink);
+  pointer-events: none;
+}
+
+.editor textarea {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  resize: none;
+  background: transparent;
+  color: var(--code-ink);
+  caret-color: var(--accent);
+}
+
+.editor textarea:focus-visible {
+  outline: none;
+}
+
+.editor:focus-within {
+  border-color: var(--accent);
+}
+
+/* Once the client is running, the shadow supplies the colour and the textarea supplies the caret.
+   Until then the textarea is the only readable layer, so it keeps its own ink. */
+.editor.live textarea {
+  color: transparent;
+}
+
+.editor.live textarea::selection {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+.hints table {
+  font-size: 12.5px;
+}
+
+.hints .unknown code {
+  color: var(--danger-ink);
+}
+
+.hints .prov {
+  margin-block-start: 14px;
+  font-size: 12.5px;
+}
+
+.hints .hint {
+  margin-block-start: 10px;
+  max-width: none;
+}
+
+/* ── the compiled panel ───────────────────────────────────────────────────── */
+
+.pane-tabs {
+  display: flex;
+  gap: 2px;
+  margin-block-end: 12px;
+  flex-wrap: wrap;
+}
+
+.pane-tab {
+  cursor: pointer;
+}
+
+.pane-tab input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.pane-tab span {
+  display: block;
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
+  font: 500 12.5px/1 var(--sans);
+  color: var(--faint);
+}
+
+.pane-tab:has(input:checked) span {
+  background: var(--accent-quiet);
+  color: var(--accent-ink);
+}
+
+.pane-tab:has(input:focus-visible) span {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.pane-panel {
+  display: none;
+}
+
+.pane:has(.pane-tab:nth-of-type(1) input:checked) .pane-panel:nth-of-type(1),
+.pane:has(.pane-tab:nth-of-type(2) input:checked) .pane-panel:nth-of-type(2),
+.pane:has(.pane-tab:nth-of-type(3) input:checked) .pane-panel:nth-of-type(3),
+.pane:has(.pane-tab:nth-of-type(4) input:checked) .pane-panel:nth-of-type(4) {
+  display: block;
+}
+
+@supports not selector(:has(*)) {
+  .pane-panel {
+    display: block;
+  }
+
+  .pane-tabs {
+    display: none;
+  }
+}
+
+.pane-box {
+  min-height: 300px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--code-bg);
+  overflow-x: auto;
+}
+
+.pane-box pre code {
+  font-size: 12.8px;
+}
+
+.pane-box .scroll,
+.pane-box .prov {
+  margin-block-start: 0;
+  border: 0;
+}
+
+.pane-box .scroll + .scroll,
+.pane-box .prov + .scroll {
+  margin-block-start: 16px;
+}
+
+.pane-idle {
+  margin: 0;
+  max-width: 52ch;
+  font-size: 13.5px;
+  color: var(--dim);
+}
+
+.pane-idle kbd {
+  font: 11px/1 var(--mono);
+  padding: 2px 5px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+}
+
+.pane-out {
+  padding: 16px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.refused {
+  color: var(--danger-ink);
+  white-space: pre-wrap;
+}
+
+/* The pre-encoded runs, numbered — the gaps between them are the holes. */
+.runs {
+  margin: 0;
+  padding-inline-start: 2.2em;
+  display: grid;
+  gap: 4px;
+  font: 12.5px/1.6 var(--mono);
+  color: var(--code-ink);
+}
+
+.runs li::marker {
+  color: var(--dim);
+}
+
+.runs code {
+  overflow-wrap: anywhere;
+}
+
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-block-start: 14px;
+  padding: 11px 13px;
+  border: 1px solid var(--accent-edge);
+  border-radius: var(--r-md);
+  background: var(--accent-quiet);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--accent-ink);
+}
+
+.banner.bad {
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+  background: var(--danger-wash);
+  color: var(--danger-ink);
+}
+
+.banner-mark {
+  flex: none;
+}
+
+/* ── the footer ───────────────────────────────────────────────────────────── */
+
+.play-foot {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 22px var(--gutter) 34px;
+}
+
+.play-foot .badge {
+  margin-block-start: 2px;
+  white-space: nowrap;
+}
+
+.play-foot p {
+  margin: 0;
+  max-width: 96ch;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--faint);
+}
+
+@media (width < 1000px) {
+  .play-panes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .play-head,
+  .pane,
+  .play-foot {
+    padding-inline: 28px;
+  }
+}

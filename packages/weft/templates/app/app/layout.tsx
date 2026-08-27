@@ -30,6 +30,10 @@ interface Props {
  *
  * The values it may read are title, description, css, runtime, brand and nav. Reading anything
  * else fails the build with the name of the hole, rather than rendering an empty box.
+ *
+ * The mark is inline rather than an `<img>` because the header needs it before any request could
+ * return one, and it is six rectangles — smaller than the URL that would fetch it. `public/logo.svg`
+ * is the same six, for the favicon and for anywhere an image is what is wanted.
  */
 export default fragment(({ title, description, css, runtime, brand, nav, header, body, footer }: Props) => (
   <>
@@ -38,15 +42,31 @@ export default fragment(({ title, description, css, runtime, brand, nav, header,
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <meta name="color-scheme" content="light dark" />
         <title>{title}</title>
         <meta name="description" content={description} />
+        <link rel="icon" href="/logo.svg" type="image/svg+xml" />
         <link rel="stylesheet" href={css} />
         <script type="module" src={runtime} />
       </head>
       <body>
         <header class="weft-top">
-          <a class="weft-brand" href="/">
-            {brand}
+          <a class="brand" href="/">
+            <svg class="mark" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+              <g class="warp">
+                <rect x="4.6" y="2" width="2" height="20" rx="1" />
+                <rect x="11" y="2" width="2" height="20" rx="1" />
+                <rect x="17.4" y="2" width="2" height="20" rx="1" />
+              </g>
+              <g class="weft">
+                <rect x="1" y="7" width="22" height="2" rx="1" />
+                <rect x="1" y="15" width="3.6" height="2" rx="1" />
+                <rect x="6.6" y="15" width="4.4" height="2" rx="1" />
+                <rect x="13" y="15" width="4.4" height="2" rx="1" />
+                <rect x="19.4" y="15" width="3.6" height="2" rx="1" />
+              </g>
+            </svg>
+            <span class="wordmark">{brand}</span>
           </a>
           <nav class="weft-nav">
             {nav.map((item) => (

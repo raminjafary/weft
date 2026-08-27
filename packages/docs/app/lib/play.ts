@@ -1,7 +1,8 @@
 import { compileFiles } from '@weft/compiler'
 import { render, stringify, type TemplateIR, type Values } from '@weft/ir'
-import { escapeHtml, note, prose } from './markup.ts'
+import { escapeHtml } from './escape.ts'
 import { highlight } from './highlight.ts'
+import { infer } from '../infer.ts'
 
 /**
  * The playground: compile what somebody typed.
@@ -16,16 +17,23 @@ import { highlight } from './highlight.ts'
  * data, and rendering one walks that data. A derived expression is an expression *tree* the renderer
  * interprets, not code it runs. So the worst a submission can do is be large, which is what the
  * size cap below is for.
+ *
+ * The page has two halves and they answer different questions. The right-hand panel is the
+ * compiler's answer, which arrives on submit and is authoritative. The block under the editor is
+ * `infer.ts`, which runs in the browser on every keystroke and is a hint — it is rendered here too,
+ * from the same module, so the first paint already has it and the client is not the only way to see
+ * it.
  */
 const MAX_BYTES = 8 * 1024
 
 export const STARTER = `import { fragment } from 'weft'
 
-export default fragment(({ name, count }: { name: string; count: number }) => (
-  <article class="card">
-    <h3>{name}</h3>
-    <p>{count} in stock</p>
-  </article>
+interface Props { label: string; count: number }
+
+export default fragment(({ label, count }: Props) => (
+  <span class="pill">
+    {label} <b>{count}</b>
+  </span>
 ))
 `
 
@@ -36,9 +44,13 @@ export interface Compiled {
   html: string
   version: string
   templates: number
+  segments: number
+  bytes: number
   holes: { binding: string; kind: string; escape: string }[]
   reads: string[]
   forms: string[]
+  /** The pre-encoded byte runs between the holes, decoded for reading. */
+  runs: string[]
 }
 
 export interface Refused {
@@ -86,12 +98,15 @@ export async function compilePlayground(source: string): Promise<Outcome> {
     }
     const byVersion = new Map(fragment.templates.map((t) => [t.version, t]))
     const values = valuesFor(fragment.entry)
+    const runs = fragment.entry.segments.map((segment) => decoder.decode(segment))
     return {
       ok: true,
       ir: stringify(fragment.entry),
       html: decoder.decode(render(fragment.entry, values, (v) => byVersion.get(v))),
       version: fragment.entry.version,
       templates: fragment.templates.length,
+      segments: runs.length,
+      bytes: runs.reduce((sum, run) => sum + Buffer.byteLength(run, 'utf8'), 0),
       holes: fragment.entry.holes.map((hole) => ({
         binding: hole.binding,
         kind: hole.kind,
@@ -99,6 +114,7 @@ export async function compilePlayground(source: string): Promise<Outcome> {
       })),
       reads: [...fragment.entry.effects.reads],
       forms: [...fragment.entry.forms],
+      runs,
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -107,81 +123,183 @@ export async function compilePlayground(source: string): Promise<Outcome> {
   }
 }
 
+/* ── the page ─────────────────────────────────────────────────────────────── */
+
+const enc = escapeHtml
+
+/** One tab of the right-hand panel. Radio inputs and `:has`, like every other tab strip here. */
+function tabs(panels: readonly { label: string; body: string }[]): string {
+  return `<div class="pane-tabs">${panels
+    .map(
+      (panel, at) =>
+        `<label class="pane-tab"><input type="radio" name="out" value="${enc(panel.label)}"${
+          at === 0 ? ' checked' : ''
+        }><span>${enc(panel.label)}</span></label>`,
+    )
+    .join('')}</div>${panels.map((panel) => `<section class="pane-panel">${panel.body}</section>`).join('')}`
+}
+
+function box(body: string): string {
+  return `<div class="pane-box">${body}</div>`
+}
+
+function codeBox(lang: string, source: string): string {
+  return box(`<pre><code data-lang="${enc(lang)}">${highlight(lang, source)}</code></pre>`)
+}
+
+/** The hint table, rendered on the server from the same module the browser re-runs per keystroke. */
+export function hintTable(source: string): string {
+  const { hints, reads, cacheClass, notes } = infer(source)
+  const rows = hints.length
+    ? hints
+        .map(
+          (hint) =>
+            `<tr${hint.undeclared ? ' class="unknown"' : ''}><td><code>${enc(hint.binding)}</code></td>` +
+            `<td><code>${enc(hint.type)}</code></td><td><code>${enc(hint.where)}</code></td>` +
+            `<td><code>${enc(hint.escape)}</code></td><td class="hint">${hint.line}</td></tr>`,
+        )
+        .join('')
+    : '<tr><td colspan="5" class="hint">No holes yet — every byte of this template would be constant.</td></tr>'
+  return `<div class="scroll"><table>
+      <thead><tr><th>Binding</th><th>Type</th><th>Hole</th><th>Escape</th><th>Line</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <dl class="prov"><div class="prov-row"><dt>Reads</dt><dd>${
+      reads.length ? reads.map((read) => `<code>${enc(read.taint)}</code>`).join(' ') : '<em>nothing</em>'
+    }</dd></div><div class="prov-row"><dt>Cache class</dt><dd><code>${cacheClass}</code></dd></div></dl>
+    ${notes.map((note) => `<p class="hint">${enc(note)}</p>`).join('')}`
+}
+
+function result(outcome: Outcome | null): string {
+  if (!outcome) {
+    return (
+      tabs([
+        {
+          label: 'Template IR',
+          body: box(
+            `<p class="pane-idle">Press <kbd>⌘↵</kbd> or <strong>Compile</strong>. The compiler runs over a
+             file set held in memory — nothing is written anywhere, and the result has a URL you can share.</p>`,
+          ),
+        },
+      ]) + ''
+    )
+  }
+  if (!outcome.ok) {
+    return (
+      tabs([
+        {
+          label: 'Refused',
+          body: box(`<pre class="refused"><code>${enc(outcome.message)}</code></pre>`),
+        },
+      ]) +
+      `<div class="banner bad"><span class="banner-mark">✕</span><span><code>${enc(
+        outcome.code,
+      )}</code> — every refusal has a name and a page.
+        <a href="/errors/${encodeURIComponent(outcome.code)}">Look this one up →</a></span></div>`
+    )
+  }
+
+  const holes = outcome.holes.length
+    ? `<div class="scroll"><table><thead><tr><th>Binding</th><th>Hole</th><th>Escape</th></tr></thead><tbody>${outcome.holes
+        .map(
+          (hole) =>
+            `<tr><td><code>${enc(hole.binding)}</code></td><td><code>${enc(
+              hole.kind,
+            )}</code></td><td><code>${enc(hole.escape)}</code></td></tr>`,
+        )
+        .join('')}</tbody></table></div>`
+    : '<p class="hint">No holes: every byte of this template is constant.</p>'
+
+  const effects = box(
+    `<dl class="prov">
+      <div class="prov-row"><dt>Reads</dt><dd>${
+        outcome.reads.length
+          ? outcome.reads.map((read) => `<code>${enc(read)}</code>`).join(', ')
+          : '<em>nothing — so its class is static and its key is its content address</em>'
+      }</dd></div>
+      <div class="prov-row"><dt>Wire forms</dt><dd>${outcome.forms
+        .map((form) => `<code>${enc(form)}</code>`)
+        .join(', ')}</dd></div>
+      <div class="prov-row"><dt>Sealed templates</dt><dd>${outcome.templates}</dd></div>
+      <div class="prov-row"><dt>Version</dt><dd><code>${enc(outcome.version)}</code></dd></div>
+    </dl>${holes}`,
+  )
+
+  const segments = box(
+    `<ol class="runs">${outcome.runs
+      .map((run) => `<li><code>${enc(run) || '<span class="hint">·</span>'}</code></li>`)
+      .join('')}</ol>
+     <p class="hint">${outcome.segments} pre-encoded runs, ${outcome.bytes} bytes of constant markup. A
+      render writes these straight out and fills the gaps between them; nothing here is built per request.</p>`,
+  )
+
+  return (
+    tabs([
+      { label: 'Template IR', body: codeBox('json', outcome.ir) },
+      { label: 'Segments', body: segments },
+      { label: 'Effects', body: effects },
+      { label: 'Output', body: box(`<div class="pane-out">${outcome.html}</div>`) },
+    ]) +
+    `<div class="banner"><span class="banner-mark">✓</span><span>Compiled into ${
+      outcome.templates
+    } sealed template${outcome.templates === 1 ? '' : 's'}, ${outcome.holes.length} hole${
+      outcome.holes.length === 1 ? '' : 's'
+    }, ${outcome.segments} segments. The rendered output is the template filled with a value invented
+      per hole.</span></div>`
+  )
+}
+
 /**
- * The playground's body: the source, the actions, and what the compile produced.
+ * The playground's body: the source, what it compiles to, and what a scan can say in between.
  *
  * `reset` carries `data-weft-scroll="preserve"` because it re-renders this page with no source
  * rather than going anywhere — the reader is still on the playground, and the top is not where they
  * were. Compile needs no attribute: a `method="get"` submit preserves by default, since a form
- * re-renders the page it is on. A link's default is the top, which is right for a link that actually
- * goes somewhere and wrong for this one, so this one says so.
+ * re-renders the page it is on.
  */
 export function playBody(source: string, outcome: Outcome | null): string {
-  const form = `<form class="play" method="get" action="/play">
-    <label for="src">A fragment module</label>
-    <textarea id="src" name="src" rows="14" spellcheck="false">${escapeHtml(source)}</textarea>
-    <div class="play-actions">
-      <button type="submit">compile</button>
-      <a class="reset" href="/play" data-weft-scroll="preserve">reset</a>
-    </div>
-  </form>`
+  return `<form class="play" method="get" action="/play">
+    <header class="play-head">
+      <div>
+        <h1>Playground</h1>
+        <p class="lede">Type a fragment and see what it compiles to. Nothing is written anywhere — the
+          compiler runs over a virtual file set, which is why this page is one of the two on this site
+          that is not a file.</p>
+      </div>
+      <div class="play-do">
+        <a class="btn" href="/play" data-weft-scroll="preserve">Reset</a>
+        <button class="btn btn-primary" type="submit">Compile <kbd>⌘↵</kbd></button>
+      </div>
+    </header>
 
-  const result = !outcome
-    ? ''
-    : outcome.ok
-      ? `<h2>What it compiled to</h2>
-        <figure class="output"><figcaption>Rendered, with a value invented per hole</figcaption>
-          <div class="output-frame">${outcome.html}</div></figure>
-        <dl class="prov">
-          <dt>Sealed templates</dt><dd>${outcome.templates}</dd>
-          <dt>Version</dt><dd><code>${escapeHtml(outcome.version)}</code></dd>
-          <dt>Reads</dt><dd>${
-            outcome.reads.length
-              ? outcome.reads.map((r) => `<code>${escapeHtml(r)}</code>`).join(', ')
-              : '<em>nothing</em>'
-          }</dd>
-          <dt>Wire forms</dt><dd>${outcome.forms.map((f) => `<code>${escapeHtml(f)}</code>`).join(', ')}</dd>
-        </dl>
-        <div class="scroll"><table><thead><tr><th>Binding</th><th>Hole</th><th>Escape</th></tr></thead><tbody>${outcome.holes
-          .map(
-            (hole) =>
-              `<tr><td><code>${escapeHtml(hole.binding)}</code></td><td><code>${escapeHtml(
-                hole.kind,
-              )}</code></td><td><code>${escapeHtml(hole.escape)}</code></td></tr>`,
-          )
-          .join('')}</tbody></table></div>
-        <details><summary>The sealed template, as the wire carries it</summary>
-          <figure class="code"><pre><code data-lang="json">${highlight('json', outcome.ir)}</code></pre></figure>
-        </details>`
-      : `<h2>Refused</h2><div class="card refusal">
-          <h3><code>${escapeHtml(outcome.code)}</code></h3>
-          <p>${escapeHtml(outcome.message)}</p>
+    <div class="play-panes">
+      <section class="pane">
+        <div class="pane-head">
+          <span class="eyebrow">Fragment</span>
+          <span class="pane-path">virtual:/play/fragment.tsx</span>
         </div>
-        <p class="hint">Every refusal has a name. <a href="/errors/${encodeURIComponent(
-          outcome.code,
-        )}">Look this one up →</a></p>`
+        <div class="editor">
+          <pre class="editor-hl" aria-hidden="true"><code>${highlight('tsx', `${source}\n`)}</code></pre>
+          <textarea id="src" name="src" spellcheck="false" autocapitalize="off" autocomplete="off"
+            autocorrect="off" aria-label="A fragment module">${enc(source)}</textarea>
+        </div>
+        <div class="pane-head second">
+          <span class="eyebrow">While you type</span>
+          <span class="pane-path">a scan, not the compiler</span>
+        </div>
+        <div id="hints" class="hints">${hintTable(source)}</div>
+      </section>
 
-  return (
-    prose(
-      'Type a fragment module and see what the compiler makes of it: the holes it lowered, how each one ' +
-        'escapes, what it inferred the fragment reads, and the sealed template as the wire would carry it.',
-    ) +
-    form +
-    result +
-    note(
-      'careful',
-      'Every hole here escapes',
-      'Escape elision is a type question, and the checker opens files through TypeScript’s own project ' +
-        'system — which needs a directory. A virtual file set has none, so a fragment compiled here escapes ' +
-        'every value rather than eliding by type. That is the safe direction, and it is why the elision ' +
-        'example in the guide is a real file. <a href="/guide/fragments#escaping">See it there</a>.',
-    ) +
-    note(
-      'why',
-      'Nothing you type is executed',
-      'The compiler parses and lowers; it never evaluates. A sealed template is data, and rendering one ' +
-        'walks that data — even a derived value is an expression tree the renderer interprets rather than ' +
-        'code it runs. The only resource a submission can spend is size, which is capped at 8 KB.',
-    )
-  )
+      <section class="pane">${result(outcome)}</section>
+    </div>
+
+    <footer class="play-foot">
+      <span class="badge mute">not a file</span>
+      <p>This route declares <code>static: false</code> with its reason: the page is a function of what
+        you typed, and the compiler's virtual file set has no path on disk to address. The other one is
+        search. Escape elision is a type question and a virtual file set has no directory for the
+        checker to open, so every hole compiled here escapes — which is the safe direction, and why the
+        elision example in the guide is a real file.
+        <a href="/guide/fragments#escaping">See it there</a>.</p>
+    </footer>
+  </form>`
 }

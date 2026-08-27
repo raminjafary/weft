@@ -3,9 +3,7 @@ import { fragment } from 'weft'
 interface Props {
   heading: string
   lede: string
-  /** `head-line`, or `head-line none` when the page has no kicker. */
   headClass: string
-  /** `kicker` for the accent line, `badge` for the chip a generated section wears. */
   kickerClass: string
   kicker: string
   kickerNote: string
@@ -15,19 +13,19 @@ interface Props {
 }
 
 /**
- * The gallery's layout: which page each example is from, and the examples.
+ * Quick Start's own layout, and the reason it has one.
  *
- * Two columns, because an example carries its own provenance in the facts panel underneath it —
- * a third column repeating the same numbers would be a summary of what is already on the page.
+ * The page was at the top level and had no rail, which made it the one page where a reader who
+ * finished it had nowhere to go. It is a section of one now: the same three columns as the guide,
+ * with a rail that names the other two ways in and the first four pages of the guide.
+ *
+ * There is no breadcrumb here, because a section of one has nothing to be a trail through.
  */
 export default fragment(
   ({ heading, lede, headClass, kickerClass, kicker, kickerNote, contents, body, outline }: Props) => (
-    <div class="shell two">
-      <aside class="rail" aria-label="Examples">
+    <div class="shell">
+      <aside class="rail" aria-label="Getting started">
         <slot name="contents">{contents}</slot>
-        <div class="rail-foot" aria-label="This page">
-          <slot name="outline">{outline}</slot>
-        </div>
       </aside>
       <article>
         <div class={headClass}>
@@ -38,6 +36,9 @@ export default fragment(
         <p class="lede">{lede}</p>
         <slot name="body">{body}</slot>
       </article>
+      <aside class="outline-rail" aria-label="On this page">
+        <slot name="outline">{outline}</slot>
+      </aside>
     </div>
   ),
 )

@@ -8,7 +8,6 @@ interface Step {
 
 interface Props {
   name: string
-  logo: string
   steps: Step[]
 }
 
@@ -19,14 +18,30 @@ interface Props {
  * into a template at build time, the server filled its holes, and the only JavaScript the page
  * loaded is the framework's own client — which on a page with no signals and no intents does
  * nothing at all. Delete `index.data.ts` and the page still renders; it just has no values.
+ *
+ * Deliberately short. A welcome page whose job is to be deleted should be small enough to read in
+ * full before deleting it, and every line here is either the framework's own stylesheet doing the
+ * work or a file name you are about to open.
  */
-export default fragment(({ name, logo, steps }: Props) => (
+export default fragment(({ name, steps }: Props) => (
   <>
-    <section class="weft-hero hero">
-      <img class="hero-mark" src={logo} alt="" width="44" height="44" />
-      <span class="weft-eyebrow">weft</span>
+    <section class="hero">
+      <svg class="mark" width="48" height="48" viewBox="0 0 24 24" aria-hidden="true">
+        <g class="warp">
+          <rect x="4.6" y="2" width="2" height="20" rx="1" />
+          <rect x="11" y="2" width="2" height="20" rx="1" />
+          <rect x="17.4" y="2" width="2" height="20" rx="1" />
+        </g>
+        <g class="weft">
+          <rect x="1" y="7" width="22" height="2" rx="1" />
+          <rect x="1" y="15" width="3.6" height="2" rx="1" />
+          <rect x="6.6" y="15" width="4.4" height="2" rx="1" />
+          <rect x="13" y="15" width="4.4" height="2" rx="1" />
+          <rect x="19.4" y="15" width="3.6" height="2" rx="1" />
+        </g>
+      </svg>
       <h1>{name} is running.</h1>
-      <p class="weft-lede">
+      <p>
         A folder is an application. The route table above is <code>app/routes</code>, the document is{' '}
         <code>app/layout.tsx</code>, and the plan that placed everything on this page was generated from those
         two facts rather than written by hand.
@@ -41,39 +56,12 @@ export default fragment(({ name, logo, steps }: Props) => (
       </div>
     </section>
 
-    <div class="weft-grid">
-      <div class="weft-card">
-        <h3>Nothing mounted</h3>
-        <p>
-          This page shipped no component code. Adoption binds nodes to values by walking marker comments, so
-          what the browser pays for is the number of live bindings on the page — and this page has none.
-        </p>
-      </div>
-      <div class="weft-card">
-        <h3>One sealed template</h3>
-        <p>
-          Rendering the same component ten times adds ten items of content and no template. Page weight tracks
-          what is on the page, not how many components drew it.
-        </p>
-      </div>
-      <div class="weft-card">
-        <h3>No CSS to write</h3>
-        <p>
-          The framework ships a stylesheet. Put a <code>.css</code> beside any fragment and only the pages
-          that render it will link it.
-        </p>
-      </div>
-    </div>
-
-    <h2>Next</h2>
-    <ol class="weft-next">
+    <ol class="next">
       {steps.map((step) => (
         <li>
-          <span class="weft-step">{step.n}</span>
-          <div>
-            <p>{step.what}</p>
-            <code>{step.where}</code>
-          </div>
+          <span class="n">{step.n}</span>
+          <p>{step.what}</p>
+          <code>{step.where}</code>
         </li>
       ))}
     </ol>

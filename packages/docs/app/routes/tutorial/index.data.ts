@@ -1,16 +1,18 @@
 import { defineRoute } from 'weft'
+import { tutorialContents } from '../../lib/contents.ts'
+import { shell } from '../../lib/shell.ts'
 import { prose } from '../../lib/markup.ts'
-import { STEPS, stepContents } from '../../lib/tutorial.ts'
+import { STEPS } from '../../lib/tutorial.ts'
 
 export default defineRoute({
   head: { title: 'Tutorial · weft', description: 'Build one page from nothing, one step at a time.' },
-  layoutValues: {
+  layoutValues: shell({
     heading: 'Tutorial',
     lede: 'Build one real page from nothing, and watch what each step costs.',
-  },
+  }),
   cache: { class: 'public', ttl: '1h' },
   slots: {
-    contents: { html: () => stepContents() },
+    contents: { fragment: 'docs/contents', load: () => ({ groups: tutorialContents() }) },
     body: {
       html: () =>
         prose(

@@ -1,4 +1,5 @@
 import { defineRoute } from 'weft'
+import { shell } from '../lib/shell.ts'
 import { indexSize, searchBody } from '../lib/search.ts'
 
 /**
@@ -16,10 +17,10 @@ export default defineRoute({
     title: 'Search · weft',
     description: 'Search the guide, the tutorial, the glossary, every error code and every export.',
   },
-  layoutValues: {
+  layoutValues: shell({
     heading: 'Search',
     lede: `Everything on this site, matched against what you type. ${indexSize()} entries, and no index to download.`,
-  },
+  }),
   static: false,
   notStaticBecause:
     'its body is a function of `?q`, and neither build probe invents that key — so the page would render identically twice and be frozen showing the empty state',

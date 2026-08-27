@@ -5,9 +5,40 @@
  *   --weft-accent, --weft-bg, --weft-surface, --weft-text, --weft-muted, --weft-line,
  *   --weft-radius, --weft-sans, --weft-mono
  *
- * Per-page and per-component CSS goes in a `.css` beside the `.tsx`, and only the pages that
- * render it will link it.
+ * What is below is a palette and nothing else — no layout, no components. The framework's
+ * stylesheet already draws a page; this decides what colour it is. Per-page and per-component CSS
+ * goes in a `.css` beside the `.tsx`, and only the pages that render it will link it.
  */
 :root {
-  --weft-accent: #8a4b2a;
+  --weft-accent: #796cbf;
+  --weft-accent-soft: #f0eefb;
+  --weft-bg: #fbfbfd;
+  --weft-surface: #ffffff;
+  --weft-surface-2: #f5f4ff;
+  --weft-line: #e2e0ef;
+  --weft-line-strong: #cfd3e5;
+  --weft-text: #292b31;
+  --weft-muted: #75798c;
+  --weft-radius: 10px;
+
+  /* The mark's two threads, so the header and the hero cannot disagree about them. */
+  --warp: #b2b6ca;
+  --weft: #796cbf;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --weft-accent: #9184d9;
+    --weft-accent-soft: #2b2741;
+    --weft-bg: #161826;
+    --weft-surface: #232532;
+    --weft-surface-2: #1d1f2c;
+    --weft-line: #2f3140;
+    --weft-line-strong: #3f424d;
+    --weft-text: #e9e9ed;
+    --weft-muted: #9397ab;
+
+    --warp: #75798c;
+    --weft: #9184d9;
+  }
 }

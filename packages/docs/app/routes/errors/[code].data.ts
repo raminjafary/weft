@@ -1,4 +1,5 @@
 import { defineRoute } from 'weft'
+import { GENERATED, shell } from '../../lib/shell.ts'
 import { errorByCode } from '../../lib/errors.ts'
 import { codeIds, errorBody } from '../../lib/errors-page.ts'
 import { errorsOutline } from '../../lib/outlines.ts'
@@ -16,10 +17,13 @@ export default defineRoute({
     title: `${params.code ?? 'Unknown'} · weft errors`,
     description: errorByCode(params.code ?? '')?.message ?? 'No such code.',
   }),
-  layoutValues: (params) => ({
-    heading: params.code ?? 'Unknown',
-    lede: errorByCode(params.code ?? '')?.message ?? 'This code is not raised anywhere in the framework.',
-  }),
+  layoutValues: (params) =>
+    shell({
+      ...GENERATED,
+      kickerNote: errorByCode(params.code ?? '')?.package ?? 'unknown package',
+      heading: params.code ?? 'Unknown',
+      lede: errorByCode(params.code ?? '')?.message ?? 'This code is not raised anywhere in the framework.',
+    }),
   cache: { class: 'public', ttl: '1h' },
   params: { code: codeIds() },
   slots: {

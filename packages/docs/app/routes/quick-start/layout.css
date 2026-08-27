@@ -1,0 +1,7 @@
+/* Quick Start's heading is the design's 42px rather than a section page's 38: it is the first
+   thing most people read on this site, and it is one page rather than a set. */
+
+.shell article > h1 {
+  font-size: 42px;
+  line-height: 1.1;
+}

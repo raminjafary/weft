@@ -1,0 +1,440 @@
+/**
+ * The landing page's own sheet.
+ *
+ * It is beside `index.data.ts`, which means the framework links it to `/` and to nothing else — a
+ * hero, a measurement band and two card decks are worth about 4 KB, and no other page should pay for
+ * them. That colocation is the whole reason the site can afford a landing page this specific.
+ */
+
+.landing {
+  max-width: var(--shell);
+  margin: 0 auto;
+}
+
+/* ── the hero ─────────────────────────────────────────────────────────────── */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 560px;
+  gap: 64px;
+  padding: 74px 60px 66px;
+  align-items: start;
+}
+
+.hero-kicker {
+  margin: 0 0 20px;
+  font: 600 11.5px/1 var(--mono);
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.hero h1 {
+  font-size: 50px;
+  line-height: 1.08;
+  letter-spacing: -0.033em;
+  max-width: 22ch;
+  text-wrap: pretty;
+}
+
+.hero-lede {
+  margin: 24px 0 0;
+  max-width: 56ch;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.hero-sub {
+  margin: 16px 0 0;
+  max-width: 56ch;
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--faint);
+}
+
+.hero-do {
+  display: flex;
+  gap: 10px;
+  margin-block-start: 32px;
+}
+
+.hero-do .btn {
+  padding: 11px 18px;
+  font-size: 14px;
+}
+
+.hero-cmd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 400px;
+  margin: 26px 0 0;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--code-bg);
+  font: 13px/1 var(--mono);
+  color: var(--code-ink);
+}
+
+.hero-cmd .prompt {
+  color: var(--dim);
+}
+
+.caret {
+  display: inline-block;
+  width: 1.5px;
+  height: 14px;
+  background: var(--accent);
+  vertical-align: text-bottom;
+}
+
+.hero-fine {
+  margin: 18px 0 0;
+  max-width: 52ch;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--dim);
+}
+
+/* ── the tabbed panel beside it ───────────────────────────────────────────── */
+
+.panel {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--code-bg);
+}
+
+.panel-tabs {
+  display: flex;
+  border-block-end: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+}
+
+.panel-tab {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.panel-tab input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.panel-tab-in {
+  display: block;
+  padding: 10px 13px;
+  border-inline-end: 1px solid var(--line);
+  border-block-end: 2px solid transparent;
+}
+
+.panel-tab:last-child .panel-tab-in {
+  border-inline-end: 0;
+}
+
+.panel-tab-label {
+  display: block;
+  font: 500 12.5px/1 var(--mono);
+  color: var(--faint);
+}
+
+.panel-tab-note {
+  display: block;
+  margin-block-start: 4px;
+  font: 11px/1.35 var(--sans);
+  color: var(--dim);
+}
+
+.panel-tab:has(input:checked) .panel-tab-in {
+  border-block-end-color: var(--accent);
+  background: var(--accent-quiet);
+}
+
+.panel-tab:has(input:checked) .panel-tab-label {
+  color: var(--accent-ink);
+}
+
+.panel-tab:has(input:focus-visible) .panel-tab-in {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.panel-path {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  padding: 9px 14px;
+  border-block-end: 1px solid var(--line);
+  font: 12.5px/1 var(--mono);
+  color: var(--faint);
+}
+
+.panel-path .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+
+.panel-body {
+  display: none;
+}
+
+/* Every panel is in the markup; the checked tab picks one. No script, and no second request —
+   which is the claim the page above it is making, made by the page. */
+.panel:has(.panel-tab:nth-of-type(1) input:checked) section.panel-body:nth-of-type(1),
+.panel:has(.panel-tab:nth-of-type(2) input:checked) section.panel-body:nth-of-type(2),
+.panel:has(.panel-tab:nth-of-type(3) input:checked) section.panel-body:nth-of-type(3),
+.panel:has(.panel-tab:nth-of-type(4) input:checked) section.panel-body:nth-of-type(4) {
+  display: block;
+}
+
+@supports not selector(:has(*)) {
+  .panel-body {
+    display: block;
+  }
+
+  .panel-tabs {
+    display: none;
+  }
+}
+
+.panel pre {
+  padding: 18px;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--code-ink);
+}
+
+/* ── the measurement band ─────────────────────────────────────────────────── */
+
+.band {
+  background: var(--band);
+  color: var(--band-ink);
+}
+
+.band-in {
+  max-width: var(--shell);
+  margin: 0 auto;
+  padding: 40px 60px;
+}
+
+.band-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 44px;
+}
+
+.band-num {
+  font-size: 40px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--band-ink-strong);
+}
+
+.band-rule {
+  height: 2px;
+  width: 46px;
+  margin-block-start: 11px;
+  border-radius: 2px;
+  background: var(--accent2-400);
+  opacity: 0.75;
+  transform-origin: left;
+}
+
+.band-note {
+  margin-block-start: 9px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--band-ink);
+}
+
+.band-fine {
+  margin: 30px 0 0;
+  max-width: none;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--accent-300);
+}
+
+/* ── one figure, drawn to scale, beside what it means ─────────────────────── */
+
+.split-say {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 620px;
+  gap: 70px;
+  padding: 66px 60px;
+  align-items: start;
+}
+
+.split-say h2 {
+  font-size: 33px;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+
+.split-say p {
+  margin: 16px 0 0;
+  max-width: 46ch;
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+.more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-block-start: 24px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ── the two card decks ───────────────────────────────────────────────────── */
+
+.deck {
+  padding: 0 60px 70px;
+}
+
+.deck.last {
+  padding-block-end: 40px;
+}
+
+.deck-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-block-end: 22px;
+}
+
+.deck-head h2 {
+  font-size: 24px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.deck-say {
+  max-width: 90ch;
+  color: var(--ink-soft);
+}
+
+.deck-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.deck-grid .card {
+  padding: 20px;
+  border-radius: var(--r-lg);
+}
+
+.deck-grid .card h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.absence {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.absence-kicker {
+  margin: 0;
+  font: 600 10px/1 var(--sans);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.absence-title {
+  margin: 10px 0 0;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+.absence-body {
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--faint);
+}
+
+.absence-foot {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin: 14px 0 0;
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--line);
+}
+
+.absence-foot b {
+  font: 500 15px/1 var(--mono);
+  color: var(--accent-ink);
+  white-space: nowrap;
+}
+
+.absence-foot span {
+  font: 11.5px/1.4 var(--sans);
+  color: var(--dim);
+}
+
+/* ── narrower than the design's 1440 ──────────────────────────────────────── */
+
+@media (width < 1240px) {
+  .hero,
+  .split-say {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+  }
+
+  .hero h1 {
+    font-size: 42px;
+  }
+}
+
+@media (width < 1000px) {
+  .hero,
+  .band-in,
+  .split-say,
+  .deck {
+    padding-inline: 28px;
+  }
+
+  .hero {
+    padding-block-start: 48px;
+  }
+
+  .band-grid,
+  .deck-grid {
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 28px;
+  }
+}
+
+@media (width < 680px) {
+  .hero h1 {
+    font-size: 34px;
+  }
+
+  .panel-tabs {
+    flex-wrap: wrap;
+  }
+}

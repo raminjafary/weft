@@ -394,6 +394,7 @@ export function glossaryBody(): string {
         '<strong>Plan</strong> is not a build configuration. And hydration does not happen at all — the ' +
         'word for what replaces it is <strong>adoption</strong>.',
     ) +
+    `<div class="terms">` +
     TERMS.map(
       (term) => `<section class="term" id="${slug(term.term)}">
       <h2><a class="anchor" href="#${slug(term.term)}">${escapeHtml(term.term)}</a></h2>
@@ -407,7 +408,8 @@ export function glossaryBody(): string {
           : ''
       }
     </section>`,
-    ).join('')
+    ).join('') +
+    `</div>`
   )
 }
 

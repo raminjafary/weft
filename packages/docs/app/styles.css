@@ -1,132 +1,387 @@
-/* The site's own stylesheet, appended after the framework's. */
+/**
+ * The site's foundations: tokens, reset, type, motion.
+ *
+ * This file is the only one that defines a value. Everything below it — `layout.css`, each section
+ * shell, each fragment's own sheet — spends these tokens and defines none of its own, which is what
+ * keeps a colour from being decided twice. It is appended after the framework's stylesheet and is
+ * on every page; the sheets beside components are not, because the framework links a page only the
+ * stylesheets of the components that page renders.
+ *
+ * The palette is one set of ramps and two role maps. Dark reads the ramps from the dark end, light
+ * from the light end — so a step means the same visual value in both, and there is no second palette
+ * anybody has to keep in sync with the first.
+ */
+
+/* ── tokens ─────────────────────────────────────────────────────────── */
 
 :root {
-  /* Both palettes exist below, so say so: this is what makes the scrollbars, form controls and the
-     canvas itself follow the theme instead of staying light under a dark page. The head carries the
-     same declaration, which is what stops the first frame being white. */
-  color-scheme: light dark;
-  --ink: #14171a;
-  --dim: #5b6570;
-  --line: #dfe4e8;
-  --bg: #fbfcfd;
-  --panel: #fff;
-  --accent: #1f6feb;
-  --code-bg: #f5f7f9;
-  --warn: #a15c00;
+  /* ── ramps ─────────────────────────────────────────────────────────────
+     Generated in OKLCH on one shared lightness scale, so the same step of
+     any role matches the others in visual value. Never referenced by a
+     component directly: the roles below are the surface. */
+  --neutral-100: #f3f5fe;
+  --neutral-200: #e4e7f5;
+  --neutral-300: #cfd3e5;
+  --neutral-400: #b2b6ca;
+  --neutral-500: #9397ab;
+  --neutral-600: #75798c;
+  --neutral-700: #595d6c;
+  --neutral-800: #3f424d;
+  --neutral-900: #292b31;
 
-  /* Syntax tokens. Six roles, not a full theme: the point is to make a comment recede and a string
-     and a keyword separable, which is what a reader scanning an example needs. */
-  --t-comment: #6a7480;
-  --t-string: #0a6b47;
-  --t-number: #8a4b12;
-  --t-keyword: #9026a8;
-  --t-type: #0b5cad;
-  --t-punct: #6a7480;
+  --accent-100: #f5f4ff;
+  --accent-200: #e7e5fe;
+  --accent-300: #d2cefd;
+  --accent-400: #b5abfc;
+  --accent-500: #968ae0;
+  --accent-600: #796cbf;
+  --accent-700: #5d5294;
+  --accent-800: #423a6a;
+  --accent-900: #2b2741;
+
+  --accent2-100: #f5f4ff;
+  --accent2-200: #e7e5fe;
+  --accent2-300: #d2cefd;
+  --accent2-400: #b5afe8;
+  --accent2-500: #9690c9;
+  --accent2-600: #7972a9;
+  --accent2-700: #5c5783;
+  --accent2-800: #423e5d;
+  --accent2-900: #2b293a;
+
+  /* The one hue outside the ramps. A refusal is not an accent, and reading it
+     as one is the mistake this token exists to prevent. */
+  --danger: #b4483c;
+
+  /* ── geometry ──────────────────────────────────────────────────────── */
+  --shell: 1440px;
+  --gutter: 46px;
+  --rail: 250px;
+  --outline: 224px;
+  --head-h: 58px;
+
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 10px;
+  --r-xl: 14px;
+  --r-pill: 999px;
+
+  --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  --sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* ── roles, light ──────────────────────────────────────────────────────
+     The default, because `color-scheme` is declared and an unset preference
+     should not be a coin toss. The dark map follows. */
+  --bg: var(--neutral-100);
+  --surface: var(--accent-100);
+  --raised: #fff;
+  --ink: var(--neutral-900);
+  --ink-soft: var(--neutral-700);
+  --dim: var(--neutral-600);
+  --faint: var(--neutral-500);
+  --line: var(--neutral-300);
+  --line-soft: var(--neutral-200);
+  --accent: var(--accent-600);
+  --accent-ink: var(--accent-700);
+  --accent-quiet: var(--accent-200);
+  --accent-edge: var(--accent-300);
+  --on-accent: var(--accent-800);
+  --code-bg: var(--accent-100);
+  --code-ink: var(--neutral-900);
+  --head-bg: var(--accent-100);
+  --thead-bg: var(--neutral-200);
+  --danger-ink: #8f3125;
+  --danger-wash: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  --scrim: rgb(41 43 49 / 45%);
+  --shadow-pop: 0 24px 60px rgb(41 43 49 / 22%);
+
+  /* Syntax roles. Six jobs, not a theme: make a comment recede, and keep a
+     string, a keyword and a type separable for somebody scanning. */
+  --t-comment: var(--neutral-600);
+  --t-string: #2f7d5c;
+  --t-number: var(--accent-700);
+  --t-keyword: var(--accent-700);
+  --t-type: var(--accent2-700);
+  --t-tag: var(--accent2-700);
+  --t-attr: var(--accent-700);
+  --t-key: #2f7d5c;
+  --t-command: var(--accent2-700);
+  --t-flag: var(--accent-700);
+  --t-punct: var(--neutral-600);
+
+  /* The deck ground the landing page's figure band sits on. A saturated
+     indigo, deliberately outside the interface palette — a fill, never a
+     colour a control takes. */
+  --band: #262a60;
+  --band-ink: var(--accent-200);
+  --band-ink-strong: var(--neutral-100);
+
+  color-scheme: light dark;
+  accent-color: var(--accent);
 }
 
+/* ── roles, dark ────────────────────────────────────────────────────────
+   `:root:not([data-theme='light'])` rather than a bare media query, so the
+   toggle wins in both directions and the media query only decides when the
+   reader has expressed no preference. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #e6e9ec;
-    --dim: #9aa4af;
-    --line: #2a3138;
-    --bg: #14171a;
-    --panel: #191d21;
-    --accent: #79b8ff;
-    --code-bg: #1e2328;
-    --warn: #e0a34a;
+  :root:not([data-theme='light']) {
+    --bg: #161826;
+    --surface: #232532;
+    --raised: #2a2d3c;
+    --ink: #e9e9ed;
+    --ink-soft: var(--neutral-400);
+    --dim: var(--neutral-600);
+    --faint: var(--neutral-500);
+    --line: color-mix(in srgb, #e9e9ed 16%, transparent);
+    --line-soft: color-mix(in srgb, #e9e9ed 9%, transparent);
+    --accent: #9184d9;
+    --accent-ink: var(--accent-200);
+    --accent-quiet: var(--accent-900);
+    --accent-edge: var(--accent-800);
+    --on-accent: var(--accent-100);
+    --code-bg: color-mix(in srgb, #161826 62%, #000);
+    --code-ink: var(--neutral-200);
+    --head-bg: #161826;
+    --thead-bg: var(--surface);
+    --danger-ink: #e79c93;
+    --danger-wash: color-mix(in srgb, var(--danger) 9%, var(--surface));
+    --scrim: rgb(8 9 16 / 72%);
+    --shadow-pop: 0 24px 60px rgb(0 0 0 / 70%);
 
-    --t-comment: #7d8794;
-    --t-string: #7fd1a6;
-    --t-number: #e0a37a;
-    --t-keyword: #d79bec;
-    --t-type: #86bdf5;
-    --t-punct: #8b95a1;
+    --t-comment: var(--neutral-600);
+    --t-string: var(--accent2-300);
+    --t-number: var(--accent-400);
+    --t-keyword: var(--accent-400);
+    --t-type: var(--accent2-400);
+    --t-tag: var(--accent2-400);
+    --t-attr: var(--accent-400);
+    --t-key: var(--accent2-300);
+    --t-command: var(--accent2-300);
+    --t-flag: var(--accent-400);
+    --t-punct: var(--neutral-500);
   }
 }
 
+:root[data-theme='dark'] {
+  --bg: #161826;
+  --surface: #232532;
+  --raised: #2a2d3c;
+  --ink: #e9e9ed;
+  --ink-soft: var(--neutral-400);
+  --dim: var(--neutral-600);
+  --faint: var(--neutral-500);
+  --line: color-mix(in srgb, #e9e9ed 16%, transparent);
+  --line-soft: color-mix(in srgb, #e9e9ed 9%, transparent);
+  --accent: #9184d9;
+  --accent-ink: var(--accent-200);
+  --accent-quiet: var(--accent-900);
+  --accent-edge: var(--accent-800);
+  --on-accent: var(--accent-100);
+  --code-bg: color-mix(in srgb, #161826 62%, #000);
+  --code-ink: var(--neutral-200);
+  --head-bg: #161826;
+  --thead-bg: var(--surface);
+  --danger-ink: #e79c93;
+  --danger-wash: color-mix(in srgb, var(--danger) 9%, var(--surface));
+  --scrim: rgb(8 9 16 / 72%);
+  --shadow-pop: 0 24px 60px rgb(0 0 0 / 70%);
+
+  --t-comment: var(--neutral-600);
+  --t-string: var(--accent2-300);
+  --t-number: var(--accent-400);
+  --t-keyword: var(--accent-400);
+  --t-type: var(--accent2-400);
+  --t-tag: var(--accent2-400);
+  --t-attr: var(--accent-400);
+  --t-key: var(--accent2-300);
+  --t-command: var(--accent2-300);
+  --t-flag: var(--accent-400);
+  --t-punct: var(--neutral-500);
+}
+
+/* ── reset ─────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
+  margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font:
-    16px/1.65 ui-sans-serif,
-    system-ui,
-    sans-serif;
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.65;
+  font-weight: 400;
+  font-synthesis-weight: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+figure {
   margin: 0;
 }
 
-main {
-  max-width: 78rem;
-  margin: 0 auto;
-  padding: 1.5rem 1.25rem 4rem;
+:focus {
+  outline: none;
 }
 
-.top {
-  display: flex;
-  gap: 1.25rem;
-  align-items: baseline;
-  flex-wrap: wrap;
-  padding: 0.9rem 1.25rem;
-  border-block-end: 1px solid var(--line);
-  background: var(--panel);
-  position: sticky;
-  top: 0;
-  z-index: 2;
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
-.top .brand {
-  font-weight: 700;
+::selection {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* ── type ─────────────────────────────────────────────────────────── */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 500;
+  line-height: 1.15;
   letter-spacing: -0.02em;
-  text-decoration: none;
-  color: var(--ink);
-}
-
-.top nav {
-  display: flex;
-  gap: 0.9rem;
-  flex-wrap: wrap;
-}
-
-.top nav a {
-  color: var(--dim);
-  text-decoration: none;
-  font-size: 0.92rem;
-}
-
-.top nav a[data-current='yes'],
-.top nav a:hover {
-  color: var(--accent);
+  margin: 0;
+  text-wrap: balance;
 }
 
 h1 {
-  font-size: 2rem;
-  letter-spacing: -0.02em;
-  margin: 1.25rem 0 0.4rem;
-}
-
-.lede {
-  color: var(--dim);
-  font-size: 1.08rem;
-  max-width: 60ch;
-  margin-block-end: 2rem;
+  font-size: 38px;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
 }
 
 h2 {
-  margin-block-start: 2.5rem;
-  font-size: 1.3rem;
-  letter-spacing: -0.01em;
+  font-size: 22px;
+  line-height: 1.25;
 }
 
 h3 {
-  margin-block-start: 1.6rem;
-  font-size: 1.05rem;
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+h4 {
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+p {
+  margin: 0 0 0.9rem;
+  max-width: 74ch;
 }
 
 a {
   color: var(--accent);
+  text-decoration: none;
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.87em;
+}
+
+:not(pre) > code {
+  padding: 0.12em 0.35em;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  color: var(--code-ink);
+}
+
+/* The framework's own stylesheet gives `pre` and `code` a box: a border, a radius, a background and
+   padding. That is the right default for an application that writes no CSS, and wrong inside a
+   figure that already is a box — so this undoes it rather than layering a second frame on it. */
+pre {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  overflow-x: auto;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+mark {
+  background: var(--accent-quiet);
+  color: var(--on-accent);
+  padding: 0 2px;
+  border-radius: 3px;
+}
+
+/* The two label styles the whole site runs on: an accent kicker above a
+   heading, and a dim eyebrow above a list. */
+.kicker {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.eyebrow,
+h2.hint {
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin: 0 0 11px;
+}
+
+.lede {
+  font-size: 16.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  max-width: 70ch;
+  margin: 16px 0 30px;
+}
+
+.hint {
+  color: var(--dim);
+  font-size: 12.5px;
+  line-height: 1.55;
 }
 
 .anchor {
   color: inherit;
+  text-decoration: none;
+}
+
+.anchor:hover {
   text-decoration: none;
 }
 
@@ -136,606 +391,442 @@ a {
   font-weight: 400;
 }
 
-p {
-  max-width: 72ch;
-}
-
-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.88em;
-  background: var(--code-bg);
-  padding: 0.1em 0.32em;
-  border-radius: 4px;
-}
-
-pre {
-  margin: 0;
-  overflow-x: auto;
-}
-
-pre code {
-  background: none;
-  padding: 0;
-  font-size: 0.84rem;
-  line-height: 1.55;
-}
-
-figure {
-  margin: 1rem 0;
-}
-
-figure.code,
-figure.output {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-  overflow: hidden;
-}
-
-figcaption {
-  font-size: 0.78rem;
-  color: var(--dim);
-  padding: 0.45rem 0.8rem;
-  border-block-end: 1px solid var(--line);
-  background: var(--code-bg);
-}
-
-figure.code pre {
-  padding: 0.9rem;
-}
-
-.output-frame {
-  padding: 1rem;
-}
-
-.sketch figcaption::before {
-  content: '✎ ';
-}
-
-/* ── the guide, tutorial and API share one three-column shape ─────────────── */
-
-.guide {
-  display: grid;
-  grid-template-columns: minmax(11rem, 14rem) minmax(0, 1fr) minmax(11rem, 15rem);
-  gap: 2rem;
-  align-items: start;
-}
-
-.guide-contents,
-.guide-outline {
-  position: sticky;
-  top: 4.5rem;
-  font-size: 0.9rem;
-  max-height: calc(100vh - 6rem);
-  overflow-y: auto;
-}
-
-.guide-contents h2,
-.guide-outline h2 {
-  margin-block-start: 1.2rem;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--dim);
-}
-
-.contents {
-  list-style: none;
-  margin: 0.3rem 0 0;
-  padding: 0;
-  display: grid;
-  gap: 0.3rem;
-}
-
-.contents a {
-  text-decoration: none;
-}
-
-.contents a:hover {
-  text-decoration: underline;
-}
-
-.contents.outline {
-  max-height: 22rem;
-  overflow-y: auto;
-}
-
-.count {
-  color: var(--dim);
-  font-size: 0.8em;
-}
-
-@media (width < 62rem) {
-  .guide {
-    grid-template-columns: 1fr;
-  }
-  .guide-contents,
-  .guide-outline {
-    position: static;
-    max-height: none;
-  }
-}
-
-/* ── cards, notes, tables ──────────────────────────────────────────────────── */
-
-.cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-  gap: 1rem;
-  margin: 1.25rem 0;
-}
-
-.card {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 0.9rem 1rem;
-  background: var(--panel);
-}
-
-.card h3 {
-  margin: 0 0 0.35rem;
-}
-
-.card p {
-  margin: 0;
-  color: var(--dim);
-  font-size: 0.94rem;
-}
-
-.note {
-  border: 1px solid var(--line);
-  border-inline-start: 3px solid var(--accent);
-  border-radius: 0 8px 8px 0;
-  padding: 0.8rem 1rem;
-  margin: 1.25rem 0;
-  background: var(--panel);
-}
-
-.note h4 {
-  margin: 0 0 0.35rem;
-  font-size: 0.95rem;
-}
-
-.note p {
-  margin: 0;
-  font-size: 0.95rem;
-}
-
-.note-careful {
-  border-inline-start-color: var(--warn);
-}
-
-.note-refused {
-  border-inline-start-color: #b4483c;
-}
-
-.scroll {
-  overflow-x: auto;
-  margin: 1rem 0;
-}
-
-table {
-  border-collapse: collapse;
-  width: 100%;
-  font-size: 0.92rem;
-}
-
-th,
-td {
-  text-align: start;
-  padding: 0.45rem 0.7rem;
-  border-block-end: 1px solid var(--line);
-  vertical-align: top;
-}
-
-th {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--dim);
-}
-
-.hint {
-  color: var(--dim);
-  font-size: 0.88rem;
-}
-
-.undocumented {
-  color: var(--warn);
-}
-
-/* ── examples, API entries, glossary, playground ───────────────────────────── */
-
-.example {
-  border-block-start: 1px solid var(--line);
-  padding-block-start: 1.25rem;
-  margin-block-start: 2rem;
-}
-
-.facts summary {
-  cursor: pointer;
-  font-size: 0.88rem;
-  color: var(--dim);
-}
-
-.prov {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 0.25rem 0.9rem;
-  font-size: 0.9rem;
-  margin: 0.7rem 0;
-}
-
-.prov dt {
-  color: var(--dim);
-}
-
-.prov dd {
-  margin: 0;
-}
-
-/* In a sidebar the value column is about 8rem wide and a value like `app/fragments/examples/` is
-   wider than that. A grid item will not shrink below its content unless told to, and `code` has no
-   break opportunities in a path, so both halves are needed or the text is simply cut off. */
-.guide-contents .prov dd,
-.guide-outline .prov dd {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.api-entry {
-  border-block-start: 1px solid var(--line);
-  padding-block-start: 1rem;
-  margin-block-start: 1.75rem;
-}
-
-.api-entry h3 {
-  margin-block-start: 0;
-  display: flex;
-  gap: 0.6rem;
-  align-items: baseline;
-}
-
-.kind {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--dim);
-}
-
-.api-doc p {
-  font-size: 0.95rem;
-}
-
-.term {
-  border-block-start: 1px solid var(--line);
-  padding-block-start: 1rem;
-  margin-block-start: 1.75rem;
-}
-
-.term .short {
-  font-weight: 600;
-}
-
-.jump {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 0.7rem;
-  align-items: baseline;
-  margin-block-end: 1rem;
-}
-
-.jump a {
-  font-size: 0.88rem;
-  text-decoration: none;
-}
-
-.message {
-  margin: 1rem 0;
-  padding: 0.8rem 1rem;
-  border-inline-start: 3px solid var(--accent);
-  background: var(--panel);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.88rem;
-}
-
-.refusal {
-  border-inline-start: 3px solid #b4483c;
-}
-
-.play textarea {
-  width: 100%;
-  box-sizing: border-box;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.85rem;
-  line-height: 1.55;
-  padding: 0.8rem;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-  color: var(--ink);
-}
-
-.play label {
-  display: block;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--dim);
-  margin-block-end: 0.4rem;
-}
-
-.play-actions {
-  display: flex;
-  gap: 0.9rem;
-  align-items: center;
-  margin-block-start: 0.7rem;
-}
-
-button {
-  font: inherit;
-  padding: 0.4rem 1rem;
-  border: 1px solid var(--accent);
-  border-radius: 6px;
-  background: var(--accent);
-  color: #fff;
-  cursor: pointer;
-}
-
-.sequence {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-block-start: 3rem;
-  padding-block-start: 1.25rem;
-  border-block-start: 1px solid var(--line);
-  font-size: 0.95rem;
-}
-
-.sequence .next {
-  margin-inline-start: auto;
-}
-
-.foot {
-  border-block-start: 1px solid var(--line);
-  padding: 1.5rem 1.25rem 3rem;
-}
-
-.foot p {
-  color: var(--dim);
-  font-size: 0.88rem;
-  max-width: 78rem;
-  margin: 0 auto;
-}
-
-.pill {
-  display: inline-block;
-  padding: 0.1em 0.5em;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 0.78rem;
-}
-
-/* The header's search form. A GET, so there is nothing to initialise. */
-.find {
-  display: flex;
-  gap: 0.4rem;
-  margin-inline-start: auto;
-}
-
-.find input {
-  font: inherit;
-  font-size: 0.9rem;
-  padding: 0.3rem 0.6rem;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--ink);
-  min-width: 9rem;
-}
-
-.find input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.find button {
-  font: inherit;
-  font-size: 0.9rem;
-  padding: 0.3rem 0.7rem;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--panel);
-  color: var(--ink);
-  cursor: pointer;
-}
-
-/* The facts panel's own subheadings, below the provenance list. */
-.facts h4 {
-  margin: 1rem 0 0.4rem;
-  font-size: 0.82rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--dim);
-}
-
-/* Below here: the examples' own markup. Each one is a real fragment; these are its styles. */
-.crumbs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  align-items: baseline;
-  font-size: 0.92rem;
-}
-
-.crumbs ol {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.crumbs li::after {
-  content: '/';
-  color: var(--dim);
-  margin-inline-start: 0.4rem;
-}
-
-.crumbs [aria-current] {
-  color: var(--dim);
-}
-
-.links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.9rem;
-}
-
-.links [data-current='true'] {
-  font-weight: 600;
-  text-decoration: none;
-  color: var(--ink);
-}
-
-.feed .items {
-  list-style: none;
-  margin: 0.6rem 0 0;
-  padding: 0;
-}
-
-.feed .items li {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  border-block-start: 1px solid var(--line);
-  padding: 0.35rem 0;
-}
-
-.feed .meta,
-.region .meta {
-  color: var(--dim);
-  font-size: 0.9rem;
-  margin: 0;
-}
-
-.prices .total {
-  border-block-start: 1px solid var(--line);
-  padding-block-start: 0.5rem;
-  font-weight: 600;
-}
-
-.degraded {
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  padding: 0.8rem 1rem;
-  color: var(--dim);
-}
-
-.degraded p {
-  margin: 0;
-}
-
-.region .hits {
-  margin: 0.5rem 0 0;
-  padding-inline-start: 1.2rem;
-}
-
-.vote {
-  display: flex;
-  gap: 0.6rem;
-  align-items: center;
-}
-
-.vote button {
-  font: inherit;
-  font-size: 0.9rem;
-  padding: 0.3rem 0.8rem;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--panel);
-  color: var(--ink);
-  cursor: pointer;
-}
-
-.device {
-  margin: 0;
-}
-
-/* The highlighter emits these; `plain` runs are left as bare text and inherit. `command` and `key`
-   share the type colour and `flag` the keyword one, because shell and JSON have fewer roles to draw
-   than TypeScript and inventing separate hues for them would only make the page louder. */
+/* Syntax token classes, emitted by `lib/highlight.ts`. `plain` gets no
+   element at all, which is most of the bytes on a page of code. */
 .t-comment {
   color: var(--t-comment);
   font-style: italic;
 }
-
 .t-string {
   color: var(--t-string);
 }
-
 .t-number {
   color: var(--t-number);
 }
-
-.t-keyword,
-.t-flag {
+.t-keyword {
   color: var(--t-keyword);
 }
-
-.t-type,
-.t-tag,
-.t-command,
-.t-key {
+.t-type {
   color: var(--t-type);
 }
-
+.t-tag {
+  color: var(--t-tag);
+}
+.t-attr {
+  color: var(--t-attr);
+}
+.t-key {
+  color: var(--t-key);
+}
+.t-command {
+  color: var(--t-command);
+}
+.t-flag {
+  color: var(--t-flag);
+}
 .t-punct {
   color: var(--t-punct);
 }
 
-/* The results page's own box. Wider than the header's, because it holds a query you can read and
-   edit rather than a placeholder you click past. */
-.find-again {
-  display: flex;
-  gap: 0.5rem;
-  margin-block-end: 1.5rem;
+/* ── motion ─────────────────────────────────────────────────────────── */
+
+/**
+ * The motion vocabulary, deliberately small.
+ *
+ * A sequence, a sweep, a packet travelling an edge, a value swap, a refusal.
+ * Five ideas across every figure in the guide, so a reader who has learnt one
+ * figure has learnt the language the next one speaks. Every animated element
+ * carries `data-wf`, which is the single handle the reduced-motion rule at the
+ * bottom needs: the settled state is the last thing each keyframe holds, so
+ * switching motion off leaves the figure showing its conclusion rather than
+ * its first frame.
+ */
+@keyframes wf-play {
+  0% {
+    left: 0%;
+  }
+  86%,
+  100% {
+    left: 100%;
+  }
 }
 
-.find-again input {
-  flex: 1;
-  max-width: 32rem;
+@keyframes wf-fast-oo {
+  0%,
+  14% {
+    opacity: 0;
+  }
+  16%,
+  96% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
-/* The nav is a sealed template now, and a sealed template cannot branch — so the entry you are on
-   is still a link and says so with `aria-current` instead of being a different element. That is the
-   markup assistive technology reads for "you are here", which a `<strong>` never was. */
-.contents [aria-current='page'] {
-  font-weight: 700;
-  color: var(--ink);
-  text-decoration: none;
+@keyframes wf-slow {
+  0%,
+  68% {
+    opacity: 0;
+  }
+  70%,
+  96% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
-/* An empty `count` hole still renders its span, so give it nothing to occupy when it is empty. */
-.contents .count:empty {
+@keyframes wf-fast-io {
+  0%,
+  70% {
+    opacity: 0;
+  }
+  72%,
+  96% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes wf-step {
+  0%,
+  5% {
+    opacity: 0.16;
+  }
+  9%,
+  92% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.16;
+  }
+}
+
+@keyframes wf-grow {
+  0% {
+    transform: scaleX(0);
+  }
+  26%,
+  82% {
+    transform: scaleX(1);
+  }
+  100% {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes wf-rise {
+  0% {
+    transform: scaleX(0);
+  }
+  18%,
+  92% {
+    transform: scaleX(1);
+  }
+  100% {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes wf-travel {
+  0% {
+    left: 0%;
+    opacity: 0;
+  }
+  7% {
+    opacity: 1;
+  }
+  84% {
+    left: calc(100% - 8px);
+  }
+  92% {
+    left: calc(100% - 8px);
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes wf-flash {
+  0%,
+  52% {
+    background: transparent;
+  }
+  56% {
+    background: var(--accent-quiet);
+  }
+  76%,
+  100% {
+    background: transparent;
+  }
+}
+
+@keyframes wf-swap-a {
+  0%,
+  46% {
+    opacity: 1;
+  }
+  50%,
+  94% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes wf-swap-b {
+  0%,
+  46% {
+    opacity: 0;
+  }
+  50%,
+  94% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes wf-refuse {
+  0%,
+  62% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+  66% {
+    opacity: 1;
+    transform: translateX(-2px);
+  }
+  70% {
+    transform: translateX(2px);
+  }
+  74%,
+  94% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes wf-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes wf-flow {
+  0% {
+    stroke-dashoffset: 600;
+    opacity: 0;
+  }
+  6% {
+    opacity: 1;
+  }
+  94% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes wf-caret {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/**
+ * Every figure holds its settled state instead of stopping mid-cycle.
+ *
+ * `animation: none` alone would leave an element at its authored style, which
+ * for a bar that grows from `scaleX(0)` is invisible. Resetting opacity and
+ * transform with it is what makes the reduced-motion version a diagram rather
+ * than a blank box.
+ */
+@media (prefers-reduced-motion: reduce) {
+  [data-wf] {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* ── util ─────────────────────────────────────────────────────────── */
+
+/** A table wider than its column scrolls inside its own box, never widening the page. */
+.scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+/** The falsy arm of a conditional shape. It writes nothing and occupies nothing. */
+.none {
   display: none;
 }
 
-.contents-group:first-child h2 {
-  margin-block-start: 0;
+.mono {
+  font-family: var(--mono);
 }
 
-/* A mapped row must be a single element, so the provenance component wraps each label/value pair.
-   `display: contents` puts the dt and dd back in the grid, which is what keeps the label column one
-   width down the whole list instead of one width per row. */
-.prov-row {
-  display: contents;
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-md);
+  z-index: 40;
 }
 
-/* The closing link is a variant: absent means the wrapper is empty, so it must take no space. */
-.prov-more:empty,
-.prov-more .none {
-  display: none;
+.skip:focus-visible {
+  left: 12px;
+  top: 12px;
+}
+
+/* ── the hover glow ───────────────────────────────────────────────────────── */
+
+/**
+ * A light that follows the cursor across anything you can click.
+ *
+ * Three layers, and each one answers a different half of "where is the pointer":
+ *
+ * 1. **The wash** — a radial gradient painted over the surface and under the content.
+ * 2. **The edge** — the same gradient drawn *into the border*, masked so only the one-pixel ring
+ *    survives. A flat accent border tells you the element is hovered; a lit one tells you where.
+ * 3. **The halo** — a blurred copy sitting outside the box, behind it, so the light falls on what
+ *    is next to the element rather than stopping dead at its corner.
+ *
+ * The centre of all three is two custom properties `app/client.ts` writes on pointer move. With
+ * scripting off they keep their initial 50% and the light is centred — a still version of the same
+ * idea rather than nothing.
+ *
+ * `@property` is what makes it fade rather than snap: a custom property has to be *registered* with
+ * a type before it can be interpolated, and `--glow` is the number every layer's alpha is computed
+ * from — so one transition drives all three. A browser without `@property` still gets the light; it
+ * arrives at once instead of over 240ms, which is a difference nobody will report.
+ *
+ * The two lists below are the design system's answer to "what can you click", which is why they are
+ * here and not a class in twenty templates. `client.ts` holds the same selectors, and says so.
+ */
+@property --glow {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
+/* Boxes: a card, a tile, a button — something with an edge and room around it. */
+:is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit),
+/* Rows: a line in a rail, an icon, a tab. The wash alone; a halo on a 26px control is a smudge. */
+:is(.jump a, .contents a, .outline a, .top-icon, .tty-tab span, .pane-tab span, .panel-tab-in) {
+  --mx: 50%;
+  --my: 50%;
+
+  position: relative;
+  background-image: radial-gradient(
+    260px circle at var(--mx) var(--my),
+    color-mix(in srgb, var(--accent) calc(var(--glow) * 18%), transparent),
+    transparent 68%
+  );
+  background-repeat: no-repeat;
+  transition: --glow 240ms ease;
+}
+
+/* The edge. `mask-composite` keeps the padding box out, so what is left is the border itself. */
+:is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit)::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: radial-gradient(
+    220px circle at var(--mx) var(--my),
+    color-mix(in srgb, var(--accent) calc(var(--glow) * 85%), transparent),
+    transparent 62%
+  );
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* The halo, behind the element and outside it, so the light reaches its neighbours. */
+:is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit)::after {
+  content: '';
+  position: absolute;
+  inset: -20px;
+  z-index: -1;
+  border-radius: calc(var(--r-lg) + 20px);
+  background: radial-gradient(
+    190px circle at calc(var(--mx) + 20px) calc(var(--my) + 20px),
+    color-mix(in srgb, var(--accent) calc(var(--glow) * 38%), transparent),
+    transparent 72%
+  );
+  filter: blur(18px);
+  pointer-events: none;
+}
+
+:is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit):hover,
+:is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit):focus-visible,
+:is(.jump a, .contents a, .outline a, .top-icon):hover,
+:is(.jump a, .contents a, .outline a, .top-icon):focus-visible,
+:is(.tty-tab, .pane-tab, .panel-tab):hover :is(span, .panel-tab-in) {
+  --glow: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit),
+  :is(.jump a, .contents a, .outline a, .top-icon) {
+    transition: none;
+  }
+
+  :is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit)::after {
+    display: none;
+  }
+}
+
+/* ── the theme's circular reveal ──────────────────────────────────────────── */
+
+/**
+ * The browser's own cross-fade, switched off so the clip-path circle is the whole effect.
+ *
+ * Both snapshots are painted; the new one is stacked over the old and revealed through a circle
+ * that grows from the toggle. Leaving the default fade in as well makes the edge of the circle
+ * muddy, which is the one thing the effect is for.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 2;
 }

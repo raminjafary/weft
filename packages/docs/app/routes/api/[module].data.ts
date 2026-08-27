@@ -1,5 +1,7 @@
 import { defineRoute } from 'weft'
-import { moduleBody, moduleIds, moduleList, moduleOutline } from '../../lib/api-page.ts'
+import { apiContents } from '../../lib/contents.ts'
+import { GENERATED, shell } from '../../lib/shell.ts'
+import { moduleBody, moduleIds, moduleOutline } from '../../lib/api-page.ts'
 import { moduleById } from '../../lib/surface.ts'
 
 /**
@@ -15,14 +17,18 @@ export default defineRoute({
     title: `${moduleById(params.module ?? '')?.specifier ?? 'Not found'} · weft API`,
     description: moduleById(params.module ?? '')?.blurb ?? 'No such module.',
   }),
-  layoutValues: (params) => ({
-    heading: moduleById(params.module ?? '')?.specifier ?? 'Not found',
-    lede: moduleById(params.module ?? '')?.blurb ?? 'This module does not exist.',
-  }),
+  layoutValues: (params) =>
+    shell({
+      ...GENERATED,
+      kickerNote: "walked out of the package's public entry",
+      heading: moduleById(params.module ?? '')?.specifier ?? 'Not found',
+      lede: moduleById(params.module ?? '')?.blurb ?? 'This module does not exist.',
+      section: 'Packages',
+    }),
   cache: { class: 'public', ttl: '1h' },
   params: { module: moduleIds() },
   slots: {
-    contents: { html: (_ctx, params) => moduleList(params.module) },
+    contents: { fragment: 'docs/contents', load: (_ctx, params) => ({ groups: apiContents(params.module) }) },
     body: { html: (_ctx, params) => moduleBody(params.module ?? '') },
     outline: { html: (_ctx, params) => moduleOutline(params.module ?? '') },
   },

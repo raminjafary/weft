@@ -326,15 +326,15 @@ npx weft upload --to …  # PUT the build to an object store`,
 
 export const STEP_BY_SLUG: Record<string, Step> = Object.fromEntries(STEPS.map((step) => [step.slug, step]))
 
-export function stepContents(current?: string): string {
-  return `<h2 class="hint">Steps</h2><ol class="contents">${STEPS.map(
-    (step) =>
-      `<li>${
-        step.slug === current
-          ? `<strong>${escapeHtml(step.title)}</strong>`
-          : `<a href="/tutorial/${step.slug}">${escapeHtml(step.title)}</a>`
-      }</li>`,
-  ).join('')}</ol>`
+/**
+ * `Step 4 of 6`, counted rather than written.
+ *
+ * The step's own title already carries its number, which is exactly why this is derived: two places
+ * saying the same number is one place that can be wrong after a step is inserted.
+ */
+export function stepKicker(slug: string): string {
+  const at = STEPS.findIndex((step) => step.slug === slug)
+  return at < 0 ? '' : `Step ${at + 1} of ${STEPS.length}`
 }
 
 export function stepBody(slug: string): string {

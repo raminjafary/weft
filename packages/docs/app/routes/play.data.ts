@@ -1,4 +1,5 @@
 import { defineRoute } from 'weft'
+import { shell } from '../lib/shell.ts'
 import { compilePlayground, playBody, STARTER, type Outcome } from '../lib/play.ts'
 
 /**
@@ -14,10 +15,10 @@ import { compilePlayground, playBody, STARTER, type Outcome } from '../lib/play.
  */
 export default defineRoute({
   head: { title: 'Playground · weft', description: 'Type a fragment and see what it compiles to.' },
-  layoutValues: {
+  layoutValues: shell({
     heading: 'Playground',
     lede: 'Type a fragment and see the sealed template it becomes. No files, no build — a file set in memory.',
-  },
+  }),
   // The build's two probes cannot invent the key this page reads, so they would prove it invariant
   // and freeze it into a file that ignores `?src` — which is the whole page. Declared, with the
   // reason, rather than discovered by somebody wondering why the playground stopped compiling.

@@ -14,6 +14,7 @@ import { TERMS } from '../app/lib/glossary.ts'
 import { surface } from '../app/lib/surface.ts'
 import { errorCodes } from '../app/lib/errors.ts'
 import { compilePlayground, STARTER } from '../app/lib/play.ts'
+import { infer } from '../app/infer.ts'
 import { commands, options } from '../app/lib/cli.ts'
 import { budgets } from '../app/lib/budgets.ts'
 import { artifacts } from '../app/lib/versions.ts'
@@ -242,8 +243,12 @@ test('the playground compiles its own starter, and refuses by name', async () =>
   const ok = await compilePlayground(STARTER)
   assert.equal(ok.ok, true, JSON.stringify(ok))
   if (ok.ok) {
-    assert.ok(ok.html.includes('<article'), ok.html)
+    // The starter's shape is free to change; what must hold is that it renders an element and that
+    // its holes were filled with the values `valuesFor` invented, rather than left empty.
+    assert.match(ok.html, /^<[a-z]/, ok.html)
+    assert.ok(ok.html.includes('label'), ok.html)
     assert.ok(ok.holes.length >= 2)
+    assert.ok(ok.segments >= 2, `${ok.segments} pre-encoded runs`)
     assert.ok(
       ok.holes.every((hole) => hole.escape === 'escape'),
       'a virtual compile has no checker, so every hole escapes — and the page says so',
@@ -517,4 +522,53 @@ test('the intent on the intents page is dispatchable', async () => {
   })
   assert.equal(refused.status, 422, 'a payload the intent refuses should be a 422, not a 500')
   await refused.arrayBuffer()
+})
+
+/**
+ * The playground's hints run in the browser on every keystroke, which is the one place on this site
+ * where an answer is produced by something other than the compiler. So what it may claim is worth
+ * gating: it must agree with the compiler about what a hole is called, be conservative where it
+ * cannot see a type, and never flag the thing that is certainly correct.
+ */
+test('the live hints read types, name the holes the compiler names, and admit what they cannot see', () => {
+  const source = `import { fragment } from 'weft'
+
+interface Props { label: string; count: number; unit: string }
+
+export default fragment(({ label, count, unit }: Props, ctx) => {
+  const who = ctx.user()
+  return (
+    <span class={label}>{label} <b>{count}</b>{unit}{nope}
+      {rows.map((r) => (<p>{r.price}</p>))}
+    </span>
+  )
+})`
+  const { hints, reads, cacheClass } = infer(source)
+  const by = new Map(hints.map((hint) => [`${hint.binding}:${hint.where}`, hint]))
+
+  // A type that cannot hold markup needs no escaping; everything else is escaped.
+  assert.equal(by.get('count:text')?.escape, 'none', 'a number hole needs no escaping')
+  assert.equal(by.get('label:text')?.escape, 'text', 'a string hole is escaped')
+  assert.equal(by.get('label:attr')?.escape, 'attr', 'the same binding in an attribute escapes as one')
+
+  // A hole after another hole is still a hole. This is the pair a tag-anchored scan misses.
+  assert.equal(by.get('unit:text')?.type, 'string', 'a hole following a hole is found')
+
+  // What it cannot see, it says so about — and what it can see is correct, is not flagged.
+  assert.equal(by.get('nope:text')?.undeclared, true, 'a binding nothing declares is flagged')
+  assert.equal(by.get('label:text')?.undeclared, undefined, 'a declared binding is not flagged')
+  assert.equal(by.get('r:text'), undefined, "a row's own parameter is not an undeclared binding")
+
+  // A list is named for the thing being mapped, which is what the compiler calls the hole.
+  assert.equal(by.get('rows:list')?.where, 'list')
+
+  // An import specifier and a destructured parameter read exactly like a text hole to a scan.
+  assert.equal(by.get('fragment:text'), undefined, 'an import specifier is not a hole')
+  assert.equal(by.get('Props:text'), undefined, 'a type annotation is not a hole')
+
+  assert.ok(
+    reads.some((read) => read.taint === 'identity'),
+    'reading identity is a read',
+  )
+  assert.equal(cacheClass, 'private', 'a fragment that reads identity is private, never shared')
 })

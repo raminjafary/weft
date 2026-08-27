@@ -1,4 +1,5 @@
 import { escapeHtml, heading, note, prose, table } from './markup.ts'
+import { onThisPage, railCard } from './rails.ts'
 import { moduleById, surface, type ApiEntry, type ApiModule } from './surface.ts'
 import { highlight } from './highlight.ts'
 
@@ -41,19 +42,6 @@ function inline(text: string): string {
   return escapeHtml(text.replace(/\s+/g, ' ')).replace(/`([^`]+)`/g, '<code>$1</code>')
 }
 
-export function moduleList(currentId?: string): string {
-  return `<h2 class="hint">Modules</h2><ul class="contents">${surface()
-    .map(
-      (module) =>
-        `<li>${
-          module.id === currentId
-            ? `<strong>${escapeHtml(module.specifier)}</strong>`
-            : `<a href="/api/${module.id}">${escapeHtml(module.specifier)}</a>`
-        } <span class="count">${module.entries.length}</span></li>`,
-    )
-    .join('')}</ul>`
-}
-
 function coverage(module: ApiModule): { documented: number; total: number } {
   return {
     documented: module.entries.filter((item) => item.doc).length,
@@ -74,7 +62,6 @@ export function moduleBody(id: string): string {
   )
 
   return (
-    prose(module.blurb) +
     `<p class="hint">Import as <code>${escapeHtml(module.specifier)}</code> · entry <code>${escapeHtml(
       module.entry,
     )}</code> · <strong>${total}</strong> exports, <strong>${documented}</strong> with a doc comment on the declaration.</p>` +
@@ -138,21 +125,37 @@ export function apiIndexBody(): string {
   )
 }
 
+/**
+ * The module's rail: what it is, and every name on the page.
+ *
+ * Capped, because a 282-entry outline is not something anybody scrolls — the ⌘K panel is the way to
+ * a name you already know, and this column is for seeing what kind of module you are in. The number
+ * it stops at is stated rather than silently truncated.
+ */
 export function moduleOutline(id: string): string {
   const module = moduleById(id)
   if (!module) return ''
   const { documented, total } = coverage(module)
-  return `<h2 class="hint">This module</h2>
-    <dl class="prov">
-      <dt>Import</dt><dd><code>${escapeHtml(module.specifier)}</code></dd>
-      <dt>Entry</dt><dd><code>${escapeHtml(module.entry)}</code></dd>
-      <dt>Exports</dt><dd>${total}</dd>
-      <dt>Documented</dt><dd>${documented}</dd>
-    </dl>
-    <h2 class="hint">On this page</h2>
-    <ul class="contents outline">${module.entries
-      .map((item) => `<li><a href="#${anchor(item.name)}"><code>${escapeHtml(item.name)}</code></a></li>`)
-      .join('')}</ul>`
+  const SHOWN = 24
+  const shown = module.entries.slice(0, SHOWN)
+  return (
+    railCard(
+      'This module',
+      `<dl class="prov">
+        <div class="prov-row"><dt>Import</dt><dd><code>${escapeHtml(module.specifier)}</code></dd></div>
+        <div class="prov-row"><dt>Entry</dt><dd><code>${escapeHtml(module.entry)}</code></dd></div>
+        <div class="prov-row"><dt>Exports</dt><dd>${total}</dd></div>
+        <div class="prov-row"><dt>Documented</dt><dd>${documented}</dd></div>
+      </dl>`,
+    ) +
+    onThisPage(
+      shown.map((item, at) => ({ label: item.name, href: `#${anchor(item.name)}`, current: at === 0 })),
+      'In this module',
+    ) +
+    (module.entries.length > shown.length
+      ? `<p class="hint">…and ${module.entries.length - shown.length} more on this page. ⌘K finds a name directly.</p>`
+      : '')
+  )
 }
 
 /** Every module id, for the route's declared params — which is what makes these pages files. */

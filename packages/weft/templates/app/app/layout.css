@@ -1,4 +1,38 @@
 /* The layout's own stylesheet. Linked on every page, because every page uses the layout. */
+
 .weft-top {
-  border-bottom-color: color-mix(in srgb, var(--weft-accent) 25%, var(--weft-line));
+  align-items: center;
+  gap: 1.5rem;
+  border-bottom-color: var(--weft-line);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-inline-end: auto;
+  color: var(--weft-text);
+  text-decoration: none;
+}
+
+.wordmark {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+
+/* The mark's two threads take their colour from the tokens, so the header, the hero and the
+   favicon cannot drift apart. */
+.mark {
+  display: block;
+  flex: none;
+}
+
+.mark .warp {
+  fill: var(--warp);
+}
+
+.mark .weft {
+  fill: var(--weft);
 }

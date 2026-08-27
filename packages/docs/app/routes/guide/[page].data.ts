@@ -1,7 +1,8 @@
 import { defineRoute } from 'weft'
+import { shell } from '../../lib/shell.ts'
 import { bodyOf, guideOutline } from '../../lib/content.ts'
 import { guideContents } from '../../lib/contents.ts'
-import { BY_SLUG, PAGES } from '../../lib/pages.ts'
+import { BY_SLUG, groupOf, PAGES } from '../../lib/pages.ts'
 
 /**
  * Every guide page: one route, one plan, one sealed template.
@@ -22,10 +23,12 @@ export default defineRoute({
     title: `${titleOf(params.page ?? '')} · weft`,
     description: BY_SLUG[params.page ?? '']?.lede ?? 'No such page.',
   }),
-  layoutValues: (params) => ({
-    heading: titleOf(params.page ?? ''),
-    lede: BY_SLUG[params.page ?? '']?.lede ?? 'This page does not exist.',
-  }),
+  layoutValues: (params) =>
+    shell({
+      heading: titleOf(params.page ?? ''),
+      lede: BY_SLUG[params.page ?? '']?.lede ?? 'This page does not exist.',
+      section: groupOf(params.page ?? ''),
+    }),
   cache: { class: 'public', ttl: '1h' },
   params: { page: PAGES.map((page) => page.slug) },
   slots: {

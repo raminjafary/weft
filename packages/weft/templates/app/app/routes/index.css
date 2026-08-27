@@ -2,15 +2,75 @@
  * This page's own stylesheet, and the whole of the convention: a `.css` beside a `.tsx` is
  * linked by the pages that render that fragment and by no others. Nothing configured it.
  */
+
 .hero {
-  position: relative;
+  padding-block: clamp(3rem, 9vw, 6rem);
+  text-align: center;
 }
 
-.hero-mark {
-  display: block;
-  margin-bottom: 1.25rem;
+.hero .mark {
+  margin: 0 auto 1.5rem;
+}
+
+.hero h1 {
+  font-size: clamp(2rem, 1.2rem + 3vw, 3rem);
+  letter-spacing: -0.03em;
+  font-weight: 500;
+}
+
+.hero p {
+  max-width: 52ch;
+  margin-inline: auto;
+  color: var(--weft-muted);
 }
 
 .hero .weft-row {
-  margin-top: 1.75rem;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+/* The next steps: a number, a sentence, and the file it happens in. */
+.next {
+  list-style: none;
+  max-width: 46rem;
+  margin: 3rem auto 0;
+  padding: 0;
+  border-top: 1px solid var(--weft-line);
+}
+
+.next li {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.9rem 0.25rem;
+  border-bottom: 1px solid var(--weft-line);
+}
+
+.next .n {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  color: var(--weft-muted);
+}
+
+.next p {
+  margin: 0;
+  max-width: none;
+  color: var(--weft-text);
+  text-align: start;
+}
+
+.next code {
+  white-space: nowrap;
+  margin-inline-start: auto;
+  color: var(--weft-accent);
+}
+
+@media (width < 40rem) {
+  .next li {
+    flex-wrap: wrap;
+  }
+
+  .next code {
+    margin-inline-start: 0;
+  }
 }

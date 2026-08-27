@@ -107,7 +107,7 @@ export function errorBody(code: string): Block[] {
   const blocks: Block[] = [bespoke(`<p class="kind">${escapeHtml(entry.package)}</p>`)]
 
   if (entry.message) {
-    blocks.push(bespoke(`<blockquote class="message">${escapeHtml(entry.message)}</blockquote>`))
+    blocks.push(bespoke(`<blockquote class="message refusal">${escapeHtml(entry.message)}</blockquote>`))
     blocks.push(
       prose(
         'That is the message as the source writes it, with interpolations shown as an ellipsis. It is a ' +
