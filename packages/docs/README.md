@@ -69,18 +69,20 @@ run. `spec/` is the reference: the mechanism, its refusals, and what it delibera
 
 ## What the site uses, that you can go and look at
 
-| Capability                       | Where                                                                             |
-| -------------------------------- | --------------------------------------------------------------------------------- |
-| Nested layouts                   | `app/routes/{guide,tutorial,api}/layout.tsx`, each inside `app/layout.tsx`        |
-| Param routes with declared sets  | One route serves all 21 guide pages; another serves all 326 error codes           |
-| The L0 tier                      | `weft build` writes the site as 370 files; the kernel serves none of them         |
-| A slot as a cache unit           | The contents column is its own region: one entry per section, not per page        |
-| Declared refusals                | `/play` and `/search` are the two pages that are not files, and both say why      |
-| The compiler's virtual file set  | `/play` compiles what you type without writing it anywhere                        |
-| An intent, with no JavaScript    | The form on `/guide/intents` posts to `app/intents/feedback.ts` and works         |
-| Per-page CSS bundles             | The landing page's 4 KB of hero and band is linked by `/` and by nothing else     |
-| A class hole instead of a branch | A layout may not carry a derived expression, so `shell()` decides the whole class |
-| A read as a cache axis           | `/search?q=` taints `route:q`, so every query is its own content-addressed entry  |
+| Capability                      | Where                                                                                    |
+| ------------------------------- | ---------------------------------------------------------------------------------------- |
+| Nested layouts                  | `app/routes/{guide,tutorial,api}/layout.tsx`, each inside `app/layout.tsx`               |
+| Param routes with declared sets | One route serves all 21 guide pages; another serves all 326 error codes                  |
+| The L0 tier                     | `weft build` writes the site as 370 files; the kernel serves none of them                |
+| A slot as a cache unit          | The contents column is its own region: one entry per section, not per page               |
+| Declared refusals               | `/play` and `/search` are the two pages that are not files, and both say why             |
+| The compiler's virtual file set | `/play` compiles what you type without writing it anywhere                               |
+| An intent, with no JavaScript   | The form on `/guide/intents` posts to `app/intents/feedback.ts` and works                |
+| Per-page CSS bundles            | The landing page's 4 KB of hero and band is linked by `/` and by nothing else            |
+| A conditional inside a layout   | The breadcrumb is drawn only on pages that are inside a group, by a branch in the layout |
+| A component inside the document | The mark is a fragment `app/layout.tsx` composes, at two sizes and two tones             |
+| A replaced error page           | `app/layouts/error.tsx` — the same discovery every other document gets                   |
+| A read as a cache axis          | `/search?q=` taints `route:q`, so every query is its own content-addressed entry         |
 
 ## The look, and where it is decided
 
@@ -137,6 +139,7 @@ app/client.ts                     the theme, ⌘K, the glow, the editor. Nothing
 app/hl.ts                         the highlighter, where the browser can also reach it
 app/infer.ts                      the live type hints. A scan, and it says so
 app/escape.ts                     text into HTML text, beside client.ts for the same reason
+app/layouts/error.tsx             this site's 404 and 500, replacing the framework's own
 app/routes/<section>/layout.tsx   the section's chrome: rail, article, outline
 app/routes/index.data.ts          the landing page, with index.css beside it
 app/routes/play.data.ts           the playground, with play.css beside it

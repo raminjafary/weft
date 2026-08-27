@@ -1447,9 +1447,13 @@ figure.code pre {
 /**
  * Created by `app/client.ts`, which is why none of it is in the document.
  *
- * The panel anchors under the header's own search box rather than floating in the middle of the
- * page, because the box is what it belongs to: the reader typed there, and the answers appear
- * under what they typed. With scripting off none of this exists and the form goes to `/search`.
+ * Centred under the header rather than tucked against the right edge. Anchoring it to the search
+ * box was the first arrangement and it was wrong twice over: the panel is 660px of results and the
+ * box is 236px, so it hung off one side of its own anchor, and on a narrow window it ran past the
+ * viewport entirely. A panel this size is a surface of its own, and a surface of its own belongs in
+ * the middle of the page.
+ *
+ * With scripting off none of this exists and the form goes to `/search`.
  */
 .finder-scrim {
   position: fixed;
@@ -1461,9 +1465,10 @@ figure.code pre {
 .finder {
   position: fixed;
   z-index: 31;
-  top: calc(var(--head-h) + 8px);
-  right: 24px;
-  width: min(660px, calc(100vw - 48px));
+  top: calc(var(--head-h) + 28px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(660px, calc(100vw - 32px));
   max-height: min(70vh, 560px);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -2024,4 +2029,84 @@ table.rows .num {
   margin: 0;
   font-size: 14px;
   color: var(--ink-soft);
+}
+
+/* ── the 404 and the 500 ──────────────────────────────────────────────────── */
+
+/**
+ * `app/layouts/error.tsx`, which is a document rather than a page inside this one.
+ *
+ * These rules are in the document's own sheet because that is the sheet the error page links: it is
+ * not a route, so it has no bundle of its own and borrows the first one's. That is also why it can
+ * speak the site's whole vocabulary — `.btn`, `.badge`, `.lede`, the mark — rather than needing a
+ * palette of its own.
+ */
+.lost {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: clamp(4rem, 14vh, 9rem) var(--gutter) 4rem;
+  text-align: center;
+}
+
+.lost-brand {
+  justify-content: center;
+  margin-block-end: 2.5rem;
+}
+
+.lost-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.lost-number {
+  font: 500 13px/1 var(--mono);
+  letter-spacing: 0.14em;
+  color: var(--dim);
+}
+
+.lost h1 {
+  font-size: clamp(28px, 1.4rem + 2vw, 40px);
+  letter-spacing: -0.03em;
+}
+
+.lost .lede {
+  margin-inline: auto;
+  max-width: 48ch;
+}
+
+.lost-do {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-block-start: 32px;
+}
+
+/* Only ever rendered by `weft dev` — see the note on `stack` in the framework's own error page. */
+.weft-error-stack {
+  margin-block-start: 3rem;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--code-bg);
+  text-align: start;
+  max-height: 22rem;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  color: var(--danger-ink);
+}
+
+.weft-error-subject {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+.weft-hidden {
+  display: none;
 }

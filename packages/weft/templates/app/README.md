@@ -22,6 +22,7 @@ app/
     counter.css         linked only by the pages that render it
     guide/[topic].tsx   /guide/:topic
   fragments/card.tsx    a component, referenced by name from a route's slots
+  layouts/error.tsx     the 404 and the 500. Delete it and you get the framework's
   slots/footer.tsx      fills the layout's footer hole on every route
   intents/counter.ts    mutations. The manifest is generated from this directory
 public/                 served as written, and again at a URL carrying its digest
@@ -52,6 +53,11 @@ build and names the read.
 
 **Mutations work with JavaScript off.** An intent is dispatched over the channel when there is one
 and answered with a 303 from a form post when there is not — one dispatch, two representations.
+
+**The error page is yours.** `app/layouts/error.tsx` is discovered like any other named document
+and replaces the framework's own for both a 404 and a 500. Writing the file is the whole of the
+registration. It is handed the status, the framework's name for what happened, a sentence, the path
+that was asked for, and — in `weft dev` only — the stack.
 
 **Assets are revved.** `asset('/logo.svg')` returns a URL with the file's digest in it, immutable
 for a year. `weft build` writes every one of them to `.weft/assets/` with a manifest, so the

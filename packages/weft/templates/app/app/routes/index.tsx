@@ -42,9 +42,9 @@ export default fragment(({ name, steps }: Props) => (
       </svg>
       <h1>{name} is running.</h1>
       <p>
-        A folder is an application. The route table above is <code>app/routes</code>, the document is{' '}
-        <code>app/layout.tsx</code>, and the plan that placed everything on this page was generated from those
-        two facts rather than written by hand.
+        The route table above is <code>app/routes</code>, the document is <code>app/layout.tsx</code>, and the
+        plan that placed everything on this page was generated from those two facts rather than written by
+        hand.
       </p>
       <div class="weft-row">
         <a class="weft-button" data-variant="primary" href="/counter">

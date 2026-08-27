@@ -229,10 +229,12 @@ function finder(): void {
       const doc = new DOMParser().parseFromString(await response.text(), 'text/html')
       const list = doc.querySelector('#finder-list')
       panel.innerHTML = list ? list.innerHTML : '<div class="finder-empty">Nothing matches.</div>'
+      // No "see all" link. The panel already shows every match the page would, and a reader who is
+      // in it is not looking for a second place to be.
       panel.insertAdjacentHTML(
         'beforeend',
-        `<div class="finder-foot"><span><kbd>↵</kbd>open</span><span><kbd>↑</kbd><kbd>↓</kbd>navigate</span>
-         <span><kbd>esc</kbd>close</span><a href="/search?q=${encodeURIComponent(query)}">See all on /search →</a></div>`,
+        '<div class="finder-foot"><span><kbd>↵</kbd>open</span><span><kbd>↑</kbd><kbd>↓</kbd>navigate</span>' +
+          '<span><kbd>esc</kbd>close</span></div>',
       )
       at = 0
       mark()
