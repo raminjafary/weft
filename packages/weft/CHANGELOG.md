@@ -8,6 +8,8 @@ the commits scoped to that package.
 
 ### ✨ Features
 
+* app/assets is processed, public is copied ([2a1b90e](https://github.com/raminjafary/weft/commit/2a1b90ef40ef5f71233b74801689ef27ac785c70))
+* `weft site` writes the build as a folder a static host can serve ([6d040db](https://github.com/raminjafary/weft/commit/6d040db3522dccc4077b3f1387b505b3adfd37f4))
 * a shared cache may answer with a document the build proved invariant ([4cf5f4a](https://github.com/raminjafary/weft/commit/4cf5f4a9a03b6b7cf7423cefa47df7ed8b0c164f))
 * a host that owns the socket can serve the application without one ([702c52b](https://github.com/raminjafary/weft/commit/702c52b483a0d79f52e956d064023c4a9f76cc56))
 * an error page is a document the application may write ([d97b90f](https://github.com/raminjafary/weft/commit/d97b90f8ca3a65d2f2f232c672fdc2e6451bde99))
@@ -32,6 +34,12 @@ the commits scoped to that package.
 
 ### 🐛 Bug Fixes
 
+* clicking the page you are already on does nothing, rather than reloading it ([b393c1a](https://github.com/raminjafary/weft/commit/b393c1afdd38e0c7aff6338f3a48fcd3b5258dda))
+* a request whose body the host already read is answered, not waited on ([9310933](https://github.com/raminjafary/weft/commit/93109335fa1ad34ce13f96b27d2d8f31965d5cea))
+* an asset whose URL does not name its contents is not served immutable ([0449500](https://github.com/raminjafary/weft/commit/0449500ca78cc45b8d9292717106e3fa7f74c5b0))
+* the build writes the modules its own manifest names ([ef14219](https://github.com/raminjafary/weft/commit/ef142194d4584fea09bbf13b6d47d0efd79ac3e4))
+* a click on a route being staged waits for it instead of discarding it ([13fce20](https://github.com/raminjafary/weft/commit/13fce2075d9931b06b974c23baa742a87b1f13d8))
+* a revved asset says the one thing a CDN actually reads ([347816d](https://github.com/raminjafary/weft/commit/347816d7aaf767718147d15bbc2c64b5b0be8234))
 * the `weft` command exists before the build that writes it ([8699391](https://github.com/raminjafary/weft/commit/86993913a0e5c627ebb0400bc44b69e80c255f94))
 * the page painted at the top and then jumped, on every scrolled refresh ([c95429d](https://github.com/raminjafary/weft/commit/c95429d8c55cc8975fd8ed907eabc95bd5d7636c))
 * dev forbade the client from keeping an asset, so every reload repainted unstyled ([fe65c93](https://github.com/raminjafary/weft/commit/fe65c935845118a9a7e57553be6fb1f246558f50))
@@ -43,6 +51,7 @@ the commits scoped to that package.
 
 ### ♻️ Code Refactoring
 
+* each generated URL root is the initial of what is behind it ([f5be654](https://github.com/raminjafary/weft/commit/f5be654d07455402b307cb88d1c0add500054807))
 * **docs:** the errors pages are components, and static slots stopped shipping dead payloads ([3d14a88](https://github.com/raminjafary/weft/commit/3d14a8818f314de01b6b4cafa96046cf2fad296c))
 
 ### 📝 Documentation

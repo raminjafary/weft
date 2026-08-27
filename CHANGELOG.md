@@ -8,6 +8,9 @@ the commits scoped to that package.
 
 ### ✨ Features
 
+* **repo:** the docs site, the demo and a new application all use both asset directories ([b2516af](https://github.com/raminjafary/weft/commit/b2516af07176ee11815a08b2cf4d75bb612f4527))
+* **weft:** app/assets is processed, public is copied ([2a1b90e](https://github.com/raminjafary/weft/commit/2a1b90ef40ef5f71233b74801689ef27ac785c70))
+* **weft:** `weft site` writes the build as a folder a static host can serve ([6d040db](https://github.com/raminjafary/weft/commit/6d040db3522dccc4077b3f1387b505b3adfd37f4))
 * **weft:** a shared cache may answer with a document the build proved invariant ([4cf5f4a](https://github.com/raminjafary/weft/commit/4cf5f4a9a03b6b7cf7423cefa47df7ed8b0c164f))
 * **weft:** a host that owns the socket can serve the application without one ([702c52b](https://github.com/raminjafary/weft/commit/702c52b483a0d79f52e956d064023c4a9f76cc56))
 * **docs:** an export links the documents that specify it, and a package its ceiling ([3583fc4](https://github.com/raminjafary/weft/commit/3583fc41487bc1f152d8085605ef720aa41d68d8))
@@ -99,6 +102,14 @@ the commits scoped to that package.
 
 ### 🐛 Bug Fixes
 
+* **weft:** clicking the page you are already on does nothing, rather than reloading it ([b393c1a](https://github.com/raminjafary/weft/commit/b393c1afdd38e0c7aff6338f3a48fcd3b5258dda))
+* **weft:** a request whose body the host already read is answered, not waited on ([9310933](https://github.com/raminjafary/weft/commit/93109335fa1ad34ce13f96b27d2d8f31965d5cea))
+* **repo:** unpublishing the only version of a package removes the package, and npm asks first ([068aa52](https://github.com/raminjafary/weft/commit/068aa5258b0b9209266aa1f775ff33f979654fb3))
+* **repo:** the deployment's function is at a path vercel will actually create ([f5203f1](https://github.com/raminjafary/weft/commit/f5203f1983c67adac621eabffd32e3e1b1a36509))
+* **weft:** an asset whose URL does not name its contents is not served immutable ([0449500](https://github.com/raminjafary/weft/commit/0449500ca78cc45b8d9292717106e3fa7f74c5b0))
+* **weft:** the build writes the modules its own manifest names ([ef14219](https://github.com/raminjafary/weft/commit/ef142194d4584fea09bbf13b6d47d0efd79ac3e4))
+* **weft:** a click on a route being staged waits for it instead of discarding it ([13fce20](https://github.com/raminjafary/weft/commit/13fce2075d9931b06b974c23baa742a87b1f13d8))
+* **weft:** a revved asset says the one thing a CDN actually reads ([347816d](https://github.com/raminjafary/weft/commit/347816d7aaf767718147d15bbc2c64b5b0be8234))
 * **docs:** the landing page ships the run it cites ([936a6e0](https://github.com/raminjafary/weft/commit/936a6e0b46a23ab2a940163d2247aa1857ee8f98))
 * **repo:** the deployment install keeps the devDependencies its build needs ([3217d55](https://github.com/raminjafary/weft/commit/3217d559a457ca2e18d88413a8ed06797162f349))
 * **weft:** the `weft` command exists before the build that writes it ([8699391](https://github.com/raminjafary/weft/commit/86993913a0e5c627ebb0400bc44b69e80c255f94))
@@ -139,6 +150,8 @@ the commits scoped to that package.
 
 ### ♻️ Code Refactoring
 
+* **weft:** each generated URL root is the initial of what is behind it ([f5be654](https://github.com/raminjafary/weft/commit/f5be654d07455402b307cb88d1c0add500054807))
+* **repo:** the framework is @weft/core, because npm already serves a weft ([524705f](https://github.com/raminjafary/weft/commit/524705ff608dc75ab2cb318579d1a6f6bf6c3d34))
 * **docs:** the hero figures were built from a reading of the design, not the design ([e84982a](https://github.com/raminjafary/weft/commit/e84982afd8c0b59d52032170ce4ce17a7db1f8b4))
 * **docs, weft:** the errors pages are components, and static slots stopped shipping dead payloads ([3d14a88](https://github.com/raminjafary/weft/commit/3d14a8818f314de01b6b4cafa96046cf2fad296c))
 * **docs:** the outline columns are a component, and three copies of one `<dl>` are gone ([2599fb9](https://github.com/raminjafary/weft/commit/2599fb9493e9d119a139b2ddef0c5c9361c62e00))
@@ -214,6 +227,7 @@ the commits scoped to that package.
 
 ### 🚚 Chores
 
+* **repo:** the byte budgets record what this round of fixes cost ([0a447ea](https://github.com/raminjafary/weft/commit/0a447ea64a39685724af730d1d7b4b6a51065576))
 * **repo:** the next-steps list is local now, and gitignored ([9c3b791](https://github.com/raminjafary/weft/commit/9c3b791576fd48f197fd3646e55a3cdbbcd8ab6b))
 
 ### 🌱 Foundations
