@@ -37,12 +37,14 @@ export const STEPS: readonly Step[] = [
         'Start with a folder. There is no template to instantiate, no config to write, and nothing to ' +
           'register — a route is a file, and this one is the only file you need.',
       ) +
+      heading('1 · Make the folder', 'folder') +
       sketch(
         'sh',
         `mkdir shop && cd shop
 npm init -y && npm i weft
 mkdir -p app/routes`,
       ) +
+      heading('2 · Write the one file', 'file') +
       sketch(
         'tsx',
         `// app/routes/index.tsx
@@ -55,9 +57,9 @@ export default fragment(() => (
   </section>
 ))`,
       ) +
-      prose('Then:') +
+      heading('3 · Serve it', 'serve') +
       sketch('sh', 'npx weft dev') +
-      heading('What the framework now knows', 'knows') +
+      heading('4 · Ask the framework what it knows', 'knows') +
       prose(
         'There is no <code>app/layout.tsx</code>, so the page is wrapped in the framework’s own document. ' +
           'Ask what the plan is:',
@@ -81,6 +83,7 @@ export default fragment(() => (
         'The framework’s document is a placeholder. Replacing it is adding one file, and the moment you do, ' +
           'its <code>&lt;slot&gt;</code> holes become the boundaries every route has to fill.',
       ) +
+      heading('1 · Take over the shell', 'shell') +
       sketch(
         'tsx',
         `// app/layout.tsx
@@ -178,7 +181,7 @@ export default defineRoute({
   },
 })`,
       ) +
-      heading('Now make it vary', 'vary') +
+      heading('2 · Now make it vary', 'vary') +
       prose(
         'Read the request inside the fragment and the page changes class. One line, and nothing declares ' +
           'the consequence:',
@@ -276,6 +279,7 @@ export default defineRoute({
         'A render cannot write. So a mutation is an intent, in its own directory, declaring the tags it may ' +
           'invalidate:',
       ) +
+      heading('1 · Declare the intent', 'declare-intent') +
       sketch(
         'ts',
         `// app/intents/cart.ts
@@ -291,6 +295,7 @@ export const add = defineIntent<{ sku: string }>({
   },
 })`,
       ) +
+      heading('2 · Name it from a control', 'name-it') +
       prose('Wire it to a control by naming it, not by writing a handler:') +
       sketch(
         'tsx',
@@ -303,7 +308,7 @@ export const add = defineIntent<{ sku: string }>({
           'available. With the runtime present it goes over the channel, the client stages its guess in an ' +
           'epoch, and the server replaces the guess with the truth in one paint.',
       ) +
-      heading('And make the region live', 'live') +
+      heading('3 · Make the region live', 'live') +
       sketch('ts', `body: { fragment: 'cart', live: true, load: loadCart }`) +
       prose(
         '<code>live</code> is what lets a region be refreshed over the channel rather than by reloading the ' +
@@ -320,6 +325,7 @@ export const add = defineIntent<{ sku: string }>({
       'result from the tier where the kernel is never invoked.',
     body: () =>
       prose('The build is one command, and its report is the thing worth reading:') +
+      heading('1 · Build it', 'build') +
       sketch('sh', 'npx weft build') +
       prose(
         'It prints a line per route — slots, markup bytes, stylesheets — then the L0 section: which pages ' +
@@ -327,13 +333,14 @@ export const add = defineIntent<{ sku: string }>({
           'the read that refused it. That list is the performance review of your application, and it is ' +
           'generated rather than requested.',
       ) +
+      heading('2 · Serve it, and check it', 'serve-it') +
       sketch(
         'sh',
         `npx weft start          # serve the build. No compiler runs
 npx weft verify --probe # ask every region what it is serving
 npx weft upload --to …  # PUT the build to an object store`,
       ) +
-      heading('What to do next', 'next') +
+      heading('3 · What to do next', 'next') +
       prose(
         'Two things pay for themselves immediately. <code>weft dev --profile</code> records what every ' +
           'render costs and lets the next build plan delivery from measurement instead of a guess — ' +
@@ -428,6 +435,57 @@ const SPELLED = [
 export function stepTime(slug: string): string {
   const minutes = stepMinutes(slug)
   return `about ${SPELLED[minutes] ?? minutes} minutes`
+}
+
+/**
+ * What the reader's application looks like at the end of each step.
+ *
+ * The design puts this in the rail, and it earns its place: a tutorial adds a file at a time and by
+ * step four the reader has six of them, with no single view of what they now have. The files a step
+ * *touched* are marked, so the rail also answers "what did I just change".
+ *
+ * Cumulative by construction — each step names only what it adds, and the tree is the union of
+ * every step up to and including this one. A step cannot forget to list a file it added earlier.
+ */
+const ADDS: Record<string, readonly string[]> = {
+  'a-page': ['app/', 'app/routes/', 'app/routes/index.tsx'],
+  'the-document': ['app/layout.tsx'],
+  'a-loader': ['app/routes/index.data.ts'],
+  'a-slow-region': [
+    'app/fragments/',
+    'app/fragments/feed.tsx',
+    'app/fragments/feed/',
+    'app/fragments/feed/skeleton.tsx',
+  ],
+  'making-it-change': ['app/intents/', 'app/intents/cart.ts'],
+  'shipping-it': ['weft.config.ts'],
+}
+
+export interface TreeRow {
+  path: string
+  depth: number
+  name: string
+  /** Added by the step being read, rather than by one before it. */
+  fresh: boolean
+}
+
+export function appSoFar(slug: string): TreeRow[] {
+  const upTo = STEPS.findIndex((step) => step.slug === slug)
+  if (upTo < 0) return []
+  const seen: string[] = []
+  for (const step of STEPS.slice(0, upTo + 1)) {
+    for (const path of ADDS[step.slug] ?? []) if (!seen.includes(path)) seen.push(path)
+  }
+  const fresh = new Set(ADDS[slug] ?? [])
+  return seen.toSorted().map((path) => {
+    const parts = path.replace(/\/$/, '').split('/')
+    return {
+      path,
+      depth: parts.length - 1,
+      name: path.endsWith('/') ? `${parts.at(-1)}/` : (parts.at(-1) ?? path),
+      fresh: fresh.has(path),
+    }
+  })
 }
 
 export function stepBody(slug: string): string {

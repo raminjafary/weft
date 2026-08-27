@@ -2254,3 +2254,16 @@ table.rows .num {
   font-size: 12px;
   color: var(--faint);
 }
+
+/** The tutorial's running file tree, in the rail beside the step that added to it. */
+.so-far {
+  display: grid;
+  gap: 1px;
+  margin-block-start: 10px;
+  font: 12px/1.6 var(--mono);
+  color: var(--faint);
+}
+
+.so-far-row.fresh {
+  color: var(--accent-ink);
+}

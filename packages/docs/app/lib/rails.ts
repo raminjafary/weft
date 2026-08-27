@@ -72,3 +72,25 @@ export function progress(at: number, total: number, takes = ''): string {
     ${takes ? `<p class="rail-card-time">${escapeHtml(takes)}</p>` : ''}
   </div>`
 }
+
+/**
+ * The reader's own application, as it stands at the end of the step they are on.
+ *
+ * A tutorial adds a file at a time, and by the fourth step nobody has a single view of what they
+ * now have. The files this step added are marked, so the same panel also answers "and what did I
+ * just change".
+ */
+export function soFar(rows: readonly { depth: number; name: string; fresh: boolean }[]): string {
+  if (!rows.length) return ''
+  return `<div class="rail-card">
+    <h2 class="eyebrow">Your app so far</h2>
+    <div class="so-far">${rows
+      .map(
+        (row) =>
+          `<div class="so-far-row${row.fresh ? ' fresh' : ''}" style="padding-inline-start:${
+            row.depth * 12
+          }px">${escapeHtml(row.name)}</div>`,
+      )
+      .join('')}</div>
+  </div>`
+}
