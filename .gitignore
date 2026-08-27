@@ -19,3 +19,6 @@ build/
 
 # The "what has to be true next" list, kept out of the repo.
 NEXT.md
+
+# Vercel CLI state, and the build output it writes.
+.vercel/

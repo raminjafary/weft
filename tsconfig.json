@@ -22,6 +22,7 @@
     "types": ["node"]
   },
   "include": [
+    "api/**/*.ts",
     "packages/*/src/**/*.ts",
     "packages/*/test/**/*.ts",
     "packages/*/fixtures/**/*.ts",
