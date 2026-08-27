@@ -48,9 +48,12 @@ export {
   cacheControl,
   cacheControlFor,
   moduleFiles,
+  revAssets,
+  rewriteUrls,
   type Asset,
   type AssetTable,
   type ModuleTree,
+  type RevvedAssets,
 } from './assets.ts'
 export { scaffold, type Scaffolded, type ScaffoldOptions, type Template } from './scaffold.ts'
 export {

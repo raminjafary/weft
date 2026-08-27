@@ -58,6 +58,8 @@ import {
   browserModule,
   buildAssets,
   cacheControlFor,
+  revAssets,
+  rewriteUrls,
   weftAssets,
   type AssetTable,
   type ModuleTree,
@@ -423,12 +425,26 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   // The cascade, per page: the framework's stylesheet, the application's, anything the config
   // added, and then the `.css` beside every fragment this page renders. One bundle, so a page
   // links the styles of the components on it without paying a request per component.
+  /**
+   * `app/assets/`, walked before a single stylesheet is read.
+   *
+   * The order is forced: a sheet's `url()` is rewritten to a revved href, so the hrefs have to
+   * exist before the sheets are concatenated into one bundle per page — after that there is no
+   * telling which line came from which file, and a relative URL means nothing without the file it
+   * was written in.
+   */
+  const appAssets = await revAssets(join(root, config.srcDir, 'assets'), mode !== 'dev')
+  const styled = (text: string, file: string): string => rewriteUrls(text, dirname(file), appAssets.byPath)
+
   const shared: string[] = [`/* weft */\n${await frameworkStyles()}`]
   if (discovered.styles) {
-    shared.push(`/* ${config.srcDir}/styles.css */\n${await readFile(discovered.styles, 'utf8')}`)
+    shared.push(
+      `/* ${config.srcDir}/styles.css */\n${styled(await readFile(discovered.styles, 'utf8'), discovered.styles)}`,
+    )
   }
   for (const file of config.css) {
-    shared.push(`/* ${file} */\n${await readFile(join(root, file), 'utf8')}`)
+    const path = join(root, file)
+    shared.push(`/* ${file} */\n${styled(await readFile(path, 'utf8'), path)}`)
   }
   /**
    * A scoped sheet, narrowed once and reused by every page that links it.
@@ -441,7 +457,7 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   const sheet = async (file: string): Promise<string> => {
     const held = narrowed.get(file)
     if (held !== undefined) return held
-    const body = await readFile(file, 'utf8')
+    const body = styled(await readFile(file, 'utf8'), file)
     const text = isScopedSheet(file) ? scopeCss(body, scopeAttribute(relative(root, scopeStem(file)))) : body
     narrowed.set(file, text)
     return text
@@ -459,6 +475,7 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   assets = await buildAssets({
     pageCss,
     publicDir: join(root, 'public'),
+    assets: appAssets,
     client: await ownTree(),
     runtime: await packageTree('@weft/client'),
     warp: await packageTree('@weft/warp'),
