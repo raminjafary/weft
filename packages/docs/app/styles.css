@@ -511,12 +511,47 @@ h2.hint {
   0% {
     transform: scaleX(0);
   }
-  26%,
-  82% {
+  14%,
+  94% {
     transform: scaleX(1);
   }
   100% {
     transform: scaleX(0);
+  }
+}
+
+/**
+ * A measured bar, and the number that belongs to it.
+ *
+ * The pair is two keyframes rather than one because they are two claims: the bar draws the
+ * comparison and the value states it, and the value should land a beat *after* the bar it labels
+ * rather than counting up beside it. So `wf-val` starts at 9% — just behind `wf-bar`'s 13% — and
+ * both hold to 92%, which is most of the cycle: a reader arriving mid-loop finds a settled chart.
+ */
+@keyframes wf-bar {
+  0% {
+    transform: scaleX(0);
+  }
+  13%,
+  92% {
+    transform: scaleX(1);
+  }
+  100% {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes wf-val {
+  0%,
+  9% {
+    opacity: 0;
+  }
+  15%,
+  92% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }
 

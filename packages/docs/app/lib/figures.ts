@@ -146,8 +146,10 @@ export interface WireRow {
  * The bars grow from the left on a stagger, which is the one place a delay carries meaning here:
  * they arrive in the order the kernel would consider them, cheapest last.
  *
- * The cycle is short — 2.4s, with the stagger inside it — because the figure's whole job is the
- * comparison, and a reader who arrives mid-hold sees three settled bars and no comparison at all.
+ * The stagger is nearly half a second, which is long for a figure this small and is the point: the
+ * three bars are 17× apart in length, and a stagger short enough to read as one gesture would draw
+ * them as one gesture. Held for most of a 4.4s cycle, so a reader who arrives mid-hold still finds
+ * the comparison rather than an animation.
  */
 export function wireBars(rows: readonly WireRow[], caption = ''): string {
   return `<figure class="wire">
@@ -161,7 +163,7 @@ export function wireBars(rows: readonly WireRow[], caption = ''): string {
           </div>
           <div data-wf class="wire-bar${row.lit ? ' lit' : ''}" style="width:${(row.share * 100).toFixed(
             1,
-          )}%;animation:wf-grow 2.4s cubic-bezier(.2,.7,.3,1) ${(at * 0.18).toFixed(2)}s infinite"></div>
+          )}%;animation:wf-grow 4.4s cubic-bezier(.2,.7,.3,1) ${(at * 0.45).toFixed(2)}s infinite"></div>
         </div>`,
       )
       .join('')}</div>
@@ -244,4 +246,62 @@ export function verdicts(ok: { title: string; body: string }, no: { title: strin
       <p>${no.body}</p>
     </div>
   </div>`
+}
+
+export interface BarRow {
+  label: string
+  /** What was configured to get this number. Some rows have nothing to add, and say nothing. */
+  note?: string
+  /** The number as it should read — already rounded, because rounding is a presentation decision. */
+  value: string
+  unit: string
+  /** 0–1, the row's share of the longest bar in its own chart. */
+  share: number
+  /** The row this framework is, which is the one row that takes the accent. */
+  lit?: boolean
+}
+
+/**
+ * A measurement chart: one row per candidate, bar length carrying the number.
+ *
+ * The bars grow on a 0.16s stagger and the values fade in behind them, so a reader watches the
+ * comparison assemble rather than arriving at a finished picture — and `wf-val` holds the number
+ * for most of the cycle, because the number is what a reader came for and a figure that flashes it
+ * is a figure that has to be waited for twice.
+ *
+ * Bar length is share-of-longest within one chart and never across charts: three of these sit on
+ * the landing page measuring milliseconds, bytes and milliseconds again, and a bar that meant the
+ * same width in all three would be comparing a byte to a millisecond.
+ */
+export function barChart(rows: readonly BarRow[], scale = ''): string {
+  return `<div class="chart">${rows
+    .map(
+      (row, at) => `<div class="chart-row${row.lit ? ' lit' : ''}">
+        <div class="chart-say">
+          <div class="chart-label">${enc(row.label)}</div>
+          ${row.note ? `<div class="chart-note">${enc(row.note)}</div>` : ''}
+        </div>
+        <div class="chart-track">
+          <div data-wf class="chart-bar" style="width:${(row.share * 100).toFixed(
+            1,
+          )}%;animation:wf-bar 6.4s cubic-bezier(.2,.75,.3,1) ${(at * 0.16).toFixed(2)}s infinite"></div>
+        </div>
+        <div data-wf class="chart-val" style="animation:wf-val 6.4s linear ${(at * 0.16).toFixed(
+          2,
+        )}s infinite">${enc(row.value)}<span class="chart-unit"> ${enc(row.unit)}</span></div>
+      </div>`,
+    )
+    .join('')}${scale ? `<p class="chart-scale">${enc(scale)}</p>` : ''}</div>`
+}
+
+/** A chart with its own heading, for the ones that sit in the page rather than in the band. */
+export function chartBlock(title: string, note: string, rows: readonly BarRow[]): string {
+  return `<section class="chart-block">
+    <div class="chart-head">
+      <span class="chart-title">${enc(title)}</span>
+      <span class="chart-sub">${enc(note)}</span>
+      <span class="chart-dir">lower is better</span>
+    </div>
+    ${barChart(rows)}
+  </section>`
 }

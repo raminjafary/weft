@@ -1,6 +1,7 @@
 import { escapeHtml } from './escape.ts'
 import { highlight } from './highlight.ts'
-import { wireBars } from './figures.ts'
+import { barChart, chartBlock, wireBars } from './figures.ts'
+import { candidate, run } from './bench.ts'
 
 /**
  * The landing page's body.
@@ -174,34 +175,184 @@ function heroPanel(): string {
   </figure>`
 }
 
+/** `43.4614375` as `43.46`, and `6289` as `6,289`. Rounding is a decision, so it is made once. */
+function ms(value: number): string {
+  return value.toFixed(2)
+}
+
+/** A difference between two of them, which is a coarser thing and reads as one. */
+function gap(value: number): string {
+  return value.toFixed(1)
+}
+
+function bytes(value: number): string {
+  return value.toLocaleString('en-US')
+}
+
+/**
+ * Each row's share of the longest bar in its own chart, which is the only scale a bar can carry.
+ *
+ * Measured on the rounded figure rather than the raw one, so the bar and the number beside it agree:
+ * two rows printed as 84.67 and 95.40 should draw the ratio those two printed numbers have, not the
+ * one four hidden decimal places have.
+ */
+function shares<T>(rows: readonly T[], of: (row: T) => number, places = 0): number[] {
+  const at = (row: T) => Number(of(row).toFixed(places))
+  const top = Math.max(...rows.map(at))
+  return rows.map((row) => at(row) / top)
+}
+
+/** What each candidate in the run is, in the order the chart should read them. */
+const CANDIDATES: readonly { id: string; label: string; note: string; lit?: boolean }[] = [
+  {
+    id: 'segments',
+    label: 'weft',
+    note: 'segments · the shell is never downstream of a query',
+    lit: true,
+  },
+  { id: 'rr7-stream', label: 'React Router 7', note: 'tuned — Suspense boundary, onShellReady' },
+  { id: 'blocking-ssr', label: 'weft — blocking', note: 'the slot awaited instead of streamed' },
+  {
+    id: 'rr7-blocking',
+    label: 'React Router 7 — blocking',
+    note: 'loader awaited, onAllReady — the shape most apps ship',
+  },
+]
+
+/**
+ * The band, and it is one measurement rather than four boasts.
+ *
+ * A row of headline multiples is the shape a landing page reaches for and the shape that says least:
+ * a number with nothing beside it is a number a reader has to trust. This is the axis the framework's
+ * central claim lives on — when the first byte leaves, with a slow query behind a slot — drawn for
+ * every candidate the run measured, including the two configurations of this framework that lose.
+ * The row that wins is labelled, not emphasised into being the only one visible.
+ *
+ * Every figure is read out of `results/`. Nothing here is typed.
+ */
 function band(): string {
-  const figures = [
-    {
-      value: '1.96×',
-      note: 'server render throughput, pre-encoded segments against string SSR, on a 707 B shell',
-    },
-    { value: '16.9×', note: 'smaller per server-driven update, raw — 371 B against 6,289 of markup' },
-    {
-      value: '4.7×',
-      note: 'earlier to the fast region out of order, in all three engines — 22 ms against 103',
-    },
-    { value: '6,109 B', note: 'the client runtime, brotli, everything in it — against a 6,144 ceiling' },
-  ]
+  const measured = CANDIDATES.map((entry) => ({ ...entry, row: candidate(entry.id) }))
+  const width = shares(measured, (entry) => entry.row.ttfb, 2)
+  const meta = run()
   return `<section class="band">
     <div class="band-in">
-      <div class="band-grid">${figures
-        .map(
-          (figure, at) => `<div class="band-cell">
-            <div class="band-num">${enc(figure.value)}</div>
-            <div data-wf class="band-rule" style="animation:wf-rise 5.6s cubic-bezier(.2,.7,.3,1) ${(
-              at * 0.22
-            ).toFixed(2)}s infinite"></div>
-            <div class="band-note">${enc(figure.note)}</div>
-          </div>`,
-        )
-        .join('')}</div>
-      <p class="band-fine">Apple M4, Node 24.18, loopback, 300 samples. Every figure states what it measured,
-        on what hardware, over how many samples.</p>
+      <div class="band-head">
+        <div>
+          <p class="band-kicker">Benchmarked, not asserted</p>
+          <h2 class="band-title">Shell time to first byte</h2>
+        </div>
+        <p class="band-env">${enc(meta.cpu)} · Node ${enc(meta.node)} · ${meta.iterations} iterations<br>a ${
+          meta.queryMs
+        } ms query behind a slot · ${meta.rtt} ms RTT injected</p>
+      </div>
+      ${barChart(
+        measured.map((entry, at) => ({
+          label: entry.label,
+          note: entry.note,
+          value: ms(entry.row.ttfb),
+          unit: 'ms',
+          share: width[at] as number,
+          lit: entry.lit === true,
+        })),
+      )}
+      <p class="band-fine">Bar length is the measurement. Note which gap is larger: the two React Router 7
+        configurations are ${gap(
+          candidate('rr7-blocking').ttfb - candidate('rr7-stream').ttfb,
+        )} ms apart, and the tuned one is ${gap(
+          candidate('rr7-stream').ttfb - candidate('segments').ttfb,
+        )} ms from weft. The shape you ship dominates the framework you ship it on — what changes here is
+        that the fast shape is the only one available.</p>
+    </div>
+  </section>`
+}
+
+/** The rows for the two page-level charts, ordered cheapest first — which is what they measure. */
+const SIZE_ROWS: readonly { id: string; label: string; note: string; lit?: boolean }[] = [
+  { id: 'segments', label: 'weft', note: 'sealed template, no framework markers', lit: true },
+  { id: 'rr7-blocking', label: 'React Router 7 — blocking', note: 'no boundary, so no Suspense markers' },
+  { id: 'rr7-stream', label: 'React Router 7', note: 'Suspense markers and comment nodes: +18%' },
+]
+
+const LAST_ROWS: readonly { id: string; label: string; note: string; lit?: boolean }[] = [
+  { id: 'segments', label: 'weft', note: '', lit: true },
+  { id: 'blocking-ssr', label: 'weft — blocking', note: '' },
+  { id: 'rr7-stream', label: 'React Router 7', note: '' },
+  { id: 'rr7-blocking', label: 'React Router 7 — blocking', note: '' },
+]
+
+/**
+ * The two axes the band does not carry, and the admissions that belong beside them.
+ *
+ * Bytes, because the first byte leaving early says nothing about how many follow it; and time to
+ * last byte, because streaming moves the first byte and a reader is owed the number it does *not*
+ * move. The card headed "what is not fair" is not modesty — the two applications cannot be made
+ * byte-identical, and a benchmark that did not say so would be one worth less than no benchmark.
+ */
+function benchmarks(): string {
+  const meta = run()
+  const size = SIZE_ROWS.map((entry) => ({ ...entry, row: candidate(entry.id) }))
+  const sizeWidth = shares(size, (entry) => entry.row.bytes)
+  const last = LAST_ROWS.map((entry) => ({ ...entry, row: candidate(entry.id) }))
+  const lastWidth = shares(last, (entry) => entry.row.ttlb, 2)
+  const extra = candidate('rr7-stream').bytes - candidate('segments').bytes
+  const cost = Math.round(candidate('rr7-stream').ttlb - candidate('segments').ttlb)
+  return `<section class="marks">
+    ${chartBlock(
+      'Bytes on the wire',
+      'the same document, identity encoding',
+      size.map((entry, at) => ({
+        label: entry.label,
+        note: entry.note,
+        value: bytes(entry.row.bytes),
+        unit: 'B',
+        share: sizeWidth[at] as number,
+        lit: entry.lit === true,
+      })),
+    )}
+    ${chartBlock(
+      'Time to last byte',
+      'when the slow region has landed — streaming moves the first byte, not the last',
+      last.map((entry, at) => ({
+        label: entry.label,
+        note: entry.id === 'rr7-stream' ? `the extra ${bytes(extra)} bytes cost ${cost} ms here` : entry.note,
+        value: ms(entry.row.ttlb),
+        unit: 'ms',
+        share: lastWidth[at] as number,
+        lit: entry.lit === true,
+      })),
+    )}
+    <div class="marks-cards">
+      <div class="mark-card lit">
+        <p class="mark-kicker">What this actually shows</p>
+        <p>The gap between the two React Router 7 configurations — ${ms(
+          candidate('rr7-stream').ttfb,
+        )} ms against ${ms(
+          candidate('rr7-blocking').ttfb,
+        )} — is far larger than the gap between either of them and weft. The shape you ship dominates the
+        framework you ship it on. What weft changes is that the fast shape is the only one available:
+        there is no <code>await</code> in a route declaration that could put the shell downstream of a
+        query.</p>
+      </div>
+      <div class="mark-card">
+        <p class="mark-kicker">What is not fair, stated</p>
+        <p>The two apps are not byte-identical and cannot be: React emits Suspense markers and comment
+        nodes. So the byte-equality gate covers weft’s own candidates only, and the React Router 7 app is
+        measured on timing and payload instead. On an infinitely fast link its extra ${bytes(
+          extra,
+        )} bytes are free — which is why the run models bandwidth, where they are ${cost} ms.</p>
+      </div>
+    </div>
+    <div class="mark-repro">
+      <p class="mark-kicker">Reproduce it</p>
+      <pre><code data-lang="sh">${highlight(
+        'sh',
+        `node packages/bench/src/cli.ts run --axes shell-ttfb --scenarios slow-feed \\
+    --latency ${meta.rtt} --bandwidth 1600 --external benchmarks/rr7/candidates.json`,
+      )}</code></pre>
+      <p class="mark-fine">The harness spawns and stops the third-party app itself, and prints
+        <code>queryMs</code> so a scenario mismatch is visible rather than silent. More candidates and axes
+        land here as they are added; each axis states the state of the art it is measured against and
+        whether a win is expected.</p>
     </div>
   </section>`
 }
@@ -342,6 +493,7 @@ export function landingBody(counts: Counts): string {
   return `<div class="landing">
     ${hero()}
     ${band()}
+    ${benchmarks()}
     ${wire()}
     ${start(counts)}
     ${absences()}

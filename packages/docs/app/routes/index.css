@@ -227,6 +227,13 @@
 
 /* ── the measurement band ─────────────────────────────────────────────────── */
 
+/**
+ * The one full-bleed change of ground on the page, and it carries a chart rather than a slogan.
+ *
+ * The ground is `--band`, a saturated indigo that appears nowhere else on the site — the design
+ * system's one sanctioned flood, spent here because this is the page's single claim and it should
+ * read as a different surface rather than a boxed callout.
+ */
 .band {
   background: var(--band);
   color: var(--band-ink);
@@ -235,45 +242,277 @@
 .band-in {
   max-width: var(--shell);
   margin: 0 auto;
-  padding: 40px 60px;
+  padding: 38px 60px 34px;
 }
 
-.band-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 44px;
+.band-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-block-end: 24px;
 }
 
-.band-num {
-  font-size: 40px;
-  font-weight: 500;
-  line-height: 1;
-  letter-spacing: -0.03em;
+.band-kicker {
+  margin: 0 0 9px;
+  font: 600 10.5px/1 var(--sans);
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--accent-400);
+}
+
+.band-title {
+  margin: 0;
+  font: 500 25px/1.2 var(--sans);
+  letter-spacing: -0.022em;
   color: var(--band-ink-strong);
 }
 
-.band-rule {
-  height: 2px;
-  width: 46px;
-  margin-block-start: 11px;
-  border-radius: 2px;
-  background: var(--accent-300);
-  transform-origin: left;
-}
-
-.band-note {
-  margin-block-start: 9px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--band-ink);
+.band-env {
+  margin: 0 0 0 auto;
+  text-align: right;
+  font: 11.5px/1.6 var(--mono);
+  color: var(--accent-300);
 }
 
 .band-fine {
-  margin: 30px 0 0;
-  max-width: none;
+  margin: 26px 0 0;
+  padding-block-start: 18px;
+  border-block-start: 1px solid color-mix(in srgb, var(--neutral-100) 16%, transparent);
+  max-width: 78ch;
   font-size: 12.5px;
   line-height: 1.6;
+  color: var(--band-ink);
+}
+
+/* ── the charts ───────────────────────────────────────────────────────────── */
+
+/**
+ * One chart row: what was measured, how long it took, and the number.
+ *
+ * The label column is fixed and the value column is fixed, so the track between them is the only
+ * thing that varies — which is what makes bar length readable as a quantity across four rows
+ * whose labels are different lengths. A 4px track, because the bar is the measurement and not a
+ * container for one.
+ */
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chart-row {
+  display: grid;
+  grid-template-columns: 214px minmax(0, 1fr) 86px;
+  align-items: center;
+  gap: 16px;
+}
+
+.chart-say {
+  min-width: 0;
+}
+
+.chart-label {
+  font: 500 12.5px/1.35 var(--mono);
+  color: var(--ink-soft);
+}
+
+.chart-row.lit .chart-label {
+  color: var(--ink);
+}
+
+.chart-note {
+  font: 10.5px/1.4 var(--sans);
+  color: var(--dim);
+}
+
+.chart-track {
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+.chart-bar {
+  height: 100%;
+  border-radius: 2px;
+  transform-origin: left;
+  background: var(--dim);
+}
+
+.chart-row.lit .chart-bar {
+  background: var(--accent);
+}
+
+.chart-val {
+  text-align: right;
+  font: 500 12.5px/1 var(--mono);
+  white-space: nowrap;
+  opacity: 0;
+  color: var(--ink-soft);
+}
+
+.chart-row.lit .chart-val {
+  color: var(--accent-ink);
+}
+
+.chart-unit {
+  font-weight: 400;
+  color: var(--dim);
+}
+
+/**
+ * On the band the same chart reads off a saturated ground, so every role is remapped.
+ *
+ * The bars step down the accent ramp by position rather than by which row wins: the chart is
+ * ordered fastest first, so a ramp that darkens down the list draws the ordering a second time and
+ * a reader gets the ranking before reading a single label.
+ */
+.band .chart-label {
+  color: var(--band-ink);
+}
+
+.band .chart-row.lit .chart-label {
+  color: var(--band-ink-strong);
+}
+
+.band .chart-note {
   color: var(--accent-300);
+}
+
+.band .chart-track {
+  background: color-mix(in srgb, #000 26%, transparent);
+}
+
+.band .chart-row:nth-child(2) .chart-bar {
+  background: var(--accent-300);
+}
+
+.band .chart-row:nth-child(3) .chart-bar {
+  background: var(--accent-500);
+}
+
+.band .chart-row:nth-child(4) .chart-bar {
+  background: var(--accent-600);
+}
+
+.band .chart-row.lit .chart-bar {
+  background: var(--band-ink-strong);
+}
+
+.band .chart-val {
+  color: var(--band-ink);
+}
+
+.band .chart-row.lit .chart-val {
+  color: var(--band-ink-strong);
+}
+
+.band .chart-unit {
+  color: var(--accent-300);
+}
+
+/* ── the two axes the band does not carry ─────────────────────────────────── */
+
+.marks {
+  max-width: var(--shell);
+  margin-inline: auto;
+  padding: 44px 60px 56px;
+}
+
+.chart-block {
+  border-block-start: 1px solid var(--line);
+  padding: 20px 0 4px;
+}
+
+.chart-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-block-end: 18px;
+}
+
+.chart-title {
+  font: 500 14.5px/1.2 var(--sans);
+  letter-spacing: -0.01em;
+}
+
+.chart-sub {
+  font: 11.5px/1.4 var(--sans);
+  color: var(--dim);
+}
+
+.chart-dir {
+  margin-inline-start: auto;
+  font: 10.5px/1 var(--mono);
+  color: var(--faint);
+}
+
+.marks-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-block-start: 30px;
+}
+
+.mark-card {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.mark-card.lit {
+  border-color: var(--accent-edge);
+  background: var(--accent-quiet);
+}
+
+.mark-kicker {
+  margin: 0 0 9px;
+  font: 600 10px/1 var(--sans);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.mark-card.lit .mark-kicker {
+  color: var(--accent);
+}
+
+.mark-card p:last-child {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.mark-card.lit p:last-child {
+  color: var(--accent-ink);
+}
+
+.mark-repro {
+  margin-block-start: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--code-bg);
+}
+
+.mark-repro .mark-kicker {
+  margin-block-end: 11px;
+}
+
+.mark-repro pre {
+  margin: 0;
+  font: 12.5px/1.8 var(--mono);
+  overflow-x: auto;
+}
+
+.mark-fine {
+  margin: 11px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--dim);
 }
 
 /* ── one figure, drawn to scale, beside what it means ─────────────────────── */

@@ -1228,11 +1228,23 @@ figure.code pre {
   color: var(--accent-ink);
 }
 
+/**
+ * The bars are a three-rung ramp, and the rung is the row's position.
+ *
+ * Each step down the list is a cheaper encoding of the same region, so each step is a lighter bar:
+ * markup deepest, then the patch, then the delta at full accent. Positional selectors rather than a
+ * flag per row, because the ordering *is* the figure — a delta drawn above the markup it replaces
+ * would be a different claim.
+ */
 .wire-bar {
   height: 16px;
   border-radius: 3px;
   transform-origin: left;
   background: linear-gradient(90deg, var(--accent-700), var(--accent-800));
+}
+
+.wire-row:nth-child(2) .wire-bar {
+  background: linear-gradient(90deg, var(--accent-500), var(--accent-700));
 }
 
 .wire-bar.lit {
