@@ -996,6 +996,19 @@ h2.hint {
   backdrop-filter: none;
 }
 
+/**
+ * And every figure on the page, which is the larger cost now that there are many.
+ *
+ * A guide page carries a dozen animated elements and the guide index over a hundred, each one
+ * compositing on its own timeline. Under a view transition they animate inside a snapshot that is
+ * itself being animated, and they all resume at once on the frame the snapshot is discarded — which
+ * is the frame the sweep visibly stalled on. Paused rather than stopped, so they pick up where they
+ * were rather than restarting together and drawing attention to themselves.
+ */
+:root.theming [data-wf] {
+  animation-play-state: paused;
+}
+
 :root.theming :is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit)::after {
   display: none;
 }

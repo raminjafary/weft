@@ -115,12 +115,29 @@ function theme(): void {
     const y = 0
     const reach = Math.hypot(innerWidth, innerHeight)
 
+    /**
+     * Strip the expensive decorations for the length of the sweep.
+     *
+     * `styles.css` has carried the `.theming` rules since the reveal was written, and nothing ever
+     * added the class — so the backdrop-filter behind the header and the halo behind every card
+     * were being re-rasterised on every frame of a whole-page snapshot the entire time, and the
+     * figures kept animating under it. The hitch was at the *end*, where the snapshot is discarded
+     * and the live page repaints all of it at once.
+     *
+     * Removed on `finished` rather than on `ready`, because the tear-down is the frame that was
+     * dropping.
+     */
+    root.classList.add('theming')
+    const settle = () => root.classList.remove('theming')
+
     let transition
     try {
       transition = start.call(document, swap)
     } catch {
+      settle()
       return swap()
     }
+    transition.finished.then(settle, settle)
     transition.updateCallbackDone?.catch(swap)
     transition.ready.then(() => {
       // The *radius* is what is animated, and area grows as its square — so an easing with a soft
