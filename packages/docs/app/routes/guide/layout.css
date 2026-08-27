@@ -1,0 +1,64 @@
+/**
+ * The diagram primitive, for every route under `/guide`.
+ *
+ * It lives beside the layout rather than beside either route because both use it: the index draws
+ * six of these and a guide page draws one at the top. Beside `index.data.ts` it was linked to
+ * `/guide` alone, so the three guide pages whose hero figure is a graph rendered as black boxes
+ * with invisible text — an SVG with no fill declared is a black SVG.
+ *
+ * Every value is spent from `styles.css`; this file defines none.
+ */
+
+/* ── the graph primitive ──────────────────────────────────────────────────── */
+
+/** Width comes from the drawing — see `graph()`, which emits its own max and min. */
+.gx {
+  display: block;
+  overflow: visible;
+}
+
+.gx-line {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.4;
+}
+
+.gx-flow {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.gx-node rect {
+  fill: var(--surface);
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.gx-node.lit rect {
+  fill: var(--accent-quiet);
+  stroke: var(--accent-edge);
+}
+
+.gx-title {
+  fill: var(--ink);
+  font: 500 13px var(--mono);
+}
+
+.gx-node.lit .gx-title {
+  fill: var(--accent-ink);
+}
+
+.gx-note {
+  fill: var(--faint);
+  font: 11.5px var(--sans);
+}
+
+.gx-note.mono {
+  font: 11.5px var(--mono);
+}
+
+.gx-node.lit .gx-note {
+  fill: var(--accent);
+}

@@ -383,6 +383,41 @@ async function editor(): Promise<void> {
 }
 
 /**
+ * A rail keeps where it was scrolled to.
+ *
+ * The contents rail is twenty-two page titles in a column shorter than they are, so a reader four
+ * pages down has scrolled it — and every link in it navigates, which brings a new rail scrolled to
+ * the top. The page they just left goes with it, and they have to find their place again on every
+ * click, which makes the rail actively worse than a flat list.
+ *
+ * So the offset is remembered per rail and put back. `sessionStorage` rather than a variable
+ * because a real document request replaces this module too; keyed by the rail's own label, which is
+ * what distinguishes the contents column from the outline beside it. Storage can throw — a private
+ * window, or site data switched off — and a rail that fails to remember its scroll offset is not
+ * worth an exception, so both halves are wrapped and the fallback is the old behaviour.
+ */
+function rails(): void {
+  for (const rail of document.querySelectorAll<HTMLElement>('.rail, .outline-rail')) {
+    if (rail.dataset.kept === 'yes') continue
+    rail.dataset.kept = 'yes'
+    const key = `weft-rail:${rail.getAttribute('aria-label') ?? ''}`
+    try {
+      const at = Number(sessionStorage.getItem(key))
+      if (at > 0) rail.scrollTop = at
+    } catch {}
+    rail.addEventListener(
+      'scroll',
+      () => {
+        try {
+          sessionStorage.setItem(key, String(rail.scrollTop))
+        } catch {}
+      },
+      { passive: true },
+    )
+  }
+}
+
+/**
  * Everything, and again after every client-side navigation.
  *
  * A staged navigation of kind `document` replaces the shell — which means the header's button and
@@ -417,6 +452,7 @@ function wire(): void {
   theme()
   glow()
   finder()
+  rails()
   void editor()
 }
 

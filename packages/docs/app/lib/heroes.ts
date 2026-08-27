@@ -1,6 +1,7 @@
 import { criticalPath, schedule } from '@weft/kernel'
 import { escapeHtml } from './escape.ts'
 import { caption } from './openers.ts'
+import { siteWeight } from './budgets.ts'
 import { graph, type GraphEdge, type GraphNode } from './graph.ts'
 
 /**
@@ -115,37 +116,49 @@ function gettingStarted(): string {
   )
 }
 
-/** The route table is the file tree, drawn as the walk that produces it. */
+/**
+ * The route table is the file tree, drawn as the walk that produces it.
+ *
+ * 740 units wide rather than the architecture page's 1320: a guide page's column is 786px, and a
+ * figure drawn at the wider scale either scrolls or shrinks its 13px labels to eight.
+ */
 function anApplication(): string {
+  const files: readonly [string, string][] = [
+    ['index.tsx', '/'],
+    ['[slug].tsx', '/:slug'],
+    ['docs/[...].tsx', '/docs/*'],
+  ]
   const nodes: GraphNode[] = [
-    { id: 'dir', x: 0, y: 74, w: 250, h: 50, title: 'app/routes/', at: 0 },
-    { id: 'index', x: 340, y: 6, w: 250, h: 50, title: 'index.tsx', at: 0.7 },
-    { id: 'slug', x: 340, y: 74, w: 250, h: 50, title: '[slug].tsx', at: 0.9 },
-    { id: 'splat', x: 340, y: 142, w: 250, h: 50, title: 'docs/[...].tsx', at: 1.1 },
-    { id: 'r1', x: 700, y: 6, w: 200, h: 50, title: '/', accent: true, at: 1.8 },
-    { id: 'r2', x: 700, y: 74, w: 200, h: 50, title: '/:slug', accent: true, at: 2 },
-    { id: 'r3', x: 700, y: 142, w: 200, h: 50, title: '/docs/*', accent: true, at: 2.2 },
-    {
-      id: 'plan',
-      x: 1000,
-      y: 74,
-      w: 250,
-      h: 50,
-      title: 'x.data.ts',
-      notes: ['head · policy · slots'],
-      at: 2.9,
-    },
+    { id: 'dir', x: 4, y: 100, w: 160, h: 41, title: 'app/routes/', at: 0 },
+    ...files.map(([file], at) => ({
+      id: `f${at}`,
+      x: 222,
+      y: 6 + at * 62,
+      w: 216,
+      h: 41,
+      title: file,
+      at: 0.8 + at * 0.2,
+    })),
+    { id: 'data', x: 222, y: 192, w: 216, h: 41, title: 'x.data.ts', at: 1.4 },
+    ...files.map(([, url], at) => ({
+      id: `u${at}`,
+      x: 496,
+      y: 6 + at * 62,
+      w: 240,
+      h: 41,
+      title: url,
+      accent: true,
+      at: 2.2 + at * 0.2,
+    })),
+    { id: 'plan', x: 496, y: 192, w: 240, h: 41, title: 'head · policy · slots', at: 2.8 },
   ]
   const edges: GraphEdge[] = [
-    { from: 'dir', to: 'index', at: 0.4, flow: 0.8 },
-    { from: 'dir', to: 'slug', at: 0.5, flow: 0.9 },
-    { from: 'dir', to: 'splat', at: 0.6, flow: 1 },
-    { from: 'index', to: 'r1', at: 1.4, flow: 1.8 },
-    { from: 'slug', to: 'r2', at: 1.5, flow: 1.9 },
-    { from: 'splat', to: 'r3', at: 1.6, flow: 2 },
-    { from: 'r2', to: 'plan', at: 2.5, flow: 2.9 },
+    ...files.map((_, at) => ({ from: 'dir', to: `f${at}`, at: 0.4 + at * 0.1, flow: 0.8 + at * 0.1 })),
+    { from: 'dir', to: 'data', at: 0.7, flow: 1.1 },
+    ...files.map((_, at) => ({ from: `f${at}`, to: `u${at}`, at: 1.8 + at * 0.1, flow: 2.2 + at * 0.1 })),
+    { from: 'data', to: 'plan', at: 2.1, flow: 2.5 },
   ]
-  return frame('an-application', graph(nodes, edges, { height: 210, cycle: 5.4, baselines: [30, 46, 60] }))
+  return frame('an-application', graph(nodes, edges, { height: 246, cycle: 5.4, baselines: [26, 42, 56] }))
 }
 
 /**
@@ -417,143 +430,167 @@ function navigation(): string {
   )
 }
 
-/** One dispatch, two callers, and the same two functions in the middle of both. */
+/**
+ * One dispatch, two callers, and the same two functions in the middle of both.
+ *
+ * The bottom row is what each caller gets back, so the two edges into it run backwards across the
+ * figure — which is what they are: an answer returning to whoever asked.
+ */
 function intents(): string {
   const nodes: GraphNode[] = [
     {
       id: 'form',
-      x: 0,
+      x: 2,
       y: 6,
-      w: 260,
-      h: 56,
+      w: 216,
+      h: 74,
       title: 'a form posts',
-      notes: ['no JavaScript anywhere on the page'],
+      notes: ['no JavaScript anywhere on the', 'page'],
       at: 0,
     },
     {
       id: 'frame',
-      x: 0,
-      y: 152,
-      w: 260,
-      h: 56,
+      x: 2,
+      y: 96,
+      w: 216,
+      h: 59,
       title: 'INTENT · 0x05',
       notes: ['the same intent, over the channel'],
-      at: 0.3,
+      at: 0.35,
     },
     {
       id: 'input',
-      x: 360,
-      y: 6,
-      w: 280,
-      h: 56,
+      x: 258,
+      y: 50,
+      w: 214,
+      h: 74,
       title: 'input()',
-      notes: ['an intent cannot trust an attribute'],
+      notes: ['an intent cannot trust an', 'attribute'],
       accent: true,
-      at: 1,
+      at: 1.1,
     },
     {
       id: 'run',
-      x: 360,
-      y: 152,
-      w: 280,
-      h: 56,
+      x: 512,
+      y: 6,
+      w: 224,
+      h: 59,
       title: 'run()',
       notes: ['the only place a write may happen'],
       accent: true,
-      at: 1.3,
+      at: 1.9,
     },
     {
       id: 'writes',
-      x: 740,
-      y: 79,
-      w: 280,
-      h: 56,
-      title: 'writes: []',
-      notes: ['the tags it declared, and only those'],
-      at: 2,
+      x: 512,
+      y: 100,
+      w: 224,
+      h: 74,
+      title: 'writes: [] — or the tags it names',
+      notes: ['the tags it declared, and only', 'those'],
+      at: 2.3,
     },
     {
       id: 'see',
-      x: 1080,
-      y: 6,
-      w: 240,
-      h: 56,
-      title: '303',
+      x: 2,
+      y: 216,
+      w: 216,
+      h: 59,
+      title: '303, back where it came',
       notes: ['the answer a browser gets'],
-      at: 2.7,
+      at: 3.4,
     },
     {
       id: 'ack',
-      x: 1080,
-      y: 152,
-      w: 240,
-      h: 56,
+      x: 258,
+      y: 216,
+      w: 214,
+      h: 59,
       title: 'ACK · 0x22',
-      notes: ['and a DELTA per stale region'],
-      at: 2.9,
+      notes: ['the answer a channel client gets'],
+      at: 3.6,
+    },
+    {
+      id: 'delta',
+      x: 512,
+      y: 216,
+      w: 224,
+      h: 74,
+      title: 'DELTA · 0x16',
+      notes: ['every region under those tags', 'refreshes'],
+      accent: true,
+      at: 3.8,
     },
   ]
   const edges: GraphEdge[] = [
     { from: 'form', to: 'input', at: 0.6, flow: 1 },
-    { from: 'frame', to: 'run', at: 0.8, flow: 1.2 },
-    { from: 'input', to: 'run', down: true, at: 1.5, flow: 1.9 },
-    { from: 'run', to: 'writes', at: 1.7, flow: 2.1 },
-    { from: 'writes', to: 'see', at: 2.4, flow: 2.8 },
-    { from: 'writes', to: 'ack', at: 2.5, flow: 2.9 },
+    { from: 'frame', to: 'input', at: 0.75, flow: 1.15 },
+    { from: 'input', to: 'run', at: 1.5, flow: 1.9 },
+    { from: 'run', to: 'writes', down: true, at: 2, flow: 2.4 },
+    { from: 'writes', to: 'delta', down: true, at: 2.9, flow: 3.3 },
+    { from: 'input', to: 'see', down: true, at: 3, flow: 3.4 },
+    { from: 'writes', to: 'ack', back: true, at: 3.2, flow: 3.6 },
   ]
-  return frame('intents', graph(nodes, edges, { height: 224, cycle: 5.4 }))
+  return frame('intents', graph(nodes, edges, { height: 300, cycle: 5.4 }))
 }
 
-/** The socket, and the four things a client says when it opens one. */
+/**
+ * The socket, and the four things a client says when it opens one.
+ *
+ * A cycle rather than a pipeline: the client names what it holds, the server answers with the
+ * smallest thing that will do, and that answer returns to the client. The two closing edges run
+ * backwards, which is the shape of the claim — nothing here is a round of polling.
+ */
 function liveRegions(): string {
   const nodes: GraphNode[] = [
     {
       id: 'browser',
-      x: 0,
-      y: 40,
-      w: 300,
-      h: 66,
+      x: 2,
+      y: 74,
+      w: 200,
+      h: 74,
       title: 'the browser',
       notes: ['holds templates, and one base', 'render per region'],
       at: 0,
     },
     {
-      id: 'held',
-      x: 400,
-      y: 40,
-      w: 280,
-      h: 66,
+      id: 'up',
+      x: 248,
+      y: 6,
+      w: 238,
+      h: 59,
       title: 'RESIDENT · HELD',
       notes: ['what I already have, named'],
       accent: true,
-      at: 0.9,
+      at: 0.8,
     },
     {
       id: 'server',
-      x: 780,
-      y: 40,
-      w: 300,
-      h: 66,
+      x: 532,
+      y: 74,
+      w: 204,
+      h: 74,
       title: 'the deployment',
       notes: ['recovers that base, diffs,', 'memoizes'],
-      at: 1.8,
+      at: 1.6,
     },
     {
       id: 'down',
-      x: 1180,
-      y: 40,
-      w: 300,
-      h: 66,
+      x: 248,
+      y: 146,
+      w: 238,
+      h: 74,
       title: 'TPL · DELTA · COMMIT',
-      notes: ['a template only if missing,', 'then values'],
+      notes: ['a template only if missing, then', 'values'],
       accent: true,
-      at: 2.7,
+      at: 2.6,
     },
   ]
   const edges: GraphEdge[] = [
-    { from: 'browser', to: 'held', at: 0.5, flow: 0.9 },
-    { from: 'held', to: 'server', at: 1.4, flow: 1.8 },
-    { from: 'server', to: 'down', at: 2.3, flow: 2.7 },
+    { from: 'browser', to: 'up', at: 0.4, flow: 0.8 },
+    { from: 'up', to: 'server', at: 1.2, flow: 1.6 },
+    { from: 'server', to: 'down', back: true, at: 2.2, flow: 2.6 },
+    { from: 'down', to: 'browser', back: true, at: 3, flow: 3.4 },
   ]
   const codes: readonly [string, string, string][] = [
     ['0x01', 'RESIDENT', 'the template versions it is holding'],
@@ -563,7 +600,7 @@ function liveRegions(): string {
   ]
   return frame(
     'live-regions',
-    `${graph(nodes, edges, { height: 120, cycle: 5.4, baselines: [28, 46, 61] })}
+    `${graph(nodes, edges, { height: 232, cycle: 5.4 })}
      <p class="hnote wide">up · codes below 0x10 — what the client tells the server</p>
      ${rows(
        codes.map(
@@ -575,26 +612,32 @@ function liveRegions(): string {
   )
 }
 
-/** What a page actually downloads, against the ceiling the build enforces. */
+/**
+ * What a page actually downloads: one mark per module, and what they weigh together.
+ *
+ * The count is `weft.budget.json` — the file the growth cap is a diff of — so it is this site's own
+ * walk over HTTP rather than a number about the demo. The marks are the same height on purpose.
+ * There is no per-module breakdown in that file, and nineteen bars of varying height would draw a
+ * distribution nothing measured: the figure's claim is *how many responses a page fetches*, and the
+ * weight is the number beside them.
+ */
 function whatShips(): string {
-  const modules = [
-    1, 0.82, 0.74, 0.66, 0.6, 0.54, 0.5, 0.44, 0.4, 0.36, 0.32, 0.28, 0.24, 0.2, 0.17, 0.14, 0.11, 0.08, 0.05,
-  ]
+  const site = siteWeight()
   return frame(
     'what-ships',
-    `<div class="hmods">${modules
-      .map(
-        (share, at) =>
-          `<span data-wf class="hmod" style="height:${(share * 100).toFixed(
-            0,
-          )}%;animation:wf-grow ${CYCLE}s cubic-bezier(.2,.7,.3,1) ${(at * 0.06).toFixed(2)}s infinite"></span>`,
-      )
-      .join('')}</div>
+    `<div class="hmods">${Array.from(
+      { length: site.modules },
+      (_, at) =>
+        `<span data-wf class="hmod" style="animation:wf-grow ${CYCLE}s cubic-bezier(.2,.7,.3,1) ${(
+          at * 0.06
+        ).toFixed(2)}s infinite"></span>`,
+    ).join('')}</div>
      <div class="hstrip-say">
-       <span class="hnote">${modules.length} modules, served as written, comments intact</span>
-       <span class="hl lit end">46,698 B brotli</span>
+       <span class="hnote">${site.modules} modules, served as written, comments intact</span>
+       <span class="hl lit end">${site.brotli.toLocaleString('en-US')} B brotli</span>
      </div>
-     <p class="hnote wide">gated by <code>budget({ js, grow })</code></p>`,
+     <p class="hnote wide">gated by <code>budget({ js, grow })</code>, measured on the real walk over HTTP
+       rather than over a bundle — this framework has no bundler to measure.</p>`,
   )
 }
 

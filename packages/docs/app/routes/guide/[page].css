@@ -256,9 +256,16 @@
   background: var(--line);
 }
 
+/**
+ * A hole has to be legible as a different thing from the bytes around it.
+ *
+ * On the dark ground the accent's quiet step and the divider that draws a segment land within a few
+ * points of each other, so the strip read as seven identical blocks — which is the one thing this
+ * figure must not say. The hole takes the accent as a line and a wash of it inside.
+ */
 .hseg.hole {
-  border: 1px solid var(--accent-edge);
-  background: var(--accent-quiet);
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 .hstrip-say {
@@ -419,7 +426,8 @@
 .hmod {
   flex: 1;
   min-width: 6px;
-  border-radius: 2px 2px 0 0;
+  height: 100%;
+  border-radius: 2px;
   transform-origin: bottom;
   background: var(--accent-700);
 }

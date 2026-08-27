@@ -39,6 +39,14 @@ export interface GraphEdge {
   to: string
   /** `down` leaves the source's bottom edge instead of its right — a fall, not a hand-off. */
   down?: boolean
+  /**
+   * `back` leaves the source's *left* edge and arrives at the target's right — a return.
+   *
+   * Three of these figures are cycles rather than pipelines: the client tells the server what it
+   * holds and the server answers it. Drawn as a forward edge the return would cross every node
+   * between the two; drawn as a back edge it bows out to the left and reads as the answer it is.
+   */
+  back?: boolean
   /** Seconds into the cycle at which the hairline starts drawing. */
   at: number
   /** Seconds at which the accent dash follows it. Later than `at`, always. */
@@ -93,14 +101,22 @@ function reachY(span: number): number {
   return Math.max(span * 0.45, 24)
 }
 
-function pathOf(from: GraphNode, to: GraphNode, down: boolean): string {
-  if (down) {
+function pathOf(from: GraphNode, to: GraphNode, spec: GraphEdge): string {
+  if (spec.down === true) {
     const x = from.x + from.w / 2
     const tx = to.x + to.w / 2
     const y1 = from.y + from.h
     const y2 = to.y
     const reach = reachY(y2 - y1)
     return `M${x} ${y1} C${x} ${y1 + reach} ${tx} ${y2 - reach} ${tx} ${y2}`
+  }
+  if (spec.back === true) {
+    const x1 = from.x
+    const y1 = from.y + from.h / 2
+    const x2 = to.x + to.w
+    const y2 = to.y + to.h / 2
+    const reach = reachX(x1 - x2)
+    return `M${x1} ${y1} C${x1 - reach} ${y1} ${x2 + reach} ${y2} ${x2} ${y2}`
   }
   const x1 = from.x + from.w
   const y1 = from.y + from.h / 2
@@ -119,7 +135,7 @@ function pathOf(from: GraphNode, to: GraphNode, down: boolean): string {
  * though distance meant duration.
  */
 function edge(from: GraphNode, to: GraphNode, spec: GraphEdge, cycle: number): string {
-  const d = enc(pathOf(from, to, spec.down === true))
+  const d = enc(pathOf(from, to, spec))
   return (
     `<path class="gx-line" d="${d}" pathLength="600" stroke-dasharray="600" stroke-dashoffset="600"` +
     ` data-wf style="animation:wf-draw ${cycle}s linear ${spec.at.toFixed(2)}s infinite"></path>` +
@@ -175,8 +191,20 @@ export function graph(
   const right = Math.max(...nodes.map((each) => Math.max(each.x + each.w, noteReach(each, mono))))
   const x = left - MARGIN
   const width = right - left + MARGIN * 2
+  /**
+   * The drawing decides its own size, because only the drawing knows what it is.
+   *
+   * `max-width` is the natural width: a 740-unit figure in a 786px column should be 740px, not
+   * stretched to fill it — the labels are 13px at 1:1 and a figure scaled up past that reads as a
+   * mistake. Below the floor it stops shrinking and scrolls inside `overflow-x` instead, because
+   * 13px text at half scale is not a smaller diagram, it is an unreadable one. A single rule in the
+   * stylesheet could not express either: one sheet serves a 740-unit hero and a 1320-unit
+   * architecture figure, and their floors are different numbers.
+   */
+  const floor = Math.min(width, 620)
   return (
-    `<svg class="gx" viewBox="${x} 0 ${width} ${options.height}" width="100%" role="img">` +
+    `<svg class="gx" viewBox="${x} 0 ${width} ${options.height}" width="100%"` +
+    ` style="max-width:${Math.round(width)}px;min-width:${Math.round(floor)}px" role="img">` +
     `${lines}${nodes.map((spec) => node(spec, options)).join('')}</svg>`
   )
 }

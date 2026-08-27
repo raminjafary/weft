@@ -717,6 +717,30 @@ figure.code pre {
   font-size: 12.5px;
 }
 
+/**
+ * Inline code in a rail is a name, not a box.
+ *
+ * A `<code>` chip carries padding and a background, which is right in prose at 15px and wrong in a
+ * 224px column at 12.5px: the padding lands on both sides of the word space that is already there,
+ * so a sentence with three names in it reads as though it had been double-spaced, and a two-word
+ * name breaks across a line with half its box on each. Here the chip loses its horizontal padding
+ * and stops breaking, and the line closes up to match.
+ */
+.rail .hint,
+.outline-rail .hint,
+.rail-card p {
+  line-height: 1.55;
+}
+
+.rail .hint code,
+.outline-rail .hint code,
+.rail-card p code {
+  padding-inline: 0;
+  white-space: nowrap;
+  background: none;
+  color: var(--ink-soft);
+}
+
 .undocumented {
   color: var(--accent2-500);
 }

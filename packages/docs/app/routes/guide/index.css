@@ -195,60 +195,6 @@
   color: var(--dim);
 }
 
-/* ── the graph primitive ──────────────────────────────────────────────────── */
-
-.gx {
-  display: block;
-  min-width: 900px;
-  overflow: visible;
-}
-
-.gx-line {
-  fill: none;
-  stroke: var(--line);
-  stroke-width: 1.4;
-}
-
-.gx-flow {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 2.2;
-  stroke-linecap: round;
-}
-
-.gx-node rect {
-  fill: var(--surface);
-  stroke: var(--line);
-  stroke-width: 1;
-}
-
-.gx-node.lit rect {
-  fill: var(--accent-quiet);
-  stroke: var(--accent-edge);
-}
-
-.gx-title {
-  fill: var(--ink);
-  font: 500 13px var(--mono);
-}
-
-.gx-node.lit .gx-title {
-  fill: var(--accent-ink);
-}
-
-.gx-note {
-  fill: var(--faint);
-  font: 11.5px var(--sans);
-}
-
-.gx-note.mono {
-  font: 11.5px var(--mono);
-}
-
-.gx-node.lit .gx-note {
-  fill: var(--accent);
-}
-
 /* ── the wave figure's own parts ──────────────────────────────────────────── */
 
 .wave-heads {

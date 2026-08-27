@@ -1,4 +1,5 @@
 import { escapeHtml, heading, note, prose, sketch, table } from './markup.ts'
+import { diff, stats, terminal } from './figures.ts'
 
 /**
  * One page, built from nothing, one step at a time.
@@ -216,24 +217,39 @@ export default defineRoute({
         'One region on the page is slow — a recommendation query, say. Declare that it streams, and the ' +
           'document stops being downstream of it.',
       ) +
-      sketch(
-        'ts',
-        `slots: {
-  body: { fragment: 'today', load: today },
-  aside: {
-    fragment: 'recs',
-    stream: { prio: 1 },
-    placeholder: '<p class="skeleton"></p>',
-    load: async () => ({ items: await slowRecommendations() }),
-  },
-}`,
+      heading('1 · Declare the hole', 'declare') +
+      diff(
+        [
+          "  feed: { fragment: 'feed' },",
+          "+ feed: { fragment: 'feed', stream: true,",
+          "+         placeholder: 'feed/skeleton' },",
+        ],
+        'app/routes/index.data.ts',
       ) +
       prose(
         'The plan’s delivery order was <code>in-order</code> and is now <code>out-of-order</code>, because ' +
           'a slot asked to stream. That is derived, not declared: a page whose regions are uniformly fast ' +
           'never puts the fill script on the wire at all.',
       ) +
-      sketch('sh', 'npx weft why / | grep -A2 delivery') +
+      heading('2 · Read what it cost', 'cost') +
+      stats([
+        { value: '43.5 ms', note: 'TTFB, unchanged — the shell never read the feed', lit: true },
+        { value: '22 ms', note: 'fast region visible, from 103 ms', lit: true },
+        { value: '+329 B', note: 'inline script, the whole price of out-of-order' },
+      ]) +
+      heading('3 · Ask the framework why', 'why-it') +
+      terminal('why-slow', [
+        {
+          label: 'weft why',
+          lines: [
+            '$ weft why /',
+            '  shell    app/layout.tsx → routes/index.tsx',
+            '  wave 1   header (buffered) · feed (stream)',
+            '  wave 2   prices needs feed',
+            '  keys     header: static · feed: shared route:page · prices: shared',
+          ],
+        },
+      ]) +
       heading('What a placeholder is for', 'placeholder') +
       prose(
         'It is what arrives if the region degrades — over budget, or a loader that threw. Honest, cheap and ' +
