@@ -26,9 +26,10 @@
     "./styles.css": "./dist/assets/styles.css"
   },
   "bin": {
-    "weft": "./dist/cli.js"
+    "weft": "./bin/weft.mjs"
   },
   "files": [
+    "bin",
     "dist",
     "src",
     "templates",
