@@ -1012,3 +1012,17 @@ h2.hint {
 :root.theming :is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit)::after {
   display: none;
 }
+
+/*
+ * The two asset directories, used rather than described.
+ *
+ * `app/assets/weave.svg` is processed: it is published once under a digest of its own contents and
+ * is immutable for a year, and the relative `url()` below is rewritten to that address at build
+ * time. `public/robots.txt` beside it is copied — it goes out at exactly the path it is written
+ * at, because that is the only path a crawler looks for it at, and a URL that does not name its
+ * contents can never be held.
+ */
+.foot {
+  background-image: url('./assets/weave.svg');
+  background-repeat: repeat;
+}

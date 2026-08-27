@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- The warp and the weft, tiled. Referenced from a stylesheet by a relative url(), which the
+       build rewrites to this file's revved URL — see spec/kernel/static.md. -->
+  <g fill="none" stroke="currentColor" stroke-width="1">
+    <path d="M0 4.5h16M0 12.5h16" stroke="#b2b6ca" stroke-opacity=".22"/>
+    <path d="M4.5 0v16M12.5 0v16" stroke="#796cbf" stroke-opacity=".22"/>
+  </g>
+</svg>
