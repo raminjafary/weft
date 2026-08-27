@@ -22,10 +22,14 @@ import { startHandler, type Handler } from 'weft/server'
  * prerendered document and every revved asset is served from the edge as a file — `weft site`
  * writes them — so the common path does not reach a function at all.
  *
- * `_serve` rather than `index`, because Vercel puts functions under `/api` and `/api` is a page on
+ * `serve` rather than `index`, because Vercel puts functions under `/api` and `/api` is a page on
  * this site: `/api`, and `/api/adapters` through `/api/weft-server`, are documents the build wrote.
- * A function at `/api` and a document at `/api` are two answers to one URL. The underscore is the
- * one character no package is named with.
+ * A function at `/api` and a document at `/api` are two answers to one URL, and the static file
+ * wins — which would take `/play`, `/search` and every intent down without an error anywhere.
+ *
+ * Not `_serve` either: Vercel skips anything under `api/` whose name begins with an underscore, so
+ * that spelling is a deployment with no function at all. `/api/:module` is one segment and its
+ * values are this repository's package names, so `serve` is a path no page can take.
  */
 
 /**

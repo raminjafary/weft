@@ -5,7 +5,7 @@
   "buildCommand": "pnpm build && pnpm docs:build && pnpm docs:site",
   "outputDirectory": "packages/docs/.site",
   "functions": {
-    "api/_serve.ts": {
+    "api/serve.ts": {
       "memory": 1024,
       "maxDuration": 30,
       "includeFiles": "packages/{**,docs/.weft/**}"
@@ -25,7 +25,7 @@
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/api/_serve"
+      "destination": "/api/serve"
     }
   ]
 }
