@@ -2267,3 +2267,40 @@ table.rows .num {
 .so-far-row.fresh {
   color: var(--accent-ink);
 }
+
+/** What an export's own file refuses by name, linked to the page that argues each one. */
+.api-raises {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0 0;
+  font-size: 12.5px;
+}
+
+.api-raises-kind {
+  font: 600 10px/1 var(--sans);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.api-dot {
+  color: var(--faint);
+}
+
+/** How far a section runs, for a reader deciding whether to read it. */
+.api-group {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.api-group h2 {
+  margin-block-end: 0;
+}
+
+.api-count {
+  font: 500 13px/1 var(--mono);
+  color: var(--faint);
+}

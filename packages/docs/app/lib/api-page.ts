@@ -1,4 +1,5 @@
 import { escapeHtml, heading, note, prose, table } from './markup.ts'
+import { errorCodes } from './errors.ts'
 import { onThisPage, railCard } from './rails.ts'
 import { moduleById, surface, type ApiEntry, type ApiModule } from './surface.ts'
 import { highlight } from './highlight.ts'
@@ -20,7 +21,32 @@ function anchor(name: string): string {
   return name.replace(/[^A-Za-z0-9]+/g, '-').toLowerCase()
 }
 
+/**
+ * Which named refusals are raised in a given file.
+ *
+ * Built once from the error registry, which has already walked every package source tree for them. A file
+ * is a coarse unit — an export's file may raise a code some *other* export in it throws — so the
+ * page says "raised in this file" rather than "raised by this function", which is what the data
+ * actually supports.
+ */
+let raisedIn: Map<string, string[]> | undefined
+
+function raises(file: string): string[] {
+  if (!raisedIn) {
+    raisedIn = new Map()
+    for (const code of errorCodes()) {
+      for (const site of code.sites) {
+        const found = raisedIn.get(site.file) ?? []
+        if (!found.includes(code.code)) found.push(code.code)
+        raisedIn.set(site.file, found)
+      }
+    }
+  }
+  return raisedIn.get(file) ?? []
+}
+
 function entry(item: ApiEntry): string {
+  const refusals = raises(item.file)
   return `<section class="api-entry" id="${anchor(item.name)}">
   <h3><a class="anchor" href="#${anchor(item.name)}"><code>${escapeHtml(item.name)}</code></a>
     <span class="kind">${escapeHtml(item.kind)}</span></h3>
@@ -32,6 +58,13 @@ function entry(item: ApiEntry): string {
           .map((paragraph) => `<p>${inline(paragraph)}</p>`)
           .join('')}</div>`
       : `<p class="hint undocumented">No doc comment on the declaration. The signature and the file are all this page can honestly show.</p>`
+  }
+  ${
+    refusals.length
+      ? `<p class="api-raises"><span class="api-raises-kind">Raised in this file</span>${refusals
+          .map((code) => `<a href="/errors/${escapeHtml(code)}"><code>${escapeHtml(code)}</code></a>`)
+          .join('<span class="api-dot">·</span>')}</p>`
+      : ''
   }
   <p class="hint"><a href="${REPO}/${escapeHtml(item.file)}"><code>${escapeHtml(item.file)}</code></a></p>
 </section>`
@@ -66,14 +99,18 @@ export function moduleBody(id: string): string {
       module.entry,
     )}</code> · <strong>${total}</strong> exports, <strong>${documented}</strong> with a doc comment on the declaration.</p>` +
     groups
-      .map(
-        (kind) =>
-          heading(KIND_LABEL[kind] ?? kind, `k-${kind}`) +
-          module.entries
-            .filter((item) => item.kind === kind)
-            .map(entry)
-            .join(''),
-      )
+      .map((kind) => {
+        const of = module.entries.filter((item) => item.kind === kind)
+        // The count is in the heading because a reader scanning a 318-export module wants to know
+        // how far the section runs before deciding to read it.
+        // The count sits beside the heading rather than inside it: `heading` escapes its text,
+        // which is the property that makes it safe to hand any string, and worth keeping.
+        return (
+          `<div class="api-group">${heading(KIND_LABEL[kind] ?? kind, `k-${kind}`)}` +
+          `<span class="api-count">${of.length}</span></div>` +
+          of.map(entry).join('')
+        )
+      })
       .join('')
   )
 }

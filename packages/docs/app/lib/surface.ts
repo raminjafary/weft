@@ -262,7 +262,7 @@ const MODULES: readonly Omit<ApiModule, 'entries'>[] = [
     specifier: '@weft/kernel',
     title: '@weft/kernel',
     blurb:
-      'The request lifecycle, the two-phase envelope, cache-key derivation, wave dispatch and the stream. Everything a framework usually does that is not one of these is a port on the other side of this module.',
+      'The document request path: the lifecycle, the two-phase envelope, routing, cache-key derivation, wave dispatch and the stream. It imports nothing but the WinterTC Minimum Common Web API, so the same kernel runs on Node, Deno, Bun, a worker and the edge unchanged — and everything a framework usually does that is not one of those jobs is a port on the other side of this module.',
     entry: 'packages/kernel/src/index.ts',
   },
   {
