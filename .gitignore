@@ -25,3 +25,6 @@ NEXT.md
 
 # Vercel CLI state, and the build output it writes.
 .vercel/
+
+# `weft site` output: the build, laid out for a static host.
+.site/

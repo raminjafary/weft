@@ -2,14 +2,30 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "pnpm install --frozen-lockfile --prod=false",
-  "buildCommand": "pnpm build && pnpm docs:build",
-  "outputDirectory": "packages/docs/public",
+  "buildCommand": "pnpm build && pnpm docs:build && pnpm docs:site",
+  "outputDirectory": "packages/docs/.site",
   "functions": {
-    "api/index.ts": {
+    "api/_serve.ts": {
       "memory": 1024,
       "maxDuration": 30,
       "includeFiles": "packages/{**,docs/.weft/**}"
     }
   },
-  "rewrites": [{ "source": "/(.*)", "destination": "/api" }]
+  "headers": [
+    {
+      "source": "/_weft/:kind(a|m|p)/:rest*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/_serve"
+    }
+  ]
 }

@@ -101,7 +101,19 @@ const REVALIDATE = 'no-cache'
  * keeps that honest — see `REVALIDATE`.
  */
 export function cacheControlFor(asset: Asset): string {
-  return asset.immutable ? IMMUTABLE : REVALIDATE
+  return cacheControl(asset.immutable)
+}
+
+/**
+ * The same decision, for a caller holding the fact rather than the asset.
+ *
+ * A URL that names its own contents may be held for a year; one that does not may be held and must
+ * be asked about. Nothing may assume the first from a path: `public/` is served at the name its
+ * author wrote as well as at a revved one, and a favicon linked as `/mark.svg` served immutable is
+ * a year of the old icon for everyone who has already seen it.
+ */
+export function cacheControl(immutable: boolean): string {
+  return immutable ? IMMUTABLE : REVALIDATE
 }
 
 /** A route pattern as a filename component, so a per-route bundle has a readable name. */

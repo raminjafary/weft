@@ -1,6 +1,6 @@
-import { cp, mkdir, readFile, readdir, stat } from 'node:fs/promises'
+import { cp, mkdir, readFile, readdir, rm, stat } from 'node:fs/promises'
 import { dirname, join, relative, sep } from 'node:path'
-import { typeOf } from './assets.ts'
+import { cacheControl, typeOf } from './assets.ts'
 import { STATIC_DIR, type StaticManifest } from './static.ts'
 
 /**
@@ -81,6 +81,26 @@ export async function siteObjects(dir: string): Promise<SiteObject[]> {
     // A build with no L0 documents has no manifest, which is not an error.
   }
 
+  /**
+   * Which asset URLs name their own contents, asked of the build rather than assumed.
+   *
+   * Not every one does. A file in `public/` is served at the name its author wrote as well as at a
+   * revved one — a favicon is linked as `/mark.svg`, because that is what a page says — and the
+   * build records the difference. Reading it back is the only way a directory walk can know: the
+   * alternative was to assume a digest and serve a stable URL immutable for a year, which for the
+   * one asset on this site that has no digest meant the old icon until the browser cache was
+   * cleared. Unknown counts as mutable, because being asked again is a cost and being wrong is not.
+   */
+  const revved = new Map<string, boolean>()
+  try {
+    const report = JSON.parse(await readFile(join(dir, 'report.json'), 'utf8')) as {
+      assets?: { href: string; immutable: boolean }[]
+    }
+    for (const asset of report.assets ?? []) revved.set(asset.href, asset.immutable)
+  } catch {
+    // No report is a build nobody can ask, and every asset is then revalidated.
+  }
+
   const root = join(dir, 'assets')
   for (const file of await walk(root)) {
     const path = relative(root, file).split(sep).join('/')
@@ -89,18 +109,13 @@ export async function siteObjects(dir: string): Promise<SiteObject[]> {
     if (path === 'manifest.json') continue
     const href = `/${path}`
     if (claimed.has(href)) continue
+    const immutable = revved.get(href) ?? false
     out.push({
       href,
       file,
       path,
-      headers: {
-        'content-type': typeOf(href),
-        // Every asset URL carries a digest of its contents, which is the whole reason it may be
-        // held for a year. A path without one never reaches here: the build only writes revved
-        // assets.
-        'cache-control': 'public, max-age=31536000, s-maxage=31536000, immutable',
-      },
-      immutable: true,
+      headers: { 'content-type': typeOf(href), 'cache-control': cacheControl(immutable) },
+      immutable,
     })
   }
 
@@ -125,6 +140,10 @@ export interface SiteReport {
  */
 export async function writeSite(dir: string, out: string): Promise<SiteReport> {
   const objects = await siteObjects(dir)
+  // Emptied first, and the directory is the one the caller named. A page deleted from an
+  // application is a file left behind here otherwise — still reachable, still linked from
+  // whatever cached copy of a nav mentions it, and correct in every build report.
+  await rm(out, { recursive: true, force: true })
   let bytes = 0
   for (const object of objects) {
     const target = join(out, object.path)

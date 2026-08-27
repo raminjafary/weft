@@ -45,6 +45,7 @@ export { loadConfig, type ResolvedConfig } from './config.ts'
 export {
   buildAssets,
   browserModule,
+  cacheControl,
   cacheControlFor,
   moduleFiles,
   type Asset,
