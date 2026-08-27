@@ -58,6 +58,7 @@ import {
   browserModule,
   buildAssets,
   cacheControlFor,
+  moduleFileName,
   revAssets,
   rewriteUrls,
   weftAssets,
@@ -1399,12 +1400,13 @@ export async function appHandler(app: App): Promise<Handler> {
         res.writeHead(400, { 'content-type': 'text/plain' }).end('no\n')
         return
       }
-      const source = join(tree.dir, name)
+      // The URL always ends in `.js`; the file behind it may be `.ts`. See `servedModuleName`.
+      const source = join(tree.dir, moduleFileName(name, tree))
       if (!(await exists(source))) {
         res.writeHead(404, { 'content-type': 'text/plain' }).end(`no such module: ${name}\n`)
         return
       }
-      const body = browserModule(await readFile(source, 'utf8'), tree, prefix, assets.trees)
+      const body = browserModule(await readFile(source, 'utf8'), tree, prefix)
       const payload = path === assets.boot ? prelude + body : body
       const headers: Record<string, string> = {
         'content-type': 'text/javascript; charset=utf-8',

@@ -33,6 +33,30 @@ export interface ModuleTree {
 }
 
 /**
+ * The URL a client module is served at, which always ends in `.js`.
+ *
+ * The bytes are JavaScript by the time anybody receives them — types are stripped on the way out —
+ * so the extension in the URL is about who is doing the serving, and a `.ts` URL is only ever a
+ * liability. weft's own server knows `.ts` means JavaScript because `TYPES` says so; a static host
+ * consults the extension and nothing else, and every one of them reads `.ts` as an MPEG transport
+ * stream. `video/mp2t` fails strict MIME checking, so the browser refuses the module.
+ *
+ * That was not hypothetical either. An application's own client module is `app/client.ts`, always
+ * source and never built, so it was served at a `.ts` URL for every weft application ever deployed
+ * to a host that serves files rather than proxying to weft — which took out the theme toggle, the
+ * search panel, the tab strips and the intent buttons on this project's own documentation site, with
+ * one console error naming a video codec.
+ */
+export function servedModuleName(fileName: string, tree: ModuleTree): string {
+  return tree.ext === '.ts' ? `${fileName.slice(0, -tree.ext.length)}.js` : fileName
+}
+
+/** The file behind a served module URL, which is the inverse of `servedModuleName`. */
+export function moduleFileName(served: string, tree: ModuleTree): string {
+  return tree.ext === '.ts' && served.endsWith('.js') ? `${served.slice(0, -'.js'.length)}.ts` : served
+}
+
+/**
  * Every URL the browser will fetch, and the digest that makes it immutable.
  *
  * Built after the generator has said which stylesheets each page links, because an href carries a
@@ -353,9 +377,9 @@ export async function buildAssets(input: AssetInput): Promise<AssetTable> {
   trees.set(`${prefix}/runtime/`, input.runtime)
   trees.set(`${prefix}/warp/`, input.warp)
   if (input.app) trees.set(`${prefix}/app/`, input.app)
-  const boot = `${prefix}/client/boot${input.client.ext}`
+  const boot = `${prefix}/client/boot.js`
   manifest['client/boot.js'] = boot
-  const app = input.app ? `${prefix}/app/client${input.app.ext}` : undefined
+  const app = input.app ? `${prefix}/app/client.js` : undefined
   if (app) manifest['app/client.js'] = app
 
   return {
@@ -404,27 +428,23 @@ export const REWRITTEN_SPECIFIERS: Record<string, string> = {
  * the paths those packages are mounted at. That is the whole of it. The alternative is a
  * bundler, and the alternative to a bundler is two replacements.
  *
- * The extension is the *target's*, which is the only source of it that is ever right. Trees do
- * not agree: an application's own `client.ts` is always source, a published `@weftjs/client` is
- * always built, and this repository serves its framework from source beside packages resolved to
- * their `dist`. Written with the importing tree's extension, every such pair produced a specifier
- * for a file that is not there — a 404 on the runtime, from a page that otherwise looked fine.
+ * Every rewritten specifier ends in `.js`, because every URL a module is served at does — see
+ * `servedModuleName`. That used to be the importing tree's own extension, which was wrong in both
+ * directions and produced 404s on the runtime from pages that otherwise looked fine.
+ *
+ * A relative specifier is rewritten too. A `.ts` source may import `./hint.ts`, and the browser
+ * resolves that against the URL it is reading, so the specifier has to name the neighbour's URL
+ * rather than the neighbour's filename.
  */
-export function browserModule(
-  source: string,
-  tree: ModuleTree,
-  mountedAt: string,
-  trees: ReadonlyMap<string, ModuleTree>,
-): string {
+export function browserModule(source: string, tree: ModuleTree, mountedAt: string): string {
   const stripped = tree.ext === '.ts' ? stripTypeScriptTypes(source, { mode: 'strip' }) : source
   const root = mountedAt.replace(/\/[a-z]+\/$/, '')
-  const extOf = (name: string): string => trees.get(`${root}/${name}/`)?.ext ?? tree.ext
   let out = stripped
   for (const [specifier, name] of Object.entries(REWRITTEN_SPECIFIERS)) {
     const quoted = new RegExp(`(['"])${specifier.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}\\1`, 'g')
-    out = out.replace(quoted, `'${root}/${name}/index${extOf(name)}'`)
+    out = out.replace(quoted, `'${root}/${name}/index.js'`)
   }
-  return out
+  return out.replace(/(['"])(\.{1,2}\/[^'"]*)\.ts\1/g, '$1$2.js$1')
 }
 
 /**
@@ -449,8 +469,8 @@ export async function moduleFiles(assets: AssetTable, prelude = ''): Promise<Map
   for (const [mountedAt, tree] of assets.trees) {
     for (const name of (await readdir(tree.dir)).sort()) {
       if (!name.endsWith(tree.ext)) continue
-      const href = `${mountedAt}${name}`
-      const body = browserModule(await readFile(join(tree.dir, name), 'utf8'), tree, mountedAt, assets.trees)
+      const href = `${mountedAt}${servedModuleName(name, tree)}`
+      const body = browserModule(await readFile(join(tree.dir, name), 'utf8'), tree, mountedAt)
       out.set(href, href === assets.boot ? prelude + body : body)
     }
   }

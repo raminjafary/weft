@@ -2,7 +2,7 @@ import { brotliCompressSync, constants } from 'node:zlib'
 import { stripTypeScriptTypes } from 'node:module'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { REWRITTEN_SPECIFIERS, type AssetTable, type ModuleTree } from './assets.ts'
+import { moduleFileName, REWRITTEN_SPECIFIERS, type AssetTable, type ModuleTree } from './assets.ts'
 import type { GeneratedRoute } from './routes.ts'
 
 /**
@@ -86,11 +86,17 @@ export async function measureClientJs(assets: AssetTable, appClient?: string): P
     const name = href.slice(located.prefix.length)
     let source: string
     try {
-      source = await readFile(join(located.tree.dir, name), 'utf8')
+      // By the URL's name mapped back to the file's, because a served `.js` may be a `.ts` on disk.
+      source = await readFile(join(located.tree.dir, moduleFileName(name, located.tree)), 'utf8')
     } catch {
-      continue
+      // A module that cannot be read is a module the browser will not get either, and skipping it
+      // silently would report a page as lighter than it is. The figure is a claim, so it says so.
+      throw new Error(
+        `E_BUDGET_UNREADABLE: ${href} is in the module graph and could not be read from ` +
+          `${located.tree.dir}. The byte figure would be smaller than the truth.`,
+      )
     }
-    const stripped = name.endsWith('.ts') ? stripTypeScriptTypes(source, { mode: 'strip' }) : source
+    const stripped = located.tree.ext === '.ts' ? stripTypeScriptTypes(source, { mode: 'strip' }) : source
     modules.push({ href, ...compressed(stripped) })
 
     for (const specifier of importsOf(source)) {
@@ -101,7 +107,7 @@ export async function measureClientJs(assets: AssetTable, appClient?: string): P
       const tree = REWRITTEN_SPECIFIERS[specifier]
       if (!tree) continue
       const target = trees.find(([prefix]) => prefix.endsWith(`/${tree}/`))
-      if (target) queue.push(`${target[0]}index${target[1].ext}`)
+      if (target) queue.push(`${target[0]}index.js`)
     }
   }
 

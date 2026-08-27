@@ -9,6 +9,8 @@ A folder is an application. There is no bundler, no virtual DOM, and no componen
 the browser: the compiler seals your pages into templates, the server fills them, and the client
 runtime binds what is already there.
 
+[![npm](https://img.shields.io/npm/v/@weftjs/core?label=%40weftjs%2Fcore&color=blue)](https://www.npmjs.com/package/@weftjs/core)
+[![npm](https://img.shields.io/npm/v/create-weft?label=create-weft&color=blue)](https://www.npmjs.com/package/create-weft)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![node >= 22.18](https://img.shields.io/badge/node-%3E%3D22.18-brightgreen.svg)
 ![runtime deps: 1](https://img.shields.io/badge/third--party%20runtime%20deps-1-brightgreen.svg)

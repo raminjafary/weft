@@ -112,6 +112,50 @@ test('no module the deployment serves names a workspace package', async () => {
   assert.deepEqual(offenders.sort(), [], 'a browser cannot resolve these, so the page fails on load')
 })
 
+/**
+ * Every served module URL ends in `.js`.
+ *
+ * A static host reads the extension and nothing else. `.ts` is `video/mp2t` to all of them, which
+ * fails strict MIME checking, so the browser refuses the module — and an application's own
+ * `app/client.ts` is always source, so it was served at a `.ts` URL on every deployment that serves
+ * files rather than proxying to weft. On this project's documentation site that silently disabled the
+ * theme toggle, the search panel, the tab strips and every intent button at once.
+ *
+ * Asserted on the build output, because that is the directory a host is handed.
+ */
+test('every module URL in the build ends in .js, whatever the source extension is', async () => {
+  const out = await built()
+  const app = await createApp(ROOT, { mode: 'build', outDir: OUT })
+  const served = [...(await moduleFiles(app.assets)).keys()]
+  assert.ok(served.length > 0, 'no modules were mounted, so this asserts nothing')
+
+  assert.deepEqual(
+    served.filter((href) => !href.endsWith('.js')),
+    [],
+    'a host that infers the type from the extension will not serve these as JavaScript',
+  )
+  assert.ok(app.assets.boot.endsWith('.js'), `the boot URL is ${app.assets.boot}`)
+  if (app.assets.app) assert.ok(app.assets.app.endsWith('.js'), `the app client URL is ${app.assets.app}`)
+
+  // And the files are actually there under those names, so the rename is not just cosmetic.
+  for (const href of served) {
+    await assert.doesNotReject(
+      readFile(join(out, 'assets', href.replace(/^\//, ''))),
+      `${href} is the URL a document names and there is no file behind it`,
+    )
+  }
+
+  // Nothing inside them may point at a `.ts` neighbour either.
+  const offenders: string[] = []
+  for (const href of served) {
+    const source = code(await readFile(join(out, 'assets', href.replace(/^\//, '')), 'utf8'))
+    for (const match of source.matchAll(/(['"])((?:\.{1,2}\/|\/)[^'"]*\.ts)\1/g)) {
+      offenders.push(`${href} imports ${match[2]}`)
+    }
+  }
+  assert.deepEqual(offenders.sort(), [], 'these resolve to a URL the host will type as video/mp2t')
+})
+
 test('the boot module carries the prelude, so a CDN copy boots the same as a served one', async () => {
   const out = await built()
   const app = await createApp(ROOT, { mode: 'build', outDir: OUT })

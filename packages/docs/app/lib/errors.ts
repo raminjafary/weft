@@ -110,15 +110,80 @@ function enclosing(source: string, index: number, open: string, close: string): 
   return source.slice(start + 1, end)
 }
 
+const QUOTES = new Set(['`', "'", '"'])
+
+interface Literal {
+  /** The literal's text, with every interpolation collapsed to an ellipsis. */
+  text: string
+  /** Where its closing quote is, so a scan can carry on past it. */
+  end: number
+}
+
+/**
+ * One string or template literal, read from its opening quote.
+ *
+ * Scanned rather than matched, because an interpolation may hold another template literal — this
+ * repository writes one wherever a message names both halves of what it refused — and a pattern
+ * that stopped at the first backtick it met read the tail of the inner one as a message of its own.
+ * That is how `E_ETAG_STREAMS` came to be published as ": 'declares out-of-order delivery' }. An
+ * entity tag is a digest…", which is the middle of a sentence whose beginning was thrown away.
+ */
+function literalAt(source: string, start: number): Literal | undefined {
+  const quote = source[start]
+  let text = ''
+  for (let at = start + 1; at < source.length; at++) {
+    const char = source[at]
+    if (char === '\\') {
+      text += source.slice(at, at + 2)
+      at++
+      continue
+    }
+    if (char === quote) return { text, end: at }
+    if (quote === '`' && char === '$' && source[at + 1] === '{') {
+      const close = interpolationEnd(source, at + 2)
+      if (close < 0) return undefined
+      text += '…'
+      at = close
+      continue
+    }
+    if (quote !== '`' && char === '\n') return undefined
+    text += char
+  }
+  return undefined
+}
+
+/** The `}` that closes an interpolation, counting braces and stepping over the literals between. */
+function interpolationEnd(source: string, from: number): number {
+  let depth = 1
+  for (let at = from; at < source.length; at++) {
+    const char = source[at] as string
+    if (QUOTES.has(char)) {
+      const nested = literalAt(source, at)
+      if (!nested) return -1
+      at = nested.end
+      continue
+    }
+    if (char === '{') depth++
+    else if (char === '}' && --depth === 0) return at
+  }
+  return -1
+}
+
 /** Every string and template literal in a call, joined where they were concatenated. */
 function stringsIn(call: string): string[] {
   const out: string[] = []
-  const pattern = /(`(?:[^`\\]|\\.)*`|'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")(\s*\+\s*)?/g
   let current = ''
-  let match: RegExpExecArray | null
-  while ((match = pattern.exec(call))) {
-    current += (match[1] as string).slice(1, -1)
-    if (match[2]) continue
+  for (let at = 0; at < call.length; at++) {
+    if (!QUOTES.has(call[at] as string)) continue
+    const literal = literalAt(call, at)
+    if (!literal) continue
+    current += literal.text
+    at = literal.end
+    const joined = /^\s*\+\s*(?=[`'"])/.exec(call.slice(at + 1))
+    if (joined) {
+      at += joined[0].length
+      continue
+    }
     out.push(current)
     current = ''
   }
@@ -153,11 +218,9 @@ function messageAt(source: string, index: number): string | undefined {
   )
   if (!scopes.length) return undefined
   for (const scope of scopes) {
-    const named =
-      /\b(?:message|reason|detail)\s*:\s*(`(?:[^`\\]|\\.)*`|'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")/.exec(
-        scope,
-      )
-    const found = named?.[1] ? clean(named[1].slice(1, -1)) : undefined
+    const named = /\b(?:message|reason|detail)\s*:\s*(?=[`'"])/.exec(scope)
+    const literal = named ? literalAt(scope, named.index + named[0].length) : undefined
+    const found = literal ? clean(literal.text) : undefined
     if (found && usable(found)) return found.slice(0, 500)
   }
   const call = scopes[scopes.length - 1] as string

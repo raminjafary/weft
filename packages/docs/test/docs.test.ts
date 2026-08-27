@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createApp, serveApp, type Serving } from '@weftjs/core/server'
+import { createApp, moduleFiles, serveApp, type Serving } from '@weftjs/core/server'
 import { after } from 'node:test'
 import { renderExample } from '../app/lib/example.ts'
 import { PAGES } from '../app/lib/pages.ts'
@@ -36,6 +36,30 @@ async function app(): Promise<NonNullable<typeof built>> {
   built ??= await createApp(ROOT, { mode: 'dev', port: 0 })
   return built
 }
+
+/**
+ * Every module URL this site serves ends in `.js`.
+ *
+ * This site is the one that has an `app/client.ts`, so it is the one where the bug lived: an
+ * application's own client module is always source, was served at a `.ts` URL, and every static host
+ * types `.ts` as `video/mp2t`. Strict MIME checking then refuses it, and the theme toggle, the search
+ * panel, the tab strips and every intent button stop working at once with one console error naming a
+ * video codec.
+ *
+ * The equivalent check in `packages/weft` runs against the demo, which has no client module — so it
+ * passed throughout. This is the one that would have failed.
+ */
+test('every module URL this site serves ends in .js', async () => {
+  const serving = await app()
+  const served = [...(await moduleFiles(serving.assets)).keys()]
+  assert.ok(served.length > 5, `only ${served.length} modules mounted: this asserts nothing`)
+  assert.ok(serving.assets.app, 'this site has no app/client.ts, so the case this covers is gone')
+  assert.deepEqual(
+    served.filter((href) => !href.endsWith('.js')),
+    [],
+    'a static host types these as video/mp2t and the browser refuses them',
+  )
+})
 
 after(async () => {
   for (const serving of servers) await serving.close()
