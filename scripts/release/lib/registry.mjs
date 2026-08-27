@@ -88,15 +88,32 @@ export function publish(pkg, { dryRun }) {
 }
 
 /**
+ * Whether this version is the only one the registry serves for this package.
+ *
+ * The answer changes what unpublishing means. Removing one of several versions leaves the package;
+ * removing the only one removes the package itself, and npm asks for `--force` before it will. That
+ * is the case for a first release, which is exactly when an undo is most likely to be needed.
+ */
+export function isOnlyVersion(name, version) {
+  const versions = publishedVersions(name)
+  return versions.length === 1 && versions[0] === version
+}
+
+/**
  * Remove a version from the registry.
  *
  * npm allows this for 72 hours after publishing, and only if nothing depends on it. It does not
  * free the version number: npm refuses to ever publish `name@version` again once that pair has
  * existed, so the next release has to be a new number. `release:undo` says so before it runs.
+ *
+ * `--force` is passed only when this is the package's last version, because that is the one case
+ * npm protects and the protection is against something the caller has already been told about.
  */
 export function unpublish(name, version, { dryRun }) {
-  if (dryRun) return { ok: true, output: `would run: npm unpublish ${name}@${version}` }
-  return run('npm', ['unpublish', `${name}@${version}`], { allowFailure: true })
+  const last = isOnlyVersion(name, version)
+  const args = ['unpublish', `${name}@${version}`, ...(last ? ['--force'] : [])]
+  if (dryRun) return { ok: true, output: `would run: npm ${args.join(' ')}`, last }
+  return { ...run('npm', args, { allowFailure: true }), last }
 }
 
 /** The fallback when the 72-hour window has closed: the version stays, and installing it warns. */

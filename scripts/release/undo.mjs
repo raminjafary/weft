@@ -74,9 +74,17 @@ async function main() {
   step('On npm')
   const live = []
   for (const entry of onRegistry.sort((a, b) => a.name.localeCompare(b.name))) {
-    const published = registry.isPublished(entry.name, entry.version)
-    say(`  ${published ? '' : dim('(not on the registry) ')}${entry.name}@${entry.version}`)
-    if (published) live.push(entry)
+    if (!registry.isPublished(entry.name, entry.version)) {
+      say(`  ${dim('(not on the registry)')} ${entry.name}@${entry.version}`)
+      continue
+    }
+    // Whether this is the package's only version decides whether an unpublish removes a version or
+    // the package. Saying which, here, is the difference between an undo and a surprise.
+    const last = registry.isOnlyVersion(entry.name, entry.version)
+    say(
+      `  ${entry.name}@${entry.version}${last ? bold(' — its only version, so the package goes with it') : ''}`,
+    )
+    live.push({ ...entry, last })
   }
   if (!live.length) say(dim('  nothing that release published is on the registry.'))
 
@@ -111,11 +119,15 @@ async function main() {
   step('Plan')
   const steps = []
   if (!flags['keep-registry'] && live.length) {
+    const whole = live.filter((entry) => entry.last).length
     steps.push(
       flags.deprecate
         ? `deprecate ${live.length} version(s) on npm`
         : `unpublish ${live.length} version(s) from npm — ${bold('those version numbers are then unusable forever')}`,
     )
+    if (!flags.deprecate && whole) {
+      steps.push(`of those, ${whole} would leave the registry entirely, having no other version`)
+    }
   }
   if (release) steps.push('delete the GitHub release')
   if (!flags['keep-git']) {
@@ -145,12 +157,15 @@ async function main() {
             { dryRun: false },
           )
         : registry.unpublish(entry.name, entry.version, { dryRun: false })
-      if (result.ok) ok(`${entry.name}@${entry.version}`)
+      if (result.ok) ok(`${entry.name}@${entry.version}${result.last ? ' (and the package with it)' : ''}`)
       else {
         bad(`${entry.name}@${entry.version}`)
         say(`      ${result.output.split('\n').slice(0, 4).join('\n      ')}`)
         // The 72-hour window is the usual cause, and deprecating is the honest fallback.
-        if (!flags.deprecate && /24 hours|72 hours|cannot be removed|not allowed/i.test(result.output)) {
+        if (
+          !flags.deprecate &&
+          /24 hours|72 hours|cannot be removed|not allowed|--force/i.test(result.output)
+        ) {
           warn('npm will not remove this version. Re-run with --deprecate to warn installers instead.')
         }
       }
