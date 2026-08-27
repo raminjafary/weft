@@ -1,0 +1,451 @@
+/**
+ * What a guide page opens with, beside the route that opens it.
+ *
+ * A hero figure, a verdict pair and a plain-terms panel are on every page under `/guide/…` and on
+ * no other page on this site, so the framework links this sheet there and nowhere else. Every value
+ * is spent from `styles.css`; this file defines none.
+ */
+
+/* ── the figure ───────────────────────────────────────────────────────────── */
+
+.hero-fig {
+  margin: 22px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  overflow: hidden;
+  background: var(--code-bg);
+}
+
+.hero-fig-in {
+  padding: 22px 24px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.hero-fig figcaption {
+  display: block;
+  padding: 11px 16px;
+  border-block-start: 1px solid var(--line);
+  border-block-end: 0;
+  background: var(--surface);
+  font: 12.5px/1.5 var(--sans);
+  color: var(--faint);
+}
+
+/* ── the vocabulary every figure is built from ───────────────────────────── */
+
+/**
+ * A row that arrives when its turn comes.
+ *
+ * The base is 16% rather than 0: a row at 16% is still legible as a row, so a figure reads as a
+ * diagram filling in rather than as content appearing out of nowhere — and a reader who arrives
+ * mid-cycle sees the shape of the whole thing immediately.
+ */
+.hs {
+  opacity: 0.16;
+}
+
+.hrows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hl {
+  font: 12px/1.4 var(--mono);
+  color: var(--ink-soft);
+}
+
+.hl.lit {
+  color: var(--accent-ink);
+}
+
+.hl.ghost {
+  color: var(--dim);
+}
+
+.hl.no {
+  color: var(--danger-ink);
+}
+
+.hl.end {
+  margin-inline-start: auto;
+}
+
+.hnote {
+  font: 11.5px/1.5 var(--sans);
+  color: var(--dim);
+}
+
+.hnote.wide {
+  display: block;
+  margin: 12px 0 0;
+  max-width: 88ch;
+}
+
+.hp {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  font: 11.5px/1 var(--mono);
+  color: var(--ink-soft);
+}
+
+.hp.lit {
+  border-color: var(--accent-edge);
+  background: var(--accent-quiet);
+  color: var(--accent-ink);
+}
+
+.harrow {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.hcmd {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 14px;
+  font: 12.5px/1 var(--mono);
+}
+
+.hcmd .prompt {
+  color: var(--dim);
+}
+
+.hcmd .cmd {
+  color: var(--ink);
+}
+
+.hbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.hbox.dashed {
+  border-style: dashed;
+  background: none;
+}
+
+.hbox.lit {
+  border-color: var(--accent-edge);
+  background: var(--accent-quiet);
+}
+
+/** A nested band is indented rather than boxed twice: the indent is the nesting. */
+.hnest {
+  padding-inline-start: 26px;
+  margin-block-start: 8px;
+}
+
+.hchain {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/** An edge with one mark travelling it, which is how every hand-off in these figures is drawn. */
+.hwire {
+  position: relative;
+  height: 2px;
+  margin: 10px 0;
+  border-radius: 1px;
+  background: var(--line);
+}
+
+.hdot {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+
+/* ── bars ─────────────────────────────────────────────────────────────────── */
+
+.hbars {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-block-start: 12px;
+}
+
+.hb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hb-name {
+  width: 76px;
+  flex: none;
+  font: 12px/1.4 var(--mono);
+  color: var(--faint);
+}
+
+.hb-track {
+  flex: 1;
+  display: block;
+  height: 13px;
+}
+
+.hb-fill {
+  display: block;
+  height: 13px;
+  border-radius: 3px;
+  transform-origin: left;
+  background: var(--accent-800);
+}
+
+.hb-fill.ghost {
+  background: var(--line);
+}
+
+.hb-fill.lit {
+  background: var(--accent);
+}
+
+.hb-val {
+  width: 88px;
+  flex: none;
+  text-align: right;
+  font: 12px/1.4 var(--mono);
+  color: var(--ink-soft);
+}
+
+.hb-val.lit {
+  color: var(--accent-ink);
+}
+
+/* ── the figures that need their own shape ───────────────────────────────── */
+
+/** A template, as the thing it is: runs of finished bytes with gaps between them. */
+.hstrip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hstrip .hs {
+  display: block;
+}
+
+.hseg {
+  display: block;
+  height: 26px;
+  border-radius: var(--r-xs);
+  background: var(--line);
+}
+
+.hseg.hole {
+  border: 1px solid var(--accent-edge);
+  background: var(--accent-quiet);
+}
+
+.hstrip-say {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-block-start: 12px;
+}
+
+.hstrip-say .hs:last-child {
+  margin-inline-start: auto;
+}
+
+.htree {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.hwave {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hwave .hl {
+  width: 54px;
+  flex: none;
+}
+
+/** The two delivery orders. Both lanes are the same width and the same duration, always. */
+.hlane + .hlane {
+  margin-block-start: 18px;
+}
+
+.hlane-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-block-end: 7px;
+}
+
+.htrack {
+  position: relative;
+  height: 26px;
+  border-radius: var(--r-xs);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.hband {
+  position: absolute;
+  top: 0;
+  height: 26px;
+  border-radius: var(--r-xs);
+}
+
+.hband.base {
+  left: 0;
+  width: 18%;
+  background: var(--accent-800);
+}
+
+.hband.fast {
+  left: 21%;
+  width: 22%;
+  background: var(--accent);
+}
+
+.hband.slow {
+  width: 54%;
+  background: var(--accent-700);
+}
+
+.hplay {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  left: 0;
+  width: 2px;
+  background: var(--accent);
+  opacity: 0.7;
+}
+
+.htick {
+  position: absolute;
+  top: 30px;
+  font: 11px/1 var(--mono);
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.htick.lit {
+  color: var(--accent-ink);
+}
+
+.hlane:last-child {
+  margin-block-end: 20px;
+}
+
+.hdom {
+  display: flex;
+  gap: 6px;
+}
+
+.hnode {
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  font: 11.5px/1 var(--mono);
+  color: var(--faint);
+}
+
+.hnode.lit {
+  border-color: var(--accent-edge);
+  color: var(--accent-ink);
+}
+
+.hwrite {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hl.flash {
+  padding: 3px 7px;
+  border-radius: var(--r-xs);
+}
+
+.hswap {
+  position: relative;
+  height: 20px;
+  margin-block-start: 12px;
+}
+
+.hswap > * {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+}
+
+.hports {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+/** Nineteen modules as nineteen columns: the count is the point, not any one height. */
+.hmods {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 74px;
+}
+
+.hmod {
+  flex: 1;
+  min-width: 6px;
+  border-radius: 2px 2px 0 0;
+  transform-origin: bottom;
+  background: var(--accent-700);
+}
+
+/* ── the plain-terms panel ────────────────────────────────────────────────── */
+
+.plain {
+  margin: 22px 0 0;
+  padding: 16px 18px;
+  border: 1px solid var(--accent-edge);
+  border-radius: var(--r-lg);
+  background: var(--accent-quiet);
+}
+
+.plain-kicker {
+  margin: 0 0 8px;
+  font: 600 10px/1 var(--sans);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.plain p:last-child {
+  margin: 0;
+  max-width: 80ch;
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--accent-ink);
+}

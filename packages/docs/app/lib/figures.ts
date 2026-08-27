@@ -227,27 +227,6 @@ export function diff(lines: readonly string[], caption = '', badge = ''): string
   </figure>`
 }
 
-/**
- * A pair of panels: what a valid declaration does, and what the framework refuses.
- *
- * The design keeps these two states in their own boxes rather than mixing them into one animated
- * figure, and it is right to: a refusal is not a frame of an animation, it is the other outcome.
- */
-export function verdicts(ok: { title: string; body: string }, no: { title: string; body: string }): string {
-  return `<div class="verdicts">
-    <div class="verdict ok">
-      <div class="verdict-head"><span class="verdict-mark">✓</span><span class="verdict-kind">Accepted</span></div>
-      <h4>${enc(ok.title)}</h4>
-      <p>${ok.body}</p>
-    </div>
-    <div class="verdict no">
-      <div class="verdict-head"><span class="verdict-mark">✕</span><span class="verdict-kind">Refused</span></div>
-      <h4>${enc(no.title)}</h4>
-      <p>${no.body}</p>
-    </div>
-  </div>`
-}
-
 export interface BarRow {
   label: string
   /** What was configured to get this number. Some rows have nothing to add, and say nothing. */
@@ -310,4 +289,72 @@ export function chartBlock(title: string, note: string, rows: readonly BarRow[])
     </div>
     ${barChart(rows)}
   </section>`
+}
+
+export interface Verdict {
+  title: string
+  body: string
+}
+
+export interface Refusal extends Verdict {
+  /** What you wrote, why it cannot stand, and what comes back. Three, always. */
+  chips: readonly string[]
+}
+
+/**
+ * What the page's mechanism accepts, and what it refuses — side by side, at the top.
+ *
+ * Every page in this guide is about one mechanism, and every mechanism here is defined as much by
+ * what it will not do as by what it does. Putting the refusal beside the acceptance at the *top* of
+ * the page rather than in a footnote at the bottom is the whole point: a reader deciding whether
+ * this framework will fight them wants the constraint first, not after a page of prose.
+ *
+ * The refusal carries three chips — what you wrote, the rule it met, what came back — because a
+ * refusal a reader cannot trace is indistinguishable from a bug. They light in order, which is the
+ * order the compiler reaches them in.
+ *
+ * The tick pulses and the cross does not. A refusal is a settled fact and should sit still; the
+ * accepted case is the live one.
+ */
+export function verdictPair(ok: Verdict, no: Refusal): string {
+  return `<div class="verdicts">
+    <div class="verdict ok">
+      <div class="verdict-head">
+        <span data-wf class="verdict-mark" style="animation:wf-pulse 2.6s ease-in-out infinite">&#10003;</span>
+        <span class="verdict-kind">Valid</span>
+        <span class="verdict-what">${enc(ok.title)}</span>
+      </div>
+      <p>${enc(ok.body)}</p>
+    </div>
+    <div class="verdict no">
+      <div class="verdict-head">
+        <span class="verdict-mark">&#10005;</span>
+        <span class="verdict-kind">Refused</span>
+        <span class="verdict-what">${enc(no.title)}</span>
+      </div>
+      <div class="trace">${no.chips
+        .map(
+          (chip, at) =>
+            `${at ? '<span class="trace-to">&#8594;</span>' : ''}<span data-wf class="trace-step${
+              at === no.chips.length - 1 ? ' end' : ''
+            }" style="animation:wf-step 4.8s linear ${(at * 0.5).toFixed(1)}s infinite">${enc(chip)}</span>`,
+        )
+        .join('')}</div>
+      <p>${enc(no.body)}</p>
+    </div>
+  </div>`
+}
+
+/**
+ * The page in four sentences, before the page.
+ *
+ * This site's prose is precise and therefore dense, and a reader meeting a mechanism for the first
+ * time is owed the plain version before the exact one. It sits above the detail rather than below
+ * it so that somebody who only reads this block has still read something true.
+ */
+export function plainTerms(text: string): string {
+  return `<div class="plain">
+    <p class="plain-kicker">In plain terms</p>
+    <p>${enc(text)}</p>
+  </div>`
 }

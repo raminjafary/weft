@@ -1344,17 +1344,28 @@ figure.code pre {
 
 /* ── accepted beside refused ──────────────────────────────────────────────── */
 
+/**
+ * What a mechanism accepts, beside what it refuses.
+ *
+ * Every page in this guide is about one mechanism, and every mechanism here is defined as much by
+ * its boundary as by its behaviour — so the pair opens the page rather than closing it. Somebody
+ * deciding whether this framework will fight them wants the constraint on the way in.
+ *
+ * Two fixed columns rather than `auto-fit`: the pair is a comparison, and a comparison that
+ * reflows into one column above a card and below it is no longer a comparison. It collapses only
+ * where two columns would each be too narrow to read.
+ */
 .verdicts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
-  gap: 14px;
-  margin: 18px 0 0;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 22px 0 0;
 }
 
 .verdict {
-  padding: 16px 18px;
+  padding: 15px 17px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--r-lg);
   background: var(--surface);
 }
 
@@ -1364,16 +1375,17 @@ figure.code pre {
 }
 
 .verdict p {
-  margin: 7px 0 0;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--faint);
+  margin: 0;
+  font: 12.5px/1.6 var(--sans);
+  color: var(--ink-soft);
 }
 
 .verdict-head {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  margin-block-end: 10px;
 }
 
 .verdict-mark {
@@ -1382,6 +1394,7 @@ figure.code pre {
   justify-content: center;
   width: 16px;
   height: 16px;
+  flex: none;
   border-radius: var(--r-pill);
   border: 1px solid currentcolor;
   font: 10px/1 var(--mono);
@@ -1393,11 +1406,23 @@ figure.code pre {
   text-transform: uppercase;
 }
 
-.verdict.ok {
-  border-color: var(--accent-edge);
+/** What was accepted or refused, in the head rather than as a heading: it is a label, not a title. */
+.verdict-what {
+  font: 500 12.5px/1.3 var(--sans);
+  color: var(--ink);
 }
 
-.verdict.ok .verdict-head {
+.verdict.ok {
+  border-color: var(--accent-edge);
+  background: var(--accent-quiet);
+}
+
+.verdict.ok .verdict-mark,
+.verdict.ok .verdict-kind {
+  color: var(--accent);
+}
+
+.verdict.ok p {
   color: var(--accent-ink);
 }
 
@@ -1406,8 +1431,50 @@ figure.code pre {
   background: var(--danger-wash);
 }
 
-.verdict.no .verdict-head {
+.verdict.no .verdict-mark,
+.verdict.no .verdict-kind {
   color: var(--danger-ink);
+}
+
+/**
+ * What you wrote, the rule it met, and what came back.
+ *
+ * A refusal a reader cannot trace is indistinguishable from a bug, so the three steps are on the
+ * card rather than in prose underneath it. They light in the order the compiler reaches them.
+ */
+.trace {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-block-end: 10px;
+}
+
+.trace-step {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  font: 11px/1.3 var(--mono);
+  color: var(--ink-soft);
+  opacity: 0.18;
+}
+
+.trace-step.end {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  font-weight: 500;
+  color: var(--danger-ink);
+}
+
+.trace-to {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+@media (width < 860px) {
+  .verdicts {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* ── the mark ─────────────────────────────────────────────────────────────── */

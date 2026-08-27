@@ -19,6 +19,8 @@ import { infer } from '../app/infer.ts'
 import { commands, options } from '../app/lib/cli.ts'
 import { budgets } from '../app/lib/budgets.ts'
 import { drawnDependencies } from '../app/lib/architecture.ts'
+import { drawn as figuresDrawn } from '../app/lib/heroes.ts'
+import { caption, opened } from '../app/lib/openers.ts'
 import { artifacts } from '../app/lib/versions.ts'
 import { indexSize, search } from '../app/lib/search.ts'
 import { wireSizes } from '../app/lib/wire.ts'
@@ -711,4 +713,32 @@ test('the wave diagram is scheduled rather than drawn', async () => {
   assert.match(page, /42\.7 ms/, 'the critical path the kernel computes')
   assert.match(page, /123\.3 ms/, 'against the sequential walk it did not take')
   assert.match(page, /@keyframes wf-g8\{/, 'and nine keyframes generated from those durations')
+})
+
+/**
+ * Every guide page opens with a figure, and all but one with a refusal beside an acceptance.
+ *
+ * The opener is the part of a page a reader meets first and the part an author is most likely to
+ * forget when adding a page, because the prose is the work and this is the frame around it. So the
+ * registry is checked against the page list rather than trusted: a page with no figure would ship
+ * as a heading over a wall of text and nobody would notice for a release.
+ */
+test('every guide page opens with a figure, and the openers cover the guide', () => {
+  const slugs = PAGES.map((page) => page.slug)
+  for (const slug of slugs) {
+    assert.ok(
+      figuresDrawn().includes(slug),
+      `${slug} is in the guide but has no hero figure in lib/heroes.ts`,
+    )
+    assert.ok(caption(slug), `${slug} has a figure with nothing saying what it shows`)
+  }
+  const missing = slugs.filter((slug) => !opened().includes(slug))
+  assert.deepEqual(
+    missing,
+    ['scoped-styles'],
+    'scoped-styles is the one page with no verdict pair, and it says why. Any other page missing one is an omission',
+  )
+  for (const slug of opened()) {
+    assert.ok(slugs.includes(slug), `${slug} has an opener but is not a page in the guide`)
+  }
 })

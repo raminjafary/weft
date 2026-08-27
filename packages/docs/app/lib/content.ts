@@ -1,4 +1,5 @@
 import { renderExample } from './example.ts'
+import { opener } from './openers.ts'
 import { onThisPage, railCard } from './rails.ts'
 import { escapeHtml, example, heading, note, prose, sketch, table } from './markup.ts'
 import { BY_SLUG, neighbours, PAGES } from './pages.ts'
@@ -1292,7 +1293,7 @@ export function bodyOf(slug: string): string {
   ]
     .filter(Boolean)
     .join('')
-  return `${body()}<nav class="sequence">${links}</nav>`
+  return `${opener(slug)}${body()}<nav class="sequence">${links}</nav>`
 }
 
 /** Which slugs have prose. Read by the test, so a page in the registry cannot be an empty box. */

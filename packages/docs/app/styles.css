@@ -451,6 +451,56 @@ h2.hint {
   }
 }
 
+/**
+ * The shell, and the marks that say when a region became visible.
+ *
+ * `wf-shell` is the part of the response that never waits: it is on almost the whole cycle, because
+ * that is the claim — the shell is not downstream of anything. `wf-tick` and `wf-tick-late` are the
+ * two moments worth naming on the clock, and they differ only in when they arrive, which is the
+ * entire difference between the two lanes.
+ */
+@keyframes wf-shell {
+  0%,
+  2% {
+    opacity: 0;
+  }
+  4%,
+  96% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes wf-tick {
+  0%,
+  14% {
+    opacity: 0;
+  }
+  16%,
+  96% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes wf-tick-late {
+  0%,
+  70% {
+    opacity: 0;
+  }
+  72%,
+  96% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 @keyframes wf-fast-oo {
   0%,
   14% {
