@@ -1,5 +1,7 @@
 import { escapeHtml, heading, note, prose, table } from './markup.ts'
 import { errorCodes } from './errors.ts'
+import { specifiedIn } from './specified.ts'
+import { ceilingFor } from './budgets.ts'
 import { onThisPage, railCard } from './rails.ts'
 import { moduleById, surface, type ApiEntry, type ApiModule } from './surface.ts'
 import { highlight } from './highlight.ts'
@@ -47,6 +49,7 @@ function raises(file: string): string[] {
 
 function entry(item: ApiEntry): string {
   const refusals = raises(item.file)
+  const specified = specifiedIn(item.name)
   return `<section class="api-entry" id="${anchor(item.name)}">
   <h3><a class="anchor" href="#${anchor(item.name)}"><code>${escapeHtml(item.name)}</code></a>
     <span class="kind">${escapeHtml(item.kind)}</span></h3>
@@ -63,6 +66,13 @@ function entry(item: ApiEntry): string {
     refusals.length
       ? `<p class="api-raises"><span class="api-raises-kind">Raised in this file</span>${refusals
           .map((code) => `<a href="/errors/${escapeHtml(code)}"><code>${escapeHtml(code)}</code></a>`)
+          .join('<span class="api-dot">·</span>')}</p>`
+      : ''
+  }
+  ${
+    specified.length
+      ? `<p class="api-raises"><span class="api-raises-kind">Specified in</span>${specified
+          .map((doc) => `<a href="${REPO}/${escapeHtml(doc)}"><code>${escapeHtml(doc)}</code></a>`)
           .join('<span class="api-dot">·</span>')}</p>`
       : ''
   }
@@ -94,10 +104,28 @@ export function moduleBody(id: string): string {
     (a, b) => (KIND_ORDER[a] ?? 9) - (KIND_ORDER[b] ?? 9),
   )
 
+  /**
+   * What the build gates this package at, where it gates it at all.
+   *
+   * Only two packages have byte budgets — the client, which a browser downloads, and the kernel,
+   * which a deployment does. The other seven have none, and say nothing rather than a zero. The
+   * ceiling shown is the tightest of the package's entries, because that is the one a deployment
+   * pays at minimum; the measured figure is not here, because `pnpm bench budget` computes it with
+   * a bundler and prints it, and a page that shelled out to that would take twenty seconds to render.
+   */
+  const ceiling = ceilingFor(module.specifier)
+
   return (
     `<p class="hint">Import as <code>${escapeHtml(module.specifier)}</code> · entry <code>${escapeHtml(
       module.entry,
     )}</code> · <strong>${total}</strong> exports, <strong>${documented}</strong> with a doc comment on the declaration.</p>` +
+    (ceiling
+      ? `<p class="hint">${ceiling.entries} entr${
+          ceiling.entries === 1 ? 'y' : 'ies'
+        } gated by <code>weft build</code> · tightest ceiling <strong>${ceiling.limit.toLocaleString(
+          'en-US',
+        )} B</strong> brotli, on ${escapeHtml(ceiling.label.toLowerCase())}. Measure them with <code>pnpm bench budget</code>.</p>`
+      : '') +
     groups
       .map((kind) => {
         const of = module.entries.filter((item) => item.kind === kind)

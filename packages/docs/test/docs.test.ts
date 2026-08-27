@@ -17,7 +17,8 @@ import { errorBody, errorsIndexBody } from '../app/lib/errors-page.ts'
 import { compilePlayground, STARTER } from '../app/lib/play.ts'
 import { infer } from '../app/infer.ts'
 import { commands, options } from '../app/lib/cli.ts'
-import { budgets } from '../app/lib/budgets.ts'
+import { budgets, ceilingFor } from '../app/lib/budgets.ts'
+import { namedCount, specifiedIn } from '../app/lib/specified.ts'
 import { drawnDependencies } from '../app/lib/architecture.ts'
 import { drawn as figuresDrawn } from '../app/lib/heroes.ts'
 import { caption, opened } from '../app/lib/openers.ts'
@@ -775,4 +776,34 @@ test('a refusal links to the guide page that introduces it', async () => {
   assert.match(page, /Introduced by/, 'the spec documents still line up with a page that covers them')
   assert.match(page, /\/guide\//, 'and it is a link a reader can follow')
   assert.match(page, /Nearby refusals/, 'with the refusals beside it')
+})
+
+/**
+ * The specification documents that name an export still name it.
+ *
+ * Matched on backticked mentions only, which is what makes the join usable at all: a plain word
+ * match reports `fragment` as specified in twenty-three documents, because these documents use the
+ * English word constantly. Inside backticks it is a name and the same search returns one.
+ *
+ * The assertion is a floor rather than an exact count — documents get written — but a floor catches
+ * the failure that matters, which is the pattern silently matching nothing and every export losing
+ * its reference at once.
+ */
+test('an export links the specification documents that name it', () => {
+  assert.deepEqual(specifiedIn('sendEarlyHints'), ['spec/kernel/lifecycle.md'])
+  assert.equal(
+    specifiedIn('fragment').length,
+    1,
+    'backticks are what keep a common English word from matching every document that uses it',
+  )
+  const names = surface().flatMap((module) => module.entries.map((entry) => entry.name))
+  const named = namedCount([...new Set(names)])
+  assert.ok(named > 80, `only ${named} exports are named in a spec document; the match has stopped working`)
+})
+
+/** Only the two packages a build gates have a ceiling, and the mapping comes from the entry path. */
+test('the packages with a byte budget are the ones that ship somewhere', () => {
+  assert.ok(ceilingFor('@weft/kernel'), 'a deployment downloads the kernel')
+  assert.ok(ceilingFor('@weft/client'), 'a browser downloads the client')
+  assert.equal(ceilingFor('@weft/ir'), undefined, 'nothing gates a data format by bytes')
 })

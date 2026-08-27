@@ -24,6 +24,15 @@ export interface Budget {
   note: string
   /** Whether the design stated this number, or the repository measured it and drew a line. */
   stated: boolean
+  /**
+   * The package the entry lives in.
+   *
+   * `budget.ts` reaches its entries through two helpers — `src()` for `packages/client/src` and
+   * `kernelSrc()` for `packages/kernel/src` — so which package an entry belongs to is written into
+   * the call rather than needing a table here. Those are the only two: nothing else in this
+   * workspace is shipped to a browser or measured against a ceiling.
+   */
+  module: string
 }
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
@@ -31,7 +40,7 @@ const SOURCE = join(ROOT, 'packages/bench/src/budget.ts')
 const SITE = fileURLToPath(new URL('../../weft.budget.json', import.meta.url))
 
 const ENTRY =
-  /\{\s*id:\s*'([^']+)',\s*label:\s*'([^']+)',\s*entry:[^,]+,\s*limit:\s*([0-9]+)\s*\*\s*1024,\s*limitNote:\s*((?:'[^']*'|"[^"]*"|`[^`]*`)(?:\s*\+\s*(?:'[^']*'|"[^"]*"|`[^`]*`))*)/g
+  /\{\s*id:\s*'([^']+)',\s*label:\s*'([^']+)',\s*entry:\s*([a-zA-Z]+)\([^)]*\),\s*limit:\s*([0-9]+)\s*\*\s*1024,\s*limitNote:\s*((?:'[^']*'|"[^"]*"|`[^`]*`)(?:\s*\+\s*(?:'[^']*'|"[^"]*"|`[^`]*`))*)/g
 
 function joined(literal: string): string {
   return literal
@@ -47,7 +56,7 @@ export function budgets(): Budget[] {
   const source = readFileSync(SOURCE, 'utf8')
   const out: Budget[] = []
   for (const match of source.matchAll(ENTRY)) {
-    const [, id, label, kb, note] = match
+    const [, id, label, reach, kb, note] = match
     const text = joined(note as string)
     out.push({
       id: id as string,
@@ -55,6 +64,7 @@ export function budgets(): Budget[] {
       limit: Number(kb) * 1024,
       note: text,
       stated: !text.startsWith('no design figure'),
+      module: reach === 'kernelSrc' ? '@weft/kernel' : '@weft/client',
     })
   }
   if (out.length < 5) throw new Error(`E_DOCS_NO_BUDGETS: parsed only ${out.length} entries`)
@@ -77,4 +87,18 @@ export interface SiteWeight {
 export function siteWeight(): SiteWeight {
   const parsed = JSON.parse(readFileSync(SITE, 'utf8')) as SiteWeight
   return { brotli: parsed.brotli, raw: parsed.raw, modules: parsed.modules }
+}
+
+/**
+ * The tightest ceiling declared for a package, and how many entries it has.
+ *
+ * A package with entries has several — the client has nine, one per capability a page can import —
+ * and the interesting one for a module page is the smallest, because that is the entry a deployment
+ * pays for at minimum. Packages with none get nothing rather than a zero.
+ */
+export function ceilingFor(module: string): { limit: number; entries: number; label: string } | undefined {
+  const mine = budgets().filter((entry) => entry.module === module)
+  if (!mine.length) return undefined
+  const tightest = mine.reduce((low, entry) => (entry.limit < low.limit ? entry : low))
+  return { limit: tightest.limit, entries: mine.length, label: tightest.label }
 }
