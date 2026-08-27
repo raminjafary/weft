@@ -13,18 +13,18 @@ the gate is the test that calls it. Rolldown, minified, brotli at quality 11 —
 
 | Entry                     | Covers                                                                               | Measured | Ceiling  | Where the ceiling comes from                                            |
 | ------------------------- | ------------------------------------------------------------------------------------ | -------- | -------- | ----------------------------------------------------------------------- |
-| `entry-request.ts`        | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream    | 8,199 B  | 8,320 B  | The design's "target under 8 KB", **moved from 8,192** — see below      |
-| `entry-nested.ts`         | The above, plus splicing a chain of nested layouts into one cut document             | 8,392 B  | 9,216 B  | No design figure. Its own, because the chain walk did not fit above     |
-| `entry-channel.ts`        | The above, plus surgical refresh, form selection, epochs, the stale registry         | 10,980 B | 12,288 B | No design figure. A watermark                                           |
-| `entry-patch.ts`          | The above, plus the patch encoder: the surgical rung a template needs no proof for   | 11,657 B | 12,288 B | No design figure. Its own, because in the refresh path it cost everyone |
-| `entry-intent.ts`         | The request path, plus intent dispatch, the three authority branches, method routing | 9,731 B  | 10,240 B | No design figure. A watermark                                           |
-| `entry-authority.ts`      | The above, plus the capability model, signed intents and delegation                  | 11,668 B | 12,288 B | No design figure. Its own, because the design calls this tier separable |
-| `entry-transport.ts`      | The channel path, plus a live channel: negotiation, held state, push invalidation    | 13,786 B | 14,336 B | No design figure. A watermark, **moved from 13,312**                    |
-| `entry-stage.ts`          | The above, plus a whole route staged over the channel: `WARM at=`, `NAV`             | 14,128 B | 14,336 B | No design figure. Its own, because it went past the watermark above     |
-| `entry-discover.ts`       | The above, plus lazy plan extension: `WARM plan=`, `PLAN`                            | 14,342 B | 15,360 B | No design figure. Its own, on the rule route staging established        |
-| `entry-render.ts`         | The transport, plus a catalogue of fragments a client can name: render intents       | 14,343 B | 14,464 B | No design figure. Its own, on the same rule                             |
-| `entry-region.ts`         | The request path, plus regions resolved through the registry and checked on arrival  | 11,351 B | 12,288 B | No design figure. Its own, on the same rule. **Moved from 11,264**      |
-| `entry-region-channel.ts` | The transport plus composition: a region refreshed over a live channel               | 16,777 B | 17,408 B | No design figure. Its own, and **moved from 16,384**                    |
+| `entry-request.ts`        | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream    | 8,273 B  | 8,320 B  | The design's "target under 8 KB", **moved from 8,192** — see below      |
+| `entry-nested.ts`         | The above, plus splicing a chain of nested layouts into one cut document             | 8,455 B  | 9,216 B  | No design figure. Its own, because the chain walk did not fit above     |
+| `entry-channel.ts`        | The above, plus surgical refresh, form selection, epochs, the stale registry         | 11,039 B | 12,288 B | No design figure. A watermark                                           |
+| `entry-patch.ts`          | The above, plus the patch encoder: the surgical rung a template needs no proof for   | 11,712 B | 12,288 B | No design figure. Its own, because in the refresh path it cost everyone |
+| `entry-intent.ts`         | The request path, plus intent dispatch, the three authority branches, method routing | 9,802 B  | 10,240 B | No design figure. A watermark                                           |
+| `entry-authority.ts`      | The above, plus the capability model, signed intents and delegation                  | 11,722 B | 12,288 B | No design figure. Its own, because the design calls this tier separable |
+| `entry-transport.ts`      | The channel path, plus a live channel: negotiation, held state, push invalidation    | 13,842 B | 14,336 B | No design figure. A watermark, **moved from 13,312**                    |
+| `entry-stage.ts`          | The above, plus a whole route staged over the channel: `WARM at=`, `NAV`             | 14,200 B | 14,336 B | No design figure. Its own, because it went past the watermark above     |
+| `entry-discover.ts`       | The above, plus lazy plan extension: `WARM plan=`, `PLAN`                            | 14,406 B | 15,360 B | No design figure. Its own, on the rule route staging established        |
+| `entry-render.ts`         | The transport, plus a catalogue of fragments a client can name: render intents       | 14,411 B | 14,464 B | No design figure. Its own, on the same rule                             |
+| `entry-region.ts`         | The request path, plus regions resolved through the registry and checked on arrival  | 11,419 B | 12,288 B | No design figure. Its own, on the same rule. **Moved from 11,264**      |
+| `entry-region-channel.ts` | The transport plus composition: a region refreshed over a live channel               | 16,828 B | 17,408 B | No design figure. Its own, and **moved from 16,384**                    |
 | `index.ts`                | Everything, including build-time validation and serialisation                        | 11,601 B | —        | Not a claim. Reported so the marginal split is checkable                |
 
 On the client, same rule:
@@ -42,7 +42,7 @@ is the argument, and the client's channel ceiling moved from 4,096 in the same c
 | `entry-nav.ts` | Plus routes staged and unpainted, `NAV` frames, and what a click is | 4,970 B | 5,120 B |
 | `entry-discover.ts` | Plus what it knows about routes it has not been to | 5,331 B | 6,144 B |
 | `index.ts` | Everything | 6,137 B | 6,144 B |
-| `boot.ts` (front door) | The front door's code, bundled and minified — see below | 13,526 B | 14,336 B |
+| `boot.ts` (front door) | The front door's code, bundled and minified — see below | 13,725 B | 14,336 B |
 
 Navigation is the client-side case of the rule below: 851 bytes on top of a channel route, in an
 entry of its own, because a page that links nowhere should not carry the staging model. Discovery is

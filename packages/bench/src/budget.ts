@@ -294,3 +294,31 @@ export async function measureBudgets(budgets = BUDGETS): Promise<BundleSize[]> {
 
   return out
 }
+
+/**
+ * Where a measured run is written, so something other than a terminal can read it.
+ *
+ * `weft.budget.json` beside the documentation site already does this for that site's own weight,
+ * and the note in it is the argument for both: *commit this — a growth cap is a diff*. The same
+ * holds here. These numbers come out of a bundler and a compressor, which is twenty seconds of work
+ * and two dependencies a documentation page cannot take on to render a line; measured once and
+ * committed, the number on the page is the number the gate last saw.
+ *
+ * What is deliberately not recorded is a timestamp or a commit. Either would make every run a diff
+ * even when no size moved, which is the thing that trains people to stop reading the diff.
+ */
+export const MEASURED = fileURLToPath(new URL('../budgets.json', import.meta.url))
+
+export interface MeasuredBudget {
+  id: string
+  raw: number
+  gzip: number
+  brotli: number
+}
+
+/** The sizes, smallest key set that is useful: the ceiling and the label already live in source. */
+export function recordBudgets(sizes: readonly BundleSize[]): MeasuredBudget[] {
+  return sizes
+    .map((size) => ({ id: size.id, raw: size.raw, gzip: size.gzip, brotli: size.brotli }))
+    .toSorted((a, b) => a.id.localeCompare(b.id))
+}

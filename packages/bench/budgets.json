@@ -1,0 +1,128 @@
+[
+  {
+    "id": "app-route",
+    "raw": 9183,
+    "gzip": 3490,
+    "brotli": 3190
+  },
+  {
+    "id": "channel-route",
+    "raw": 11915,
+    "gzip": 4512,
+    "brotli": 4121
+  },
+  {
+    "id": "content-route",
+    "raw": 6695,
+    "gzip": 2448,
+    "brotli": 2251
+  },
+  {
+    "id": "discover-route",
+    "raw": 15398,
+    "gzip": 5849,
+    "brotli": 5331
+  },
+  {
+    "id": "expose-route",
+    "raw": 12797,
+    "gzip": 4832,
+    "brotli": 4405
+  },
+  {
+    "id": "front-door",
+    "raw": 44356,
+    "gzip": 15177,
+    "brotli": 13725
+  },
+  {
+    "id": "kernel",
+    "raw": 24241,
+    "gzip": 9288,
+    "brotli": 8273
+  },
+  {
+    "id": "kernel-authority",
+    "raw": 35428,
+    "gzip": 13183,
+    "brotli": 11722
+  },
+  {
+    "id": "kernel-discover",
+    "raw": 44066,
+    "gzip": 16138,
+    "brotli": 14406
+  },
+  {
+    "id": "kernel-intent",
+    "raw": 29321,
+    "gzip": 11049,
+    "brotli": 9802
+  },
+  {
+    "id": "kernel-nested",
+    "raw": 24793,
+    "gzip": 9494,
+    "brotli": 8455
+  },
+  {
+    "id": "kernel-patch",
+    "raw": 35830,
+    "gzip": 13128,
+    "brotli": 11712
+  },
+  {
+    "id": "kernel-refresh",
+    "raw": 33359,
+    "gzip": 12388,
+    "brotli": 11039
+  },
+  {
+    "id": "kernel-region",
+    "raw": 34392,
+    "gzip": 12837,
+    "brotli": 11419
+  },
+  {
+    "id": "kernel-region-channel",
+    "raw": 51702,
+    "gzip": 18861,
+    "brotli": 16828
+  },
+  {
+    "id": "kernel-render",
+    "raw": 43915,
+    "gzip": 16142,
+    "brotli": 14411
+  },
+  {
+    "id": "kernel-stage",
+    "raw": 43419,
+    "gzip": 15899,
+    "brotli": 14200
+  },
+  {
+    "id": "kernel-transport",
+    "raw": 41967,
+    "gzip": 15506,
+    "brotli": 13842
+  },
+  {
+    "id": "nav-route",
+    "raw": 14315,
+    "gzip": 5446,
+    "brotli": 4970
+  },
+  {
+    "id": "patch-route",
+    "raw": 13857,
+    "gzip": 5076,
+    "brotli": 4601
+  },
+  {
+    "id": "runtime",
+    "raw": 18321,
+    "gzip": 6763,
+    "brotli": 6137
+  }
+]

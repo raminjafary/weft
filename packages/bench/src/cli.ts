@@ -8,7 +8,8 @@ import { externalCandidate, type ExternalConfig } from './candidates/external.ts
 import { segmentsCandidate } from './candidates/segments.ts'
 import { stringSsrCandidate } from './candidates/string-ssr.ts'
 import { blockingSsrCandidate } from './candidates/blocking-ssr.ts'
-import { measureBudgets } from './budget.ts'
+import { writeFileSync } from 'node:fs'
+import { measureBudgets, MEASURED, recordBudgets } from './budget.ts'
 import { fillerSize } from '@weft/kernel'
 import { DELAYS, measureSlots, probeIncrementalDsd } from './measure/slots.ts'
 import { checkAll } from './equivalence.ts'
@@ -126,7 +127,7 @@ const HELP = `weft-bench — phase-zero benchmark harness
   verify    check that every wire form of a fragment produces identical bytes
   client    run the client runtime's own conformance checks in every engine
   channel   which binding a real browser opens, and what it does when the upgrade is refused
-  budget    bundle each entry and measure it against its byte budget
+  budget    bundle each entry and measure it against its byte budget (--write records it)
   slots     stream a route in both orders, and probe incremental shadow DOM
   deltas    shared vs per-connection delta computation, the phase 6 claim
   l0        a document served from the build against the same document rendered
@@ -287,6 +288,19 @@ async function main(): Promise<number> {
       process.stdout.write(
         `${size.within ? 'within' : 'OVER  '}  ${size.id.padEnd(14)} ${String(size.brotli).padStart(6)} B brotli  (${String(size.gzip).padStart(6)} gzip, ${String(size.raw).padStart(6)} raw)  limit ${size.limit}  ${size.limitNote}\n`,
       )
+    }
+    /**
+     * The run is written down, because a number that only reaches a terminal reaches nobody.
+     *
+     * `--write` rather than always, so a check on a branch does not dirty the tree — the file is
+     * committed, and a gate that edits the repository every time it runs is a gate people start
+     * passing `--no-verify` to. Written after the report, so a run that goes over still records
+     * what it measured: the number is the fact, and whether it is under the line is a judgement
+     * about it.
+     */
+    if (flags.write !== undefined) {
+      writeFileSync(MEASURED, `${JSON.stringify(recordBudgets(sizes), null, 2)}\n`)
+      process.stdout.write(`\nwrote ${MEASURED}\n`)
     }
     return over ? 1 : 0
   }

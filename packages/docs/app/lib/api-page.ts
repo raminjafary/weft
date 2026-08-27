@@ -122,9 +122,13 @@ export function moduleBody(id: string): string {
     (ceiling
       ? `<p class="hint">${ceiling.entries} entr${
           ceiling.entries === 1 ? 'y' : 'ies'
-        } gated by <code>weft build</code> · tightest ceiling <strong>${ceiling.limit.toLocaleString(
-          'en-US',
-        )} B</strong> brotli, on ${escapeHtml(ceiling.label.toLowerCase())}. Measure them with <code>pnpm bench budget</code>.</p>`
+        } gated by byte budget · ${
+          ceiling.brotli === undefined
+            ? ''
+            : `<strong>${ceiling.brotli.toLocaleString('en-US')} B</strong> brotli against a `
+        }<strong>${ceiling.limit.toLocaleString('en-US')} B</strong> ceiling on ${escapeHtml(
+          ceiling.label.toLowerCase(),
+        )}, the tightest of them. Re-measure with <code>pnpm bench budget</code>.</p>`
       : '') +
     groups
       .map((kind) => {
