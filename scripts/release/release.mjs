@@ -25,7 +25,7 @@ import {
 } from './lib/shell.mjs'
 import { ROOT, loadWorkspace, publishOrder, readJson, scopeOf, writeJson } from './lib/workspace.mjs'
 
-const FLAGS = ['dry-run', 'first-release', 'publish-only', 'no-github', 'no-gates', 'yes', 'help']
+const FLAGS = ['dry-run', 'first-release', 'publish-only', 'no-github', 'no-gates', 'otp', 'yes', 'help']
 
 const USAGE = `
 ${bold('pnpm release')}            cut a release: bump, changelog, commit, tag, push, publish, GitHub release
@@ -35,6 +35,7 @@ ${bold('pnpm release:dry')}        the same, writing nothing and publishing noth
   --publish-only    skip versioning; publish the current versions and finish the GitHub release
   --no-github       do not create the GitHub release
   --no-gates        skip format, lint, typecheck, build and test. For finishing a partial release only
+  --otp <code>      an npm one-time password, for an account whose 2FA covers writes
   --yes             do not stop for confirmation
 `
 
@@ -94,6 +95,7 @@ async function main() {
       packages,
       published: published.map((pkg) => ({ name: pkg.name, package: pkg, to: pkg.version })),
       dryRun,
+      otp: flags.otp,
     })
     if (!flags['no-github']) await announce({ repository, version, dryRun, packages })
     return
@@ -156,6 +158,27 @@ async function main() {
 
   // Asked here, after the audit and before anything is written, because the answer is the one that
   // cannot be recovered from mid-release: the commit, tag and push would already have happened.
+  /**
+   * A package nothing changed is still a package the registry has to have.
+   *
+   * The plan only holds what moved, which is right for versioning and wrong for publishing: after a
+   * release that tagged and pushed and then failed to publish, the next one bumps what changed since
+   * the tag and leaves everything else at a version that is on no registry. `@weftjs/core@0.1.1`
+   * pinning `@weftjs/ir@0.1.0` is uninstallable, and npm accepts it without complaint.
+   *
+   * So anything whose current version is missing is added at that version, unbumped. It makes the
+   * release self-healing rather than dependent on the last one having finished.
+   */
+  step('Already on the registry')
+  const planned = new Set(plan.published.map((release) => release.name))
+  for (const pkg of packages.values()) {
+    if (pkg.isPrivate || planned.has(pkg.name)) continue
+    if (registry.isPublished(pkg.name, pkg.version)) continue
+    warn(`${pkg.name}@${pkg.version} is not on the registry; publishing it unbumped`)
+    plan.published.push({ name: pkg.name, package: pkg, to: pkg.version, from: pkg.version })
+  }
+  if (plan.published.length === planned.size) ok('every package a release depends on is there')
+
   step('Names on the registry')
   for (const release of plan.published) {
     const claim = registry.claim(release.name, npmUser)
@@ -164,7 +187,10 @@ async function main() {
   }
   // Asked with the names in hand, because "can this account publish" is a different question per
   // name: a token scoped to one organisation answers yes for eight of these and 403 for the ninth.
-  const unattended = registry.canPublishUnattended(plan.published.map((release) => release.name))
+  const unattended = registry.canPublishUnattended(
+    plan.published.map((release) => release.name),
+    flags.otp,
+  )
   if (unattended.ok) ok(`unattended: ${unattended.why}`)
   else refuse(unattended.why)
 
@@ -250,7 +276,7 @@ async function main() {
   ok(`${RELEASE_BRANCH} and ${tag} are on origin. The documentation site deploys from this push.`)
 
   step('Publish')
-  await publishAll({ packages, published: plan.published, dryRun: false })
+  await publishAll({ packages, published: plan.published, dryRun: false, otp: flags.otp })
 
   if (!flags['no-github']) await announce({ repository, version, dryRun: false, packages, section })
 
@@ -323,7 +349,7 @@ function runGates() {
   }
 }
 
-async function publishAll({ packages, published, dryRun }) {
+async function publishAll({ packages, published, dryRun, otp }) {
   const order = publishOrder(packages)
   const sorted = [...published].sort((a, b) => order.indexOf(a.name) - order.indexOf(b.name))
   const failures = []
@@ -333,7 +359,7 @@ async function publishAll({ packages, published, dryRun }) {
       continue
     }
     say(dim(`  publishing ${release.name}@${release.to} …`))
-    const result = registry.publish(release.package, { dryRun })
+    const result = registry.publish(release.package, { dryRun, otp })
     if (result.ok) ok(`${release.name}@${release.to}`)
     else {
       bad(`${release.name}@${release.to} failed`)

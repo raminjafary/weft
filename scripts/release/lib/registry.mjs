@@ -31,7 +31,8 @@ const TOKEN_ADVICE =
  * The token itself is read from the environment rather than from `~/.npmrc`, because a token this
  * could parse is a token it could also print.
  */
-export function canPublishUnattended(names = []) {
+export function canPublishUnattended(names = [], otp) {
+  if (otp) return { ok: true, why: 'a one-time password was supplied with --otp' }
   const token = process.env.NPM_TOKEN ?? process.env.NODE_AUTH_TOKEN
 
   // The account's own setting, asked only when there is no token. `npm profile get` needs a login
@@ -213,10 +214,19 @@ export function claim(name, user) {
  * refuses on is the one we created; the checks that matter — clean tree, right branch, in sync with
  * the remote — ran in the preflight, before anything was written.
  */
-export function publish(pkg, { dryRun }) {
+export function publish(pkg, { dryRun, otp }) {
   return runVisible(
     'pnpm',
-    ['publish', '--no-git-checks', '--access', 'public', ...(dryRun ? ['--dry-run'] : [])],
+    [
+      'publish',
+      '--no-git-checks',
+      '--access',
+      'public',
+      // A code the operator read off their phone. npm accepts the same one for every request inside
+      // its window, which is the only reason publishing nine packages on one code works at all.
+      ...(otp ? ['--otp', otp] : []),
+      ...(dryRun ? ['--dry-run'] : []),
+    ],
     { cwd: join(ROOT, pkg.relativeDirectory), allowFailure: true },
   )
 }
