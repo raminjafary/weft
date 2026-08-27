@@ -2157,8 +2157,19 @@ function wireNavigation(): void {
     const link = (event.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null
     if (!link || !navigable(linkFacts(link), window.location.href)) return
     const url = new URL(link.href, window.location.href)
-    // The same page again is a reload, and a reload is the browser's to do.
-    if (samePage(url)) return
+    /**
+     * The page already on screen.
+     *
+     * Handing this to the browser meant a nav that reloaded the document whenever a reader clicked
+     * the section they were already reading — the one click on a nav that should cost nothing, and
+     * the most expensive one there was. A link to a fragment of this page never arrives here;
+     * `navigable` refuses it above, so the browser scrolls and does that better than a swap could.
+     * What is left is the same URL exactly, and the honest answer to it is nothing at all.
+     */
+    if (samePage(url)) {
+      event.preventDefault()
+      return
+    }
     event.preventDefault()
     void navigate(url.href, scrollFor(link))
   })
