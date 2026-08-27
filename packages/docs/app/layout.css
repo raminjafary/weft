@@ -1600,7 +1600,7 @@ figure.code pre {
 .finder {
   position: fixed;
   z-index: 31;
-  top: calc(var(--head-h) + 16px);
+  top: calc(var(--head-h) + 12px);
   max-height: min(70vh, 560px);
   overflow-y: auto;
   overscroll-behavior: contain;

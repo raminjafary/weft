@@ -255,8 +255,12 @@ function finder(): void {
    */
   const place = () => {
     const box = form.getBoundingClientRect()
+    // Down from the *header*, across from the *form*. The form is 32px tall inside a 58px bar, so
+    // measuring the drop from the form put the panel three pixels under the header's own border —
+    // touching the thing it hangs from rather than hanging from it.
+    const bar = form.closest('.top')?.getBoundingClientRect().bottom ?? box.bottom
     const width = Math.min(660, innerWidth - 24)
-    panel.style.top = `${Math.round(box.bottom + 16)}px`
+    panel.style.top = `${Math.round(bar + 12)}px`
     panel.style.left = `${Math.round(Math.max(12, box.right - width))}px`
     panel.style.width = `${width}px`
   }
