@@ -51,9 +51,22 @@ const ASSETS = fileURLToPath(new URL('./assets/', import.meta.url))
  * compiled, and that is not tidiness. A template id is stated relative to the compile root and
  * feeds the content hash, so compiling them where they are installed would make a template's
  * version depend on how deep `node_modules` happens to be.
+ *
+ */
+export const STAGED_DIR = 'staged'
+
+/**
+ * Stage them, and answer with where each one went.
+ *
+ * Beside `assets/` rather than inside it, because that directory is the site: everything in it is
+ * published, and these are the compiler's working copies of framework source. `weft build` deleted
+ * them again by an ordering accident — it empties `assets/` after the compile that wrote them —
+ * and `weft dev` does not, so a project that was developed and then published shipped the
+ * framework's own `.tsx` and a `tsconfig.json` at its site root. A scratch directory that is also
+ * the deployment is a bug waiting for the right order of commands.
  */
 export async function stageAssets(root: string, outDir: string): Promise<Record<string, string>> {
-  const target = join(root, outDir, 'assets')
+  const target = join(root, outDir, STAGED_DIR)
   await mkdir(target, { recursive: true })
   const staged: Record<string, string> = {}
   /**

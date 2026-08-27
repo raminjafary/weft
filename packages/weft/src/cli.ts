@@ -14,6 +14,7 @@ import { startHandler } from './start.ts'
 import { DEVTOOLS_PATH } from './devtools.ts'
 import { scaffold, type Template } from './scaffold.ts'
 import { uploadBuild } from './upload.ts'
+import { writeSite } from './site.ts'
 
 const HELP = `weft — a folder is an application
 
@@ -26,6 +27,7 @@ const HELP = `weft — a folder is an application
   weft profile [dir]      what a recording decided about delivery, and what it refuses to decide
   weft verify [dir]       what this deployment's registry says about every region a route composes
   weft upload [dir]       PUT the build to an object store. --to is where, --header is who
+  weft site [dir]         write the build as a folder a static host can serve. --out is where
 
 Options
   --port <n>              default 3000, or PORT
@@ -33,6 +35,7 @@ Options
   --devtools              dev only: this application's routes, effect sets, keys and bytes
   --profile               record what every render costs, and plan the next build from it
   --probe                 verify only: ask each remote region what it is serving right now
+  --out <dir>             site only: where the servable folder is written
   --to <url>              upload only: the base URL every object is PUT under
   --header <k=v>          upload only: sent on every request. Repeatable, and where auth goes
   --concurrency <n>       upload only: parallel requests, default 8
@@ -185,6 +188,21 @@ async function main(): Promise<number> {
         `${report.sent} bytes sent to ${report.to}`,
     )
     return report.failed ? 1 : 0
+  }
+
+  if (command === 'site') {
+    const to = typeof flags.out === 'string' ? flags.out : ''
+    if (!to) {
+      process.stderr.write('weft site needs --out <dir>: where the servable folder is written\n')
+      return 2
+    }
+    const config = await loadConfig(root, overrides)
+    const report = await writeSite(join(root, config.outDir), resolve(to))
+    out(
+      `\n  wrote ${report.out} — ${report.documents} documents, ${report.assets} assets, ` +
+        `${report.bytes} bytes\n\n  Every URL a page references resolves inside it. Point a static host here.\n`,
+    )
+    return 0
   }
 
   if (command === 'routes') {

@@ -1,7 +1,5 @@
-import { readFile, readdir, stat } from 'node:fs/promises'
-import { join, relative, sep } from 'node:path'
-import { STATIC_DIR, type StaticManifest } from './static.ts'
-import { typeOf } from './assets.ts'
+import { readFile, stat } from 'node:fs/promises'
+import { siteObjects, type SiteObject } from './site.ts'
 
 /**
  * The build directory, uploaded — over HTTP and nothing else.
@@ -61,76 +59,20 @@ export interface UploadReport {
   sent: number
 }
 
-async function walk(dir: string): Promise<string[]> {
-  const out: string[] = []
-  let entries
-  try {
-    entries = await readdir(dir, { withFileTypes: true })
-  } catch {
-    return out
-  }
-  for (const entry of entries) {
-    const path = join(dir, entry.name)
-    if (entry.isDirectory()) out.push(...(await walk(path)))
-    else out.push(path)
-  }
-  return out
-}
-
 /** What an object is served with. An asset's headers are its path's; a document's are the build's. */
-function headersFor(href: string, documents: Map<string, Record<string, string>>): Record<string, string> {
-  const held = documents.get(href)
-  if (held) return held
-  return {
-    'content-type': typeOf(href),
-    // Every asset URL carries a digest of its contents, which is the whole reason it may be held
-    // for a year. A path without one never reaches here: the build only writes revved assets.
-    'cache-control': 'public, max-age=31536000, immutable',
-  }
-}
-
 export async function uploadBuild(options: UploadOptions): Promise<UploadReport> {
   const send = options.fetch ?? globalThis.fetch
   const base = options.to.replace(/\/+$/, '')
   const objects: UploadedObject[] = []
 
-  /**
-   * L0 documents, by the URL each one answers, with the headers the build proved they may carry.
-   *
-   * Read from the manifest rather than re-derived: the build already decided that a document proved
-   * invariant may be held, and deriving it twice is how the file and the origin come to disagree
-   * about a `Cache-Control`.
-   */
-  const documents = new Map<string, Record<string, string>>()
-  const files = new Map<string, string>()
-  try {
-    const manifest = JSON.parse(
-      await readFile(join(options.dir, STATIC_DIR, 'manifest.json'), 'utf8'),
-    ) as StaticManifest
-    for (const document of manifest.documents) {
-      documents.set(document.path, document.headers)
-      files.set(document.path, join(options.dir, STATIC_DIR, document.file))
-    }
-  } catch {
-    // A build with no L0 documents has no manifest, which is not an error.
-  }
-
-  const assets = await walk(join(options.dir, 'assets'))
-  for (const path of assets) {
-    const href = `/${relative(join(options.dir, 'assets'), path).split(sep).join('/')}`
-    // The asset manifest describes the others; it is not itself served.
-    if (href === '/manifest.json') continue
-    files.set(href, path)
-  }
-
-  const queue = [...files.entries()]
+  // What a deployment is, asked rather than worked out again here: `weft site` writes the same set
+  // to a directory, and two answers to that question is how the two destinations come to differ.
+  const queue = await siteObjects(options.dir)
   const limit = Math.max(1, options.concurrency ?? 8)
 
-  const one = async ([href, path]: [string, string]): Promise<void> => {
+  const one = async ({ href, file: path, headers, immutable }: SiteObject): Promise<void> => {
     const bytes = (await stat(path)).size
     const target = `${base}${href}`
-    const headers = headersFor(href, documents)
-    const immutable = !documents.has(href)
 
     if (options.dryRun) {
       objects.push({ href, bytes, status: 'skipped', detail: 'dry run' })
