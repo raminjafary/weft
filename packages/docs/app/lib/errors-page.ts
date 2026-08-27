@@ -1,6 +1,7 @@
 import type { Block } from '../fragments/docs/page.tsx'
 import { bespoke, cell, heading, note, prose, table } from './blocks.ts'
-import { errorByCode, errorCodes, errorsByPackage } from './errors.ts'
+import { errorByCode, errorCodes, errorsByPackage, type ErrorCode } from './errors.ts'
+import { PAGES } from './pages.ts'
 import { escapeHtml } from './escape.ts'
 
 const REPO = 'https://github.com/raminjafary/weft/blob/main'
@@ -143,6 +144,44 @@ export function errorBody(code: string): Block[] {
     ),
   )
 
+  const introduces = introducedBy(entry)
+  if (introduces.length) {
+    blocks.push(heading('Introduced by', 'introduced'))
+    blocks.push(
+      prose(
+        'A refusal makes sense once you know the mechanism it protects. These guide pages are the ' +
+          'introduction to the documents this code is specified in:',
+      ),
+    )
+    blocks.push(
+      table(
+        ['Guide page', 'What it covers'],
+        introduces.map((page) => [cell.link(page.title, `/guide/${page.slug}`), cell.text(page.lede)]),
+      ),
+    )
+  }
+
+  const near = nearby(entry)
+  if (near.length) {
+    blocks.push(heading('Nearby refusals', 'nearby'))
+    blocks.push(
+      prose(
+        'Raised in the same package, or specified in the same document. A refusal rarely stands on its ' +
+          'own — the ones beside it are usually the same rule seen from another angle:',
+      ),
+    )
+    blocks.push(
+      table(
+        ['Code', 'What it says', 'Raised in'],
+        near.map((other) => [
+          cell.codeLink(other.code, `/errors/${other.code}`),
+          cell.text(other.message || '—'),
+          cell.text(other.package),
+        ]),
+      ),
+    )
+  }
+
   if (entry.spec.length) {
     blocks.push(heading('The argument for it', 'argument'))
     blocks.push(
@@ -168,4 +207,55 @@ export function errorBody(code: string): Block[] {
 /** Every code, for the route's declared params. */
 export function codeIds(): string[] {
   return errorCodes().map((entry) => entry.code)
+}
+
+/**
+ * The guide pages that introduce the mechanism this code protects.
+ *
+ * Matched through the spec documents: a page declares which ones it is the introduction to, and a
+ * code carries which ones mention it. Where those two sets meet is a page a reader who has just hit
+ * this refusal would actually want. No page names a code, and none should — that list would be the
+ * one thing on this site nobody would remember to update.
+ */
+function introducedBy(entry: ErrorCode): { slug: string; title: string; lede: string }[] {
+  if (!entry.spec.length) return []
+  const specs = new Set(entry.spec.map(bare))
+  return PAGES.filter((page) => page.covers.some((doc) => specs.has(bare(doc)))).map((page) => ({
+    slug: page.slug,
+    title: page.title,
+    lede: page.lede,
+  }))
+}
+
+/**
+ * The same document, spelled the same way.
+ *
+ * A page names `kernel/cache.md` and a code carries `spec/kernel/cache.md`. Both are the same file;
+ * only one of the two writes the directory it is already in.
+ */
+function bare(doc: string): string {
+  return doc.replace(/^spec\//, '')
+}
+
+/** How many neighbours are worth listing. Five is a glance; the index is there for the rest. */
+const NEARBY = 5
+
+/**
+ * The refusals beside this one.
+ *
+ * Sharing a specification document first, because that is the same argument seen from another
+ * angle; then the same package, which is the same subsystem. Codes with their own sentence come
+ * before ones without, since a neighbour that says nothing is not much of a neighbour.
+ */
+function nearby(entry: ErrorCode): ErrorCode[] {
+  const others = errorCodes().filter((other) => other.code !== entry.code)
+  const shares = (other: ErrorCode) => other.spec.some((doc) => entry.spec.includes(doc))
+  const ranked = others
+    .filter((other) => shares(other) || other.package === entry.package)
+    .toSorted((a, b) => {
+      const spec = Number(shares(b)) - Number(shares(a))
+      if (spec) return spec
+      return Number(Boolean(b.message)) - Number(Boolean(a.message))
+    })
+  return ranked.slice(0, NEARBY)
 }

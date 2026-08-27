@@ -758,3 +758,21 @@ test('a tutorial step says how long it takes, and the figure is counted', () => 
     assert.ok(step.goal.length > 40, `${step.slug} has no goal worth reading above its edits`)
   }
 })
+
+/**
+ * An error page points at the guide page that introduces the mechanism it protects.
+ *
+ * The link is derived through the spec documents — a page declares which it introduces, a code
+ * carries which mention it — rather than from a list of codes on the page, which would be the one
+ * thing on this site nobody would remember to update. That derivation is one string comparison away
+ * from silently matching nothing, and matching nothing looks exactly like "no page covers this".
+ * So this asserts it still connects.
+ */
+test('a refusal links to the guide page that introduces it', async () => {
+  const serving = await serveApp(await app())
+  servers.push(serving)
+  const page = await (await fetch(new URL('/errors/E_ETAG_STREAMS', serving.url))).text()
+  assert.match(page, /Introduced by/, 'the spec documents still line up with a page that covers them')
+  assert.match(page, /\/guide\//, 'and it is a link a reader can follow')
+  assert.match(page, /Nearby refusals/, 'with the refusals beside it')
+})
