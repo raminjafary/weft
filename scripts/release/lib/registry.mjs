@@ -9,6 +9,35 @@ export function whoami() {
   return result.ok ? result.output.trim() : undefined
 }
 
+/**
+ * Whether this account can publish without being asked for a one-time password.
+ *
+ * `auth-and-writes` means npm demands a fresh code for every publish. Nine packages is nine codes
+ * inside a thirty-second window each, and a release that is not being watched by somebody holding a
+ * phone has no way to answer — it would stop on the first `pnpm publish`, which is *after* the
+ * commit, the tag and the push. An automation or granular token bypasses the prompt, which is what
+ * this looks for.
+ *
+ * Read from the environment rather than from `~/.npmrc`, because a token in a file this could parse
+ * is a token this could also print.
+ */
+export function canPublishUnattended() {
+  if (process.env.NPM_TOKEN || process.env.NODE_AUTH_TOKEN) {
+    return { ok: true, why: 'a token in the environment, which bypasses the one-time password' }
+  }
+  const profile = run('npm', ['profile', 'get'], { allowFailure: true })
+  if (!profile.ok) return { ok: true, why: 'npm would not say, so this is not blocking the release' }
+  const mode = /two-factor auth:\s*(\S+)/.exec(profile.output)?.[1]
+  if (mode !== 'auth-and-writes') return { ok: true, why: `two-factor auth: ${mode ?? 'off'}` }
+  return {
+    ok: false,
+    why:
+      'npm two-factor auth is set to auth-and-writes, so every publish asks for a one-time password ' +
+      'and this release would stop after pushing. Create an automation token at ' +
+      'npmjs.com/settings/~/tokens and export it as NPM_TOKEN, or set `npm profile set two-factor auth-only`.',
+  }
+}
+
 /** Whether a version is already on the registry, so a re-run after a partial release is a no-op rather than an error. */
 export function isPublished(name, version) {
   const result = run('npm', ['view', `${name}@${version}`, 'version', '--json'], { allowFailure: true })

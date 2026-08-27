@@ -70,6 +70,9 @@ async function main() {
   const npmUser = registry.whoami()
   if (npmUser) ok(`npm: ${npmUser}`)
   else refuse('not logged in to npm. Run `npm login` first.')
+  const unattended = registry.canPublishUnattended()
+  if (unattended.ok) ok(`npm writes: ${unattended.why}`)
+  else refuse(unattended.why)
   if (flags['no-github']) warn('github release skipped by --no-github')
   else {
     try {
