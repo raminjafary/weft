@@ -497,12 +497,24 @@
   background: var(--line);
 }
 
+/**
+ * A tick names a moment on the clock, so it is anchored to that moment.
+ *
+ * A label near the right end and set from its left edge runs off the lane and into the playhead
+ * that stops there. Past the midpoint it is pulled back by its own width instead, so the *end* of
+ * the label sits on the instant it names — which is where a reader looks for it.
+ */
 .hclock-tick {
   position: absolute;
   top: 12px;
   font: 11px/1 var(--mono);
   color: var(--faint);
   white-space: nowrap;
+}
+
+.hclock-tick.late {
+  transform: translateX(-100%);
+  padding-inline-end: 6px;
 }
 
 .hclock-tick.lit {
@@ -549,8 +561,14 @@
 
 /* ── the plain-terms panel ────────────────────────────────────────────────── */
 
+/**
+ * The panel is a block in the flow, not a lid on the prose under it.
+ *
+ * It had a top margin and no bottom one, so the first paragraph of the page started against its
+ * border — which read as the paragraph belonging inside it.
+ */
 .plain {
-  margin: 22px 0 0;
+  margin: 22px 0 26px;
   padding: 16px 18px;
   border: 1px solid var(--accent-edge);
   border-radius: var(--r-lg);

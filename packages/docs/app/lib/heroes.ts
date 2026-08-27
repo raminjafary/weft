@@ -354,9 +354,11 @@ function slotsAndStreaming(): string {
         ${ticks
           .map(
             (tick) =>
-              `<span data-wf class="hclock-tick${tick.lit === true ? ' lit' : ''}" style="left:${
-                tick.at
-              }%;animation:${tick.anim} 3.2s linear infinite">${enc(tick.label)}</span>`,
+              `<span data-wf class="hclock-tick${tick.lit === true ? ' lit' : ''}${
+                tick.at > 50 ? ' late' : ''
+              }" style="left:${tick.at}%;animation:${tick.anim} 3.2s linear infinite">${enc(
+                tick.label,
+              )}</span>`,
           )
           .join('')}
       </div>
@@ -372,7 +374,7 @@ function slotsAndStreaming(): string {
           { label: 'feed', tall: true, anim: 'wf-slow' },
           { label: 'prices', anim: 'wf-fast-io', lit: true },
         ],
-        [{ at: 88, label: '103 ms', anim: 'wf-tick-late' }],
+        [{ at: 100, label: '103 ms', anim: 'wf-tick-late' }],
       )}
       ${lane(
         'Out of order',
@@ -383,8 +385,8 @@ function slotsAndStreaming(): string {
           { label: 'feed', tall: true, anim: 'wf-slow' },
         ],
         [
-          { at: 14, label: '22 ms', anim: 'wf-tick', lit: true },
-          { at: 88, label: '103 ms', anim: 'wf-tick-late' },
+          { at: 21, label: '22 ms', anim: 'wf-tick', lit: true },
+          { at: 100, label: '103 ms', anim: 'wf-tick-late' },
         ],
       )}
      </div>`,
