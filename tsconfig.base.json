@@ -1,4 +1,9 @@
 {
+  // Shared by every `packages/*/tsconfig.build.json`, and by nothing else.
+  //
+  // Maps are off because a published tarball holds `dist` and no `src`, so a map beside `dist`
+  // would point at a file that is not there. Development runs from `src` through Node's own
+  // TypeScript support, where a map has nothing to add either.
   "compilerOptions": {
     "target": "es2023",
     "lib": ["es2023", "dom"],
@@ -14,8 +19,8 @@
     "exactOptionalPropertyTypes": true,
     "skipLibCheck": true,
     "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
+    "declarationMap": false,
+    "sourceMap": false,
     "types": ["node"]
   }
 }

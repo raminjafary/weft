@@ -2,12 +2,28 @@
   "name": "@weft/client",
   "version": "0.1.0",
   "description": "The client runtime: signals, adoption, deltas, epochs, residency, a frame router.",
+  "keywords": [
+    "weft",
+    "fullstack",
+    "ssr",
+    "streaming",
+    "no-bundler",
+    "typescript",
+    "signals",
+    "reactivity",
+    "hydration",
+    "dom"
+  ],
   "license": "MIT",
   "author": "raminjafary",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/raminjafary/weft.git",
     "directory": "packages/client"
+  },
+  "homepage": "https://github.com/raminjafary/weft#readme",
+  "bugs": {
+    "url": "https://github.com/raminjafary/weft/issues"
   },
   "type": "module",
   "exports": {
@@ -18,8 +34,9 @@
   },
   "files": [
     "dist",
-    "src",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json"

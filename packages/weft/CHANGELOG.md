@@ -1,0 +1,55 @@
+# Changelog
+
+Every commit in this repository appears here, not only `feat` and `fix`. The sections are
+generated from Conventional Commit types by `scripts/release/`, and a package changelog holds
+the commits scoped to that package.
+
+## Unreleased (2026-08-27)
+
+### ✨ Features
+
+* a shared cache may answer with a document the build proved invariant ([4cf5f4a](https://github.com/raminjafary/weft/commit/4cf5f4a9a03b6b7cf7423cefa47df7ed8b0c164f))
+* a host that owns the socket can serve the application without one ([702c52b](https://github.com/raminjafary/weft/commit/702c52b483a0d79f52e956d064023c4a9f76cc56))
+* an error page is a document the application may write ([d97b90f](https://github.com/raminjafary/weft/commit/d97b90f8ca3a65d2f2f232c672fdc2e6451bde99))
+* a component's stylesheet can be the component's ([d513b48](https://github.com/raminjafary/weft/commit/d513b483a5f49c19131efbd02fb35b8755119955))
+* **client:** the staging decision the profile measured and nobody read ([732b9bf](https://github.com/raminjafary/weft/commit/732b9bf3394b52ab75e2d17ee983e316b18ba1ab))
+* a page that declares it is not a file, and says why ([ad276f1](https://github.com/raminjafary/weft/commit/ad276f19f764e8e4873e2bc8a2bdf2137ddb1216))
+* **kernel, plan, demo:** a document that is a chain of layouts, checked as one document ([b18573f](https://github.com/raminjafary/weft/commit/b18573f2ba9663f523b0480407c1e5d8e475151e))
+* **warp, kernel, adapters:** the socket a channel is for, the downgrades in traffic, and Workers ([7182f5b](https://github.com/raminjafary/weft/commit/7182f5b193a79790e7b35222b43f7e9ccbd46fda))
+* **kernel:** invalidation crosses a tier boundary, and what crosses it is authority ([742b3cc](https://github.com/raminjafary/weft/commit/742b3cc79ba782719ce5c1c76ef1b638ca6b9bf3))
+* a file per URL when the URLs are a set somebody declared, and a way to upload them ([31c321c](https://github.com/raminjafary/weft/commit/31c321c0ce5289f9910f6b855eb391d0fc3f7061))
+* **kernel, plan:** four plan declarations that were recorded and read by nothing ([24227f2](https://github.com/raminjafary/weft/commit/24227f2b0aa0a48c68a693111f3555e4cfdc82a4))
+* **kernel, adapters:** the two HTTP derivations the cache spec was missing ([a2c2b4b](https://github.com/raminjafary/weft/commit/a2c2b4ba65e9bc4fd26ecc6b1cfc2e01b710cc45))
+* a plan generated from what the renders actually cost ([3913ddd](https://github.com/raminjafary/weft/commit/3913ddd01f01bd47f8e3f847ad9766c251074977))
+* three signals for the readers who cannot hover ([54e7076](https://github.com/raminjafary/weft/commit/54e7076f98c628c9670a392d6f8c90f73860d3d0))
+* a link the framework answers itself, and what that is allowed to cost ([b4912f6](https://github.com/raminjafary/weft/commit/b4912f6d782e23bc5745f1f14f3a52090fb1c837))
+* a navigation the framework caused is not a navigation ([31f061b](https://github.com/raminjafary/weft/commit/31f061b19dbbe5c5cc8f3dda79942bd6bd78350b))
+* where you were, across a navigation the framework caused ([f1b40de](https://github.com/raminjafary/weft/commit/f1b40deb88e13fba11f68015edd9712c4735e80d))
+* a page that reads nothing is a file ([8d89bd2](https://github.com/raminjafary/weft/commit/8d89bd24625ceaa059994f6ce57eab22356ce020))
+* devtools, which is the framework pointed at your application ([10575f2](https://github.com/raminjafary/weft/commit/10575f2ea6eac88f0678fb9601d549ceeffd7344))
+* controls, runtime readouts and a refresh the framework wires itself ([947a4b3](https://github.com/raminjafary/weft/commit/947a4b353197c4402f1b38822f6a39644c63ffbf))
+* a folder is an application — weft dev, build, start and create ([2aff8e8](https://github.com/raminjafary/weft/commit/2aff8e85db6047014c7356082d76cea2f7a06e48))
+
+### 🐛 Bug Fixes
+
+* the `weft` command exists before the build that writes it ([8699391](https://github.com/raminjafary/weft/commit/86993913a0e5c627ebb0400bc44b69e80c255f94))
+* the page painted at the top and then jumped, on every scrolled refresh ([c95429d](https://github.com/raminjafary/weft/commit/c95429d8c55cc8975fd8ed907eabc95bd5d7636c))
+* dev forbade the client from keeping an asset, so every reload repainted unstyled ([fe65c93](https://github.com/raminjafary/weft/commit/fe65c935845118a9a7e57553be6fb1f246558f50))
+* the framework's own assets are staged through a rename, so two builds cannot read half of one ([9793674](https://github.com/raminjafary/weft/commit/97936745cedd8520a3040f309a8e9677a9b80ab6))
+* a route param is part of what a slot on a generated route is ([076aec6](https://github.com/raminjafary/weft/commit/076aec6662c329cde64106386d7bdc046da7f227))
+* the nav entry for a parameterised page is never the page you are on ([be47f38](https://github.com/raminjafary/weft/commit/be47f381b4f73969725c9a32f5d5d31f371050a4))
+* three things that only break when you run the build ([993b748](https://github.com/raminjafary/weft/commit/993b748d7689c5b1206dfb41bd7ff8f6d01b6dd9))
+* a slot is a cached thing per route, and the demo's shim is gone ([3b737ea](https://github.com/raminjafary/weft/commit/3b737eac2996d49c0fab9e45c8cf27d29b6036df))
+
+### ♻️ Code Refactoring
+
+* **docs:** the errors pages are components, and static slots stopped shipping dead payloads ([3d14a88](https://github.com/raminjafary/weft/commit/3d14a8818f314de01b6b4cafa96046cf2fad296c))
+
+### 📝 Documentation
+
+* **docs:** the measuring page describes a profile without showing one ([4805122](https://github.com/raminjafary/weft/commit/48051227d5e4066629435066722cf78df8b5898e))
+* **kernel, client, ir, plan:** another 88 exports documented ([6b1b988](https://github.com/raminjafary/weft/commit/6b1b988b929112c03b10cbac920923ccc261f2c6))
+
+### ✅ Testing
+
+* **plan:** the three warnings that fired and nothing asserted ([5d8ae7b](https://github.com/raminjafary/weft/commit/5d8ae7bd6a416abc9b25bcbde635b8bdf1b44d64))

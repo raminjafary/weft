@@ -62,6 +62,8 @@ export default {
         'spec',
         'deps',
         'repo',
+        // `chore(release): v0.1.0`, written by scripts/release/release.mjs.
+        'release',
       ],
     ],
     'scope-empty': [1, 'never'],

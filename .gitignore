@@ -15,10 +15,11 @@ build/
 # The upload test builds into its own directory, because two processes building one application race.
 .weft-upload/
 
-# Build output: declarations and source maps are emitted, never authored.
+# Build output: declarations are emitted, never authored.
 *.d.ts
-*.d.ts.map
-*.js.map
+
+# The root licence, copied beside every published package by `pnpm build`.
+packages/*/LICENSE
 
 # The "what has to be true next" list, kept out of the repo.
 NEXT.md

@@ -2,12 +2,28 @@
   "name": "@weft/kernel",
   "version": "0.1.0",
   "description": "The request kernel: two-phase envelope, streaming, cache, intents, channels, ports.",
+  "keywords": [
+    "weft",
+    "fullstack",
+    "ssr",
+    "streaming",
+    "no-bundler",
+    "typescript",
+    "router",
+    "request-lifecycle",
+    "cache",
+    "http"
+  ],
   "license": "MIT",
   "author": "raminjafary",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/raminjafary/weft.git",
     "directory": "packages/kernel"
+  },
+  "homepage": "https://github.com/raminjafary/weft#readme",
+  "bugs": {
+    "url": "https://github.com/raminjafary/weft/issues"
   },
   "type": "module",
   "exports": {
@@ -18,8 +34,9 @@
   },
   "files": [
     "dist",
-    "src",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json"

@@ -2,12 +2,28 @@
   "name": "@weft/compiler",
   "version": "0.1.0",
   "description": "TSX to Template IR, with effect inference and escape elision.",
+  "keywords": [
+    "weft",
+    "fullstack",
+    "ssr",
+    "streaming",
+    "no-bundler",
+    "typescript",
+    "compiler",
+    "tsx",
+    "oxc",
+    "jsx"
+  ],
   "license": "MIT",
   "author": "raminjafary",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/raminjafary/weft.git",
     "directory": "packages/compiler"
+  },
+  "homepage": "https://github.com/raminjafary/weft#readme",
+  "bugs": {
+    "url": "https://github.com/raminjafary/weft/issues"
   },
   "type": "module",
   "exports": {
@@ -21,8 +37,9 @@
   },
   "files": [
     "dist",
-    "src",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json"

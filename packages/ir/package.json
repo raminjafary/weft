@@ -2,12 +2,27 @@
   "name": "@weft/ir",
   "version": "0.1.0",
   "description": "The Template IR: sealed, versioned templates, their effects, and the renderer.",
+  "keywords": [
+    "weft",
+    "fullstack",
+    "ssr",
+    "streaming",
+    "no-bundler",
+    "typescript",
+    "template",
+    "intermediate-representation",
+    "renderer"
+  ],
   "license": "MIT",
   "author": "raminjafary",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/raminjafary/weft.git",
     "directory": "packages/ir"
+  },
+  "homepage": "https://github.com/raminjafary/weft#readme",
+  "bugs": {
+    "url": "https://github.com/raminjafary/weft/issues"
   },
   "type": "module",
   "exports": {
@@ -18,8 +33,9 @@
   },
   "files": [
     "dist",
-    "src",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json"

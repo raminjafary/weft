@@ -2,12 +2,27 @@
   "name": "weft",
   "version": "0.1.0",
   "description": "The framework. A folder is an application: routes from the file tree, a plan generated from it, and one command that serves it.",
+  "keywords": [
+    "weft",
+    "fullstack",
+    "ssr",
+    "streaming",
+    "no-bundler",
+    "typescript",
+    "framework",
+    "file-based-routing",
+    "cli"
+  ],
   "license": "MIT",
   "author": "raminjafary",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/raminjafary/weft.git",
     "directory": "packages/weft"
+  },
+  "homepage": "https://github.com/raminjafary/weft#readme",
+  "bugs": {
+    "url": "https://github.com/raminjafary/weft/issues"
   },
   "type": "module",
   "exports": {
@@ -31,9 +46,10 @@
   "files": [
     "bin",
     "dist",
-    "src",
     "templates",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node ../../scripts/copy-assets.mjs"

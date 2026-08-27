@@ -1,0 +1,375 @@
+import { join } from 'node:path'
+
+import { GATES, RELEASE_BRANCH } from './config.mjs'
+import { commitsIn, releaseTags, today, unknownScopes } from './lib/commits.mjs'
+import { readChangelog, renderChangelog, sectionFor, writeChangelog } from './lib/changelog.mjs'
+import { packageEntries, releaseBoundaries, rootEntries, versionsAtBoundaries } from './lib/history.mjs'
+import * as github from './lib/github.mjs'
+import { auditPack, humanBytes } from './lib/pack.mjs'
+import { buildPlan, bump } from './lib/plan.mjs'
+import * as registry from './lib/registry.mjs'
+import { renderVersionTable, writeVersionTable } from './lib/readme.mjs'
+import {
+  ReleaseError,
+  bad,
+  bold,
+  dim,
+  fail,
+  ok,
+  parseArgs,
+  run,
+  runVisible,
+  say,
+  step,
+  warn,
+} from './lib/shell.mjs'
+import { ROOT, loadWorkspace, publishOrder, readJson, scopeOf, writeJson } from './lib/workspace.mjs'
+
+const FLAGS = ['dry-run', 'first-release', 'publish-only', 'no-github', 'no-gates', 'yes', 'help']
+
+const USAGE = `
+${bold('pnpm release')}            cut a release: bump, changelog, commit, tag, push, publish, GitHub release
+${bold('pnpm release:dry')}        the same, writing nothing and publishing nothing
+
+  --first-release   keep the versions the manifests already carry (this is how 0.1.0 is cut)
+  --publish-only    skip versioning; publish the current versions and finish the GitHub release
+  --no-github       do not create the GitHub release
+  --no-gates        skip format, lint, typecheck, build and test. For finishing a partial release only
+  --yes             do not stop for confirmation
+`
+
+async function main() {
+  const { flags } = parseArgs(process.argv.slice(2), FLAGS)
+  if (flags.help) return say(USAGE)
+
+  const dryRun = Boolean(flags['dry-run'])
+  const repository = github.repositoryFromRemote()
+  const packages = loadWorkspace()
+  const rootManifest = readJson(join(ROOT, 'package.json'))
+
+  say(bold(`\nweft release ${dryRun ? dim('(dry run — nothing is written or published)') : ''}`))
+  say(dim(`  ${repository.owner}/${repository.name}`))
+
+  const tags = releaseTags()
+  const firstRelease = Boolean(flags['first-release']) || tags.length === 0
+  const range = tags.length ? `${tags.at(-1)}..HEAD` : undefined
+
+  // In a dry run a failed check is reported and the run continues, because the answer to "what
+  // would this release do" is worth having from a branch that is not ready to cut one. The same
+  // check aborts a real release.
+  const blockers = []
+  const refuse = (message) => {
+    if (dryRun) {
+      blockers.push(message)
+      warn(message)
+    } else fail(message)
+  }
+
+  step('Preflight')
+  preflight({ dryRun, publishOnly: Boolean(flags['publish-only']), refuse })
+  const npmUser = registry.whoami()
+  if (npmUser) ok(`npm: ${npmUser}`)
+  else refuse('not logged in to npm. Run `npm login` first.')
+  if (flags['no-github']) warn('github release skipped by --no-github')
+  else {
+    try {
+      ok(`github: ${await github.checkToken(repository)}`)
+    } catch (error) {
+      refuse(error.message)
+    }
+  }
+
+  const commits = commitsIn(range)
+  const unknown = unknownScopes(commits)
+  if (unknown.length)
+    fail(
+      `commit scopes with no package and no repository meaning: ${unknown.join(', ')}. Add them to scripts/release/config.mjs.`,
+    )
+
+  if (flags['publish-only']) {
+    const version = rootManifest.version
+    step(`Publishing the current versions (v${version})`)
+    const published = [...packages.values()].filter((pkg) => !pkg.isPrivate)
+    await publishAll({
+      packages,
+      published: published.map((pkg) => ({ name: pkg.name, package: pkg, to: pkg.version })),
+      dryRun,
+    })
+    if (!flags['no-github']) await announce({ repository, version, dryRun, packages })
+    return
+  }
+
+  step('What has changed')
+  if (firstRelease) {
+    say(`  no ${bold('v*')} tag in this repository — this is the first release.`)
+    say(
+      `  ${commits.length} commits, from ${dim(commits.at(-1)?.short ?? '?')} to ${dim(commits[0]?.short ?? '?')}.`,
+    )
+  } else {
+    say(`  ${commits.length} commits since ${bold(tags.at(-1))}.`)
+  }
+  if (!commits.length) {
+    ok('nothing to release.')
+    return
+  }
+
+  const plan = buildPlan({ packages, commits, firstRelease })
+  const version = firstRelease ? packages.get('weft').version : bump(rootManifest.version, plan.rootLevel)
+  const tag = `v${version}`
+  if (tags.includes(tag))
+    refuse(
+      `${tag} already exists. A release that got this far is finished with \`pnpm release --publish-only\`, or undone with \`pnpm release:undo ${tag}\`.`,
+    )
+
+  printPlan(plan, { version, rootFrom: rootManifest.version, firstRelease })
+  if (!plan.published.length) {
+    warn('no published package changed. The commits in this range are repository-level.')
+    if (!flags.yes && !dryRun)
+      fail('nothing would reach the registry. Re-run with --yes to tag and push anyway.')
+  }
+
+  if (flags['no-gates']) warn('gates skipped by --no-gates')
+  else runGates()
+
+  step('Tarball audit')
+  const audits = new Map()
+  for (const release of plan.published) {
+    const audit = auditPack(release.package)
+    audits.set(release.name, audit)
+    if (audit.problems.length) {
+      bad(`${release.name} — ${audit.entries.length} entries, ${humanBytes(audit.bytes)}`)
+      for (const problem of audit.problems) say(`      ${problem}`)
+    } else {
+      ok(`${release.name} — ${audit.entries.length} entries, ${humanBytes(audit.bytes)}`)
+    }
+  }
+  const broken = [...audits.values()].filter((audit) => audit.problems.length)
+  if (broken.length)
+    fail(
+      `${broken.length} package(s) would publish something this repository does not intend to. Fix \`files\` or scripts/release/config.mjs.`,
+    )
+
+  // Asked here, after the audit and before anything is written, because the answer is the one that
+  // cannot be recovered from mid-release: the commit, tag and push would already have happened.
+  step('Names on the registry')
+  for (const release of plan.published) {
+    const claim = registry.claim(release.name, npmUser)
+    if (claim.ok) ok(`${release.name} — ${claim.why}`)
+    else refuse(`${release.name}: ${claim.why}`)
+  }
+
+  const boundaries = releaseBoundaries({ version, date: today() })
+  const versionsAt = versionsAtBoundaries(packages, boundaries, plan)
+  const rootChangelog = renderChangelog({ entries: rootEntries(boundaries), repository })
+  const section = sectionFor(rootChangelog, version)
+
+  if (dryRun) {
+    step(`CHANGELOG.md — the ${tag} entry`)
+    say(indent(section))
+    step('README.md — the version table')
+    say(
+      indent(
+        renderVersionTable(packages, new Map(plan.releases.map((release) => [release.name, release.to]))),
+      ),
+    )
+    step('Would publish')
+    for (const candidate of publishOrder(packages)) {
+      const release = plan.published.find((entry) => entry.name === candidate)
+      if (!release) continue
+      const already = registry.isPublished(candidate, release.to) ? dim(' (already on the registry)') : ''
+      say(`  ${candidate}@${release.to}${already}`)
+    }
+    step('Would then')
+    say(`  git commit -m "chore(release): ${tag}"`)
+    say(`  git tag -a ${tag}`)
+    say(`  git push origin ${RELEASE_BRANCH} --follow-tags`)
+    say(`  publish ${plan.published.length} package(s) to npm as ${npmUser ?? dim('(nobody logged in)')}`)
+    if (!flags['no-github']) say(`  create the GitHub release ${tag}`)
+    say(
+      dim(
+        `\n  Pushing ${RELEASE_BRANCH} is what deploys the documentation site; Vercel builds from the push.`,
+      ),
+    )
+    if (blockers.length) {
+      step('This would not release yet')
+      for (const blocker of blockers) bad(blocker)
+      say(bold('\nDry run complete. Nothing was written, and the checks above would stop a real run.\n'))
+      process.exitCode = 1
+      return
+    }
+    say(bold('\nDry run complete. Nothing was written.\n'))
+    return
+  }
+
+  step('Writing')
+  for (const release of plan.releases) {
+    const manifest = readJson(release.package.manifestPath)
+    manifest.version = release.to
+    writeJson(release.package.manifestPath, manifest)
+  }
+  rootManifest.version = version
+  writeJson(join(ROOT, 'package.json'), rootManifest)
+  ok(`versions: ${plan.releases.length} package manifest(s), and the root at ${version}`)
+
+  writeChangelog(undefined, rootChangelog)
+  let changelogs = 1
+  for (const pkg of packages.values()) {
+    const entries = packageEntries(pkg, boundaries, versionsAt)
+    if (!entries.length) continue
+    writeChangelog(pkg.relativeDirectory, renderChangelog({ entries, repository, scopeless: scopeOf(pkg) }))
+    changelogs++
+  }
+  ok(`changelogs: ${changelogs}`)
+
+  const table = writeVersionTable(
+    renderVersionTable(packages, new Map(plan.releases.map((release) => [release.name, release.to]))),
+  )
+  ok(`README.md version table${table.changed ? '' : ' (unchanged)'}`)
+
+  step('Commit and tag')
+  run('git', ['add', '--all'], { cwd: ROOT })
+  run('git', ['commit', '-m', `chore(release): ${tag}`], { cwd: ROOT })
+  run('git', ['tag', '-a', tag, '-m', `${tag}\n\n${section}`], { cwd: ROOT })
+  ok(`${run('git', ['rev-parse', '--short', 'HEAD']).output.trim()} chore(release): ${tag}`)
+
+  // Push before publishing. A push that lands with the registry not yet updated is fixed by
+  // publishing again; a publish that lands with the push lost has burned version numbers npm will
+  // never accept a second time.
+  step('Push')
+  runVisible('git', ['push', 'origin', `${RELEASE_BRANCH}`, '--follow-tags'], { cwd: ROOT })
+  ok(`${RELEASE_BRANCH} and ${tag} are on origin. The documentation site deploys from this push.`)
+
+  step('Publish')
+  await publishAll({ packages, published: plan.published, dryRun: false })
+
+  if (!flags['no-github']) await announce({ repository, version, dryRun: false, packages, section })
+
+  say(bold(`\nReleased ${tag}.\n`))
+  for (const release of plan.published) say(`  ${release.name}@${release.to}`)
+  say(dim(`\n  If any of this is wrong: pnpm release:undo ${tag}\n`))
+}
+
+/**
+ * Everything that must be true before a release writes anything.
+ *
+ * The order is cheapest-first and each check names its own fix. A release that fails here has
+ * changed nothing, which is the only state a half-finished release is easy to recover from.
+ */
+function preflight({ dryRun, publishOnly, refuse }) {
+  const branch = run('git', ['rev-parse', '--abbrev-ref', 'HEAD']).output.trim()
+  if (branch === RELEASE_BRANCH) ok(`branch: ${branch}`)
+  else refuse(`releases are cut from ${RELEASE_BRANCH}; this is ${branch}.`)
+
+  const dirty = run('git', ['status', '--porcelain']).output.trim()
+  if (dirty) refuse(`the working tree is not clean (${dirty.split('\n').length} path(s) changed).`)
+  else ok('working tree clean')
+
+  run('git', ['fetch', 'origin', RELEASE_BRANCH, '--tags'], { cwd: ROOT })
+  const counts = run('git', ['rev-list', '--left-right', '--count', `origin/${RELEASE_BRANCH}...HEAD`])
+    .output.trim()
+    .split(/\s+/)
+  const [behind, ahead] = counts.map(Number)
+  if (behind > 0) refuse(`${behind} commit(s) on origin/${RELEASE_BRANCH} are not here. Pull first.`)
+  else ok(`in sync with origin/${RELEASE_BRANCH}${ahead ? ` (${ahead} to push)` : ''}`)
+
+  if (!publishOnly && !dryRun && ahead === 0) warn('nothing to push; the release commit will be the only one')
+
+  const lock = run('pnpm', ['install', '--frozen-lockfile', '--offline', '--ignore-scripts', '--dry-run'], {
+    cwd: ROOT,
+    allowFailure: true,
+  })
+  if (!lock.ok) warn('pnpm could not confirm the lockfile offline; the gates will catch a real mismatch')
+  else ok('lockfile matches the manifests')
+}
+
+/**
+ * The plan, with the reason each package is in it.
+ *
+ * Whether a bump was asked for by a commit or forced by a dependency is the one thing an operator
+ * cannot work out from the version numbers, and it is the thing most likely to be a surprise.
+ */
+function printPlan(plan, { version, rootFrom, firstRelease }) {
+  step(`Plan — ${bold(`v${version}`)}`)
+  if (!firstRelease) say(dim(`  the repository moves ${rootFrom} → ${version} (${plan.rootLevel})`))
+  for (const release of plan.releases) {
+    const visibility = release.package.isPrivate ? dim(' private') : ''
+    const reason = release.direct
+      ? `${release.commits.length} commit(s)`
+      : `for ${release.propagatedFrom.join(', ')}`
+    const move = release.from === release.to ? release.to : `${release.from} → ${release.to}`
+    say(`  ${release.name.padEnd(16)} ${move.padEnd(24)} ${dim(reason)}${visibility}`)
+  }
+  say(
+    dim(
+      `\n  ${plan.published.length} to the registry, ${plan.releases.length - plan.published.length} private`,
+    ),
+  )
+}
+
+function runGates() {
+  for (const gate of GATES) {
+    step(`Gate: ${gate.script} ${dim(`— ${gate.why}`)}`)
+    runVisible('pnpm', ['run', gate.script], { cwd: ROOT })
+  }
+}
+
+async function publishAll({ packages, published, dryRun }) {
+  const order = publishOrder(packages)
+  const sorted = [...published].sort((a, b) => order.indexOf(a.name) - order.indexOf(b.name))
+  const failures = []
+  for (const release of sorted) {
+    if (registry.isPublished(release.name, release.to)) {
+      ok(`${release.name}@${release.to} is already on the registry`)
+      continue
+    }
+    say(dim(`  publishing ${release.name}@${release.to} …`))
+    const result = registry.publish(release.package, { dryRun })
+    if (result.ok) ok(`${release.name}@${release.to}`)
+    else {
+      bad(`${release.name}@${release.to} failed`)
+      failures.push(release.name)
+    }
+  }
+  if (failures.length) {
+    fail(
+      `${failures.join(', ')} did not publish. The commit and tag are pushed, so finish with ` +
+        `\`pnpm release --publish-only\` once the cause is fixed — already-published packages are skipped.`,
+    )
+  }
+}
+
+async function announce({ repository, version, dryRun, packages, section }) {
+  const tag = `v${version}`
+  step('GitHub release')
+  const body = section ?? sectionFor(readChangelog(undefined), version) ?? ''
+  const listing = [...packages.values()]
+    .filter((pkg) => !pkg.isPrivate)
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((pkg) => `- \`${pkg.name}@${pkg.version}\``)
+    .join('\n')
+  const text = `### On npm\n\n${listing}\n\n${body}`
+  if (dryRun) {
+    say(indent(text))
+    return
+  }
+  const result = await github.upsertRelease(repository, {
+    tag,
+    name: tag,
+    body: text,
+    prerelease: version.startsWith('0.0.'),
+  })
+  ok(`${result.updated ? 'updated' : 'created'} ${result.url}`)
+}
+
+const indent = (text) =>
+  text
+    .split('\n')
+    .map((line) => `  ${line}`)
+    .join('\n')
+
+main().catch((error) => {
+  say('')
+  bad(error instanceof ReleaseError ? error.message : (error?.stack ?? String(error)))
+  say('')
+  process.exit(1)
+})

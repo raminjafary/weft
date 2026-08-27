@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { readdirSync } from 'node:fs'
+import { copyFileSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -73,6 +73,24 @@ if (stray.length) {
   process.stdout.write(`\n  emitted beside source, which shadows it:\n`)
   for (const path of stray) process.stdout.write(`    ${path.slice(root.length + 1)}\n`)
   process.exit(1)
+}
+
+/**
+ * The licence, beside every package that is published.
+ *
+ * npm shows the `license` field but a tarball with no LICENSE in it makes the terms something you
+ * have to go and look up. Copying beats twelve identical committed files: there is one licence in
+ * this repository, and `packages/*\/LICENSE` is gitignored so it cannot drift from it.
+ */
+const licence = join(root, 'LICENSE')
+for (const name of ORDER) {
+  const directory = join(root, 'packages', name)
+  try {
+    if (JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')).private === true) continue
+    copyFileSync(licence, join(directory, 'LICENSE'))
+  } catch {
+    // A package this script cannot read is a package it did not build.
+  }
 }
 
 process.exit(failed ? 1 : 0)

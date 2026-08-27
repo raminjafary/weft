@@ -290,14 +290,107 @@ Adding a runtime dependency is a design decision, not a convenience one. There i
 
 ### Releasing
 
-`pnpm release` runs commit-and-tag-version: it bumps, writes `CHANGELOG.md` from the history, commits
-and tags. `pnpm changelog` regenerates the changelog alone. Sections and their order live in
-`.versionrc.cjs`.
+Releases are cut from `main`, from a laptop. There is no CI, so `scripts/release/` does the checking
+that a pipeline would: it refuses to write anything until formatting, lint, types, the build and 928
+tests have passed, every tarball has been packed and inspected, and every name has been confirmed
+publishable by the account that is logged in.
 
-`CHANGELOG.md` is generated, never edited: if an entry reads badly, the commit message was the
-problem. One quirk of the parser worth knowing — a body line beginning with a word and a colon is
-read as a git trailer, and commitlint then warns that a footer needs a blank line before it. Start
-the sentence differently, or accept the warning.
+```sh
+pnpm release:dry     # everything below, writing nothing and publishing nothing
+pnpm release         # do it
+pnpm release:undo v0.1.0    # take one back
+pnpm changelog       # regenerate every changelog from the git history
+pnpm pack:audit      # pack each published package and list what came out
+```
+
+#### What a release does, in order
+
+1. **Preflight.** On `main`, clean tree, in sync with `origin/main`, logged in to npm, a GitHub token
+   that can write releases. In a dry run these are reported and the run continues; in a real one the
+   first failure stops it, before anything has been written.
+2. **Work out the versions.** Every commit since the last `v*` tag is parsed, and its scopes are
+   resolved to packages through `scripts/release/config.mjs`. A `feat` is a minor bump, a breaking
+   change is a minor bump too while the major is 0, and everything else is a patch — a `docs` commit
+   included, because a doc comment ships inside a published `.d.ts`.
+3. **Propagate.** Every package that depends on a bumped one is bumped as well. This is not tidiness:
+   pnpm rewrites `workspace:*` to an exact version when it packs, so a dependent left behind would
+   publish a manifest pinning a dependency it was never tested against — or fail outright, having
+   already published that version number once.
+4. **Gates.** `format:check`, `lint`, `typecheck`, `build`, `test`. Build before test, because the
+   tests typecheck against built declarations.
+5. **Audit the tarballs.** Each published package is packed for real and every entry checked against
+   an allowlist. `files` fails silently in the direction that matters — an entry matching nothing is
+   not an error — so this catches a rename that quietly drops `dist`, and it also verifies that every
+   `exports`, `bin`, `main` and `types` target is actually inside the tarball.
+6. **Check the names.** That the account logged in can publish each name at the version planned.
+   Asked here, last, because it is the one answer that cannot be recovered from mid-release.
+7. **Write.** Versions into the manifests, `CHANGELOG.md` at the root and one per package, and the
+   version table in `README.md`.
+8. **Commit and tag.** `chore(release): v0.1.0`, and an annotated tag carrying the changelog entry.
+9. **Push, then publish.** In that order, deliberately. A push that lands with the registry not yet
+   updated is fixed by publishing again; a publish that lands with the push lost has burned version
+   numbers npm will never accept a second time.
+10. **Announce.** A GitHub release for the tag, with the changelog entry and the list of what went to
+    npm. Pushing `main` is also what deploys the documentation site — Vercel builds from the push, so
+    there is no separate deploy step.
+
+`--publish-only` finishes a release that got as far as the push and then failed: it skips versioning
+and publishes the current manifests, skipping anything already on the registry.
+
+#### What is published, and what is not
+
+Nine packages: `weft`, `create-weft`, and the seven `@weft/*` that `weft` depends on. `@weft/bench`,
+`@weft/docs` and `@weft/inspector` are `private` — nothing an application installs needs the
+measurement harness, the documentation site or the inspector.
+
+A tarball holds `dist`, the README, the changelog, the licence, and for `weft` its `bin` and
+`templates`. It holds no `src` and no source maps: an application needs the built framework, not the
+framework's sources. That is why `tsconfig.base.json` turns both map options off, and why the pack
+audit rejects a `.map` anywhere.
+
+The version table in `README.md` sits between `<!-- versions:start -->` and `<!-- versions:end -->`
+and is written by the release. The descriptions in it live in `scripts/release/lib/readme.mjs`, which
+is also where a new package has to be listed — the release fails if it finds one it does not know.
+
+#### Changelogs
+
+Every `CHANGELOG.md` is generated from the git history, and regenerated whole rather than appended
+to. That is the point: the history is the single source of truth, so a changelog that has drifted
+from it is repaired by running `pnpm changelog` rather than by hand. The root file holds every
+commit; a package file holds the commits scoped to that package, plus a line naming the dependency
+when a version moved only because something below it did.
+
+`pnpm changelog --check` writes nothing and fails if any file is out of date.
+
+A changelog is never edited: if an entry reads badly, the commit message was the problem. One quirk
+of the parser is worth knowing — a body line beginning with a word and a colon is read as a git
+trailer, and commitlint then warns that a footer needs a blank line before it. Start the sentence
+differently, or accept the warning.
+
+The twelve commits before `build(repo): enforce conventional commits` carry no type, so nothing can
+classify them. They appear under **Foundations**, with a note saying why, rather than being dropped —
+0.1.0 contains them.
+
+#### Undoing one
+
+```sh
+pnpm release:undo v0.1.0          # prints a plan and stops
+pnpm release:undo v0.1.0 --yes    # unpublish, delete the GitHub release, drop the tag, revert
+```
+
+It reads what that release published out of the tagged tree rather than out of the current
+manifests, so it works after the tree has moved on. `--deprecate` is the fallback once npm's
+72-hour unpublish window has closed: the versions stay and installing one warns.
+
+One thing it cannot undo. npm never lets a version number be published twice, even after an
+unpublish — once `weft@0.1.0` has existed, that number is gone and the fix has to be a new one. This
+is a repair for a bad publish, not an alternative to `pnpm release:dry`.
+
+#### The GitHub token
+
+`GITHUB_TOKEN` (or `GH_TOKEN`) in the environment, with write access to the repository's contents.
+The release checks it can push to this repository before it writes anything, and `--no-github` skips
+the step. `gh` is not required; the release talks to the REST API directly.
 
 ## Before pushing
 

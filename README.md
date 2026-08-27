@@ -338,28 +338,45 @@ into the kernel, the plan layer and the adapters, because taking those apart is 
 files after a build, most of it generated from the source rather than written beside it so it cannot
 drift.
 
+```sh
+pnpm release:dry   # what a release would bump, write and publish — writing nothing
+pnpm release       # bump, changelog, commit, tag, push, publish, GitHub release
+```
+
+A release is cut from `main` from a laptop. There is no CI, so the release script does the checking a
+pipeline would: nothing is written until formatting, lint, types, the build and the tests have
+passed, every tarball has been packed and inspected, and every name has been confirmed publishable.
+A commit's scopes decide which packages move, and everything depending on one of those moves with it.
+
 [`CONTRIBUTING.md`](CONTRIBUTING.md) has the rest: what each package does, how to run the tests and
-the benchmark lanes, how to take a feature from a spec document to a shipped gate, and the
-conventions.
+the benchmark lanes, how to take a feature from a spec document to a shipped gate, how a release
+works and how to undo one, and the conventions.
 
 ---
 
 ## Packages
 
-| Package           | What it is                                                                  |
-| ----------------- | --------------------------------------------------------------------------- |
-| `weft`            | The framework. The CLI, the conventions, and what an application imports    |
-| `create-weft`     | `npm create weft` — a shim over the templates that ship inside `weft`       |
-| `@weft/ir`        | The template IR: what a compiled fragment is                                |
-| `@weft/warp`      | The frame vocabulary that carries it                                        |
-| `@weft/compiler`  | TSX to IR, on Oxc, with the type-driven escape class                        |
-| `@weft/kernel`    | Routing, the request lifecycle, cache keys, waves, epochs, surgical refresh |
-| `@weft/client`    | Adoption, signals, deltas, patches, navigation                              |
-| `@weft/plan`      | The plan DSL, validation against inferred effects, plugins, `weft why`      |
-| `@weft/adapters`  | The fourteen ports, implemented                                             |
-| `@weft/bench`     | The measurement harness, and the gates it enforces                          |
-| `@weft/docs`      | The documentation site, which is a weft application                         |
-| `@weft/inspector` | A station per capability, each with a control you can turn                  |
+The version in each row is what the last release put on the registry; `pnpm release` writes this
+table.
+
+<!-- versions:start -->
+
+| Package           | Version                                                 | What it is                                                                  |
+| ----------------- | ------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `weft`            | [`0.1.0`](https://www.npmjs.com/package/weft)           | The framework. The CLI, the conventions, and what an application imports    |
+| `create-weft`     | [`0.1.0`](https://www.npmjs.com/package/create-weft)    | `npm create weft` — a shim over the templates that ship inside `weft`       |
+| `@weft/ir`        | [`0.1.0`](https://www.npmjs.com/package/@weft/ir)       | The template IR: what a compiled fragment is                                |
+| `@weft/warp`      | [`0.1.0`](https://www.npmjs.com/package/@weft/warp)     | The frame vocabulary that carries it                                        |
+| `@weft/compiler`  | [`0.1.0`](https://www.npmjs.com/package/@weft/compiler) | TSX to IR, on Oxc, with the type-driven escape class                        |
+| `@weft/client`    | [`0.1.0`](https://www.npmjs.com/package/@weft/client)   | Adoption, signals, deltas, patches, navigation                              |
+| `@weft/kernel`    | [`0.1.0`](https://www.npmjs.com/package/@weft/kernel)   | Routing, the request lifecycle, cache keys, waves, epochs, surgical refresh |
+| `@weft/plan`      | [`0.1.0`](https://www.npmjs.com/package/@weft/plan)     | The plan DSL, validation against inferred effects, plugins, `weft why`      |
+| `@weft/adapters`  | [`0.1.0`](https://www.npmjs.com/package/@weft/adapters) | The fourteen ports, implemented                                             |
+| `@weft/bench`     | _not published_                                         | The measurement harness, and the gates it enforces                          |
+| `@weft/docs`      | _not published_                                         | The documentation site, which is a weft application                         |
+| `@weft/inspector` | _not published_                                         | A station per capability, each with a control you can turn                  |
+
+<!-- versions:end -->
 
 ---
 
