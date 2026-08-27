@@ -228,7 +228,7 @@ export const discovery: StationHandler = async (ctx) => {
    * of it runs a loader, which is the whole difference between describing a route and staging one.
    */
   const catalogue: DiscoveredRoute[] = [
-    { pattern: '/', shell: 'sh-index', shared: false, slots: ['body'], css: '/_weft/a/index.css' },
+    { pattern: '/', shell: 'sh-index', shared: false, slots: ['body'], css: '/_weft/s/index.css' },
     { pattern: '/s/authority', shell: 'sh-station', shared: true, slots: ['panel', 'body', 'readout'] },
     { pattern: '/s/signed-intents', shell: 'sh-station', shared: true, slots: ['panel', 'body', 'readout'] },
     { pattern: '/s/discovery', shell: 'sh-station', shared: true, slots: ['panel', 'body', 'readout'] },

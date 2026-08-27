@@ -17,9 +17,19 @@ import { startHandler, type Handler } from '@weft/core/server'
  * every request after that is served from memory. A cold start pays it again, which is the honest
  * cost of a platform that scales to zero — it is about a quarter of a second for this application.
  *
- * Every path in `vercel.json` rewrites here, so this handler sees the original URL. The router is
- * weft's rather than the platform's, which is the only arrangement in which the routes the build
- * reported and the routes the deployment answers cannot drift.
+ * It answers what the CDN cannot: `/play` and `/search`, whose bodies are functions of a query the
+ * build cannot invent, the intent endpoints under `/_weft/i/`, and a 404 for anything else. Every
+ * prerendered document and every revved asset is served from the edge as a file — `weft site`
+ * writes them — so the common path does not reach a function at all.
+ *
+ * `serve` rather than `index`, because Vercel puts functions under `/api` and `/api` is a page on
+ * this site: `/api`, and `/api/adapters` through `/api/weft-server`, are documents the build wrote.
+ * A function at `/api` and a document at `/api` are two answers to one URL, and the static file
+ * wins — which would take `/play`, `/search` and every intent down without an error anywhere.
+ *
+ * Not `_serve` either: Vercel skips anything under `api/` whose name begins with an underscore, so
+ * that spelling is a deployment with no function at all. `/api/:module` is one segment and its
+ * values are this repository's package names, so `serve` is a path no page can take.
  */
 
 /**

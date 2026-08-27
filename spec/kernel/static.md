@@ -135,6 +135,26 @@ and then the header is `public, max-age=0, s-maxage=<shared>, stale-while-revali
 takes it back on the same line. Unset, the header is unchanged, and the browser's half — revalidate,
 get a 304 against the ETag — is unchanged either way.
 
+## Two directories
+
+`public/` is copied. A file in it goes out at the path it was written at, byte for byte, and it is
+never immutable — that URL does not name its contents, so a promise to hold it is one the next
+build cannot keep. It is where `robots.txt` and a verification file belong, because those have to
+be at a URL somebody else chose.
+
+`app/assets/` is processed. Nothing in it is reachable at the path it was written at; every file is
+published once under a digest of its own contents and may be held for a year. A page reaches it
+through `asset('fonts/inter.woff2')` and a stylesheet reaches it through an ordinary relative
+`url()`, which the build rewrites to the revved href.
+
+The rewrite is the reason the directory exists. A font is referenced from a stylesheet, and a
+`url()` was a string nothing touched — so the asset that most wants to be immutable was the one
+that could not be, whichever directory it was in. Resolution is against the directory the sheet is
+in, because that is what a relative URL in CSS already means. Anything that is not relative is left
+alone: an absolute path names a URL rather than a file, a scheme belongs to somebody else, `data:`
+is already the bytes, and `#blur` points into the document being styled. A relative `url()` that
+resolves to nothing is `E_NO_ASSET` at build time rather than a 404 found by a reader.
+
 ## The gate
 
 Byte identity, asserted from one deployment against itself

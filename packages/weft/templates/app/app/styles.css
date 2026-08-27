@@ -42,3 +42,19 @@
     --weft: #9184d9;
   }
 }
+
+/*
+ * Your two asset directories.
+ *
+ * `app/assets/` is processed. Everything in it is published once, under a digest of its own
+ * contents, and immutable for a year — and a relative `url()` like the one below is rewritten to
+ * that address when the site is built. Put fonts, background images and icons here.
+ *
+ * `public/` is copied. A file in it goes out at exactly the path you wrote, and is never held
+ * forever, because that URL says nothing about what is behind it. Put `robots.txt`, a favicon and
+ * anything else that has to live at an address somebody else chose here.
+ */
+body {
+  background-image: url('./assets/weave.svg');
+  background-repeat: repeat;
+}

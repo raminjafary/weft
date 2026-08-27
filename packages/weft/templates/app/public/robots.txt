@@ -1,0 +1,4 @@
+# public/ is copied: this file goes out at exactly this path, because that is the only path a
+# crawler will look for it at. Nothing here is revved, and nothing here may be held forever.
+User-agent: *
+Allow: /

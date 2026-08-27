@@ -58,6 +58,8 @@ import {
   browserModule,
   buildAssets,
   cacheControlFor,
+  revAssets,
+  rewriteUrls,
   weftAssets,
   type AssetTable,
   type ModuleTree,
@@ -423,12 +425,26 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   // The cascade, per page: the framework's stylesheet, the application's, anything the config
   // added, and then the `.css` beside every fragment this page renders. One bundle, so a page
   // links the styles of the components on it without paying a request per component.
+  /**
+   * `app/assets/`, walked before a single stylesheet is read.
+   *
+   * The order is forced: a sheet's `url()` is rewritten to a revved href, so the hrefs have to
+   * exist before the sheets are concatenated into one bundle per page — after that there is no
+   * telling which line came from which file, and a relative URL means nothing without the file it
+   * was written in.
+   */
+  const appAssets = await revAssets(join(root, config.srcDir, 'assets'), mode !== 'dev')
+  const styled = (text: string, file: string): string => rewriteUrls(text, dirname(file), appAssets.byPath)
+
   const shared: string[] = [`/* weft */\n${await frameworkStyles()}`]
   if (discovered.styles) {
-    shared.push(`/* ${config.srcDir}/styles.css */\n${await readFile(discovered.styles, 'utf8')}`)
+    shared.push(
+      `/* ${config.srcDir}/styles.css */\n${styled(await readFile(discovered.styles, 'utf8'), discovered.styles)}`,
+    )
   }
   for (const file of config.css) {
-    shared.push(`/* ${file} */\n${await readFile(join(root, file), 'utf8')}`)
+    const path = join(root, file)
+    shared.push(`/* ${file} */\n${styled(await readFile(path, 'utf8'), path)}`)
   }
   /**
    * A scoped sheet, narrowed once and reused by every page that links it.
@@ -441,7 +457,7 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   const sheet = async (file: string): Promise<string> => {
     const held = narrowed.get(file)
     if (held !== undefined) return held
-    const body = await readFile(file, 'utf8')
+    const body = styled(await readFile(file, 'utf8'), file)
     const text = isScopedSheet(file) ? scopeCss(body, scopeAttribute(relative(root, scopeStem(file)))) : body
     narrowed.set(file, text)
     return text
@@ -459,6 +475,7 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   assets = await buildAssets({
     pageCss,
     publicDir: join(root, 'public'),
+    assets: appAssets,
     client: await ownTree(),
     runtime: await packageTree('@weft/client'),
     warp: await packageTree('@weft/warp'),
@@ -1244,13 +1261,7 @@ export async function appHandler(app: App): Promise<Handler> {
   // check per request and nothing else — no route, no template, no asset.
   const devtools = devtoolsFor(app)
 
-  // What the client needs before it can do anything, and the only two things it cannot derive.
-  const prelude =
-    `window.__weftIntents = ${JSON.stringify(intents.names)};\n` +
-    `window.__weftChannel = ${JSON.stringify(config.channelPath)};\n` +
-    (authority.signed.length ? `window.__weftSigned = ${JSON.stringify(authority.signed)};\n` : '') +
-    `window.__weftScroll = ${JSON.stringify(config.scroll)};\n` +
-    (assets.app ? `window.__weftClient = ${JSON.stringify(assets.app)};\n` : '')
+  const prelude = bootPrelude(app)
 
   // The deployment's ports, plus the one that is a property of this response rather than of the
   // deployment: 103 goes out on a socket, so the transport is per request and nothing else is.
@@ -1421,10 +1432,7 @@ export async function appHandler(app: App): Promise<Handler> {
       if (typeof value === 'string') headers.set(key, value)
       else if (Array.isArray(value)) for (const v of value) headers.append(key, v)
     }
-    const body =
-      req.method === 'GET' || req.method === 'HEAD'
-        ? undefined
-        : await new Response(Readable.toWeb(req) as never).arrayBuffer()
+    const body = req.method === 'GET' || req.method === 'HEAD' ? undefined : await requestBody(req)
     const incoming = new Request(url, { method: req.method ?? 'GET', headers, ...(body ? { body } : {}) })
 
     /**
@@ -1686,9 +1694,79 @@ export async function serveHandler(handler: Handler): Promise<Serving> {
   }
 }
 
+/**
+ * What the client needs before it can do anything, and the only things it cannot derive.
+ *
+ * Exported because the boot module has two ways out of a deployment and they must not disagree:
+ * `weft start` prepends this when it answers the request, and `weft build` bakes it into the file
+ * it writes so the same module works when a CDN is the one answering. Every value in it is
+ * build-time knowledge — the intent table, the channel's path, which intents are signed, the
+ * scroll policy, where the application's own client module is — so there is nothing here a static
+ * copy could get wrong.
+ */
+export function bootPrelude(app: App): string {
+  const { assets, authority, config, intents } = app
+  return (
+    `window.__weftIntents = ${JSON.stringify(intents.names)};\n` +
+    `window.__weftChannel = ${JSON.stringify(config.channelPath)};\n` +
+    (authority.signed.length ? `window.__weftSigned = ${JSON.stringify(authority.signed)};\n` : '') +
+    `window.__weftScroll = ${JSON.stringify(config.scroll)};\n` +
+    (assets.app ? `window.__weftClient = ${JSON.stringify(assets.app)};\n` : '')
+  )
+}
+
 /** Put it on a port. */
 export async function serveApp(app: App): Promise<Serving> {
   return serveHandler(await appHandler(app))
+}
+
+/**
+ * The bytes a request carried, from a host that may already have read them.
+ *
+ * Reading the stream is right when the framework owns the socket and wrong everywhere else. A
+ * serverless platform with a body parser consumes the request to hand the handler a parsed
+ * `req.body`, and what arrives here is a stream that will never emit another byte and never emit
+ * `end` — so reading it does not fail, it waits, until the platform's own timeout ends the
+ * request. On the documentation deployment that was every `POST`: an intent, a token, and a 404
+ * alike, each one a 504 after thirty seconds, each one answered locally in ten milliseconds.
+ *
+ * So the parsed body is asked for first, and a stream already ended is not read at all. Neither is
+ * a guess about the platform: `body` is either there or it is not, and `readableEnded` is the
+ * stream saying so itself.
+ */
+async function requestBody(req: IncomingMessage): Promise<ArrayBuffer | undefined> {
+  const held = (req as IncomingMessage & { body?: unknown }).body
+  if (held !== undefined && held !== null) return encodeBody(held, req.headers['content-type'] ?? '')
+  // Nothing left to read, and on some hosts nothing to wait for either.
+  if (req.readableEnded) return undefined
+  return new Response(Readable.toWeb(req) as never).arrayBuffer()
+}
+
+/**
+ * A parsed body, put back the way it arrived.
+ *
+ * Lossless for the two shapes a host hands over untouched — bytes and text — and a reconstruction
+ * for the one it does not. A form is rebuilt through `URLSearchParams` rather than joined by hand
+ * because a repeated field is a list and a checkbox group is a repeated field, which is the case
+ * a naive re-encode drops.
+ */
+/** A view's own bytes, detached from whatever buffer it was a window onto. */
+function bytes(value: Uint8Array): ArrayBuffer {
+  return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) as ArrayBuffer
+}
+
+function encodeBody(held: unknown, type: string): ArrayBuffer {
+  if (held instanceof Uint8Array) return bytes(held)
+  if (typeof held === 'string') return bytes(utf8.encode(held))
+  if (type.includes('x-www-form-urlencoded')) {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(held as Record<string, unknown>)) {
+      if (Array.isArray(value)) for (const one of value) params.append(key, String(one))
+      else params.append(key, String(value))
+    }
+    return bytes(utf8.encode(params.toString()))
+  }
+  return bytes(utf8.encode(JSON.stringify(held)))
 }
 
 /**

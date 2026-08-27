@@ -8,6 +8,7 @@
  */
 export {
   appHandler,
+  bootPrelude,
   createApp,
   serveApp,
   serveHandler,
@@ -41,7 +42,19 @@ export { isScopedSheet, scopeAttribute, scopeCss, scopeStem } from './scoped.ts'
 export { generateRoutes, navOf, GenerateError, type Generated, type GeneratedRoute } from './routes.ts'
 export { loadIntents, moduleIdOf, type IntentManifest, type ManifestEntry } from './intents.ts'
 export { loadConfig, type ResolvedConfig } from './config.ts'
-export { buildAssets, browserModule, cacheControlFor, type Asset, type AssetTable } from './assets.ts'
+export {
+  buildAssets,
+  browserModule,
+  cacheControl,
+  cacheControlFor,
+  moduleFiles,
+  revAssets,
+  rewriteUrls,
+  type Asset,
+  type AssetTable,
+  type ModuleTree,
+  type RevvedAssets,
+} from './assets.ts'
 export { scaffold, type Scaffolded, type ScaffoldOptions, type Template } from './scaffold.ts'
 export {
   loadDocuments,
@@ -56,3 +69,4 @@ export {
   type StaticVerdict,
 } from './static.ts'
 export { devtoolsFor, DEVTOOLS_PATH, type DevtoolsHandler } from './devtools.ts'
+export { siteObjects, writeSite, type SiteObject, type SiteReport } from './site.ts'

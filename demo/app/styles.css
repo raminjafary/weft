@@ -590,3 +590,16 @@ body.race[data-order='in-order'] .race-order {
     grid-template-columns: 1fr;
   }
 }
+
+/*
+ * `app/assets/` is processed and `public/` is copied.
+ *
+ * The `url()` below is relative to this file and is rewritten at build time to the revved,
+ * immutable address of `app/assets/weave.svg`. `public/robots.txt` is the other half: copied to
+ * exactly the path it is written at, because that is where it has to be.
+ */
+body {
+  background-image: url('./assets/weave.svg');
+  background-repeat: repeat;
+  background-attachment: fixed;
+}

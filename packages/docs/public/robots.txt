@@ -1,0 +1,8 @@
+# Everything on this site is meant to be found.
+User-agent: *
+Allow: /
+
+# Except the two routes that are functions of their query string. Both pages are indexable; it is
+# the combinations that are not, because there is no end to them and each one costs a render.
+Disallow: /play?
+Disallow: /search?
