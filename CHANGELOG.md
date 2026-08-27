@@ -4,7 +4,7 @@ Every commit in this repository appears here, not only `feat` and `fix`. The sec
 generated from Conventional Commit types by `scripts/release/`, and a package changelog holds
 the commits scoped to that package.
 
-## Unreleased (2026-08-27)
+## 0.1.0 (2026-08-27)
 
 ### ✨ Features
 
@@ -102,6 +102,7 @@ the commits scoped to that package.
 
 ### 🐛 Bug Fixes
 
+* **repo:** a release stops before the push when npm would ask for a one-time password ([1cc7445](https://github.com/raminjafary/weft/commit/1cc7445fad2db74daa955dfa3de08c0a4df380d0))
 * **weft:** clicking the page you are already on does nothing, rather than reloading it ([b393c1a](https://github.com/raminjafary/weft/commit/b393c1afdd38e0c7aff6338f3a48fcd3b5258dda))
 * **weft:** a request whose body the host already read is answered, not waited on ([9310933](https://github.com/raminjafary/weft/commit/93109335fa1ad34ce13f96b27d2d8f31965d5cea))
 * **repo:** unpublishing the only version of a package removes the package, and npm asks first ([068aa52](https://github.com/raminjafary/weft/commit/068aa5258b0b9209266aa1f775ff33f979654fb3))
@@ -150,6 +151,7 @@ the commits scoped to that package.
 
 ### ♻️ Code Refactoring
 
+* **repo:** the scope is @weftjs, and three things a rename could break silently ([bea1027](https://github.com/raminjafary/weft/commit/bea102788a322b6f49a7cdb5a6362e6ad7161252))
 * **weft:** each generated URL root is the initial of what is behind it ([f5be654](https://github.com/raminjafary/weft/commit/f5be654d07455402b307cb88d1c0add500054807))
 * **repo:** the framework is @weft/core, because npm already serves a weft ([524705f](https://github.com/raminjafary/weft/commit/524705ff608dc75ab2cb318579d1a6f6bf6c3d34))
 * **docs:** the hero figures were built from a reading of the design, not the design ([e84982a](https://github.com/raminjafary/weft/commit/e84982afd8c0b59d52032170ce4ce17a7db1f8b4))

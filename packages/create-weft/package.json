@@ -1,7 +1,7 @@
 {
   "name": "create-weft",
   "version": "0.1.0",
-  "description": "npm create weft \u2014 a weft application, with a page you can open.",
+  "description": "npm create weft — a weft application, with a page you can open.",
   "keywords": [
     "weft",
     "create",
