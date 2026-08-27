@@ -107,13 +107,22 @@ export async function compilePlayground(source: string): Promise<Outcome> {
   }
 }
 
+/**
+ * The playground's body: the source, the actions, and what the compile produced.
+ *
+ * `reset` carries `data-weft-scroll="preserve"` because it re-renders this page with no source
+ * rather than going anywhere — the reader is still on the playground, and the top is not where they
+ * were. Compile needs no attribute: a `method="get"` submit preserves by default, since a form
+ * re-renders the page it is on. A link's default is the top, which is right for a link that actually
+ * goes somewhere and wrong for this one, so this one says so.
+ */
 export function playBody(source: string, outcome: Outcome | null): string {
   const form = `<form class="play" method="get" action="/play">
     <label for="src">A fragment module</label>
     <textarea id="src" name="src" rows="14" spellcheck="false">${escapeHtml(source)}</textarea>
     <div class="play-actions">
       <button type="submit">compile</button>
-      <a class="reset" href="/play">reset</a>
+      <a class="reset" href="/play" data-weft-scroll="preserve">reset</a>
     </div>
   </form>`
 

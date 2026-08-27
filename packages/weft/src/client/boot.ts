@@ -627,7 +627,11 @@ function handOff(path: string, y: number): void {
   }
 }
 
+/** A browser navigation this runtime is about to cause that lands at the top. See `SCROLL_PRELUDE`. */
+let departingToTop = false
+
 function rememberScroll(): void {
+  if (departingToTop) return
   // Not the top. Recording a zero is indistinguishable from recording nothing, and it overwrites
   // a position something else deliberately handed to the load that is about to happen — which is
   // exactly what a back-triggered reload does, since the page it leaves is at the top.
@@ -1827,7 +1831,17 @@ async function commitPage(page: StagedPage, mode: 'push' | 'restore', y: number)
  * So: staged, and this is instant. Not staged, and it is a real navigation, which is what a link
  * has always cost — and the request in flight is dropped rather than raced.
  */
+/** Taken over lazily, only once the framework really navigates. See `SCROLL_PRELUDE` for why. */
+function takeOverScroll(): void {
+  try {
+    if (window.history.scrollRestoration !== 'manual') window.history.scrollRestoration = 'manual'
+  } catch {
+    // An engine without the property. It restores its own way, and the re-land still runs.
+  }
+}
+
 async function go(href: string, mode: 'push' | 'restore', y = 0): Promise<boolean> {
+  takeOverScroll()
   const url = new URL(href, window.location.href)
   const key = stagingKey(url.href, window.location.href)
   const started = performance.now()
@@ -1867,9 +1881,30 @@ function scrollFor(link?: HTMLAnchorElement | null): 'top' | 'preserve' {
   return asked === 'preserve' ? 'preserve' : 'top'
 }
 
+/**
+ * Where a GET submit lands, which is the opposite default to a link's.
+ *
+ * A link goes somewhere else, and a new page starts at the top. A GET form re-renders the page it is
+ * already on with different parameters — Compile on the playground, a search, a filter — so the
+ * reader is still reading the same thing and the top is the one place they did not ask to be.
+ *
+ * Only the form's own attribute is read, deliberately. `window.__weftScroll` is the application's
+ * answer for *links* and defaults to `top`, so consulting it here made every form inherit a decision
+ * about a different kind of navigation: the playground's Compile threw the reader back to the top of
+ * a page they had scrolled through, because the config said what links do.
+ */
+function scrollForForm(form: HTMLFormElement): 'top' | 'preserve' {
+  return form.dataset.weftScroll === 'top' ? 'top' : 'preserve'
+}
+
 async function navigate(href: string, scroll: 'top' | 'preserve' = scrollFor()): Promise<boolean> {
   const y = scroll === 'preserve' ? Math.round(scrollY) : 0
-  if (await go(href, 'push', y)) return true
+  if (await go(href, 'push', y)) {
+    // Swapped in place: no document is leaving, so nothing should be recorded on its behalf.
+    departingToTop = false
+    return true
+  }
+  departingToTop = y === 0
   /**
    * The same link, answered by the browser — and `preserve` has to mean the same thing there.
    *
@@ -1985,21 +2020,16 @@ function speculate(): void {
  * `preventDefault` is not overruled by the framework it is running on.
  */
 function wireNavigation(): void {
-  /**
-   * The framework restores the position, so the browser is asked to stop.
-   *
-   * Two mechanisms both trying to put the reader back is worse than either: the engine restores
-   * the position an entry had when it was left, and it does so *after* load — so a page that this
-   * runtime had already put back at 240 was quietly returned to the top a frame later, and
-   * `navigation.scroll` and a restored back position both looked like they did nothing. Taking it
-   * over means every path has to record, so leaving a page records where it was.
-   */
-  try {
-    window.history.scrollRestoration = 'manual'
-  } catch {
-    // An engine without the property. It restores its own way, and the re-land below still runs.
-  }
-  window.addEventListener('pagehide', rememberScroll)
+  // Recorded only once this runtime owns scroll; while the engine has it, a reload is restored
+  // before the first paint and a record here would be a second, later one. See `SCROLL_PRELUDE`.
+  window.addEventListener('pagehide', () => {
+    try {
+      if (window.history.scrollRestoration !== 'manual') return
+    } catch {
+      return
+    }
+    rememberScroll()
+  })
 
   let intent: number | null = null
   const cancel = (): void => {
@@ -2047,6 +2077,32 @@ function wireNavigation(): void {
   document.addEventListener('pointerdown', now_, { passive: true })
   watchViewport()
   speculate()
+
+  // A `method="get"` submit is a navigation and means what a link click means, so it goes through
+  // the same path. A POST is an intent and `upgradeIntentForms` already has it. Falling through
+  // leaves the browser to submit, which is what happened before this existed.
+  document.addEventListener('submit', (event) => {
+    if (event.defaultPrevented) return
+    const form = event.target as HTMLFormElement | null
+    if (!form || (form.method || 'get').toLowerCase() !== 'get') return
+    if (!swappable(document)) return
+    const action = form.getAttribute('action') ?? window.location.pathname
+    let url: URL
+    try {
+      url = new URL(action, window.location.href)
+    } catch {
+      return
+    }
+    // The form's own fields decide the query, which is what the browser would have done.
+    url.search = new URLSearchParams(new FormData(form) as unknown as Record<string, string>).toString()
+    if (!navigable({ href: url.href }, window.location.href)) return
+    event.preventDefault()
+    // The reader's place is kept, the same as a refresh keeps it. A GET submit re-renders the page
+    // somebody is reading — the playground's Compile, a search filter — rather than taking them
+    // somewhere new, so landing them at the top would lose the thing they were looking at. A form
+    // that wants the top says so the way a link does, with `data-weft-scroll`.
+    void navigate(url.href, scrollForForm(form))
+  })
 
   document.addEventListener('click', (event) => {
     if (event.defaultPrevented) return

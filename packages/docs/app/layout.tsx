@@ -15,6 +15,8 @@ interface ShellProps {
   lede: string
   nav: NavItem[]
   body: string
+  /** The framework's scroll restore, inlined so it runs before paint. See `SCROLL_PRELUDE`. */
+  prelude: string
 }
 
 /**
@@ -29,14 +31,15 @@ interface ShellProps {
  * The search form is a `GET` to a route, which is what lets it sit in a layout that ships no
  * JavaScript of its own: there is nothing to initialise and no index to fetch.
  */
-export default fragment(({ title, description, css, runtime, heading, lede, nav, body }: ShellProps) => (
-  <>
-    {raw('<!doctype html>')}
-    <html lang="en">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width,initial-scale=1" />
-        {/*
+export default fragment(
+  ({ title, description, css, runtime, heading, lede, nav, body, prelude }: ShellProps) => (
+    <>
+      {raw('<!doctype html>')}
+      <html lang="en">
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width,initial-scale=1" />
+          {/*
           Declared here, in the head, rather than only in the stylesheet.
 
           The palette below is chosen by `prefers-color-scheme`, but a browser that has not been told
@@ -44,41 +47,43 @@ export default fragment(({ title, description, css, runtime, heading, lede, nav,
           was a white frame, then the real background. This tag is read before the stylesheet is even
           fetched, which is the only place early enough to prevent that frame rather than shorten it.
         */}
-        <meta name="color-scheme" content="light dark" />
-        <title>{title}</title>
-        <meta name="description" content={description} />
-        <link rel="stylesheet" href={css} />
-        <script type="module" src={runtime} />
-      </head>
-      <body>
-        <header class="top">
-          <a class="brand" href="/">
-            weft
-          </a>
-          <nav>
-            {nav.map((item) => (
-              <a href={item.href} data-current={item.current}>
-                {item.label}
-              </a>
-            ))}
-          </nav>
-          <form class="find" method="get" action="/search" role="search">
-            <input type="search" name="q" placeholder="Search" aria-label="Search this site" />
-            <button type="submit">Search</button>
-          </form>
-        </header>
-        <main>
-          <h1>{heading}</h1>
-          <p class="lede">{lede}</p>
-          <slot name="body">{body}</slot>
-        </main>
-        <footer class="foot">
-          <p>
-            Every example on this site is a fragment this application compiled. The source you read is the
-            file that produced the output beside it.
-          </p>
-        </footer>
-      </body>
-    </html>
-  </>
-))
+          <meta name="color-scheme" content="light dark" />
+          <title>{title}</title>
+          <meta name="description" content={description} />
+          <link rel="stylesheet" href={css} />
+          <script type="module" src={runtime} />
+        </head>
+        <body>
+          <header class="top">
+            <a class="brand" href="/">
+              weft
+            </a>
+            <nav>
+              {nav.map((item) => (
+                <a href={item.href} data-current={item.current}>
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+            <form class="find" method="get" action="/search" role="search">
+              <input type="search" name="q" placeholder="Search" aria-label="Search this site" />
+              <button type="submit">Search</button>
+            </form>
+          </header>
+          <main>
+            <h1>{heading}</h1>
+            <p class="lede">{lede}</p>
+            <slot name="body">{body}</slot>
+          </main>
+          <footer class="foot">
+            <p>
+              Every example on this site is a fragment this application compiled. The source you read is the
+              file that produced the output beside it.
+            </p>
+          </footer>
+          {raw(prelude)}
+        </body>
+      </html>
+    </>
+  ),
+)

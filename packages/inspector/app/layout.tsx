@@ -4,6 +4,8 @@ interface NavItem {
   href: string
   label: string
   current: string
+  /** The framework's scroll restore, inlined so it runs before paint. See `SCROLL_PRELUDE`. */
+  prelude: string
 }
 
 interface ShellProps {
@@ -19,6 +21,8 @@ interface ShellProps {
   panel: string
   body: string
   readout: string
+  /** The framework's scroll restore, inlined so it runs before paint. See `SCROLL_PRELUDE`. */
+  prelude: string
 }
 
 /**
@@ -51,6 +55,7 @@ export default fragment(
     panel,
     body,
     readout,
+    prelude,
   }: ShellProps) => (
     <>
       {raw('<!doctype html>')}
@@ -101,6 +106,7 @@ export default fragment(
               <slot name="readout">{readout}</slot>
             </section>
           </main>
+          {raw(prelude)}
         </body>
       </html>
     </>

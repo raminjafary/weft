@@ -145,7 +145,7 @@ export class GenerateError extends Error {
 }
 
 /** The layout values the framework always supplies. A layout may use any subset of these. */
-const STANDARD = ['title', 'description', 'css', 'runtime', 'brand', 'nav'] as const
+const STANDARD = ['title', 'description', 'css', 'runtime', 'brand', 'nav', 'prelude'] as const
 
 async function loadModule(file: string | undefined): Promise<RouteModule> {
   if (!file) return {}
@@ -467,6 +467,60 @@ export interface AdoptOptions {
  * Exported because a page whose subject *is* adoption has to be able to show you the real one.
  * A demo that hand-rolled this would be showing you a payload the runtime does not read, which
  * is worse than showing nothing — it looks right and does nothing.
+ */
+/**
+ * The scroll restore, as bytes in the document rather than code in the module.
+ *
+ * It used to live in `boot.ts`, whose comment argued that a deferred module runs after parsing and
+ * therefore before the next paint. The argument is sound and the premise is wrong: a module body does
+ * not run until its whole static import graph resolves, and the client's is nineteen modules. Measured
+ * on a dev server, render-blocking CSS finished at 37 ms and the module graph at 48 ms — so the page
+ * sat painted at the top for eleven milliseconds and then jumped, which is the blink that comment was
+ * written to prevent.
+ *
+ * Nothing inside the module graph can fix that, so this is a classic inline script and a layout
+ * renders it at the end of the body: during parse, with the document's height already known, long
+ * before anything is fetched. A layout that does not render it is not broken — the value goes unused
+ * and `boot.ts` still restores, late, exactly as before.
+ *
+ * A key existing is the whole condition, and it is enough because recording is what decides. While
+ * the engine owns scroll nothing records, so a reload finds no key here and the engine restores it
+ * natively before the first paint; once the framework has taken scroll over, `pagehide` records and
+ * this is what puts it back. Gating on the navigation type instead was tried and was wrong twice: it
+ * consumed the key before deciding to stand down, which destroyed the position outright, and it
+ * stood down on exactly the reload that had nobody else to restore it.
+ *
+ * Keyed on the pathname alone, matching `handOff`, and that is the point rather than an oversight.
+ * Pressing Compile on the playground goes to a different *query* on the same path, which is precisely
+ * the navigation whose position is worth keeping — keying on the query too was tried here and meant
+ * the key written on the way out never matched the page that arrived, so nothing was ever restored
+ * and every submit leaked a key.
+ */
+const SCROLL_PRELUDE =
+  '<script>(function(){try{' +
+  'var k="weft:scroll:"+location.pathname,v=sessionStorage.getItem(k);if(!v)return;' +
+  'sessionStorage.removeItem(k);var y=+v;if(!(y>0))return;' +
+  'var land=function(){window.scrollTo({top:y,behavior:"instant"})};land();' +
+  // Recorded so a readout can say *when* the restore happened rather than that it did. The number is
+  // the whole argument for this script existing: it has to be under the first paint.
+  'window.__weftScrollAt=performance.now();' +
+  /**
+   * The same re-land `boot.ts` had, kept here because this script is now the one that consumes the
+   * key — so without it the safety net was simply gone. A streamed slot, a late font or an image with
+   * no dimensions can all change the height after this runs, and then the first attempt fell short.
+   * Skipped entirely if the reader has since scrolled themselves, which is the only signal that the
+   * position is no longer wanted.
+   */
+  'if(document.readyState!=="complete")addEventListener("load",function(){' +
+  'if(Math.abs(window.scrollY-y)>4&&window.scrollY<4)land()},{once:true})' +
+  '}catch(e){}})()</script>'
+
+/**
+ * The payload that binds a slot's template to the markup this render produced, or null.
+ *
+ * Null for a slot nothing on the client could act on, which is the case a hand-written script tag
+ * could never get right — it had to be written before anyone knew whether the slot needed one.
+ * `selector` exists so a caller that is not a slot can name the element it rendered into.
  */
 export function adoptScript(
   slot: string,
@@ -988,6 +1042,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
         description: resolved.description ?? '',
         css: options.styleHref(route.pattern),
         runtime: options.runtime(),
+        prelude: SCROLL_PRELUDE,
         brand: options.brand,
         nav: nav.map((item) => ({
           href: item.href,
