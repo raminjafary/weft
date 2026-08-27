@@ -16,3 +16,6 @@ build/
 *.d.ts
 *.d.ts.map
 *.js.map
+
+# The "what has to be true next" list, kept out of the repo.
+NEXT.md
