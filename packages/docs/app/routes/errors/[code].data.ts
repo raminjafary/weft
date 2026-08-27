@@ -27,7 +27,7 @@ export default defineRoute({
       fragment: 'docs/contents',
       load: (_ctx, params) => ({ groups: errorsContents(params.code) }),
     },
-    body: { html: (_ctx, params) => errorBody(params.code ?? '') },
+    body: { fragment: 'docs/page', load: (_ctx, params) => ({ blocks: errorBody(params.code ?? '') }) },
     outline: { fragment: 'docs/prov', load: (_ctx, params) => errorsOutline(params.code) },
   },
 })

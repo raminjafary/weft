@@ -480,10 +480,26 @@ export function adoptScript(
   // Every template, not only the entry: a quantity box inside a list row has its wiring in the
   // row's template, and a region whose only interactive part is a row is still interactive.
   const nested = fragment.templates.filter((template) => template.version !== entry.version)
-  const interactive = fragment.templates.some((t) => t.wiring.length > 0 || t.signals.length > 0)
+  /**
+   * What the client could actually do with a payload for this slot.
+   *
+   * Wiring alone is not it, and counting it was costing real bytes. `wire()` resolves every
+   * non-event entry through `bindDerived(derived, signals)`, so with no signals that lookup misses
+   * and every entry hits its `continue` — the region is walked and nothing is bound. A slot whose
+   * only wiring is a `list` op over server data is exactly that case, and it is the common one:
+   * any fragment that maps a list has wiring, so any page whose body became a fragment shipped a
+   * payload describing templates nothing would ever write to. On this site that was 28 kB per
+   * error page, over 327 of them.
+   *
+   * So the question is not whether wiring exists but whether anything can drive it: a signal to
+   * change a value, an intent to attach a listener to, a channel to deliver a delta, or another
+   * region reading exposed values out of this one.
+   */
+  const hasSignals = fragment.templates.some((t) => t.signals.length > 0)
+  const hasEvents = fragment.templates.some((t) => t.wiring.some((w) => w.op === 'event'))
   // A static slot ships nothing. That is the case a hand-written script tag could never get
   // right, because it had to be written before anyone knew whether the slot needed one.
-  if (!interactive && !live) return null
+  if (!hasSignals && !hasEvents && !live && expose.length === 0) return null
 
   const intents: Record<string, string> = {}
   for (const template of fragment.templates) {

@@ -16,7 +16,7 @@ export default defineRoute({
   cache: { class: 'public', ttl: '1h' },
   slots: {
     contents: { fragment: 'docs/contents', load: () => ({ groups: errorsContents() }) },
-    body: { html: () => errorsIndexBody() },
+    body: { fragment: 'docs/page', load: () => ({ blocks: errorsIndexBody() }) },
     outline: { fragment: 'docs/prov', load: () => errorsOutline() },
   },
 })

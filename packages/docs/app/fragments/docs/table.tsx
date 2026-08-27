@@ -52,7 +52,11 @@ export default fragment(({ headers, rows }: TableProps) => (
             {row.cells.map((cell) => (
               <td>
                 {cell.href ? (
-                  <a href={cell.href}>{cell.text}</a>
+                  <a href={cell.href}>
+                    {/* A link may also be code — an error code linking to its page is both, and
+                        checking `href` first would otherwise silently drop the monospace. */}
+                    {cell.code ? <code>{cell.text}</code> : <span>{cell.text}</span>}
+                  </a>
                 ) : cell.code ? (
                   <code>{cell.text}</code>
                 ) : cell.hint ? (
