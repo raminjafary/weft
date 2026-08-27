@@ -53,6 +53,7 @@ export type ClientExpr =
   | { k: 'lit'; v: Json }
   | { k: 'un'; op: string; a: ClientExpr }
   | { k: 'bin'; op: string; a: ClientExpr; b: ClientExpr }
+  | { k: 'cond'; a: ClientExpr; b: ClientExpr; c: ClientExpr }
 
 /** A derived value as an expression tree, which is what travels instead of code. */
 export interface ClientDerived {

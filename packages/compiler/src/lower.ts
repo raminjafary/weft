@@ -357,7 +357,13 @@ function classifyBySyntax(expr: Node, input: LowerInput, em: Emitter): Classifie
     throw fail(input, expr, 'E_EXPRESSION_UNSUPPORTED', `cannot resolve ${source(input, expr)} to a binding`)
   }
 
-  if (expr.type === 'UnaryExpression' || expr.type === 'BinaryExpression') {
+  if (
+    expr.type === 'UnaryExpression' ||
+    expr.type === 'BinaryExpression' ||
+    expr.type === 'ConditionalExpression' ||
+    expr.type === 'LogicalExpression' ||
+    expr.type === 'TemplateLiteral'
+  ) {
     const safe = provablyNotMarkup(expr)
     const reads: SignalDecl[] = []
     const refs: string[] = []
@@ -395,9 +401,18 @@ function isReactive(classified: Classified, input: LowerInput): boolean {
   return ids.some((id) => input.scope.props.has(id))
 }
 
-/** Arithmetic and comparison cannot produce markup; `+` and logical operators can. */
+/**
+ * Arithmetic and comparison cannot produce markup; `+` and logical operators can.
+ *
+ * A conditional, a coalesce and a template literal all can, so all three escape. That is stricter
+ * than necessary for `on ? 1 : 2`, whose arms are both numbers — but elision here is a claim about a
+ * *type*, and the checker answers that question for whole holes rather than for the arms of an
+ * expression. Escaping a number produces the same bytes as not escaping it, so the cost of being
+ * conservative is nothing, and the cost of being wrong is an injection.
+ */
 function provablyNotMarkup(expr: Node): boolean {
   if (expr.type === 'UnaryExpression') return ['!', '-', '+', '~'].includes(String(expr.operator))
+  if (expr.type !== 'BinaryExpression') return false
   const operator = String(expr.operator)
   return ['-', '*', '/', '%', '**', '<', '>', '<=', '>=', '===', '!==', '==', '!='].includes(operator)
 }
@@ -434,6 +449,73 @@ function derivedExpr(
       a: derivedExpr(node(expr.left), input, em, reads, refs),
       b: derivedExpr(node(expr.right), input, em, reads, refs),
     }
+  }
+
+  if (expr.type === 'ConditionalExpression') {
+    return {
+      k: 'cond',
+      a: derivedExpr(node(expr.test), input, em, reads, refs),
+      b: derivedExpr(node(expr.consequent), input, em, reads, refs),
+      c: derivedExpr(node(expr.alternate), input, em, reads, refs),
+    }
+  }
+
+  /**
+   * `??` and `||` are the same node as `? :`, which is why neither has one of its own.
+   *
+   * `a || b` is `a ? a : b` — the left operand is named twice in the tree and evaluated once,
+   * because `cond` is lazy in its arms. `a ?? b` is the same over a `!== null` test rather than a
+   * truthiness one, and one comparison covers both null and undefined because a `ref` to an absent
+   * binding already reads as `null` on both sides.
+   *
+   * `&&` is deliberately not here. `a && b` in a hole is nearly always meant structurally — show
+   * this when that — and lowering it to a value would render the string `false` where the author
+   * expected nothing. It keeps its refusal until a template can hold a shape.
+   */
+  if (expr.type === 'LogicalExpression') {
+    const op = String(expr.operator)
+    if (op === '&&') {
+      throw fail(
+        input,
+        expr,
+        'E_EXPRESSION_UNSUPPORTED',
+        '`&&` in a hole reads as a shape rather than a value, and a sealed template holds one value ' +
+          "per hole; write a conditional value (`a ? b : ''`) or move the choice into the loader",
+      )
+    }
+    if (op !== '||' && op !== '??') {
+      throw fail(input, expr, 'E_OPERATOR_UNSUPPORTED', `logical ${op} cannot be evaluated on the client`)
+    }
+    const left = derivedExpr(node(expr.left), input, em, reads, refs)
+    const right = derivedExpr(node(expr.right), input, em, reads, refs)
+    const test: DerivedExpr = op === '??' ? { k: 'bin', op: '!==', a: left, b: { k: 'lit', v: null } } : left
+    return { k: 'cond', a: test, b: left, c: right }
+  }
+
+  /**
+   * A template literal is a `+` chain, not a node of its own.
+   *
+   * `+` on a string already concatenates — the `as number` in the evaluators is a type assertion and
+   * not a coercion — so the existing binary node covers this and the client needs no new arm for it.
+   * The quasis are literals and the expressions are leaves, in source order.
+   */
+  if (expr.type === 'TemplateLiteral') {
+    const quasis = nodes(expr.quasis)
+    const parts = nodes(expr.expressions)
+    let out: DerivedExpr | undefined
+    const join = (next: DerivedExpr): void => {
+      out = out === undefined ? next : { k: 'bin', op: '+', a: out, b: next }
+    }
+    for (let i = 0; i < quasis.length; i++) {
+      const cooked = node(quasis[i] as Node).value as { cooked?: unknown } | undefined
+      const text = String((cooked?.cooked as string | undefined) ?? '')
+      // An empty piece contributes nothing rather than an empty literal, which keeps `${a}${b}`
+      // from carrying three constants nobody reads.
+      if (text !== '') join({ k: 'lit', v: text })
+      const inner = parts[i]
+      if (inner) join(derivedExpr(node(inner), input, em, reads, refs))
+    }
+    return out ?? { k: 'lit', v: '' }
   }
 
   const leaf = classifyBySyntax(expr, input, em)

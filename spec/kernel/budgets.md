@@ -13,33 +13,36 @@ the gate is the test that calls it. Rolldown, minified, brotli at quality 11 —
 
 | Entry                     | Covers                                                                               | Measured | Ceiling  | Where the ceiling comes from                                            |
 | ------------------------- | ------------------------------------------------------------------------------------ | -------- | -------- | ----------------------------------------------------------------------- |
-| `entry-request.ts`        | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream    | 8,185 B  | 8,192 B  | The design's "target under 8 KB server-side"                            |
-| `entry-nested.ts`         | The above, plus splicing a chain of nested layouts into one cut document             | 8,380 B  | 9,216 B  | No design figure. Its own, because the chain walk did not fit above     |
-| `entry-channel.ts`        | The above, plus surgical refresh, form selection, epochs, the stale registry         | 10,893 B | 12,288 B | No design figure. A watermark                                           |
-| `entry-patch.ts`          | The above, plus the patch encoder: the surgical rung a template needs no proof for   | 11,563 B | 12,288 B | No design figure. Its own, because in the refresh path it cost everyone |
-| `entry-intent.ts`         | The request path, plus intent dispatch, the three authority branches, method routing | 9,656 B  | 10,240 B | No design figure. A watermark                                           |
-| `entry-authority.ts`      | The above, plus the capability model, signed intents and delegation                  | 11,631 B | 12,288 B | No design figure. Its own, because the design calls this tier separable |
-| `entry-transport.ts`      | The channel path, plus a live channel: negotiation, held state, push invalidation    | 13,546 B | 14,336 B | No design figure. A watermark, **moved from 13,312**                    |
-| `entry-stage.ts`          | The above, plus a whole route staged over the channel: `WARM at=`, `NAV`             | 13,911 B | 14,336 B | No design figure. Its own, because it went past the watermark above     |
-| `entry-discover.ts`       | The above, plus lazy plan extension: `WARM plan=`, `PLAN`                            | 14,110 B | 15,360 B | No design figure. Its own, on the rule route staging established        |
-| `entry-render.ts`         | The transport, plus a catalogue of fragments a client can name: render intents       | 14,114 B | 14,336 B | No design figure. Its own, on the same rule                             |
-| `entry-region.ts`         | The request path, plus regions resolved through the registry and checked on arrival  | 11,271 B | 12,288 B | No design figure. Its own, on the same rule. **Moved from 11,264**      |
-| `entry-region-channel.ts` | The transport plus composition: a region refreshed over a live channel               | 16,509 B | 17,408 B | No design figure. Its own, and **moved from 16,384**                    |
+| `entry-request.ts`        | Lifecycle, two-phase envelope, routing, key derivation, wave dispatch, the stream    | 8,199 B  | 8,320 B  | The design's "target under 8 KB", **moved from 8,192** — see below      |
+| `entry-nested.ts`         | The above, plus splicing a chain of nested layouts into one cut document             | 8,392 B  | 9,216 B  | No design figure. Its own, because the chain walk did not fit above     |
+| `entry-channel.ts`        | The above, plus surgical refresh, form selection, epochs, the stale registry         | 10,980 B | 12,288 B | No design figure. A watermark                                           |
+| `entry-patch.ts`          | The above, plus the patch encoder: the surgical rung a template needs no proof for   | 11,657 B | 12,288 B | No design figure. Its own, because in the refresh path it cost everyone |
+| `entry-intent.ts`         | The request path, plus intent dispatch, the three authority branches, method routing | 9,731 B  | 10,240 B | No design figure. A watermark                                           |
+| `entry-authority.ts`      | The above, plus the capability model, signed intents and delegation                  | 11,668 B | 12,288 B | No design figure. Its own, because the design calls this tier separable |
+| `entry-transport.ts`      | The channel path, plus a live channel: negotiation, held state, push invalidation    | 13,786 B | 14,336 B | No design figure. A watermark, **moved from 13,312**                    |
+| `entry-stage.ts`          | The above, plus a whole route staged over the channel: `WARM at=`, `NAV`             | 14,128 B | 14,336 B | No design figure. Its own, because it went past the watermark above     |
+| `entry-discover.ts`       | The above, plus lazy plan extension: `WARM plan=`, `PLAN`                            | 14,342 B | 15,360 B | No design figure. Its own, on the rule route staging established        |
+| `entry-render.ts`         | The transport, plus a catalogue of fragments a client can name: render intents       | 14,343 B | 14,464 B | No design figure. Its own, on the same rule                             |
+| `entry-region.ts`         | The request path, plus regions resolved through the registry and checked on arrival  | 11,351 B | 12,288 B | No design figure. Its own, on the same rule. **Moved from 11,264**      |
+| `entry-region-channel.ts` | The transport plus composition: a region refreshed over a live channel               | 16,777 B | 17,408 B | No design figure. Its own, and **moved from 16,384**                    |
 | `index.ts`                | Everything, including build-time validation and serialisation                        | 11,601 B | —        | Not a claim. Reported so the marginal split is checkable                |
 
 On the client, same rule:
 
-| Entry                  | Covers                                                              | Measured | Ceiling  |
-| ---------------------- | ------------------------------------------------------------------- | -------- | -------- |
-| `entry-content.ts`     | Adopt and bind                                                      | 2,226 B  | 5,120 B  |
-| `entry-app.ts`         | Plus deltas, epochs, residency                                      | 3,154 B  | 12,288 B |
-| `entry-channel.ts`     | Plus routing arriving frames into regions and epochs                | 4,081 B  | 4,096 B  |
-| `entry-expose.ts`      | Plus the shell values a region on this page is allowed to read      | 4,368 B  | 5,120 B  |
-| `entry-patch.ts`       | Plus applying a patch to a region nothing has adopted               | 4,571 B  | 5,120 B  |
-| `entry-nav.ts`         | Plus routes staged and unpainted, `NAV` frames, and what a click is | 4,932 B  | 5,120 B  |
-| `entry-discover.ts`    | Plus what it knows about routes it has not been to                  | 5,301 B  | 6,144 B  |
-| `index.ts`             | Everything                                                          | 6,109 B  | 6,144 B  |
-| `boot.ts` (front door) | The front door's code, bundled and minified — see below             | 13,428 B | 14,336 B |
+| Entry              | Covers                                               | Measured | Ceiling  |
+| ------------------ | ---------------------------------------------------- | -------- | -------- |
+| `entry-content.ts` | Adopt and bind                                       | 2,251 B  | 5,120 B  |
+| `entry-app.ts`     | Plus deltas, epochs, residency                       | 3,190 B  | 12,288 B |
+| `entry-channel.ts` | Plus routing arriving frames into regions and epochs | 4,121 B  | 4,608 B  |
+
+`entry-channel.ts` and `index.ts` on the server moved for conditional values; the paragraph below
+is the argument, and the client's channel ceiling moved from 4,096 in the same change.
+| `entry-expose.ts` | Plus the shell values a region on this page is allowed to read | 4,405 B | 5,120 B |
+| `entry-patch.ts` | Plus applying a patch to a region nothing has adopted | 4,601 B | 5,120 B |
+| `entry-nav.ts` | Plus routes staged and unpainted, `NAV` frames, and what a click is | 4,970 B | 5,120 B |
+| `entry-discover.ts` | Plus what it knows about routes it has not been to | 5,331 B | 6,144 B |
+| `index.ts` | Everything | 6,137 B | 6,144 B |
+| `boot.ts` (front door) | The front door's code, bundled and minified — see below | 13,526 B | 14,336 B |
 
 Navigation is the client-side case of the rule below: 851 bytes on top of a channel route, in an
 entry of its own, because a page that links nowhere should not carry the staging model. Discovery is
@@ -313,3 +316,42 @@ both of these. Four modules are named there, each with the reason next to it: pl
 declared-read enforcement are build- and dev-time, the coalescer is opt-in policy, and
 `region-tree.ts` is deploy-time — a region describes its shape when something asks what the topology
 is, and no request asks.
+
+## The third redrawing: conditional values, and the 8 KB
+
+`spec/FINDINGS.md` says a stated ceiling had been redrawn twice, and that a third time should be
+treated as a rationalisation rather than a decision. This is the third time, so the argument is here
+in full and the reader is invited to judge it as the warning intended.
+
+**What moved.** `entry-request.ts` from 8,192 B to 8,320 B, and with it the client's
+`entry-channel.ts` from 4,096 to 4,608 and the server's `entry-render.ts` from 14,336 to 14,464. Only
+the first is a design figure; the other two are watermarks, which this document already moves when a
+capability lands on one.
+
+**What spent it.** A `cond` node in the derived-expression union — one arm in `evalDerived` and one
+in the client's `evaluate` — which is what lets a hole hold `a ? b : c`, and `a ?? b` and `a || b`
+lowered onto it. In the request path it is 14 B against 7 B of headroom.
+
+**What was tried instead.** Five encodings, each measured: a `coalesce` flag on the node so `??` need
+not name its operand twice (larger); a separate `cat` node for template literals (larger, and
+unnecessary — `+` on a string already concatenates, so a template literal lowers to a `+` chain and
+costs the client nothing); an operator lookup table replacing the `binary` switch (larger); hoisting
+the shared operand evaluation (larger); and selecting the arm as a node rather than evaluating it
+(larger). The plain form is the floor.
+
+**Why it was worth it.** Without a conditional value a fragment cannot express a choice at all, so
+every one moves into a loader and arrives as a string. That is not hypothetical: it is the state
+`packages/docs` was in, with 476 lines of markup built by concatenation and outside everything the
+compiler offers — no escape decision, no sealed template, no version. The 128 bytes buy the
+expressiveness that lets a documentation site be written in the language this framework compiles.
+
+**What it does not buy, and the line that did not move.** `on ? <b/> : <i/>` is still refused, and so
+is `on && <b/>`. A sealed template's byte layout is fixed; a conditional _value_ fills one hole and a
+conditional _shape_ would need the layout to vary. Structural branching needs variant templates and a
+hole that selects among them — the machinery exists for rows and instances, but it is a separate
+piece of work and it is not what this ceiling paid for.
+
+**The tell to watch.** If a fourth redrawing arrives for a reason that reads like this one, the
+scoping rule at the top of this document has stopped being a gate. The honest check is whether the
+capability could have been an entry of its own; conditional values could not, because they are one
+line in a function every entry already carries.

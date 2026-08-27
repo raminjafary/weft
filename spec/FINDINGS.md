@@ -400,6 +400,14 @@ makes it a label. This one keeps every number where it is and says which one cov
 distinction turns out to be a rationalisation, the tell will be a third redrawing, and it should
 be treated as one.
 
+The third redrawing arrived, and it is recorded in
+[`spec/kernel/budgets.md`](kernel/budgets.md) rather than here: `entry-request.ts` moved from 8,192
+to 8,320 so a template could hold a conditional value. The warning above asked for it to be treated
+as a rationalisation, so the test it sets itself is the one that paragraph implies — could the
+capability have been an entry of its own? It could not: it is one arm in `evalDerived`, in a function
+every entry already carries. That is either the distinction holding or the rationalisation the
+warning predicted, and the honest position is that a reader should decide which.
+
 One byte saving was available and deliberately not taken. `schedule()` reaches the request path
 transitively through `dispatch()`, and the waves could be precomputed when a plan is lowered. The
 design says the plan is data specifically so `SchedulerPort` can reorder slots at runtime to fill

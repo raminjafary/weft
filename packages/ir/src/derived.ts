@@ -41,6 +41,22 @@ export type DerivedExpr =
   | { k: 'lit'; v: Json }
   | { k: 'un'; op: UnaryOp; a: DerivedExpr }
   | { k: 'bin'; op: BinaryOp; a: DerivedExpr; b: DerivedExpr }
+  /**
+   * A choice between two values — `a ? b : c`, with `a ?? b` and `a || b` lowered to it.
+   *
+   * A *value*, not a shape, which is what makes it expressible: a sealed template's byte layout is
+   * fixed, so `on ? <b/> : <i/>` cannot be a hole, but `on ? 'yes' : 'no'` is one value arriving in
+   * one hole and costs the layout nothing.
+   *
+   * Just truthiness, with no coalesce flag: `a || b` is already this node, and `a ?? b` is this node
+   * over a `!== null` test, since a `ref` to an absent binding reads as `null` on both sides. That
+   * names the operand twice in the tree and saves an arm in two evaluators that sit inside bundles
+   * whose byte budgets fail the build.
+   *
+   * Operands are `a`/`b`/`c` rather than `test`/`then`/`else` for the same reason `bin` uses `a` and
+   * `b`: the keys are the encoding and they travel on every frame.
+   */
+  | { k: 'cond'; a: DerivedExpr; b: DerivedExpr; c: DerivedExpr }
 
 /**
  * A value computed from other bindings, as a tree rather than as code.
@@ -62,6 +78,13 @@ export function readsOf(expr: DerivedExpr, out: BindingId[] = []): BindingId[] {
   } else if (expr.k === 'bin') {
     readsOf(expr.a, out)
     readsOf(expr.b, out)
+  } else if (expr.k === 'cond') {
+    // Every branch, not the one that would be taken: this set decides whether a value is
+    // client-owned and what it taints, and both are properties of the expression rather than of one
+    // evaluation of it. A branch not taken this time is still a read.
+    readsOf(expr.a, out)
+    readsOf(expr.b, out)
+    readsOf(expr.c, out)
   }
   return out
 }
@@ -74,6 +97,10 @@ export function evalDerived(expr: DerivedExpr, read: (id: BindingId) => Json | u
   if (expr.k === 'lit') return expr.v
   if (expr.k === 'ref') return read(expr.id) ?? null
   if (expr.k === 'un') return unary(expr.op, evalDerived(expr.a, read))
+  // Lazy in the arms, and it has to be: a branch not taken must not be evaluated, or a `??` would
+  // touch bindings the render never read.
+  if (expr.k === 'cond')
+    return evalDerived(expr.a, read) ? evalDerived(expr.b, read) : evalDerived(expr.c, read)
   return binary(expr.op, evalDerived(expr.a, read), evalDerived(expr.b, read))
 }
 

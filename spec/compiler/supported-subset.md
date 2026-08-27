@@ -31,23 +31,25 @@ export default fragment(({ epoch, rows, total }) => (
 No sigils, no `'use client'`, no directives. `fragment` and `signal` are ordinary
 imports, and the compiler recognises them by resolving the import rather than by name.
 
-| Construct                                   | Lowers to                                                                           |
-| ------------------------------------------- | ----------------------------------------------------------------------------------- |
-| HTML element, static attributes             | bytes in a segment                                                                  |
-| `attr={expr}`                               | an `attr` hole inside the quoted value                                              |
-| `disabled={expr}` (known boolean attribute) | an `attr-bool` hole; the name is the value                                          |
-| `{expr}` between nodes                      | a `text` hole                                                                       |
-| `{'literal'}`, `{42}`                       | folded into the segment — no hole at all                                            |
-| `{raw(x)}`                                  | a `trusted-raw` hole whose provenance is the source text of `x`                     |
-| `{rows.map((row) => …)}`                    | a `list` hole plus a nested template, sealed first so the parent names its version  |
-| `onEvent={imported}`                        | a wiring `event` op carrying an intent id derived from the module and export        |
-| `signal()` read                             | a hole plus a wiring op, since only a signal can change on the client               |
-| `{a * 2}`, `{qty() > 9}`, `{(a + b) / 2}`   | a hole plus a `derived` entry: the expression tree, wired only if it reads a signal |
-| `<slot>{fallback}</slot>`                   | a `slot` hole: the base render emits nothing and a later frame fills it             |
-| `<Widget a={x} />`                          | a `component` hole: a sealed child template plus a prop-to-binding projection       |
-| `<Card>…</Card>`                            | the same, plus the markup between the tags sealed as its own template               |
-| `{children}` in a fragment declaring it     | a `children` hole: the place a caller's markup goes                                 |
-| `<>…</>` at the root                        | a template with no wrapper element                                                  |
+| Construct                                     | Lowers to                                                                           |
+| --------------------------------------------- | ----------------------------------------------------------------------------------- |
+| HTML element, static attributes               | bytes in a segment                                                                  |
+| `attr={expr}`                                 | an `attr` hole inside the quoted value                                              |
+| `disabled={expr}` (known boolean attribute)   | an `attr-bool` hole; the name is the value                                          |
+| `{expr}` between nodes                        | a `text` hole                                                                       |
+| `{'literal'}`, `{42}`                         | folded into the segment — no hole at all                                            |
+| `{raw(x)}`                                    | a `trusted-raw` hole whose provenance is the source text of `x`                     |
+| `{rows.map((row) => …)}`                      | a `list` hole plus a nested template, sealed first so the parent names its version  |
+| `onEvent={imported}`                          | a wiring `event` op carrying an intent id derived from the module and export        |
+| `signal()` read                               | a hole plus a wiring op, since only a signal can change on the client               |
+| `{a * 2}`, `{qty() > 9}`, `{(a + b) / 2}`     | a hole plus a `derived` entry: the expression tree, wired only if it reads a signal |
+| `{on ? a : b}`, `{a ?? 'none'}`, `{a \|\| b}` | the same, through a `cond` entry: a conditional **value**, filling one hole         |
+| ``{`row-${id}`}``                             | the same, lowered to a `+` chain — a template literal introduces no node of its own |
+| `<slot>{fallback}</slot>`                     | a `slot` hole: the base render emits nothing and a later frame fills it             |
+| `<Widget a={x} />`                            | a `component` hole: a sealed child template plus a prop-to-binding projection       |
+| `<Card>…</Card>`                              | the same, plus the markup between the tags sealed as its own template               |
+| `{children}` in a fragment declaring it       | a `children` hole: the place a caller's markup goes                                 |
+| `<>…</>` at the root                          | a template with no wrapper element                                                  |
 
 ## Derived values
 
@@ -64,10 +66,38 @@ IR rather than in a convention.
 The operator set is closed: `! - + ~` and `+ - * / % ** < > <= >= === !== == !=`. An
 operator outside it is `E_OPERATOR_UNSUPPORTED` rather than a silent fallback to
 server-only evaluation, because a value that stops updating is harder to notice than a
-build error. Logical operators, ternaries, and calls are not in the set yet.
+build error.
+
+A ternary is a `cond` entry, and `??` and `||` lower onto the same node — `a || b` is
+`a ? a : b`, and `a ?? b` is the same over a `!== null` test, which catches undefined too
+because a `ref` to an absent binding reads as `null` on both sides. The node is lazy in its
+arms: a branch not taken is not evaluated, so a `??` does not touch bindings the render
+never read. `readsOf` still visits every branch, because which arm is taken is a value
+while what the expression _reads_ is a property of the expression — and the cache key and
+the client-owned set are both computed from the latter.
+
+A template literal is not a node. `+` on a string already concatenates, so `` `row-${id}` ``
+lowers to a `+` chain of the binary node that already existed and the client gains nothing
+to evaluate it with.
+
+Three things are still outside the set, and for one reason between them: a fragment body is
+a declaration the compiler reads and never runs — `fragment()` throws if called — so there
+is no evaluation for them to happen in, and shipping one to the client is the closure this
+design exists not to send.
+
+- **A call.** `{a.toUpperCase()}` is `E_EXPRESSION_UNSUPPORTED`. Compute it in the loader.
+- **`&&`.** `{on && <b/>}` reads as a shape rather than a value, and lowering it to one
+  would render the string `false` where the author expected nothing. It is refused with the
+  alternative named.
+- **A conditional shape.** `{on ? <b/> : <i/>}` needs the byte layout to vary, and a sealed
+  template's layout is fixed. Expressible in principle as variant templates plus a hole that
+  selects among them — the machinery exists for rows and instances — and not built.
 
 The escape class still comes from the syntax: arithmetic and comparison cannot produce
-markup and are `proven-safe`, while `+` can concatenate a string and stays `escape`.
+markup and are `proven-safe`, while `+` can concatenate a string and stays `escape`. A
+`cond` escapes too, and deliberately without inspecting its arms: elision is a claim about
+a _type_, the checker answers that for whole holes rather than for arms, and escaping a
+number costs the same bytes as not escaping it while being wrong costs an injection.
 
 Scope rules do not change. A signal read inside an expression inside a list row is still
 `E_SIGNAL_IN_LIST` — a row is its own template, and the expression is lowered through the

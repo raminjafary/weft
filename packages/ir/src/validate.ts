@@ -202,6 +202,7 @@ function malformed(expr: DerivedExpr | undefined): string | undefined {
     if (!BINARY_OPS.includes(expr.op)) return `binary operator ${String(expr.op)} is not in the closed set`
     return malformed(expr.a) ?? malformed(expr.b)
   }
+  if (expr.k === 'cond') return malformed(expr.a) ?? malformed(expr.b) ?? malformed(expr.c)
   return `unknown expression node ${String((expr as { k: string }).k)}`
 }
 

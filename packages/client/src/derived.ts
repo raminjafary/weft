@@ -10,6 +10,8 @@ export function evaluate(expr: ClientExpr, read: (id: string) => Json | undefine
   if (expr.k === 'lit') return expr.v
   if (expr.k === 'ref') return read(expr.id) ?? null
   if (expr.k === 'un') return unary(expr.op, evaluate(expr.a, read))
+  // Truthiness, lazily; `??` and `||` lower onto it. See `@weft/ir`'s `DerivedExpr` for why.
+  if (expr.k === 'cond') return evaluate(expr.a, read) ? evaluate(expr.b, read) : evaluate(expr.c, read)
   return binary(expr.op, evaluate(expr.a, read), evaluate(expr.b, read))
 }
 
@@ -75,9 +77,10 @@ export function bindDerived(
   return all
 }
 
+/** Whether any binding this reads is one the client holds. Every operand is `a`, `b` or `c`, so one
+ * walk covers every node kind; an untaken branch still counts, because the test selects it. */
 function reaches(expr: ClientExpr, bound: Record<string, Readable<unknown>>): boolean {
   if (expr.k === 'ref') return expr.id in bound
-  if (expr.k === 'un') return reaches(expr.a, bound)
-  if (expr.k === 'bin') return reaches(expr.a, bound) || reaches(expr.b, bound)
-  return false
+  const operands = expr as { a?: ClientExpr; b?: ClientExpr; c?: ClientExpr }
+  return [operands.a, operands.b, operands.c].some((operand) => !!operand && reaches(operand, bound))
 }
