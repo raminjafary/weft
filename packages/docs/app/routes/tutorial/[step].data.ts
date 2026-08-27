@@ -2,7 +2,7 @@ import { defineRoute } from 'weft'
 import { progress, railCard } from '../../lib/rails.ts'
 import { tutorialContents } from '../../lib/contents.ts'
 import { shell } from '../../lib/shell.ts'
-import { STEP_BY_SLUG, STEPS, stepBody, stepKicker } from '../../lib/tutorial.ts'
+import { STEP_BY_SLUG, STEPS, stepBody, stepKicker, stepTime } from '../../lib/tutorial.ts'
 
 /** One route for six steps, with the set declared — so each step is a file the build wrote. */
 export default defineRoute({
@@ -27,7 +27,11 @@ export default defineRoute({
     body: { html: (_ctx, params) => stepBody(params.step ?? '') },
     outline: {
       html: (_ctx, params) =>
-        progress(Math.max(STEPS.findIndex((step) => step.slug === params.step) + 1, 0), STEPS.length) +
+        progress(
+          Math.max(STEPS.findIndex((step) => step.slug === params.step) + 1, 0),
+          STEPS.length,
+          stepTime(params.step ?? ''),
+        ) +
         railCard(
           'Stuck?',
           `<p>Every refusal in this framework has a name and a sentence.

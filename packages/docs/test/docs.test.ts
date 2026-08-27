@@ -9,7 +9,7 @@ import { renderExample } from '../app/lib/example.ts'
 import { PAGES } from '../app/lib/pages.ts'
 import { bodyOf, headingsOf, written } from '../app/lib/content.ts'
 import { SECTIONS } from '../app/lib/sections.ts'
-import { STEPS } from '../app/lib/tutorial.ts'
+import { STEPS, stepMinutes, stepTime } from '../app/lib/tutorial.ts'
 import { TERMS } from '../app/lib/glossary.ts'
 import { surface } from '../app/lib/surface.ts'
 import { errorCodes } from '../app/lib/errors.ts'
@@ -740,5 +740,21 @@ test('every guide page opens with a figure, and the openers cover the guide', ()
   )
   for (const slug of opened()) {
     assert.ok(slugs.includes(slug), `${slug} has an opener but is not a page in the guide`)
+  }
+})
+
+/**
+ * The time under a tutorial step is counted from the step, and it agrees with the design.
+ *
+ * The design costed one step — "a slow region", at about eight minutes — and that is the number
+ * this model has to produce for the model to be worth anything. Everything else follows from it:
+ * prose at reading speed, plus the real minutes a block you have to type and run takes. A figure
+ * somebody typed under each step would be wrong the first time a step grew.
+ */
+test('a tutorial step says how long it takes, and the figure is counted', () => {
+  assert.equal(stepTime('a-slow-region'), 'about eight minutes')
+  for (const step of STEPS) {
+    assert.ok(stepMinutes(step.slug) >= 2, `${step.slug} claims to take less than two minutes`)
+    assert.ok(step.goal.length > 40, `${step.slug} has no goal worth reading above its edits`)
   }
 })

@@ -59,7 +59,7 @@ export const IS_A_FILE = railCard(
  * four steps into a tutorial is deciding whether to finish it now, and two thirds of a line answers
  * that faster than a sentence.
  */
-export function progress(at: number, total: number): string {
+export function progress(at: number, total: number, takes = ''): string {
   const done = total ? Math.round((at / total) * 100) : 0
   return `<div class="rail-card">
     <div class="rail-card-head">
@@ -69,5 +69,6 @@ export function progress(at: number, total: number): string {
     <div class="bar" role="img" aria-label="${at} of ${total} steps read">
       <div class="bar-fill" style="width:${done}%"></div>
     </div>
+    ${takes ? `<p class="rail-card-time">${escapeHtml(takes)}</p>` : ''}
   </div>`
 }
