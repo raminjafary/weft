@@ -223,15 +223,54 @@ function finder(): void {
     hits().forEach((hit, i) => hit.toggleAttribute('aria-current', i === at))
     hits()[at]?.scrollIntoView({ block: 'nearest' })
   }
+  /**
+   * The box you typed into stays where you typed into it.
+   *
+   * The scrim sits above the header, so opening the panel put the search input *behind* it: the
+   * query was still there and still focused, but dimmed, unclickable, and — if focus was ever lost
+   * — unrecoverable without closing the panel first. A search you cannot keep typing into is a
+   * search you have to start again.
+   *
+   * So the form is lifted over both the scrim and the panel for as long as the panel is open. The
+   * class goes on the root rather than the form because the header is replaced wholesale by a
+   * staged navigation, and an attribute on an element that may not survive is a latch that sticks.
+   */
   const close = () => {
     panel.hidden = true
     scrim.hidden = true
+    root.classList.remove('finding')
     at = -1
   }
+  /**
+   * The panel hangs under the box you typed into, rather than floating in the middle of the page.
+   *
+   * A centred palette is a fine pattern when the palette owns the query. This one does not — the
+   * query stays in the header — so a panel in the middle of the screen puts the text you are typing
+   * and the results of typing it in two different places, with a dimmed header between them.
+   *
+   * Measured rather than declared, because the header is centred in a shell whose width is a token
+   * and whose gutters change at two breakpoints: the one thing that reliably knows where the search
+   * box is, is the search box. Right-aligned to it, so a wide panel grows leftwards into the page
+   * instead of off the edge of it.
+   */
+  const place = () => {
+    const box = form.getBoundingClientRect()
+    const width = Math.min(660, innerWidth - 24)
+    panel.style.top = `${Math.round(box.bottom + 16)}px`
+    panel.style.left = `${Math.round(Math.max(12, box.right - width))}px`
+    panel.style.width = `${width}px`
+  }
+
   const open = () => {
+    place()
     panel.hidden = false
     scrim.hidden = false
+    root.classList.add('finding')
   }
+
+  addEventListener('resize', () => {
+    if (!panel.hidden) place()
+  })
 
   async function run(query: string): Promise<void> {
     const mine = ++token

@@ -1,6 +1,6 @@
 import { plainTerms, verdictPair, type Refusal, type Verdict } from './figures.ts'
 import { hero } from './heroes.ts'
-import { staticPages } from './pages.ts'
+import { staticPages } from './counts.ts'
 
 /**
  * What every guide page opens with, before its prose.

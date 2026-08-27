@@ -4,7 +4,7 @@ import { guideContents } from '../../lib/contents.ts'
 import { GROUPS, PAGES } from '../../lib/pages.ts'
 import { escapeHtml } from '../../lib/escape.ts'
 import { architecture } from '../../lib/architecture.ts'
-import { staticPages } from '../../lib/pages.ts'
+import { staticPages } from '../../lib/counts.ts'
 
 /**
  * The guide's own index: five groups, in the order the framework is easiest to learn in.

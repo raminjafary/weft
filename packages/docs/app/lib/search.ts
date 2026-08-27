@@ -1,7 +1,7 @@
 import { errorCodes } from './errors.ts'
 import { escapeHtml, note, prose } from './markup.ts'
 import { headingsOf } from './content.ts'
-import { PAGES } from './pages.ts'
+import { groupOf, PAGES } from './pages.ts'
 import { SECTIONS } from './sections.ts'
 import { slug as termSlug, TERMS } from './glossary.ts'
 import { STEPS } from './tutorial.ts'
@@ -27,6 +27,15 @@ export interface Result {
   href: string
   /** One line of context, already escaped where it came from user input. */
   detail: string
+  /**
+   * Where the hit lives, outermost first — `Guide › Deliver › Slots and streaming`.
+   *
+   * A flat shelf name told a reader which of six pages they were being sent to and nothing about
+   * where in it. The trail is what makes two hits with the same title distinguishable, which on a
+   * site with a heading called "Two orders" in three places is the difference between a useful
+   * result and a coin toss.
+   */
+  trail: readonly string[]
   /** Higher is better. Ordering only; not shown. */
   score: number
 }
@@ -36,6 +45,7 @@ interface Candidate {
   title: string
   href: string
   detail: string
+  trail: readonly string[]
   /** What the query is matched against, lowercased once. */
   haystack: string
   /** Ties broken toward the sections a reader is more likely to want. */
@@ -61,6 +71,7 @@ function candidates(): Candidate[] {
       title: section.label,
       href: section.href,
       detail: section.blurb,
+      trail: ['This site'],
       haystack: `${section.label} ${section.blurb}`.toLowerCase(),
       weight: WEIGHT.section,
     })
@@ -72,6 +83,7 @@ function candidates(): Candidate[] {
       title: page.title,
       href: `/guide/${page.slug}`,
       detail: page.lede,
+      trail: ['Guide', groupOf(page.slug)],
       haystack: `${page.title} ${page.lede} ${page.slug}`.toLowerCase(),
       weight: WEIGHT.guide,
     })
@@ -81,6 +93,7 @@ function candidates(): Candidate[] {
         title: heading.text,
         href: `/guide/${page.slug}#${heading.id}`,
         detail: `In ${page.title}`,
+        trail: ['Guide', groupOf(page.slug), page.title],
         haystack: `${heading.text} ${page.title}`.toLowerCase(),
         weight: WEIGHT.heading,
       })
@@ -93,6 +106,7 @@ function candidates(): Candidate[] {
       title: step.title,
       href: `/tutorial/${step.slug}`,
       detail: step.lede,
+      trail: ['Tutorial'],
       haystack: `${step.title} ${step.lede}`.toLowerCase(),
       weight: WEIGHT.tutorial,
     })
@@ -104,6 +118,7 @@ function candidates(): Candidate[] {
       title: term.term,
       href: `/glossary#${termSlug(term.term)}`,
       detail: term.short,
+      trail: ['Glossary', term.term.slice(0, 1).toUpperCase()],
       haystack: `${term.term} ${term.short}`.toLowerCase(),
       weight: WEIGHT.term,
     })
@@ -115,6 +130,7 @@ function candidates(): Candidate[] {
       title: code.code,
       href: `/errors/${code.code}`,
       detail: code.message || `Raised in ${code.package}`,
+      trail: ['Error reference', code.package],
       haystack: `${code.code} ${code.message}`.toLowerCase(),
       weight: WEIGHT.error,
     })
@@ -127,6 +143,7 @@ function candidates(): Candidate[] {
         title: entry.name,
         href: `/api/${module.id}#${entry.name}`,
         detail: `${entry.kind} in ${module.specifier}`,
+        trail: ['API', module.specifier],
         haystack: `${entry.name} ${module.specifier} ${entry.kind}`.toLowerCase(),
         weight: WEIGHT.api,
       })
@@ -174,6 +191,7 @@ export function search(query: string, limit = 60): Result[] {
       title: candidate.title,
       href: candidate.href,
       detail: candidate.detail,
+      trail: candidate.trail,
       score: points,
     }))
 }
@@ -279,7 +297,20 @@ const KIND: Record<ResultKind, string> = {
   api: 'Export',
 }
 
-/** Where a hit lives. Shown under the title, so a reader knows which shelf they are being sent to. */
+/**
+ * Where a hit lives, as the trail to it.
+ *
+ * `Guide › Change › Adoption, signals, and what ships` rather than `Guide` — the second is the
+ * shelf and the first is the place. Falls back to the shelf name for a candidate with no trail,
+ * which nothing produces today and something might.
+ */
+function trail(result: Result): string {
+  const parts = result.trail.filter(Boolean)
+  if (!parts.length) return escapeHtml(WHERE[result.kind])
+  return parts.map((part) => escapeHtml(part)).join('<span class="finder-sep">&#8250;</span>')
+}
+
+/** The shelf a hit is on, for the fallback above and for the results page's own grouping. */
 const WHERE: Record<ResultKind, string> = {
   section: 'This site',
   guide: 'Guide',
@@ -310,6 +341,7 @@ function marked(text: string, query: string): string {
  * of them, and no index was downloaded to draw either.
  */
 export function finderList(query: string, limit = 24): string {
+  const began = performance.now()
   const trimmed = query.trim()
   if (!trimmed) return ''
   const results = search(trimmed)
@@ -329,10 +361,20 @@ export function finderList(query: string, limit = 24): string {
         .map((result) => {
           const here = first
           first = false
-          return `<a class="finder-hit" href="${escapeHtml(result.href)}"${here ? ' aria-current="true"' : ''}><span class="finder-line"><span class="finder-kind">${KIND[result.kind]}</span><span class="finder-title">${marked(result.title, trimmed)}</span></span><span class="finder-where">${WHERE[result.kind]}</span><span class="finder-detail">${marked(result.detail, trimmed)}</span></a>`
+          return `<a class="finder-hit" href="${escapeHtml(result.href)}"${here ? ' aria-current="true"' : ''}><span class="finder-line"><span class="finder-kind">${KIND[result.kind]}</span><span class="finder-title">${marked(result.title, trimmed)}</span></span><span class="finder-where">${trail(result)}</span><span class="finder-detail">${marked(result.detail, trimmed)}</span></a>`
         })
         .join('')
     )
   }).join('')
-  return `<div class="finder-count">${results.length} match${results.length === 1 ? '' : 'es'}</div>${groups}`
+  /**
+   * How long the match took, because this site does not download an index.
+   *
+   * Every other documentation search ships a prebuilt index to the browser; this one matches its
+   * own registries per request. The number is the argument for that, so it is on the panel rather
+   * than in a paragraph somewhere claiming it.
+   */
+  const took = (performance.now() - began).toFixed(1)
+  return `<div class="finder-count"><span>${results.length} match${
+    results.length === 1 ? '' : 'es'
+  }<span class="finder-took"> · ${took} ms</span></span><kbd>esc</kbd></div>${groups}`
 }

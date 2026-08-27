@@ -1565,13 +1565,42 @@ figure.code pre {
   background: var(--scrim);
 }
 
+/**
+ * While the panel is open, the box you typed into is above it.
+ *
+ * The scrim covers the header, which put the search input behind it — visible, dimmed and
+ * unclickable, with no way back to it except closing the panel. The form is lifted over both, and
+ * takes the page's own ground so it reads as the one live thing rather than a hole in the scrim.
+ */
+/**
+ * The header is what has to be lifted, not the box inside it.
+ *
+ * `.top` is `position: sticky` with a `z-index`, which makes it a stacking context — so raising the
+ * form inside it above the scrim did nothing at all: a child cannot escape its parent's context,
+ * and 32 inside a 20 is still below a 30 outside it. The header goes over the overlay instead, and
+ * the box takes the raised ground so it reads as the one live thing rather than a hole in the scrim.
+ */
+:root.finding .top {
+  z-index: 32;
+}
+
+:root.finding .find {
+  border-color: var(--accent);
+  background: var(--raised);
+}
+
+/**
+ * Anchored under the search box, not centred over the page.
+ *
+ * `top`, `left` and `width` are written by `finder()` in `client.ts` from the form's own measured
+ * position — the header is centred in a shell whose width is a token and whose gutters move at two
+ * breakpoints, so nothing in a stylesheet knows where the box ends up. What is here is everything
+ * that does not depend on that.
+ */
 .finder {
   position: fixed;
   z-index: 31;
-  top: calc(var(--head-h) + 28px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(660px, calc(100vw - 32px));
+  top: calc(var(--head-h) + 16px);
   max-height: min(70vh, 560px);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -2302,5 +2331,24 @@ table.rows .num {
 
 .api-count {
   font: 500 13px/1 var(--mono);
+  color: var(--faint);
+}
+
+/** The separator in a hit's trail. Thin, because the trail is context and not the answer. */
+.finder-sep {
+  margin-inline: 6px;
+  color: var(--faint);
+}
+
+/** How long the match took, beside how many there were. */
+.finder-count {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 4px 8px;
+}
+
+.finder-took {
   color: var(--faint);
 }
