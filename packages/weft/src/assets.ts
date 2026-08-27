@@ -63,7 +63,21 @@ export interface AssetTable {
 const MODULE_ROOT = '/_weft/m'
 const CSS_ROOT = '/_weft/a'
 const PUBLIC_ROOT = '/_weft/p'
-const IMMUTABLE = 'public, max-age=31536000, immutable'
+/**
+ * A year, and a shared cache may answer with it too.
+ *
+ * `s-maxage` is not a second opinion about the year — it is the only line a CDN in front of a
+ * deployment reads. Several treat a bare `max-age` on a generated response as the browser's
+ * business and decline to hold anything themselves, which is how a build that revs every URL and
+ * calls it immutable still served every module from the origin, once per reader. The measurement
+ * that found it: twenty-four asset requests for one page of the documentation site, every one of
+ * them a cache miss with an age of zero.
+ *
+ * Unconditional, unlike the policy on a document, and for a reason that is not a judgement call:
+ * the URL carries a digest of the bytes it answers with. There is no deploy that changes what this
+ * URL means, so there is no purge for a cache to have missed.
+ */
+const IMMUTABLE = 'public, max-age=31536000, s-maxage=31536000, immutable'
 /**
  * Keep the copy, but never use it without asking first.
  *
