@@ -2352,3 +2352,56 @@ table.rows .num {
 .finder-took {
   color: var(--faint);
 }
+
+/* ── the glossary's letter index ─────────────────────────────────────────── */
+
+/**
+ * A glossary is a page people arrive at knowing the word they want.
+ *
+ * So the letters lead, and only the ones with a term under them: an alphabet with half its links
+ * dead is a worse index than none, and one that needs maintaining as terms are added is worse still.
+ */
+.jump {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 22px 0 6px;
+  padding-block-end: 16px;
+  border-block-end: 1px solid var(--line);
+}
+
+.jump-kind {
+  font: 600 10px/1 var(--sans);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.jump a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  font: 500 12px/1 var(--mono);
+  color: var(--ink-soft);
+}
+
+.jump a:hover {
+  border-color: var(--accent-edge);
+  background: var(--accent-quiet);
+  color: var(--accent-ink);
+  text-decoration: none;
+}
+
+/** Which part of the framework a term belongs to, beside the term. */
+.term-of {
+  margin-inline-start: 10px;
+  font: 12px/1 var(--sans);
+  font-weight: 400;
+  color: var(--faint);
+}
