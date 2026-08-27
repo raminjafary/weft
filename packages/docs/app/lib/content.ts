@@ -6,6 +6,7 @@ import { budgets, siteWeight } from './budgets.ts'
 import { artifacts } from './versions.ts'
 import { wireTable } from './wire.ts'
 import { intentId } from '@weft/compiler'
+import { exampleProfileJson } from './profile-example.ts'
 
 /**
  * The prose, per page.
@@ -681,6 +682,26 @@ export const add = defineIntent<{ sku: string; qty: number }>({
     prose(
       'What is recorded is per route and per slot, and renders are kept separately from cache hits — a ' +
         'p95 that averaged a 2 ms hit with a 300 ms render describes neither.',
+    ) +
+    prose('This is the file, with the fields a recording actually writes:') +
+    sketch('json', exampleProfileJson()) +
+    note(
+      'why',
+      'The numbers are illustrative; the shape is not',
+      'That object is typed as <code>Profile</code> in <code>app/lib/profile-example.ts</code>, so ' +
+        '<code>tsc</code> checks it against the interface the recorder writes and its ' +
+        '<code>version</code> is the real <code>PROFILE_VERSION</code>. A field renamed in the ' +
+        'framework breaks this page rather than leaving it quietly describing an older file — the ' +
+        'same bargain every live example on this site makes. What the timings are is made up; what ' +
+        'the fields are is not.',
+    ) +
+    prose(
+      'Three things in it are worth reading twice. <code>/app/feed</code> is slow and almost always a ' +
+        'cache hit, which is the case a single total would have got wrong. <code>/app/cart</code> has ' +
+        'the one slot past both <code>SLOW_MS</code> and <code>MIN_STREAM_BYTES</code>, so it is the ' +
+        'one a recording would decide to stream. And <code>described</code> against ' +
+        '<code>followed</code> on <code>/</code> is the pair that says whether describing a route to a ' +
+        'client that had not been there ever paid for its bytes.',
     ) +
     table(
       ['Recorded', 'Why that and not a total'],
