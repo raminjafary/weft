@@ -556,43 +556,75 @@ function mapCall(expr: Node): { array: Node; callback: Node } | null {
   return { array: node(callee.object), callback }
 }
 
-/** One arm of a conditional shape: the markup, and the expression that decides it renders. */
-interface Branch {
+/** One test on the way to a branch, and whether it has to be false for the branch to render. */
+interface Condition {
   test: Node
-  /** True when the test is the negation of the written expression — the `else` arm of a ternary. */
   negated: boolean
+}
+
+/** One arm of a conditional shape: the markup, and every test that has to hold for it to render. */
+interface Branch {
+  conditions: Condition[]
   markup: Node
 }
 
-/**
- * A conditional whose arms are markup, split into the branches a template can seal.
- *
- * Returns null for everything else, including a conditional whose arms are values — those are a
- * `cond` in the derived table and stay one hole, which is cheaper and keeps the markup identical.
- * The test is what separates them: an arm that is JSX cannot be a value, and an arm that is a value
- * cannot be a shape, so a conditional mixing the two is refused rather than guessed at.
- */
 const isMarkup = (n: Node): boolean => n.type === 'JSXElement' || n.type === 'JSXFragment'
 
-function jsxBranches(expr: Node): Branch[] | null {
+/**
+ * A conditional whose arms are markup, flattened into the branches a template can seal.
+ *
+ * Recursive, because `a ? <X/> : b ? <Y/> : <Z/>` is the shape a three-way choice is written in and
+ * its alternate is another conditional rather than markup. Each branch collects the tests on the way
+ * to it — `<Y/>` renders when `!a && b` — so a chain of any depth becomes a flat list of arms, each
+ * with its own conjunction.
+ *
+ * Returns null for a conditional whose arms are values: those are a `cond` in the derived table and
+ * stay one hole, which is cheaper and leaves the markup identical. A conditional mixing a shape and
+ * a value is refused by the caller rather than guessed at.
+ */
+function jsxBranches(expr: Node, prefix: Condition[] = []): Branch[] | null {
   if (expr.type === 'LogicalExpression' && String(expr.operator) === '&&') {
     const right = node(expr.right)
     if (!isMarkup(right)) return null
-    return [{ test: node(expr.left), negated: false, markup: right }]
+    return [{ conditions: [...prefix, { test: node(expr.left), negated: false }], markup: right }]
   }
 
-  if (expr.type === 'ConditionalExpression') {
-    const consequent = node(expr.consequent)
-    const alternate = node(expr.alternate)
-    if (!isMarkup(consequent) && !isMarkup(alternate)) return null
-    const test = node(expr.test)
-    const out: Branch[] = []
-    if (isMarkup(consequent)) out.push({ test, negated: false, markup: consequent })
-    if (isMarkup(alternate)) out.push({ test, negated: true, markup: alternate })
-    return out
-  }
+  if (expr.type !== 'ConditionalExpression') return null
 
-  return null
+  const test = node(expr.test)
+  const consequent = node(expr.consequent)
+  const alternate = node(expr.alternate)
+
+  const whenTrue: Condition[] = [...prefix, { test, negated: false }]
+  const whenFalse: Condition[] = [...prefix, { test, negated: true }]
+
+  const left = isMarkup(consequent)
+    ? [{ conditions: whenTrue, markup: consequent }]
+    : jsxBranches(consequent, whenTrue)
+  const right = isMarkup(alternate)
+    ? [{ conditions: whenFalse, markup: alternate }]
+    : jsxBranches(alternate, whenFalse)
+
+  // Neither arm is a shape: a value conditional, and not this lowering's business.
+  if (!left && !right) return null
+  /**
+   * One arm is a shape and the other is a value, which is refused rather than rendered.
+   *
+   * Silently dropping the value arm is what the first version of this function did, and
+   * `{a ? <i>A</i> : b ? <b>B</b> : <s>C</s>}` rendered nothing at all when `a` was false. A missing
+   * arm is a wrong page, so it is a refusal.
+   */
+  if (!left || !right) {
+    return (left ?? right) as Branch[]
+  }
+  return [...left, ...right]
+}
+
+/** Whether every arm of a conditional resolved to markup, so none was quietly dropped. */
+function everyArmIsShape(expr: Node): boolean {
+  if (expr.type === 'LogicalExpression') return isMarkup(node(expr.right))
+  if (expr.type !== 'ConditionalExpression') return isMarkup(expr)
+  return everyArmIsShape(node(expr.consequent)) && everyArmIsShape(node(expr.alternate))
 }
 
 /**
@@ -600,41 +632,46 @@ function jsxBranches(expr: Node): Branch[] | null {
  *
  * Lowered in *this* fragment's scope and sharing its derived table, the way a component's children
  * are: the markup was written here, so it reads this fragment's props and signals directly and needs
- * no projection. That is also why the negated arm can simply add a `!` to the derived table — one
- * binding namespace, one set of ids.
+ * no projection.
+ *
+ * The conditions become one binding. A single positive test is used as it stands; anything else is
+ * built in the derived table out of `cond`, because `&&` is not in the closed operator set and does
+ * not need to be — `x && y` is `x ? y : false`, and a negation is `x ? false : true`.
  */
 function lowerBranch(branch: Branch, path: number[], em: Emitter, input: LowerInput): void {
-  const tested = classify(branch.test, input, em)
+  const FALSE: DerivedExpr = { k: 'lit', v: false }
+  const TRUE: DerivedExpr = { k: 'lit', v: true }
 
-  /**
-   * A branch a signal decides is refused, because the client cannot yet act on it.
-   *
-   * A `variant` emits no wiring entry: the server picks a branch and writes it, and nothing on the
-   * client swaps one sealed subtree for another. Allowing this would compile a control that looks
-   * reactive, renders once, and never moves again — which is the failure the operator set is closed
-   * against for the same stated reason, that a value which stops updating is harder to notice than
-   * a build error.
-   *
-   * A conditional *value* over the same signal is reactive and is the thing to reach for; so is
-   * doing the choice in a loader when the shapes genuinely differ.
-   */
-  if (tested.signal || tested.reactive) {
-    const named = tested.signal?.id ?? tested.binding
-    throw fail(
-      input,
-      branch.test,
-      'E_BRANCH_ON_SIGNAL',
-      `this branch is decided by signal ${named}, and a branch is chosen by the server — nothing on ` +
-        'the client swaps one sealed subtree for another, so it would render once and never change. ' +
-        'Use a conditional value, which is reactive, or render both shapes and choose with a value',
-    )
+  const asExpr = (condition: Condition): DerivedExpr => {
+    const tested = classify(condition.test, input, em)
+    if (tested.signal || tested.reactive) {
+      const named = tested.signal?.id ?? tested.binding
+      throw fail(
+        input,
+        condition.test,
+        'E_BRANCH_ON_SIGNAL',
+        `this branch is decided by signal ${named}, and a branch is chosen by the server — nothing ` +
+          'on the client swaps one sealed subtree for another, so it would render once and never ' +
+          'change. Use a conditional value, which is reactive, or choose in a loader',
+      )
+    }
+    const ref: DerivedExpr = { k: 'ref', id: tested.binding }
+    return condition.negated ? { k: 'cond', a: ref, b: FALSE, c: TRUE } : ref
   }
 
-  let binding = tested.binding
-  if (branch.negated) {
-    const id = `d${em.derived.length}`
-    em.derived.push({ id, expr: { k: 'un', op: '!', a: { k: 'ref', id: tested.binding } } })
-    binding = id
+  let expr = asExpr(branch.conditions[0] as Condition)
+  for (const condition of branch.conditions.slice(1)) {
+    // `earlier && next`, as a conditional value.
+    expr = { k: 'cond', a: expr, b: asExpr(condition), c: FALSE }
+  }
+
+  let binding: string
+  const only = branch.conditions.length === 1 ? (branch.conditions[0] as Condition) : undefined
+  if (only && !only.negated && expr.k === 'ref') {
+    binding = expr.id
+  } else {
+    binding = `d${em.derived.length}`
+    em.derived.push({ id: binding, expr })
   }
 
   const root =
@@ -994,6 +1031,24 @@ function lowerChildren(
      */
     const branches = jsxBranches(expression)
     if (branches) {
+      /**
+       * Every arm has to be a shape, or the ones that are not would render as nothing.
+       *
+       * This is the refusal the first version of this lowering lacked:
+       * `{a ? <i>A</i> : b ? <b>B</b> : 'C'}` sealed the two elements, dropped the string, and
+       * rendered an empty element when `a` and `b` were both false. A missing arm is a wrong page,
+       * so mixing the two is named rather than resolved.
+       */
+      if (!everyArmIsShape(expression)) {
+        throw fail(
+          input,
+          child,
+          'E_BRANCH_MIXES_SHAPE_AND_VALUE',
+          'every arm of this conditional has to be markup, because the arms are sealed as templates ' +
+            'and a value arm has no template to be. Wrap the value in an element, or make the whole ' +
+            'conditional a value',
+        )
+      }
       /**
        * The same rule a list lives under, for exactly the same reason.
        *

@@ -306,6 +306,7 @@ moving any sibling.
 | `E_NESTED_FRAGMENT`               | `<>…</>` is allowed only at the root                                   |
 | `E_BRANCH_NOT_SOLE_CHILD`         | a conditional element beside a sibling, whose index would then vary    |
 | `E_BRANCH_ON_SIGNAL`              | a branch decided by a signal, which the client cannot swap             |
+| `E_BRANCH_MIXES_SHAPE_AND_VALUE`  | a conditional with one markup arm and one value arm                    |
 | `E_ROOT_NOT_JSX`, `E_NO_RETURN`   | a fragment must return JSX                                             |
 | `E_FRAGMENT_ARGUMENT`             | `fragment()` takes a function                                          |
 | `E_ATTRIBUTE_UNSUPPORTED`         | an attribute value that is neither a literal nor an expression         |

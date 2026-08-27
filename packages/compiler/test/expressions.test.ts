@@ -327,3 +327,30 @@ test('a value from outside the row is still refused, index or no index', async (
   )
   assert.equal(error.code, 'E_OUT_OF_ROW_SCOPE')
 })
+
+test('a chained conditional of shapes seals every arm, and none is dropped', async () => {
+  const compiled = await compileSource(
+    PRELUDE +
+      'export default fragment(({ a, b }: { a: boolean; b: boolean }) => (\n' +
+      '  <div>{a ? <i>A</i> : b ? <b>B</b> : <s>C</s>}</div>\n))',
+    'test.tsx',
+  )
+  const fragment = compiled.fragments[0]
+  assert.ok(fragment)
+  // Three arms, three holes. The first version of this lowering produced one and rendered an empty
+  // element for two of the three inputs, which is the regression this asserts against.
+  assert.equal(fragment.entry.holes.length, 3)
+  const byVersion = new Map(fragment.templates.map((t) => [t.version, t]))
+  const shape = (values: Values) => decode(render(fragment.entry, values, (v: string) => byVersion.get(v)))
+  assert.equal(shape({ a: true, b: false }), '<div><i>A</i></div>')
+  assert.equal(shape({ a: false, b: true }), '<div><b>B</b></div>')
+  assert.equal(shape({ a: false, b: false }), '<div><s>C</s></div>')
+})
+
+test('a conditional mixing a shape and a value is refused, not half-rendered', async () => {
+  const error = await refusal(
+    "export default fragment(({ a }: { a: boolean }) => (\n  <div>{a ? <i>A</i> : 'plain'}</div>\n))",
+  )
+  assert.equal(error.code, 'E_BRANCH_MIXES_SHAPE_AND_VALUE')
+  assert.match(error.message, /Wrap the value in an element/)
+})
