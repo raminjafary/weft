@@ -18,6 +18,7 @@ import { compilePlayground, STARTER } from '../app/lib/play.ts'
 import { infer } from '../app/infer.ts'
 import { commands, options } from '../app/lib/cli.ts'
 import { budgets } from '../app/lib/budgets.ts'
+import { drawnDependencies } from '../app/lib/architecture.ts'
 import { artifacts } from '../app/lib/versions.ts'
 import { indexSize, search } from '../app/lib/search.ts'
 import { wireSizes } from '../app/lib/wire.ts'
@@ -661,4 +662,53 @@ test('the document composes the mark, and the mark reaches the page', async () =
   assert.match(home, /<a class="brand" href="\/"><svg class="mark"/, home.slice(0, 400))
   assert.match(home, /class="mark-warp"/, 'both threads of the mark, from the composed template')
   assert.match(home, /class="mark quiet"/, 'and the footer instance, at its own size and tone')
+})
+
+/**
+ * The architecture diagram draws fifteen arrows, and every one of them is a real dependency.
+ *
+ * A diagram is the one kind of documentation nobody re-reads. Prose about a dependency that moved
+ * reads wrong to somebody who knows the code; a *line* between two boxes reads fine forever, which
+ * is what makes a stale diagram worse than none. So the arrows are checked against the manifests
+ * that would have to declare them, and a dependency that goes away fails this instead of quietly
+ * becoming a lie on the front page of the guide.
+ */
+test('every arrow on the architecture diagram is a dependency some package.json declares', () => {
+  const root = fileURLToPath(new URL('../../../', import.meta.url))
+  const declared = new Map<string, Set<string>>()
+  for (const name of readdirSync(join(root, 'packages'))) {
+    const manifest = join(root, 'packages', name, 'package.json')
+    if (!existsSync(manifest)) continue
+    const parsed = JSON.parse(readFileSync(manifest, 'utf8')) as {
+      name: string
+      dependencies?: Record<string, string>
+    }
+    declared.set(parsed.name, new Set(Object.keys(parsed.dependencies ?? {})))
+  }
+  const drawn = drawnDependencies()
+  assert.ok(drawn.length > 10, 'the figure still draws a graph')
+  for (const [dependent, on] of drawn) {
+    const deps = declared.get(dependent)
+    assert.ok(deps, `${dependent} is drawn on the architecture figure but is not a package any more`)
+    assert.ok(
+      deps.has(on),
+      `the architecture figure draws ${dependent} → ${on}, and ${dependent}/package.json no longer declares it`,
+    )
+  }
+})
+
+/**
+ * The wave figure is the kernel's own scheduler, run on the slots the figure names.
+ *
+ * Which is the only reason it is allowed to state 42.7 ms: the number is not transcribed from the
+ * kernel's README, it is what `criticalPath` returns for those nine slots. This asserts the two
+ * agree, so a scheduling change moves the diagram or fails here.
+ */
+test('the wave diagram is scheduled rather than drawn', async () => {
+  const serving = await serveApp(await app())
+  servers.push(serving)
+  const page = await (await fetch(new URL('/guide', serving.url))).text()
+  assert.match(page, /42\.7 ms/, 'the critical path the kernel computes')
+  assert.match(page, /123\.3 ms/, 'against the sequential walk it did not take')
+  assert.match(page, /@keyframes wf-g8\{/, 'and nine keyframes generated from those durations')
 })

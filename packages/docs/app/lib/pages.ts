@@ -1,3 +1,6 @@
+import { STEPS } from './tutorial.ts'
+import { surface } from './surface.ts'
+import { errorCodes } from './errors.ts'
 import type { Example } from './example.ts'
 import { votes } from '../intents/feedback.ts'
 
@@ -410,4 +413,19 @@ export function neighbours(slug: string): { previous?: Page; next?: Page } {
 export function groupOf(slug: string): string {
   const page = BY_SLUG[slug]
   return page ? (GROUPS.find((group) => group.id === page.group)?.label ?? '') : ''
+}
+
+/**
+ * How many of this site's routes `weft build` writes out as files.
+ *
+ * Counted off the same registries the routes are served from, rather than read out of
+ * `.weft/static/` — that directory is a build artifact, so a page quoting it would say nothing
+ * during `weft dev` and something stale after a route was removed. Every param route contributes
+ * its declared set; the two routes that declare `static: false` are the whole of the subtraction,
+ * and they say why on the page.
+ */
+export function staticPages(): number {
+  // `/`, `/quick-start`, `/guide`, `/tutorial`, `/examples`, `/api`, `/glossary`, `/errors`.
+  const fixed = 8
+  return fixed + PAGES.length + STEPS.length + surface().length + errorCodes().length
 }

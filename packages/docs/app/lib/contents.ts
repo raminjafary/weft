@@ -19,8 +19,15 @@ import { GROUPS, PAGES } from './pages.ts'
 const HERE = 'page'
 const ELSEWHERE = 'false'
 
+/**
+ * The rail, with the index itself as its first entry.
+ *
+ * `/guide` is a page and not only a directory — it opens with the architecture — so it belongs in
+ * the list of pages rather than only above it. Without the entry a reader on page four has no way
+ * back to the diagrams except the breadcrumb, which reads as a way out of the guide.
+ */
 export function guideContents(current?: string): ContentsGroup[] {
-  return GROUPS.map((group) => ({
+  const groups = GROUPS.map((group) => ({
     label: group.label,
     items: PAGES.filter((page) => page.group === group.id).map((page) => ({
       label: page.title,
@@ -29,6 +36,13 @@ export function guideContents(current?: string): ContentsGroup[] {
       current: page.slug === current ? HERE : ELSEWHERE,
     })),
   })).filter((group) => group.items.length > 0)
+  groups[0]?.items.unshift({
+    label: 'Architecture — the whole framework',
+    href: '/guide',
+    count: '',
+    current: current === undefined ? HERE : ELSEWHERE,
+  })
+  return groups
 }
 
 export function glossaryContents(): ContentsGroup[] {

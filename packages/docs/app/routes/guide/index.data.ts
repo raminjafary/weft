@@ -1,9 +1,10 @@
 import { defineRoute } from 'weft'
 import { shell } from '../../lib/shell.ts'
 import { guideContents } from '../../lib/contents.ts'
-import { railCard } from '../../lib/rails.ts'
 import { GROUPS, PAGES } from '../../lib/pages.ts'
 import { escapeHtml } from '../../lib/escape.ts'
+import { architecture } from '../../lib/architecture.ts'
+import { staticPages } from '../../lib/pages.ts'
 
 /**
  * The guide's own index: five groups, in the order the framework is easiest to learn in.
@@ -26,7 +27,8 @@ export default defineRoute({
     contents: { fragment: 'docs/contents', load: () => ({ groups: guideContents() }) },
     body: {
       html: () =>
-        `<div class="guide-groups">${GROUPS.map((group) => {
+        `${architecture({ files: staticPages(), pages: PAGES.length })}
+        <div class="guide-groups" id="directory">${GROUPS.map((group) => {
           const pages = PAGES.filter((page) => page.group === group.id)
           if (!pages.length) return ''
           return `<section class="guide-group">
@@ -53,15 +55,9 @@ export default defineRoute({
           </section>`
         }).join('')}</div>`,
     },
-    outline: {
-      html: () =>
-        railCard(
-          'Three things, three jobs',
-          `<p>This site is the introduction, in order, with examples that run.</p>
-           <p><a href="https://github.com/raminjafary/weft/tree/main/spec"><code>spec/</code></a> is the
-            reference: the mechanism, its refusals, and what it deliberately does not do.</p>
-           <p><code>pnpm inspect</code> is the live version — a station per mechanism, with a control.</p>`,
-        ),
-    },
+    // The index has no outline column — the shell collapses it when the page draws the
+    // architecture — because what would have gone in it is the section's own closing block, where
+    // the three things belong: beside the diagrams they are the alternative readings of.
+    outline: { html: () => '' },
   },
 })

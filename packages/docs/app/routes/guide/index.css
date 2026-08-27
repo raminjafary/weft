@@ -1,0 +1,427 @@
+/**
+ * The architecture section's sheet, beside the route that renders it.
+ *
+ * The framework links a page only the stylesheets of what that page draws, so six animated figures
+ * cost bytes on `/guide` and nothing anywhere else. Every value here is spent from `styles.css`;
+ * this file defines none.
+ */
+
+/**
+ * The index takes the outline column back.
+ *
+ * Every other page under `/guide` wants three columns: contents, the page, and what the page covers
+ * in the specs. The index wants two — its figures are 1320 units wide and a 224px rail spent on an
+ * outline of six headings is 224px the diagrams cannot have. The three things that would have gone
+ * there close the section instead, which is where the design puts them: beside the diagrams they
+ * are the three alternative readings of, not floating next to the first one.
+ */
+.shell:has(.arch) {
+  grid-template-columns: var(--rail) minmax(0, 1fr);
+  gap: 52px;
+}
+
+.shell:has(.arch) .outline-rail {
+  display: none;
+}
+
+/* ── the section ──────────────────────────────────────────────────────────── */
+
+.arch {
+  margin-block-end: 54px;
+}
+
+/**
+ * The strip that says where the reader is.
+ *
+ * The index is two things on one route — an essay and a directory — and a reader who has landed on
+ * a wall of diagrams needs to know the list of pages is still below it. So the strip says so, and
+ * links down to it.
+ */
+.arch-where {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-block-end: 20px;
+  padding-block-end: 16px;
+  border-block-end: 1px solid var(--line);
+}
+
+.arch-tag {
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  background: var(--accent-quiet);
+  color: var(--accent-ink);
+  font: 600 10px/1 var(--sans);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.arch-note {
+  font: 12.5px/1.5 var(--sans);
+  color: var(--faint);
+}
+
+.arch-down {
+  margin-inline-start: auto;
+  font: 12.5px/1 var(--sans);
+  white-space: nowrap;
+}
+
+.arch-title {
+  margin: 0;
+  font: 500 44px/1.1 var(--sans);
+  letter-spacing: -0.032em;
+  max-width: 24ch;
+}
+
+.arch-lede,
+.arch-say {
+  margin: 13px 0 0;
+  max-width: 74ch;
+  font-size: 15px;
+  line-height: 1.68;
+  color: var(--ink-soft);
+}
+
+.arch-h {
+  margin: 44px 0 0;
+  font: 500 25px/1.2 var(--sans);
+  letter-spacing: -0.022em;
+}
+
+.arch-three {
+  display: flex;
+  gap: 26px;
+  flex-wrap: wrap;
+  margin-block-start: 44px;
+  padding-block-start: 20px;
+  border-block-start: 1px solid var(--line);
+}
+
+.arch-three > div {
+  flex: 1;
+  min-width: 240px;
+}
+
+.arch-what {
+  font: 12px/1.4 var(--mono);
+  color: var(--accent-ink);
+}
+
+.arch-three p {
+  margin: 7px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--faint);
+}
+
+/* ── a figure ─────────────────────────────────────────────────────────────── */
+
+.gfx {
+  margin: 22px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  overflow: hidden;
+  background: var(--code-bg);
+}
+
+.gfx-in {
+  padding: 24px 26px;
+}
+
+/** A diagram is 1320 units wide and does not reflow; on a narrow window it scrolls in its own box. */
+.gfx-in {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+/** A caption names files and commands, and an inline name must not break the line it sits in. */
+.gfx figcaption code,
+.gfx-note code {
+  display: inline;
+  padding: 0 3px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/**
+ * These captions are sentences, not file names.
+ *
+ * The site's `figcaption` is a bar above a code block — a flex row with a dot and a path — which is
+ * right there and wrong here: as a flex container it makes every inline `<code>` its own column and
+ * shatters the sentence into three. So this one is a block, and it sits under the figure it
+ * explains rather than over it.
+ */
+.gfx figcaption {
+  display: block;
+  padding: 11px 16px;
+  border-block-start: 1px solid var(--line);
+  border-block-end: 0;
+  background: var(--surface);
+  font: 12.5px/1.55 var(--sans);
+  color: var(--faint);
+}
+
+.gfx-note {
+  margin: 16px 0 0;
+  padding-block-start: 14px;
+  border-block-start: 1px solid var(--line);
+  max-width: 100ch;
+  font: 11.5px/1.5 var(--sans);
+  color: var(--dim);
+}
+
+.gfx-aside {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 12px 0 0;
+}
+
+.gfx-aside code {
+  flex: none;
+  white-space: nowrap;
+  font: 12px/1 var(--mono);
+  color: var(--accent-ink);
+  background: none;
+  padding: 0;
+}
+
+.gfx-aside span {
+  max-width: 100ch;
+  font: 11.5px/1.5 var(--sans);
+  color: var(--dim);
+}
+
+/* ── the graph primitive ──────────────────────────────────────────────────── */
+
+.gx {
+  display: block;
+  min-width: 900px;
+  overflow: visible;
+}
+
+.gx-line {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.4;
+}
+
+.gx-flow {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.gx-node rect {
+  fill: var(--surface);
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.gx-node.lit rect {
+  fill: var(--accent-quiet);
+  stroke: var(--accent-edge);
+}
+
+.gx-title {
+  fill: var(--ink);
+  font: 500 13px var(--mono);
+}
+
+.gx-node.lit .gx-title {
+  fill: var(--accent-ink);
+}
+
+.gx-note {
+  fill: var(--faint);
+  font: 11.5px var(--sans);
+}
+
+.gx-note.mono {
+  font: 11.5px var(--mono);
+}
+
+.gx-node.lit .gx-note {
+  fill: var(--accent);
+}
+
+/* ── the wave figure's own parts ──────────────────────────────────────────── */
+
+.wave-heads {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-block-end: 8px;
+  min-width: 900px;
+  font: 600 10px/1 var(--sans);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.gantt {
+  margin-block-start: 18px;
+  padding-block-start: 16px;
+  border-block-start: 1px solid var(--line);
+  min-width: 900px;
+}
+
+.gantt-head {
+  margin: 0 0 12px;
+  font: 600 10px/1 var(--sans);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.gantt-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-block-end: 5px;
+}
+
+.gantt-name {
+  width: 88px;
+  flex: none;
+  font: 11.5px/1 var(--mono);
+  color: var(--faint);
+}
+
+.gantt-row.lit .gantt-name {
+  color: var(--ink-soft);
+}
+
+.gantt-track {
+  flex: 1;
+  position: relative;
+  height: 13px;
+}
+
+.gantt-bar {
+  position: absolute;
+  height: 13px;
+  border-radius: 3px;
+  transform-origin: left;
+  background: var(--accent-800);
+}
+
+.gantt-row.lit .gantt-bar {
+  background: var(--accent);
+}
+
+.gantt-ms {
+  width: 74px;
+  flex: none;
+  text-align: right;
+  font: 11px/1 var(--mono);
+  color: var(--dim);
+}
+
+/**
+ * The axis, and the playhead that sweeps every bar above it.
+ *
+ * One head for nine rows rather than one per row: the claim is that the nine share a clock, and
+ * nine heads moving in step would be nine clocks that happen to agree.
+ */
+.gantt-row.axis .gantt-track {
+  height: 18px;
+  border-block-start: 1px solid var(--line);
+  margin-block-start: 9px;
+}
+
+.gantt-tick {
+  position: absolute;
+  top: 4px;
+  font: 10.5px/1 var(--mono);
+  color: var(--faint);
+}
+
+.gantt-tick.lit {
+  color: var(--accent-ink);
+}
+
+.gantt-play {
+  position: absolute;
+  top: -168px;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--accent);
+  opacity: 0.7;
+}
+
+.gantt-row.sum {
+  margin-block-start: 14px;
+}
+
+.gantt-row.sum .gantt-bar {
+  background: var(--line);
+}
+
+.gantt-row.sum .gantt-ms {
+  color: var(--ink-soft);
+}
+
+/* ── the request figure's two phase panels ────────────────────────────────── */
+
+.phases {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-block-start: 10px;
+}
+
+.phase {
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.phase.lit {
+  border-color: var(--accent-edge);
+  background: var(--accent-quiet);
+}
+
+.phase-head {
+  margin: 0;
+  font: 500 12.5px/1 var(--mono);
+  color: var(--ink);
+}
+
+.phase.lit .phase-head {
+  color: var(--accent-ink);
+}
+
+.phase-calls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-block-start: 9px;
+}
+
+.phase-calls span {
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  font: 11.5px/1 var(--mono);
+  color: var(--ink-soft);
+}
+
+.phase.lit .phase-calls span {
+  background: var(--surface);
+}
+
+.phase-say {
+  margin: 10px 0 0;
+  font: 11.5px/1.5 var(--sans);
+  color: var(--faint);
+}
+
+.phase.lit .phase-say {
+  color: var(--accent-ink);
+}

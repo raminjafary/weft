@@ -663,6 +663,61 @@ h2.hint {
   }
 }
 
+/**
+ * A line that draws itself, and the mark that runs it afterwards.
+ *
+ * `wf-draw` is the edge arriving: the dash is the whole path length, so retracting the offset
+ * paints it from source to target. `wf-flow` is a 14-unit dash on the same path, which is the
+ * direction — an arrowhead states it statically and badly at this scale; a mark that travels
+ * states it once and is then out of the way.
+ *
+ * Both settle drawn, so reduced motion is the finished graph rather than an empty frame.
+ */
+@keyframes wf-draw {
+  0% {
+    stroke-dashoffset: 600;
+  }
+  22%,
+  94% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 600;
+  }
+}
+
+/** A node arriving. It never reaches zero: a box at 14% is still a box, and the graph never blinks. */
+@keyframes wf-nodein {
+  0%,
+  4% {
+    opacity: 0.14;
+  }
+  10%,
+  94% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.14;
+  }
+}
+
+/**
+ * A playhead over a fixed time axis, reaching the end at 80% of the cycle.
+ *
+ * The last fifth is the hold: the chart it sweeps is a schedule, and a reader needs the finished
+ * schedule longer than they need to watch it fill. `wf-play` is the same idea at 86% for figures
+ * with less to read at the end.
+ */
+@keyframes wf-play80 {
+  0% {
+    left: 0%;
+  }
+  80%,
+  100% {
+    left: 100%;
+  }
+}
+
 @keyframes wf-flow {
   0% {
     stroke-dashoffset: 600;
