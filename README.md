@@ -433,35 +433,45 @@ and measures it over HTTP on the same axes.
 - **HTTP trailers as an escape from the sealed envelope.** They look like one. Browsers do not apply
   them to these semantics.
 - **`E_CHILDREN_NOT_SOLE_CHILD`, `E_PRIVATE_COMPONENT_NESTED`, `E_COMPONENT_NOT_SINGLE_ROOT`,
-  `E_DELTA_NOT_INVERTIBLE`** — each a consequence of templates being data compiled without seeing
-  their call site, stated in [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md).
+  `E_DELTA_NOT_INVERTIBLE`, `E_BRANCH_NOT_SOLE_CHILD`** — each a consequence of templates being data
+  compiled without seeing their call site, stated in
+  [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md).
+- **A closure in a hole, and a closure as an event handler.** `{a.toUpperCase()}` and
+  `onInput={(e) => …}` are refused, and this is the line the design will not move: a fragment body is
+  a declaration the compiler reads and never runs, so there is nowhere for a call to happen, and
+  shipping one would make the client bundle grow with the application. `onInput={intent}` is the
+  form, and an intent runs on the server whether a client dispatched it or a form posted it.
+- **A branch a signal decides.** `{sig() && <A/>}` is `E_BRANCH_ON_SIGNAL`. A conditional _shape_ is
+  chosen by the server; a conditional _value_ over the same signal is reactive, and the refusal names
+  it. Swapping a sealed subtree on the client is not built, and the refusal is the edge of that rather
+  than a silent gap.
 
 ---
 
 ## The specs, and where each one is implemented
 
-| Spec                      | Where                                                                                          | State                                                                           |
-| ------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Template IR               | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir`                          | 2.6.0 — children, instances in rows, derived values, contagion, `patch` derived |
-| Warp frames               | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                  | 1.8.0 — a region announces itself, and a failed negotiation says so             |
-| Versioning contract       | [`spec/VERSIONING.md`](spec/VERSIONING.md)                                                     | Majors refuse, minors round-trip                                                |
-| What measurement changed  | [`spec/FINDINGS.md`](spec/FINDINGS.md)                                                         | Five reversed, two clarified                                                    |
-| Template compiler         | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler`  | TSX to IR on Oxc, type-driven escape class, components any shape                |
-| Effect inference          | [`spec/compiler/effects.md`](spec/compiler/effects.md)                                         | Reads inferred, cache class derived, ambient reads banned                       |
-| Client runtime            | [`spec/client/adoption.md`](spec/client/adoption.md), `packages/client`                        | Adoption, surgical deltas, resident templates over Warp                         |
-| Signal graph              | [`spec/client/signals.md`](spec/client/signals.md)                                             | Linked edges, bitflag status, push-pull with a lazy check                       |
-| Navigation                | [`spec/client/navigation.md`](spec/client/navigation.md)                                       | Staged routes, and the floor where staging loses                                |
-| Routing, streaming        | [`spec/kernel/routing.md`](spec/kernel/routing.md), [`streaming.md`](spec/kernel/streaming.md) | A URL matches a plan; slots stream in order or fastest-first                    |
-| Request lifecycle         | [`spec/kernel/lifecycle.md`](spec/kernel/lifecycle.md)                                         | A state machine, two-phase envelope, 103 Early Hints, deferral                  |
-| Ports                     | [`spec/kernel/ports.md`](spec/kernel/ports.md), `packages/adapters`                            | Fourteen declared, fourteen implemented                                         |
-| Cache keys, static docs   | [`spec/kernel/cache.md`](spec/kernel/cache.md), [`static.md`](spec/kernel/static.md)           | Reads resolved into a key; a page that reads nothing is a file                  |
-| Executors, waves, epochs  | [`spec/kernel/locus.md`](spec/kernel/locus.md)                                                 | DAG scheduling, CPU budgets, staged epochs with atomic commit                   |
-| Surgical updates          | [`spec/kernel/surgical.md`](spec/kernel/surgical.md)                                           | `HELD` recovers a base, delta and patch memoized by their transition            |
-| Authority                 | [`spec/kernel/authority.md`](spec/kernel/authority.md)                                         | Capabilities by role, Ed25519 intents single-use per deployment, limits         |
-| Composition               | [`spec/kernel/composition.md`](spec/kernel/composition.md)                                     | Regions through a registry, contracts checked on arrival, the tree as one graph |
-| Byte budgets              | [`spec/kernel/budgets.md`](spec/kernel/budgets.md)                                             | Every entry, its ceiling, and every watermark that moved                        |
-| The plan layer            | [`spec/plan/plan.md`](spec/plan/plan.md), [`profile.md`](spec/plan/profile.md)                 | Plan DSL, validation against inferred effects, plugins, `weft why`              |
-| Device and engine reality | [`spec/baseline/devices.md`](spec/baseline/devices.md)                                         | Written before the numbers                                                      |
+| Spec                      | Where                                                                                          | State                                                                                           |
+| ------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Template IR               | [`spec/ir/template-ir-2.md`](spec/ir/template-ir-2.md), `packages/ir`                          | 2.6.0 — children, instances in rows, derived values, contagion, `patch` derived                 |
+| Warp frames               | [`spec/warp/warp-1.md`](spec/warp/warp-1.md), `packages/warp`                                  | 1.8.0 — a region announces itself, and a failed negotiation says so                             |
+| Versioning contract       | [`spec/VERSIONING.md`](spec/VERSIONING.md)                                                     | Majors refuse, minors round-trip                                                                |
+| What measurement changed  | [`spec/FINDINGS.md`](spec/FINDINGS.md)                                                         | Five reversed, two clarified                                                                    |
+| Template compiler         | [`spec/compiler/supported-subset.md`](spec/compiler/supported-subset.md), `packages/compiler`  | TSX to IR on Oxc, type-driven escape class, components any shape, conditional values and shapes |
+| Effect inference          | [`spec/compiler/effects.md`](spec/compiler/effects.md)                                         | Reads inferred, cache class derived, ambient reads banned                                       |
+| Client runtime            | [`spec/client/adoption.md`](spec/client/adoption.md), `packages/client`                        | Adoption, surgical deltas, resident templates over Warp                                         |
+| Signal graph              | [`spec/client/signals.md`](spec/client/signals.md)                                             | Linked edges, bitflag status, push-pull with a lazy check                                       |
+| Navigation                | [`spec/client/navigation.md`](spec/client/navigation.md)                                       | Staged routes, and the floor where staging loses                                                |
+| Routing, streaming        | [`spec/kernel/routing.md`](spec/kernel/routing.md), [`streaming.md`](spec/kernel/streaming.md) | A URL matches a plan; slots stream in order or fastest-first                                    |
+| Request lifecycle         | [`spec/kernel/lifecycle.md`](spec/kernel/lifecycle.md)                                         | A state machine, two-phase envelope, 103 Early Hints, deferral                                  |
+| Ports                     | [`spec/kernel/ports.md`](spec/kernel/ports.md), `packages/adapters`                            | Fourteen declared, fourteen implemented                                                         |
+| Cache keys, static docs   | [`spec/kernel/cache.md`](spec/kernel/cache.md), [`static.md`](spec/kernel/static.md)           | Reads resolved into a key; a page that reads nothing is a file                                  |
+| Executors, waves, epochs  | [`spec/kernel/locus.md`](spec/kernel/locus.md)                                                 | DAG scheduling, CPU budgets, staged epochs with atomic commit                                   |
+| Surgical updates          | [`spec/kernel/surgical.md`](spec/kernel/surgical.md)                                           | `HELD` recovers a base, delta and patch memoized by their transition                            |
+| Authority                 | [`spec/kernel/authority.md`](spec/kernel/authority.md)                                         | Capabilities by role, Ed25519 intents single-use per deployment, limits                         |
+| Composition               | [`spec/kernel/composition.md`](spec/kernel/composition.md)                                     | Regions through a registry, contracts checked on arrival, the tree as one graph                 |
+| Byte budgets              | [`spec/kernel/budgets.md`](spec/kernel/budgets.md)                                             | Every entry, its ceiling, and every watermark that moved                                        |
+| The plan layer            | [`spec/plan/plan.md`](spec/plan/plan.md), [`profile.md`](spec/plan/profile.md)                 | Plan DSL, validation against inferred effects, plugins, `weft why`                              |
+| Device and engine reality | [`spec/baseline/devices.md`](spec/baseline/devices.md)                                         | Written before the numbers                                                                      |
 
 Three things, three jobs. `spec/` is the reference: the mechanism, its refusals, and what each one
 deliberately does not do. `packages/inspector` is the live version — a station per capability, each
