@@ -10,6 +10,13 @@ import { defineConfig } from 'weft'
  */
 export default defineConfig({
   port: 4190,
+  /**
+   * A deploy purges the CDN in front of this site, so a document the build proved invariant can be
+   * answered from the edge until the next one. Without it every navigation to a prerendered page
+   * cost a round trip to the single region the deployment runs in — about a second from Europe,
+   * for bytes that had been sitting in a file since the build.
+   */
+  documents: { shared: 31536000, stale: 86400 },
   nav: [
     { href: '/quick-start', label: 'Quick Start' },
     { href: '/guide', label: 'Guide' },

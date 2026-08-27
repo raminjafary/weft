@@ -42,6 +42,26 @@ export interface WeftConfig {
    * — at which point the answer is editorial and belongs to whoever is writing the application.
    */
   nav?: { href: string; label: string }[]
+  /**
+   * How long a shared cache may serve a prerendered document before asking again, in seconds.
+   *
+   * L0 is the tier the build proved invariant, and until now nothing downstream could act on that.
+   * A document went out `public, max-age=0, must-revalidate`, which lets a CDN store it and forbids
+   * it from ever answering with it — so every navigation to a page that had been rendered at build
+   * time still cost an origin round trip, and a tier a shared cache cannot hold is not really a
+   * tier. That default is honest for a cache nobody purges, and wrong for every platform that
+   * purges on deploy, which is most of them.
+   *
+   * So it is a number the deployment states rather than one the framework assumes. Set it when a
+   * deploy clears the caches in front of this application; leave it at zero when it does not,
+   * because the failure it buys is a page from the previous build served with no way to tell.
+   * The browser is unaffected either way — `max-age=0` stays, so a reader still revalidates and
+   * still gets a 304 against the ETag.
+   *
+   * `stale` is the grace period after that, during which a shared cache answers from what it has
+   * and refreshes behind the request. Defaults to an hour of any non-zero `shared`.
+   */
+  documents?: { shared?: number; stale?: number }
   /** Where the store lives. Defaults to an in-process one, which is a single-process deployment. */
   store?: StorePort
   /** Flag axes. Only a declared axis can be read, so a typo is a build error rather than a branch. */
@@ -161,6 +181,8 @@ export interface ResolvedConfig extends Required<Pick<WeftConfig, 'srcDir' | 'ou
   /** Where a route change lands when the framework answers a link. See `WeftConfig.navigation`. */
   scroll: 'top' | 'preserve'
   maxConcurrency: number
+  /** See `WeftConfig.documents`. Both in seconds; `shared: 0` is a cache that may never answer. */
+  documents: { shared: number; stale: number }
   devtools: boolean
   profile: boolean
   types: boolean
@@ -218,6 +240,10 @@ export async function loadConfig(root: string, overrides: WeftConfig = {}): Prom
     channelPath: config.channel?.path ?? '/_weft/channel',
     scroll: config.navigation?.scroll === 'preserve' ? 'preserve' : 'top',
     maxConcurrency: config.maxConcurrency ?? 6,
+    documents: {
+      shared: config.documents?.shared ?? 0,
+      stale: config.documents?.stale ?? (config.documents?.shared ? 3600 : 0),
+    },
     types: config.types ?? true,
     devtools: config.devtools ?? false,
     profile: config.profile ?? false,

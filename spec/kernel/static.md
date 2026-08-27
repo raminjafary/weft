@@ -124,6 +124,17 @@ can: the document was proved invariant under every axis the framework can vary, 
 `public, max-age=0, must-revalidate` with an ETag, and `no-store` would have contradicted the
 ETag beside it. A route that declares a policy still gets the one it declared.
 
+**A shared cache may answer with it only if the deployment says so.** `max-age=0, must-revalidate`
+lets a CDN store a document and forbids it from ever answering with one, so every navigation to a
+page that had been rendered at build time still cost an origin round trip — a tier a shared cache
+cannot hold is not really a tier. The window is a number the deployment states rather than one the
+framework assumes, because the thing that makes it safe is outside the framework: a deploy that
+purges the caches in front of the application. `documents: { shared, stale }` in the config sets it,
+and then the header is `public, max-age=0, s-maxage=<shared>, stale-while-revalidate=<stale>`.
+`must-revalidate` is dropped in that form, because `s-maxage` grants a window and `must-revalidate`
+takes it back on the same line. Unset, the header is unchanged, and the browser's half — revalidate,
+get a 304 against the ETag — is unchanged either way.
+
 ## The gate
 
 Byte identity, asserted from one deployment against itself

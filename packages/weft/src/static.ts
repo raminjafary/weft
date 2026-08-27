@@ -425,15 +425,33 @@ function same(a: Uint8Array, b: Uint8Array): boolean {
  * invariant under every axis the framework can vary — and `no-store` would contradict the ETag
  * that goes with it. A route that declares a policy still gets the one it declared.
  */
-function headersFor(rendered: Headers): Record<string, string> {
+function headersFor(rendered: Headers, policy: { shared: number; stale: number }): Record<string, string> {
   const out: Record<string, string> = {
     'content-type': rendered.get('content-type') ?? 'text/html; charset=utf-8',
   }
   const vary = rendered.get('vary')
   if (vary) out.vary = vary
   const control = rendered.get('cache-control')
-  out['cache-control'] = !control || control === 'no-store' ? 'public, max-age=0, must-revalidate' : control
+  out['cache-control'] = !control || control === 'no-store' ? invariant(policy) : control
   return out
+}
+
+/**
+ * What a document proved invariant is allowed to say for itself.
+ *
+ * `max-age=0` is for the browser and never changes: a reader revalidates, and against an ETag over
+ * bytes that did not move that is a 304. Everything after it is for the shared cache in front of
+ * the deployment, and is there only because the deployment said how long it may answer — see
+ * `WeftConfig.documents`. Said nothing, and this is exactly the header it has always been.
+ *
+ * `must-revalidate` is dropped once a shared cache has a lifetime, because the two contradict each
+ * other and the contradiction is what made the tier unservable: `s-maxage` grants the cache a
+ * window and `must-revalidate` takes it back on the same line.
+ */
+function invariant(policy: { shared: number; stale: number }): string {
+  if (policy.shared <= 0) return 'public, max-age=0, must-revalidate'
+  const stale = policy.stale > 0 ? `, stale-while-revalidate=${policy.stale}` : ''
+  return `public, max-age=0, s-maxage=${policy.shared}${stale}`
 }
 
 /**
@@ -521,7 +539,7 @@ export async function prerender(app: App): Promise<Prerendered> {
       file: fileFor(path),
       bytes: body.byteLength,
       etag: await entityTag(body),
-      headers: headersFor(plain.headers),
+      headers: headersFor(plain.headers, app.config.documents),
       body,
     })
   }
