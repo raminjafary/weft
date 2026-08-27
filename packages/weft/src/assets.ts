@@ -288,6 +288,36 @@ export function browserModule(
     .replace(/(['"])@weft\/warp\1/g, `'${root}/warp/index${extOf('warp')}'`)
 }
 
+/**
+ * Every module file the deployment can be asked for, at the URL it answers on.
+ *
+ * `files` holds what the build already had in memory — the stylesheets, the public directory —
+ * and the module trees were never in it: they are mounted directories, read from the package's own
+ * `dist` when a request arrives. That was invisible while a server answered every request, and
+ * wrong the moment anything else did. A build output whose manifest lists `/_weft/m` URLs with no
+ * files behind them is a site that can be handed to a CDN and will serve every page, every
+ * stylesheet, and no JavaScript.
+ *
+ * The set is every direct child of every mounted tree with that tree's extension, which is exactly
+ * what the server will answer and deliberately not the reachable import graph. A graph walk finds
+ * what is imported statically and misses `import()`, so the first thing to 404 would be whatever
+ * an application loads lazily — which is the code most likely to be lazy because it is big.
+ *
+ * `prelude` is prepended to the boot module for the same reason the server prepends it there.
+ */
+export async function moduleFiles(assets: AssetTable, prelude = ''): Promise<Map<string, string>> {
+  const out = new Map<string, string>()
+  for (const [mountedAt, tree] of assets.trees) {
+    for (const name of (await readdir(tree.dir)).sort()) {
+      if (!name.endsWith(tree.ext)) continue
+      const href = `${mountedAt}${name}`
+      const body = browserModule(await readFile(join(tree.dir, name), 'utf8'), tree, mountedAt, assets.trees)
+      out.set(href, href === assets.boot ? prelude + body : body)
+    }
+  }
+  return out
+}
+
 /** Whether the path is a directory. False for anything that cannot be read, including absent. */
 export async function isDirectory(path: string): Promise<boolean> {
   try {

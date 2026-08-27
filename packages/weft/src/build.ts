@@ -1,9 +1,10 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import { parse, stringify, type TemplateIR } from '@weft/ir'
-import { createApp } from './serve.ts'
+import { bootPrelude, createApp } from './serve.ts'
 import { prerender, STATIC_DIR, type StaticManifest, type StaticRefusal } from './static.ts'
 import { checkJsBudgets, describeJsVerdict, measureClientJs } from './js-budget.ts'
+import { moduleFiles } from './assets.ts'
 import type { CompiledApp, CompiledFragment } from './compile.ts'
 import type { Discovered } from './convention.ts'
 import type { ResolvedConfig, WeftConfig } from './config.ts'
@@ -138,6 +139,21 @@ export async function build(root: string, overrides: WeftConfig = {}): Promise<B
     const body = typeof asset.body === 'string' ? Buffer.from(asset.body) : Buffer.from(asset.body)
     await writeFile(target, body)
     assets.push({ href, bytes: body.byteLength, immutable: asset.immutable })
+  }
+  /**
+   * The module trees, materialised.
+   *
+   * `files` never held them — a mounted directory is read when a request arrives — so up to here
+   * the output was a site with every document and no runtime. Written now at the same URLs the
+   * manifest already claimed, which is what makes the sentence at the top of this file true: the
+   * directory can be handed to a CDN as it is.
+   */
+  for (const [href, body] of await moduleFiles(app.assets, bootPrelude(app))) {
+    const target = join(out, 'assets', href.replace(/^\//, ''))
+    await mkdir(dirname(target), { recursive: true })
+    const bytes = Buffer.from(body)
+    await writeFile(target, bytes)
+    assets.push({ href, bytes: bytes.byteLength, immutable: app.assets.revved })
   }
   await writeFile(join(out, 'assets', 'manifest.json'), `${JSON.stringify(app.assets.manifest, null, 2)}\n`)
 

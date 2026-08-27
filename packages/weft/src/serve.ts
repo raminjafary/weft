@@ -1244,13 +1244,7 @@ export async function appHandler(app: App): Promise<Handler> {
   // check per request and nothing else — no route, no template, no asset.
   const devtools = devtoolsFor(app)
 
-  // What the client needs before it can do anything, and the only two things it cannot derive.
-  const prelude =
-    `window.__weftIntents = ${JSON.stringify(intents.names)};\n` +
-    `window.__weftChannel = ${JSON.stringify(config.channelPath)};\n` +
-    (authority.signed.length ? `window.__weftSigned = ${JSON.stringify(authority.signed)};\n` : '') +
-    `window.__weftScroll = ${JSON.stringify(config.scroll)};\n` +
-    (assets.app ? `window.__weftClient = ${JSON.stringify(assets.app)};\n` : '')
+  const prelude = bootPrelude(app)
 
   // The deployment's ports, plus the one that is a property of this response rather than of the
   // deployment: 103 goes out on a socket, so the transport is per request and nothing else is.
@@ -1684,6 +1678,27 @@ export async function serveHandler(handler: Handler): Promise<Serving> {
       })
     },
   }
+}
+
+/**
+ * What the client needs before it can do anything, and the only things it cannot derive.
+ *
+ * Exported because the boot module has two ways out of a deployment and they must not disagree:
+ * `weft start` prepends this when it answers the request, and `weft build` bakes it into the file
+ * it writes so the same module works when a CDN is the one answering. Every value in it is
+ * build-time knowledge — the intent table, the channel's path, which intents are signed, the
+ * scroll policy, where the application's own client module is — so there is nothing here a static
+ * copy could get wrong.
+ */
+export function bootPrelude(app: App): string {
+  const { assets, authority, config, intents } = app
+  return (
+    `window.__weftIntents = ${JSON.stringify(intents.names)};\n` +
+    `window.__weftChannel = ${JSON.stringify(config.channelPath)};\n` +
+    (authority.signed.length ? `window.__weftSigned = ${JSON.stringify(authority.signed)};\n` : '') +
+    `window.__weftScroll = ${JSON.stringify(config.scroll)};\n` +
+    (assets.app ? `window.__weftClient = ${JSON.stringify(assets.app)};\n` : '')
+  )
 }
 
 /** Put it on a port. */
