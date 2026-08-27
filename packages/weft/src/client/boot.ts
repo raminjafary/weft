@@ -1846,7 +1846,30 @@ async function go(href: string, mode: 'push' | 'restore', y = 0): Promise<boolea
   const key = stagingKey(url.href, window.location.href)
   const started = performance.now()
 
-  if (!routes.ready(key)) {
+  /**
+   * A route being staged right now is claimed, not thrown away.
+   *
+   * Hover intent starts the fetch at 65ms and the answer takes a couple of hundred more, so a
+   * reader clicking at a normal speed arrived here in the window between the two — and this
+   * discarded the request already in flight for the page they had just asked for, counted it cold,
+   * and let the browser load the same document over again. Every click not preceded by a
+   * deliberate pause was a full navigation, which is the opposite of what staging on hover is for.
+   *
+   * `claim` was written for exactly this and says so: "the staged answer if it is there, the one in
+   * flight if it is not". It counts the two apart, and `awaited` had never been reachable.
+   *
+   * There is no deadline on the wait, and that is the design rather than an omission. Waiting cannot
+   * cost more than not waiting: the fallback is `location.assign` of the same URL over the same
+   * network, so a slow stage and a slow navigation are the same slowness — except the fallback
+   * throws away the request that was already running and issues an identical one. And every
+   * terminal outcome already settles the claim, because `settled` resolves rather than rejects: an
+   * answer, a null for a load that failed, a null for one that was aborted. A stage over the
+   * channel bounds itself before it gets here, falling back to a document fetch after
+   * `WARM_GRACE_MS`. What is left is a request that never settles at all, and against that a timer
+   * here would only mean fetching the same page twice.
+   */
+  const stageState = routes.state(key)
+  if (stageState === 'none' || stageState === 'failed') {
     routes.discard(key)
     syncStaged()
     state.nav = { ...state.nav, cold: state.nav.cold + 1 }
@@ -1854,8 +1877,10 @@ async function go(href: string, mode: 'push' | 'restore', y = 0): Promise<boolea
   }
   const claimed = await routes.claim(key)
   syncStaged()
-  if (!claimed.value) return false
-
+  if (!claimed.value) {
+    state.nav = { ...state.nav, cold: state.nav.cold + 1 }
+    return false
+  }
   const held = claimed.value
   const painted =
     held.kind === 'regions'
