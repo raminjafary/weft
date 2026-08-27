@@ -41,7 +41,7 @@ test('a file in app/assets is published once, under a digest of its contents', a
 
   const href = revved.byPath.get(join(root, 'app', 'assets', 'fonts', 'inter.woff2'))
   assert.ok(href, 'the font has no URL')
-  assert.match(href, /^\/_weft\/p\/[0-9a-f]{10}\/fonts\/inter\.woff2$/)
+  assert.match(href, /^\/_weft\/a\/[0-9a-f]{10}\/fonts\/inter\.woff2$/)
   assert.equal(revved.files.get(href)?.immutable, true)
 
   // Not at the path it was written at. That URL does not name its contents, so serving it would
@@ -144,6 +144,6 @@ test('asset() answers for app/assets, and refuses a path that is not in it', asy
     revved: true,
   })
 
-  assert.match(table.asset('fonts/inter.woff2'), /^\/_weft\/p\/[0-9a-f]{10}\/fonts\/inter\.woff2$/)
+  assert.match(table.asset('fonts/inter.woff2'), /^\/_weft\/a\/[0-9a-f]{10}\/fonts\/inter\.woff2$/)
   assert.throws(() => table.asset('fonts/nothing.woff2'), /E_NO_ASSET/)
 })

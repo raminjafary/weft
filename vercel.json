@@ -13,7 +13,7 @@
   },
   "headers": [
     {
-      "source": "/_weft/:kind(a|m|p)/:rest*",
+      "source": "/_weft/:kind(a|s|m)/:rest*",
       "headers": [
         {
           "key": "Cache-Control",

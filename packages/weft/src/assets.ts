@@ -60,9 +60,21 @@ export interface AssetTable {
   revved: boolean
 }
 
+/**
+ * Where each kind of generated URL is mounted, by its own initial.
+ *
+ * `a` used to be the stylesheets and `p` used to be `public/`, which stopped being true the moment
+ * `public/` became a directory that is copied rather than revved — it was `app/assets/` mounted at
+ * a letter standing for a directory it no longer holds. The initials say what is behind them now:
+ * assets, styles, modules.
+ *
+ * A stylesheet is `a/<digest>.css` and an asset is `a/<digest>/<name>`, sharing a root without
+ * colliding: one is a file and the other is a directory segment, and a served file is matched by
+ * its whole path rather than by a prefix.
+ */
+const ASSET_ROOT = '/_weft/a'
+const STYLE_ROOT = '/_weft/s'
 const MODULE_ROOT = '/_weft/m'
-const CSS_ROOT = '/_weft/a'
-const PUBLIC_ROOT = '/_weft/p'
 /**
  * A year, and a shared cache may answer with it too.
  *
@@ -220,7 +232,7 @@ export async function revAssets(dir: string, revved: boolean): Promise<RevvedAss
     const body = await readFile(file)
     // Revved by a directory segment rather than by mangling the filename, so an author who wrote
     // `fonts/inter.woff2` still sees `inter.woff2` in the network panel and in a stack trace.
-    const href = revved ? `${PUBLIC_ROOT}/${digestOf(body)}/${name}` : `${PUBLIC_ROOT}/${name}`
+    const href = revved ? `${ASSET_ROOT}/${digestOf(body)}/${name}` : `${ASSET_ROOT}/${name}`
     files.set(href, { body, type: typeOf(file), immutable: revved })
     byPath.set(file, href)
     byName.set(name, href)
@@ -305,7 +317,7 @@ export async function buildAssets(input: AssetInput): Promise<AssetTable> {
 
   const pages = new Map<string, string>()
   for (const [pattern, css] of input.pageCss) {
-    const href = revved ? `${CSS_ROOT}/${digestOf(css)}.css` : `${CSS_ROOT}/${slugOf(pattern)}.css`
+    const href = revved ? `${STYLE_ROOT}/${digestOf(css)}.css` : `${STYLE_ROOT}/${slugOf(pattern)}.css`
     files.set(href, { body: css, type: TYPES['.css'] as string, immutable: revved })
     manifest[`css/${slugOf(pattern)}.css`] = href
     pages.set(pattern, href)
