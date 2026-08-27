@@ -1,0 +1,210 @@
+{
+  "environment": {
+    "when": "2026-08-20T16:15:54.981Z",
+    "node": "v24.18.0",
+    "v8": "13.6.233.17-node.50",
+    "platform": "darwin",
+    "release": "25.6.0",
+    "arch": "arm64",
+    "cpu": "Apple M4",
+    "cores": 10,
+    "memoryGb": 16,
+    "freeMemoryGb": 0.2,
+    "commit": "a1fa599",
+    "loadAverage": [
+      2.64,
+      1.9,
+      1.86
+    ]
+  },
+  "methodology": {
+    "iterations": 100,
+    "warmup": 15,
+    "connection": "warm",
+    "transport": "stream",
+    "latencyMs": 40,
+    "batches": 25,
+    "opsPerBatch": 200,
+    "browserIterations": 5,
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ]
+  },
+  "equivalence": [
+    {
+      "scenario": "slow-feed",
+      "ok": true,
+      "checks": [
+        {
+          "name": "html bytes: segments vs string-ssr",
+          "ok": true
+        },
+        {
+          "name": "data form projects to the same bytes as html",
+          "ok": true
+        },
+        {
+          "name": "delta applied to the base render reproduces the html bytes",
+          "ok": true
+        },
+        {
+          "name": "delta carries fewer entries than the full value set",
+          "ok": true,
+          "detail": "12 changed paths"
+        },
+        {
+          "name": "served bytes over http: segments vs string-ssr",
+          "ok": true
+        },
+        {
+          "name": "served bytes over http: segments vs blocking-ssr",
+          "ok": true
+        }
+      ]
+    }
+  ],
+  "rows": [
+    {
+      "axis": "shell-ttfb",
+      "scenario": "slow-feed",
+      "candidate": "segments",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 100,
+        "min": 41.74445899999955,
+        "p50": 43.4614375000001,
+        "p95": 44.006006849999494,
+        "p99": 44.413966990000375,
+        "max": 49.25754099999995,
+        "mean": 43.355504159999974,
+        "stddev": 0.807060836540467,
+        "mad": 0.2881870000001072
+      },
+      "extra": {
+        "headersP50": 43.397,
+        "ttlbP50": 84.666,
+        "bytes": 6289,
+        "connection": "warm",
+        "transport": "stream",
+        "rtt": 40,
+        "queryMs": 40
+      }
+    },
+    {
+      "axis": "shell-ttfb",
+      "scenario": "slow-feed",
+      "candidate": "string-ssr",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 100,
+        "min": 41.22745800000121,
+        "p50": 43.48295800000142,
+        "p95": 44.05462884999933,
+        "p99": 44.28180341999976,
+        "max": 44.402625000000626,
+        "mean": 43.397911620000144,
+        "stddev": 0.5475112007715983,
+        "mad": 0.2843334999997751
+      },
+      "extra": {
+        "headersP50": 43.411,
+        "ttlbP50": 84.839,
+        "bytes": 6289,
+        "connection": "warm",
+        "transport": "stream",
+        "rtt": 40,
+        "queryMs": 40
+      }
+    },
+    {
+      "axis": "shell-ttfb",
+      "scenario": "slow-feed",
+      "candidate": "blocking-ssr",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 100,
+        "min": 81.82062500000029,
+        "p50": 84.74999949999801,
+        "p95": 85.57917705000182,
+        "p99": 85.6614179100014,
+        "max": 85.71516600000177,
+        "mean": 84.60300993999982,
+        "stddev": 0.7694137621829916,
+        "mad": 0.5033540000003995
+      },
+      "extra": {
+        "headersP50": 84.637,
+        "ttlbP50": 84.783,
+        "bytes": 6289,
+        "connection": "warm",
+        "transport": "stream",
+        "rtt": 40,
+        "queryMs": 40
+      }
+    },
+    {
+      "axis": "shell-ttfb",
+      "scenario": "slow-feed",
+      "candidate": "rr7-stream",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 100,
+        "min": 43.20141600000352,
+        "p50": 44.64916700000322,
+        "p95": 45.632843100003086,
+        "p99": 45.965820749999224,
+        "max": 46.10479199999827,
+        "mean": 44.59682164999998,
+        "stddev": 0.7275432823129668,
+        "mad": 0.6235210000013467
+      },
+      "extra": {
+        "headersP50": 44.586,
+        "ttlbP50": 90.778,
+        "bytes": 7687,
+        "connection": "warm",
+        "transport": "stream",
+        "rtt": 40,
+        "queryMs": 40
+      }
+    },
+    {
+      "axis": "shell-ttfb",
+      "scenario": "slow-feed",
+      "candidate": "rr7-blocking",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 100,
+        "min": 85.41720799999894,
+        "p50": 95.35412500000166,
+        "p95": 99.23687290000234,
+        "p99": 101.40849625000374,
+        "max": 101.5318749999933,
+        "mean": 95.18330543000026,
+        "stddev": 3.0113202817689944,
+        "mad": 1.9260624999988067
+      },
+      "extra": {
+        "headersP50": 95.24,
+        "ttlbP50": 95.403,
+        "bytes": 6370,
+        "connection": "warm",
+        "transport": "stream",
+        "rtt": 40,
+        "queryMs": 40
+      }
+    }
+  ],
+  "warnings": [
+    "webkit stands for Safari, every iOS webview by policy, and WebKitGTK under Tauri on Linux, but it is not WKWebView on a real device: no app-bound-domain rules, no host-app request interception, and no OS-level suspension: do not publish a webkit number as an iOS number",
+    "injected 40 ms RTT, latency only: bandwidth, loss, and congestion control are not modelled, and the TCP handshake is not delayed, so a cold-connection number understates a real one",
+    "transport is stream: these numbers do not cover webviews whose host app intercepts the request. Run --transport buffered as a separate, first-class mode"
+  ]
+}
