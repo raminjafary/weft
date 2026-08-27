@@ -1,5 +1,17 @@
-/* Quick Start's heading is the design's 42px rather than a section page's 38: it is the first
-   thing most people read on this site, and it is one page rather than a set. */
+/**
+ * Quick Start's own proportions.
+ *
+ * The design gives this page a narrower outline column and a wider gap than a guide page: its rail
+ * is a checklist of five steps rather than twenty-two page titles, so it needs less room and the
+ * page beside it needs more air. The heading is the design's 42px rather than a section page's 38
+ * — it is the first thing most people read on this site, and it is one page rather than a set.
+ */
+
+.shell.start {
+  grid-template-columns: var(--rail) minmax(0, 1fr) 208px;
+  gap: 48px;
+  padding-block-start: 40px;
+}
 
 .shell article > h1 {
   font-size: 42px;

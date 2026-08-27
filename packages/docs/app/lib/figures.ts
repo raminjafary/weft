@@ -269,6 +269,12 @@ export interface BarRow {
  * for most of the cycle, because the number is what a reader came for and a figure that flashes it
  * is a figure that has to be waited for twice.
  *
+ * The cycle is 3.4s rather than the 6.4s it was, and the bar spends far more of it growing: three
+ * of these sit on the landing page one under the other, and a reader scrolling past the second
+ * should not have to wait out a hold to see the third draw. What is measured is a response crossing
+ * a network, so the bar travels rather than snapping — the easing is close to linear with a settle,
+ * which is what a transfer looks like.
+ *
  * Bar length is share-of-longest within one chart and never across charts: three of these sit on
  * the landing page measuring milliseconds, bytes and milliseconds again, and a bar that meant the
  * same width in all three would be comparing a byte to a millisecond.
@@ -284,9 +290,9 @@ export function barChart(rows: readonly BarRow[], scale = ''): string {
         <div class="chart-track">
           <div data-wf class="chart-bar" style="width:${(row.share * 100).toFixed(
             1,
-          )}%;animation:wf-bar 6.4s cubic-bezier(.2,.75,.3,1) ${(at * 0.16).toFixed(2)}s infinite"></div>
+          )}%;animation:wf-bar 3.4s cubic-bezier(.35,.12,.3,1) ${(at * 0.14).toFixed(2)}s infinite"></div>
         </div>
-        <div data-wf class="chart-val" style="animation:wf-val 6.4s linear ${(at * 0.16).toFixed(
+        <div data-wf class="chart-val" style="animation:wf-val 3.4s linear ${(at * 0.14).toFixed(
           2,
         )}s infinite">${enc(row.value)}<span class="chart-unit"> ${enc(row.unit)}</span></div>
       </div>`,

@@ -22,7 +22,7 @@ interface Props {
  */
 export default fragment(
   ({ heading, lede, kickerClass, kicker, kickerNote, contents, body, outline }: Props) => (
-    <div class="shell">
+    <div class="shell start">
       <aside class="rail" aria-label="Getting started">
         <slot name="contents">{contents}</slot>
       </aside>

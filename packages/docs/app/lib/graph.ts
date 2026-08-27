@@ -46,7 +46,7 @@ export interface GraphEdge {
 }
 
 export interface GraphOptions {
-  /** viewBox height. The width is always 1320, so every figure on the page shares one scale. */
+  /** viewBox height, before the margin is added to both ends. */
   height: number
   /** One cycle, seconds. Every animation on the figure is a phase of this. */
   cycle: number
@@ -56,7 +56,32 @@ export interface GraphOptions {
   noteMono?: boolean
 }
 
-const WIDTH = 1320
+/**
+ * The margin around the drawing, in viewBox units.
+ *
+ * The viewBox is computed from where the nodes actually are rather than fixed at 1320 wide, so the
+ * graph sits the same distance from both edges of the figure. Fixing the width instead left the
+ * figures whose last column is narrow — the packages, the tiers — visibly shoved against the left
+ * edge with a gap on the right, because a node's x is where it belongs relative to the *others* and
+ * says nothing about where the drawing should sit in its box.
+ */
+const MARGIN = 12
+
+/**
+ * How far the widest note in a node reaches past its own box.
+ *
+ * A note is set at 11.5px and is not clipped, so `a station per mechanism` runs past the 168-unit
+ * box `@weft/inspector` sits in. Ignoring that put the drawing's boxes on centre and its *text*
+ * against the edge; adding a fixed allowance to the right instead made the margins visibly unequal.
+ * So the reach is estimated from the text — an average advance width per character, which is close
+ * enough at this size — and the viewBox grows only when a note actually needs it.
+ */
+const ADVANCE = { mono: 6.9, sans: 5.75 }
+
+function noteReach(spec: GraphNode, mono: boolean): number {
+  const widest = Math.max(0, ...(spec.notes ?? []).map((line) => line.length))
+  return spec.x + 13 + widest * (mono ? ADVANCE.mono : ADVANCE.sans)
+}
 
 /** The horizontal control offset, with a floor: a short hop still leaves as a curve, not a jog. */
 function reachX(span: number): number {
@@ -145,8 +170,13 @@ export function graph(
       return edge(from, to, spec, options.cycle)
     })
     .join('')
+  const mono = options.noteMono === true
+  const left = Math.min(...nodes.map((each) => each.x))
+  const right = Math.max(...nodes.map((each) => Math.max(each.x + each.w, noteReach(each, mono))))
+  const x = left - MARGIN
+  const width = right - left + MARGIN * 2
   return (
-    `<svg class="gx" viewBox="0 0 ${WIDTH} ${options.height}" width="100%" role="img">` +
+    `<svg class="gx" viewBox="${x} 0 ${width} ${options.height}" width="100%" role="img">` +
     `${lines}${nodes.map((spec) => node(spec, options)).join('')}</svg>`
   )
 }

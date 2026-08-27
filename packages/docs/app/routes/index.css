@@ -662,6 +662,7 @@
 @media (width < 1000px) {
   .hero,
   .band-in,
+  .marks,
   .split-say,
   .deck {
     padding-inline: 28px;
@@ -671,10 +672,30 @@
     padding-block-start: 48px;
   }
 
-  .band-grid,
   .deck-grid {
     grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
     gap: 28px;
+  }
+
+  /* Two admissions side by side stop being readable long before they stop fitting. */
+  .marks-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/**
+ * A chart row is three columns, two of them fixed, and the fixed pair is 300px before the bar
+ * gets any width at all. Below that the label goes over the track it labels rather than beside it,
+ * so the bar keeps the room it needs to still be a measurement.
+ */
+@media (width < 720px) {
+  .chart-row {
+    grid-template-columns: minmax(0, 1fr) 86px;
+    row-gap: 6px;
+  }
+
+  .chart-say {
+    grid-column: 1 / -1;
   }
 }
 

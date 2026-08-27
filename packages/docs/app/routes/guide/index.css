@@ -17,7 +17,8 @@
  */
 .shell:has(.arch) {
   grid-template-columns: var(--rail) minmax(0, 1fr);
-  gap: 52px;
+  gap: 56px;
+  padding-block-start: 40px;
 }
 
 .shell:has(.arch) .outline-rail {
