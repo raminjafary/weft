@@ -1,11 +1,222 @@
 # Contributing
 
-## Commit messages
+- [What you need](#what-you-need)
+- [Get it running](#get-it-running)
+- [The packages](#the-packages)
+- [Running the tests](#running-the-tests)
+- [The benchmark harness](#the-benchmark-harness)
+- [Developing a feature](#developing-a-feature)
+- [Conventions](#conventions)
+- [Before pushing](#before-pushing)
+
+## What you need
+
+|                     |                                                                              |
+| ------------------- | ---------------------------------------------------------------------------- |
+| Node                | `>=22.18.0` — type stripping and `node --test` are both used unflagged       |
+| pnpm                | `>=10.16.0`; the repository pins `pnpm@11.22.0` through `packageManager`     |
+| Playwright browsers | only for the browser lanes: `npx playwright install chromium firefox webkit` |
+
+Nothing else. The whole framework has one third-party runtime dependency — `oxc-parser`, in the
+compiler.
+
+## Get it running
+
+```sh
+pnpm install        # also installs the Husky hooks
+pnpm build          # ten packages, in dependency order
+```
+
+`pnpm build` runs `tsc` per package in the order stated in `scripts/build-packages.mjs`, because a
+package's exports map points at its declarations and a dependent cannot typecheck against a `.d.ts`
+that does not exist yet. Build one on its own by naming it:
+
+```sh
+pnpm build kernel
+```
+
+It stops at the first failure — everything after it would fail against missing declarations and bury
+the one error that matters — and then checks that nothing was emitted beside a source file.
+
+### The three applications
+
+All three are weft applications, which is the point: the framework is exercised by using it.
+
+```sh
+pnpm demo         # six shapes of page                 :4173
+pnpm inspect      # a station per capability, running  :4180
+pnpm docs:dev     # the documentation site             :4190
+```
+
+|                      | What it is                                                          | What to change it for                              |
+| -------------------- | ------------------------------------------------------------------- | -------------------------------------------------- |
+| `demo/`              | An ordinary application. Imports `weft` and nothing else            | Checking that a feature is usable from the outside |
+| `packages/inspector` | Reaches into the kernel, the plan layer and the adapters on purpose | Making a mechanism visible and turnable            |
+| `packages/docs`      | The documentation site, generated from the source where it can be   | Writing the paragraph a reader will find           |
+
+Each has `:build` and `:start` variants — `pnpm demo:build`, `pnpm inspect:start`, `pnpm docs:build`
+— which run the real build and serve it with no compiler in the process. Use them when a change
+could behave differently under `weft start` than under `weft dev`, which is most changes to
+placement, caching or assets.
+
+`weft dev --devtools` on any of them adds that application's routes, effect sets, keys and bytes as
+pages you can open.
+
+## The packages
+
+Dependency order, which is also roughly the order a request travels through them:
+
+| Package          | What it owns                                                                      |
+| ---------------- | --------------------------------------------------------------------------------- |
+| `@weft/ir`       | The template IR: what a compiled fragment is                                      |
+| `@weft/warp`     | The frame vocabulary that carries it                                              |
+| `@weft/client`   | Adoption, signals, deltas, patches, navigation                                    |
+| `@weft/compiler` | TSX to IR, on Oxc, with effect inference and the escape class                     |
+| `@weft/kernel`   | Routing, lifecycle, cache keys, waves, epochs, surgical refresh, composition      |
+| `@weft/plan`     | The plan DSL, validation against inferred effects, plugins, `weft why`            |
+| `@weft/adapters` | The fourteen ports, implemented                                                   |
+| `weft`           | The CLI, the conventions, the scaffold templates, and what an application imports |
+| `@weft/bench`    | The measurement harness and the gates it enforces                                 |
+| `create-weft`    | A shim over the templates that ship inside `weft`                                 |
+
+`@weft/docs` and `@weft/inspector` are private and are not built by `pnpm build`; they run from
+source through `weft dev`.
+
+**The kernel imports nothing but the WinterTC Minimum Common Web API.** There is a test for it, and
+it has caught a real `node:http` import. Anything platform-specific belongs in `@weft/adapters` or
+behind a port.
+
+**The scaffold templates live in `weft`, not in `create-weft`.** `packages/weft/templates/{app,minimal}`
+is what `npm create weft` writes; `create-weft` only parses argv and calls `scaffold()`. A scaffold
+that shipped its own copy of the templates would generate an application the framework has stopped
+supporting. Changing a template means running the result:
+
+```sh
+node packages/weft/src/cli.ts create /tmp/scratch-app --template app
+```
+
+## Running the tests
+
+Tests are `node --test` with no framework, and they live in `test/` beside the package they cover —
+76 files in all.
+
+```sh
+pnpm test           # every package, plus demo/. The whole suite
+pnpm typecheck      # tsc over the workspace, zero errors
+pnpm lint           # oxlint, zero errors
+```
+
+One file, or one test, while you work:
+
+```sh
+node --test packages/kernel/test/streaming.test.ts
+node --test --test-name-pattern 'out of order' packages/kernel/test/streaming.test.ts
+```
+
+Some suites drive a real browser through Playwright and are the ones that catch the interesting
+failures. They are not part of `pnpm test`; they are lanes of the benchmark harness, below.
+
+## The benchmark harness
+
+`weft-bench` is the measurement harness, and several of its lanes are gates rather than reports.
+Run it from source:
+
+```sh
+node packages/bench/src/cli.ts <command>
+```
+
+| Lane      | What it checks                                                                     | Needs a browser     |
+| --------- | ---------------------------------------------------------------------------------- | ------------------- |
+| `verify`  | Every wire form of a fragment produces identical bytes                             | no                  |
+| `budget`  | Every entry against its stated ceiling                                             | no                  |
+| `deltas`  | Shared against per-connection delta computation                                    | no                  |
+| `list`    | The axes, scenarios and candidates that exist                                      | no                  |
+| `ir`      | The sealed, versioned IR for a scenario                                            | no                  |
+| `client`  | The runtime adopts, binds and patches correctly in every engine                    | yes                 |
+| `slots`   | Both stream orders, and the incremental shadow-DOM probe                           | yes                 |
+| `channel` | Which binding a browser really opens, and what happens when the upgrade is refused | yes                 |
+| `nav`     | A staged click against the same click handed to the browser                        | yes                 |
+| `l0`      | A document served from the build against the same document rendered                | no                  |
+| `decode`  | Frames decoded on the main thread against the same frames in a worker              | yes                 |
+| `run`     | The axes, and a report                                                             | depends on the axis |
+| `devices` | Which devices `--devices` names, and whether each driver answers                   | hardware            |
+
+```sh
+node packages/bench/src/cli.ts run --axes shell-ttfb --scenarios slow-feed \
+  --latency 40 --bandwidth 1600 --external benchmarks/rr7/candidates.json
+```
+
+`--latency` puts a round trip in front of loopback; `--bandwidth` and `--loss` put a rate and a hole
+in it, so a byte difference costs time rather than nothing. Any TTFB claim needs `--latency`; any
+bytes-on-the-wire claim needs `--bandwidth`. Third-party candidates are configured through
+`--external` and never vendored.
+
+**The harness refuses rather than flatters.** It aborts if two wire forms of the same scenario
+disagree by a byte, refuses any claim whose p50 ± MAD overlaps, never aggregates engines, labels
+`webkit` a desktop proxy rather than an iOS number, and says "not measured" with a reason instead of
+reporting a zero. If you are adding an axis, it has to state its expectation up front — including
+where the honest expectation is a tie.
+
+## Developing a feature
+
+The repository is built so that shipping a mechanism and describing it are the same change. That is
+enforced, so the order below is not advice — steps 5 and 6 are tests that will fail.
+
+**1. Start in `spec/`.** Every capability has a document: the mechanism, its refusals, and a "What
+this does not do" section that is the per-capability ledger. Write or amend it first; it is where
+the argument gets made, and reviewing prose is cheaper than reviewing an implementation of the wrong
+idea.
+
+**2. If a wire format moves, say so.** The template IR and the Warp frame vocabulary are versioned
+specifications with a contract in [`spec/VERSIONING.md`](spec/VERSIONING.md): a minor for anything
+additive and it must round-trip, a major for a wire break and it must refuse rather than migrate.
+Bump the constant, update the spec, and put `BREAKING CHANGE:` in the commit footer if a reader has
+to refuse an older document. A test asserts the spec and the constants agree.
+
+**3. Implement it in the package that owns it.** If the kernel needs something from the platform, it
+goes behind a port — declared in [`spec/kernel/ports.md`](spec/kernel/ports.md), implemented in
+`@weft/adapters`, and refusing by name when it is not bound. A port that approximates is worse than
+one that refuses; a store on an edge KV namespace refuses `lease` outright for exactly that reason.
+
+**4. Test it where it lives**, and prefer a test that would have caught the bug over one that
+restates the code. Refusals are worth testing by their code — `E_BRANCH_ON_SIGNAL`, not "throws".
+
+**5. Documentation is a gate, in four directions.** `node --test packages/docs/test/docs.test.ts`:
+
+- Every spec document must be introduced by a guide page, and every spec document a page names must
+  exist. There is no exemption list.
+- Every runtime export of every package must appear in the API reference **and carry a doc comment
+  on its declaration**. All 1,367 of them do, asserted as equality rather than a floor.
+- Every named refusal in any `src/` must be in the error reference, and must say something other
+  than its own name — either its own sentence or a forwarded cause. All 326 of them do.
+- Every command the CLI implements must be on the CLI page, which is the `--help` text, parsed.
+
+Adding an export, a refusal or a CLI command without the prose is a failing test, not a follow-up.
+
+**6. Give it a station.** `node --test packages/inspector/test/stations.test.ts` fails when a spec
+document has no station claiming it, when a station claims a document that does not exist, and when
+a station marked live has no handler. The inspector's promise is that it is not a subset.
+
+**7. Watch the budgets.** `node packages/bench/src/cli.ts budget` bundles fifteen entries and fails
+the moment one crosses its ceiling. Ceilings live in `packages/bench/src/budget.ts` with the reason
+for each next to it. Raising one is a decision that belongs in
+[`spec/kernel/budgets.md`](spec/kernel/budgets.md) with the watermark it moved from — not a quiet
+edit. Client-side, `budget({ js, grow })` in the plan is enforced by `weft build`, which writes
+`weft.budget.json` so a regression shows up as a diff.
+
+**8. Measure anything you claimed.** If the change was made for speed or for bytes, the number goes
+in the commit body, and if it reverses an earlier claim it goes in
+[`spec/FINDINGS.md`](spec/FINDINGS.md) with both figures. Five claims in this repository have been
+reversed that way; none of them was quietly edited.
+
+## Conventions
+
+### Commit messages
 
 [Conventional Commits](https://www.conventionalcommits.org), the Angular flavour, checked by
-commitlint in a Husky `commit-msg` hook. `pnpm install` installs the hooks. `pnpm commit`
-opens the Commitizen prompt if you would rather be asked than remember, and `pnpm commitlint`
-checks a branch after the fact.
+commitlint in a Husky `commit-msg` hook. `pnpm install` installs the hooks. `pnpm commit` opens the
+Commitizen prompt if you would rather be asked than remember, and `pnpm commitlint` checks a branch
+after the fact.
 
 ```
 type(scope): subject in the imperative, under 72 characters
@@ -17,79 +228,89 @@ BREAKING CHANGE: what stops working, for anyone reading a changelog later.
 ```
 
 **Types.** `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `chore`, `style`,
-`security`, `revert`. Every one of them appears in the changelog — the default preset hides
-most, which produces a changelog reading as though nothing but features ever happened, and
-here a docs or test commit is frequently the substantive one.
+`security`, `revert`. Every one of them appears in the changelog — the default preset hides most,
+which produces a changelog reading as though nothing but features ever happened, and here a docs or
+test commit is frequently the substantive one.
 
-**Scopes**, closed on purpose — a commit that fits none of these is usually a commit doing
-two things: `ir`, `warp`, `compiler`, `client`, `kernel`, `bench`, `spec`, `deps`, `repo`.
+**Scopes**, closed on purpose — a commit that fits none of these is usually a commit doing two
+things: `ir`, `warp`, `compiler`, `client`, `kernel`, `bench`, `spec`, `deps`, `repo`.
 
-### Two conventions specific to this repository
+#### Two conventions specific to this repository
 
-**A measurement that changes a conclusion is a `fix`, not a `docs`.** This project's
-output is partly its findings, and a number that reverses an earlier claim is a defect
-being corrected. Put the old figure and the new one in the body.
+**A measurement that changes a conclusion is a `fix`, not a `docs`.** This project's output is partly
+its findings, and a number that reverses an earlier claim is a defect being corrected. Put the old
+figure and the new one in the body.
 
-**A format change states its version consequence.** The template IR and the Warp frame
-vocabulary are versioned specifications, and a commit touching either says which component
-moved and why — a minor for anything additive, a major for a wire break, and
-`BREAKING CHANGE:` in the footer when a reader has to refuse an older document. The rules
-themselves are in [`spec/VERSIONING.md`](spec/VERSIONING.md).
+**A format change states its version consequence.** A commit touching the template IR or the Warp
+frame vocabulary says which component moved and why. The rules are in
+[`spec/VERSIONING.md`](spec/VERSIONING.md).
 
-## Linting and formatting
+### Code
 
-`pnpm lint` is [oxlint](https://oxc.rs); `pnpm format` is Prettier. They cannot disagree,
-because oxlint is configured for correctness only and every question of layout is Prettier's.
-Both run on staged files through lint-staged in a `pre-commit` hook.
+Comments explain why, not what. The ones already in this repository are worth reading as the house
+style: they carry the argument, the measurement, or the mistake that was made once — several of them
+name a bug that shipped and the test that now prevents it. A comment restating the line under it is
+noise; a comment saying which failure a line prevents is the reason the line survives review.
 
-**Not eslint, and not by preference.** `typescript-eslint` refuses to load against
-TypeScript 7 — _"typescript-eslint does not support TS 7.0"_, thrown from the package itself
-— so linting TypeScript with eslint would mean pinning a second, older TypeScript purely for
-the linter. oxlint needs no TypeScript at all, and it is the linter the design already names
-in its toolchain.
+Refusals are named and say why. `E_*` codes are part of the public surface, they are tested by code,
+and they appear in the error reference automatically — a refusal whose message is only its own name
+fails that test.
 
-Three of oxlint's rules are switched off in `.oxlintrc.json` with the reason next to each,
-which is the only acceptable way to switch a rule off. `no-await-in-loop` fires 46 times on
-deliberately sequential code: a measurement that runs concurrently contends for the same CPU,
-and a stream has to be written in order. `unicorn/no-array-sort` wants `toSorted()`, which is
-ES2023 — the client runtime targets old webviews, and `[...x].sort()` is already
-non-mutating. `unicorn/prefer-add-event-listener` fires on every IndexedDB request, whose
-`on*` handlers are the API's own idiom.
+### Linting and formatting
 
-## Dependencies
+`pnpm lint` is [oxlint](https://oxc.rs); `pnpm format` is Prettier. They cannot disagree, because
+oxlint is configured for correctness only and every question of layout is Prettier's. Both run on
+staged files through lint-staged in a `pre-commit` hook.
+
+**Not eslint, and not by preference.** `typescript-eslint` refuses to load against TypeScript 7 —
+_"typescript-eslint does not support TS 7.0"_, thrown from the package itself — so linting
+TypeScript with eslint would mean pinning a second, older TypeScript purely for the linter. oxlint
+needs no TypeScript at all, and it is the linter the design already names in its toolchain.
+
+Three of oxlint's rules are switched off in `.oxlintrc.json` with the reason next to each, which is
+the only acceptable way to switch a rule off. `no-await-in-loop` fires 46 times on deliberately
+sequential code: a measurement that runs concurrently contends for the same CPU, and a stream has to
+be written in order. `unicorn/no-array-sort` wants `toSorted()`, which is ES2023 — the client
+runtime targets old webviews, and `[...x].sort()` is already non-mutating.
+`unicorn/prefer-add-event-listener` fires on every IndexedDB request, whose `on*` handlers are the
+API's own idiom.
+
+### Dependencies
 
 Every version is exact — `save-exact=true`, and no ranges in any `package.json`. A range is a
 decision deferred to whoever installs next.
 
 Nothing younger than a day is installed: `minimumReleaseAge: 1440` in `pnpm-workspace.yaml`,
-mirrored by `minimumReleaseAge: "1 day"` in `renovate.json`. A compromised or broken publish
-then has a window in which to be found before it reaches this repository. Four packages wait
-a week instead, because they decide what the harness measures or whether it builds at all:
-`typescript`, `oxc-parser`, `rolldown`, `oxlint`, and `playwright`.
+mirrored by `minimumReleaseAge: "1 day"` in `renovate.json`. A compromised or broken publish then has
+a window in which to be found before it reaches this repository. Five packages wait a week instead,
+because they decide what the harness measures or whether it builds at all: `typescript`,
+`oxc-parser`, `rolldown`, `oxlint` and `playwright`.
 
-## Releasing
+Adding a runtime dependency is a design decision, not a convenience one. There is currently one.
 
-`pnpm release` runs commit-and-tag-version: it bumps, writes `CHANGELOG.md` from the history,
-commits and tags. `pnpm changelog` regenerates the changelog alone. Sections and their order
-live in `.versionrc.cjs`.
+### Releasing
+
+`pnpm release` runs commit-and-tag-version: it bumps, writes `CHANGELOG.md` from the history, commits
+and tags. `pnpm changelog` regenerates the changelog alone. Sections and their order live in
+`.versionrc.cjs`.
+
+`CHANGELOG.md` is generated, never edited: if an entry reads badly, the commit message was the
+problem. One quirk of the parser worth knowing — a body line beginning with a word and a colon is
+read as a git trailer, and commitlint then warns that a footer needs a blank line before it. Start
+the sentence differently, or accept the warning.
 
 ## Before pushing
 
 ```sh
-pnpm run typecheck                                   # TypeScript, zero errors
-pnpm lint                                            # oxlint, zero findings
-node --test packages/*/test/*.test.ts                # unit and conformance tests
+pnpm typecheck                                       # TypeScript, zero errors
+pnpm lint                                            # oxlint, zero errors
+pnpm test                                            # unit and conformance tests
 node packages/bench/src/cli.ts verify                # every wire form agrees, byte for byte
-node packages/bench/src/cli.ts client                # the runtime adopts and patches correctly
 node packages/bench/src/cli.ts budget                # nothing has outgrown its byte budget
+node packages/bench/src/cli.ts client                # the runtime adopts and patches correctly
 node packages/bench/src/cli.ts slots                 # both stream orders, and the DSD probe
 ```
 
-The first three are cheap. The rest need Playwright browsers
-(`npx playwright install chromium firefox webkit`) and are the ones that catch the
-interesting failures.
-
-`CHANGELOG.md` is generated, never edited: if an entry reads badly, the commit message was
-the problem. One quirk of the parser worth knowing — a body line beginning with a word and a
-colon is read as a git trailer, and commitlint then warns that a footer needs a blank line
-before it. Start the sentence differently, or accept the warning.
+The first three are cheap. The last two need Playwright browsers
+(`npx playwright install chromium firefox webkit`) and are the ones that catch the interesting
+failures.
