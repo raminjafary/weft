@@ -266,7 +266,7 @@ async function main() {
   run('git', ['add', '--all'], { cwd: ROOT })
   run('git', ['commit', '-m', `chore(release): ${tag}`], { cwd: ROOT })
   run('git', ['tag', '-a', tag, '-m', `${tag}\n\n${section}`], { cwd: ROOT })
-  ok(`${run('git', ['rev-parse', '--short', 'HEAD']).output.trim()} chore(release): ${tag}`)
+  ok(`${run('git', ['rev-parse', '--short', 'HEAD']).stdout.trim()} chore(release): ${tag}`)
 
   // Push before publishing. A push that lands with the registry not yet updated is fixed by
   // publishing again; a publish that lands with the push lost has burned version numbers npm will
@@ -292,17 +292,17 @@ async function main() {
  * changed nothing, which is the only state a half-finished release is easy to recover from.
  */
 function preflight({ dryRun, publishOnly, refuse }) {
-  const branch = run('git', ['rev-parse', '--abbrev-ref', 'HEAD']).output.trim()
+  const branch = run('git', ['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim()
   if (branch === RELEASE_BRANCH) ok(`branch: ${branch}`)
   else refuse(`releases are cut from ${RELEASE_BRANCH}; this is ${branch}.`)
 
-  const dirty = run('git', ['status', '--porcelain']).output.trim()
+  const dirty = run('git', ['status', '--porcelain']).stdout.trim()
   if (dirty) refuse(`the working tree is not clean (${dirty.split('\n').length} path(s) changed).`)
   else ok('working tree clean')
 
   run('git', ['fetch', 'origin', RELEASE_BRANCH, '--tags'], { cwd: ROOT })
   const counts = run('git', ['rev-list', '--left-right', '--count', `origin/${RELEASE_BRANCH}...HEAD`])
-    .output.trim()
+    .stdout.trim()
     .split(/\s+/)
   const [behind, ahead] = counts.map(Number)
   if (behind > 0) refuse(`${behind} commit(s) on origin/${RELEASE_BRANCH} are not here. Pull first.`)

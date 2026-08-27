@@ -6,7 +6,7 @@ import { ROOT } from './workspace.mjs'
 /** The npm account this release would publish as, or undefined if nobody is logged in. */
 export function whoami() {
   const result = run('npm', ['whoami'], { allowFailure: true })
-  return result.ok ? result.output.trim() : undefined
+  return result.ok ? result.stdout.trim() : undefined
 }
 
 const TOKEN_ADVICE =
@@ -40,7 +40,7 @@ export function canPublishUnattended(names = [], otp) {
   // worry about" is how a token with `bypass_2fa: false` sailed through this check.
   if (!token) {
     const profile = run('npm', ['profile', 'get'], { allowFailure: true })
-    const mode = profile.ok ? /two-factor auth:\s*(\S+)/.exec(profile.output)?.[1] : undefined
+    const mode = profile.ok ? /two-factor auth:\s*(\S+)/.exec(profile.stdout)?.[1] : undefined
     if (!mode) return { ok: true, why: 'npm would not say what its two-factor setting is' }
     if (mode !== 'auth-and-writes') return { ok: true, why: `two-factor auth: ${mode}` }
     return {
@@ -92,7 +92,7 @@ function tokenCapability(token) {
 
   let rows
   try {
-    rows = JSON.parse(listed.output)
+    rows = JSON.parse(listed.stdout)
   } catch {
     return undefined
   }
@@ -100,7 +100,7 @@ function tokenCapability(token) {
 
   const head = token.slice(0, 8)
   const tail = token.slice(-4)
-  const lines = human.output.split('\n').filter((line) => line.trim().startsWith('Token '))
+  const lines = human.stdout.split('\n').filter((line) => line.trim().startsWith('Token '))
   let index = lines.findIndex((line) => line.includes(head) && line.includes(tail))
   // A single token needs no matching, and is the common case for a machine that publishes.
   if (index === -1 && rows.length === 1) index = 0
@@ -125,7 +125,7 @@ export function isPublished(name, version) {
   // Compared, not searched for: a substring test would read 0.1.10 as 0.1.0 and silently skip the
   // publish of a version that is not there.
   try {
-    return JSON.parse(result.output) === version
+    return JSON.parse(result.stdout) === version
   } catch {
     return false
   }
@@ -136,7 +136,7 @@ export function publishedVersions(name) {
   const result = run('npm', ['view', name, 'versions', '--json'], { allowFailure: true })
   if (!result.ok) return []
   try {
-    const value = JSON.parse(result.output)
+    const value = JSON.parse(result.stdout)
     return Array.isArray(value) ? value : [value]
   } catch {
     return []
@@ -166,7 +166,7 @@ function claimScope(scope, user) {
       why: `no npm organisation named ${scope}. Create it at npmjs.com/org/create, or rename the package.`,
     }
   }
-  if (!org.output.trim()) {
+  if (!org.stdout.trim()) {
     return {
       ok: false,
       why: `the @${scope} scope exists and ${user ?? 'this account'} is not a member of it. Publishing would be refused.`,
@@ -193,16 +193,16 @@ export function claim(name, user) {
   if (!existing.ok) return { ok: true, why: 'the name is free' }
 
   const owners = run('npm', ['owner', 'ls', name], { allowFailure: true })
-  const maintainers = owners.output
+  const maintainers = owners.stdout
     .split('\n')
     .map((line) => line.split(' ')[0].trim())
     .filter(Boolean)
   if (user && maintainers.includes(user)) {
-    return { ok: true, why: `already yours, at ${existing.output.trim()}` }
+    return { ok: true, why: `already yours, at ${existing.stdout.trim()}` }
   }
   return {
     ok: false,
-    why: `npm already serves ${name}@${existing.output.trim()}, owned by ${maintainers.join(', ') || 'somebody else'}. Rename, or have it transferred.`,
+    why: `npm already serves ${name}@${existing.stdout.trim()}, owned by ${maintainers.join(', ') || 'somebody else'}. Rename, or have it transferred.`,
   }
 }
 

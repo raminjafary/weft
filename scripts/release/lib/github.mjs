@@ -7,7 +7,7 @@ import { fail, run } from './shell.mjs'
  * and changelog links to somebody else's repository.
  */
 export function repositoryFromRemote() {
-  const url = run('git', ['remote', 'get-url', 'origin']).output.trim()
+  const url = run('git', ['remote', 'get-url', 'origin']).stdout.trim()
   const match = /github\.com[:/]([^/]+)\/(.+?)(?:\.git)?$/.exec(url)
   if (!match) fail(`origin is not a GitHub remote this tooling can parse: ${url}`)
   return { owner: match[1], name: match[2] }

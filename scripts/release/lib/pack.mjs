@@ -24,11 +24,11 @@ export function auditPack(pkg) {
     const tarball = join(destination, tarballs[0])
 
     const entries = run('tar', ['-tzf', tarball])
-      .output.split('\n')
+      .stdout.split('\n')
       .map((line) => line.trim())
       .filter((line) => line && !line.endsWith('/'))
-    const bytes = Number(run('wc', ['-c', tarball]).output.trim().split(/\s+/)[0])
-    const packed = JSON.parse(run('tar', ['-xOzf', tarball, 'package/package.json']).output)
+    const bytes = Number(run('wc', ['-c', tarball]).stdout.trim().split(/\s+/)[0])
+    const packed = JSON.parse(run('tar', ['-xOzf', tarball, 'package/package.json']).stdout)
 
     return { problems: check(pkg, entries, packed), entries, bytes, packed }
   } finally {

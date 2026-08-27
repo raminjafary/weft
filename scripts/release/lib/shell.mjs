@@ -39,12 +39,17 @@ export function fail(message) {
 export function run(command, args, options = {}) {
   const result = spawnSync(command, args, { encoding: 'utf8', ...options })
   if (result.error) fail(`${command}: ${result.error.message}`)
-  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim()
+  const stdout = (result.stdout ?? '').trim()
+  const stderr = (result.stderr ?? '').trim()
+  // Both, for a message a human reads; `stdout` alone for anything parsed. Merging them is what
+  // broke a release: run under pnpm, npm warns on stderr about an env config pnpm sets, and that
+  // line then arrived inside every JSON.parse and every `whoami` this file feeds a comparison.
+  const output = [stdout, stderr].filter(Boolean).join('\n')
   if (result.status !== 0) {
-    if (options.allowFailure) return { ok: false, output, status: result.status }
+    if (options.allowFailure) return { ok: false, stdout, stderr, output, status: result.status }
     fail(`${command} ${args.join(' ')} exited ${result.status}\n\n${output}`)
   }
-  return { ok: true, output, status: 0 }
+  return { ok: true, stdout, stderr, output, status: 0 }
 }
 
 /** Run a command with its output on this terminal, for gates whose progress is the point. */
@@ -57,7 +62,7 @@ export function runVisible(command, args, options = {}) {
   return { ok: result.status === 0, status: result.status }
 }
 
-export const git = (...args) => run('git', args).output
+export const git = (...args) => run('git', args).stdout
 
 /**
  * Flags, without a parser dependency.

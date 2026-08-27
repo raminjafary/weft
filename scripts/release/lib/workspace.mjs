@@ -116,7 +116,7 @@ export function manifestAt(ref, relativeDirectory) {
   const result = run('git', ['show', `${ref}:${relativeDirectory}/package.json`], { allowFailure: true })
   if (!result.ok) return undefined
   try {
-    return JSON.parse(result.output)
+    return JSON.parse(result.stdout)
   } catch {
     return undefined
   }

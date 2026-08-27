@@ -47,13 +47,13 @@ async function main() {
 
   const commit = run('git', ['rev-list', '-n', '1', tag], { allowFailure: true })
   if (!commit.ok) fail(`no tag ${tag} in this repository.`)
-  const sha = commit.output.trim()
+  const sha = commit.stdout.trim()
 
   const repository = github.repositoryFromRemote()
   const packages = loadWorkspace()
   const dryRun = !flags.yes
 
-  const subject = run('git', ['log', '-1', '--format=%s', sha]).output.trim()
+  const subject = run('git', ['log', '-1', '--format=%s', sha]).stdout.trim()
   say(bold(`\nundo ${tag}${dryRun ? ` ${dim('(plan only — add --yes to run it)')}` : ''}`))
   say(dim(`  ${repository.owner}/${repository.name} — ${sha.slice(0, 9)} ${subject}`))
   // A tag that does not sit on a release commit is a tag somebody moved, or a tag on the wrong
@@ -105,9 +105,9 @@ async function main() {
   step('In git')
   const remoteTag = run('git', ['ls-remote', '--tags', 'origin', `refs/tags/${tag}`], {
     allowFailure: true,
-  }).output.trim()
+  }).stdout.trim()
   const onRemote = run('git', ['branch', '-r', '--contains', sha], { allowFailure: true })
-  const pushed = onRemote.ok && onRemote.output.includes(`origin/${RELEASE_BRANCH}`)
+  const pushed = onRemote.ok && onRemote.stdout.includes(`origin/${RELEASE_BRANCH}`)
   say(`  tag ${tag}: local${remoteTag ? ', and on origin' : dim(', not on origin')}`)
   say(`  commit ${sha.slice(0, 9)}: ${pushed ? `on origin/${RELEASE_BRANCH}` : dim('local only')}`)
 
@@ -187,16 +187,16 @@ async function main() {
     run('git', ['tag', '-d', tag], { cwd: ROOT })
     ok(`${tag} removed locally`)
 
-    const dirty = run('git', ['status', '--porcelain']).output.trim()
+    const dirty = run('git', ['status', '--porcelain']).stdout.trim()
     if (dirty) {
       warn(`the working tree is not clean, so the release commit was left alone:\n\n${dirty}`)
     } else if (flags.reset) {
       run('git', ['reset', '--hard', `${sha}~1`], { cwd: ROOT })
-      ok(`reset to ${run('git', ['rev-parse', '--short', 'HEAD']).output.trim()}`)
+      ok(`reset to ${run('git', ['rev-parse', '--short', 'HEAD']).stdout.trim()}`)
     } else {
       const revert = run('git', ['revert', '--no-edit', sha], { cwd: ROOT, allowFailure: true })
       if (revert.ok) {
-        ok(`reverted as ${run('git', ['rev-parse', '--short', 'HEAD']).output.trim()}`)
+        ok(`reverted as ${run('git', ['rev-parse', '--short', 'HEAD']).stdout.trim()}`)
         say(dim(`      push it: git push origin ${RELEASE_BRANCH}`))
       } else {
         warn(`the revert did not apply cleanly; the release commit is still in place.\n\n${revert.output}`)
