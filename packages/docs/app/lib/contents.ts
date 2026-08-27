@@ -59,17 +59,34 @@ export function glossaryContents(): ContentsGroup[] {
   ]
 }
 
+/**
+ * The gallery's rail: the examples, under the part of the framework they belong to.
+ *
+ * Grouped by the guide's own groups rather than as one flat list of pages, because the question a
+ * reader has here is "show me the rendering ones" and not "show me the ones from page eleven". The
+ * total leads, so the page says how many there are before it says where they are.
+ */
 export function galleryContents(): ContentsGroup[] {
-  return [
-    {
-      label: 'By page',
-      items: PAGES.filter((page) => page.examples.length).map((page) => ({
+  const shown = PAGES.filter((page) => page.examples.length)
+  const total = shown.reduce((sum, page) => sum + page.examples.length, 0)
+  const groups = GROUPS.map((group) => {
+    const pages = shown.filter((page) => page.group === group.id)
+    return {
+      label: group.label,
+      items: pages.map((page) => ({
         label: page.title,
         href: `#${page.slug}`,
         count: String(page.examples.length),
         current: ELSEWHERE,
       })),
+    }
+  }).filter((group) => group.items.length > 0)
+  return [
+    {
+      label: 'Everything',
+      items: [{ label: 'All examples', href: '#all', count: String(total), current: ELSEWHERE }],
     },
+    ...groups,
   ]
 }
 

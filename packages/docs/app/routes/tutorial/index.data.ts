@@ -2,7 +2,7 @@ import { defineRoute } from 'weft'
 import { tutorialContents } from '../../lib/contents.ts'
 import { shell } from '../../lib/shell.ts'
 import { prose } from '../../lib/markup.ts'
-import { STEPS } from '../../lib/tutorial.ts'
+import { STEPS, stepMinutes, stepTime } from '../../lib/tutorial.ts'
 
 export default defineRoute({
   head: { title: 'Tutorial · weft', description: 'Build one page from nothing, one step at a time.' },
@@ -20,10 +20,17 @@ export default defineRoute({
             'says what changed, what the framework then knew, and which command shows it.',
           'You need Node 22 or later and nothing else. There is no scaffolding step you cannot read.',
         ) +
+        prose(
+          `The six of them are about ${STEPS.reduce(
+            (sum, step) => sum + stepMinutes(step.slug),
+            0,
+          )} minutes of work end to end — counted from the steps themselves, not estimated.`,
+        ) +
         `<div class="cards">${STEPS.map(
           (step) => `<div class="card">
             <h3><a href="/tutorial/${step.slug}">${step.title}</a></h3>
             <p>${step.lede}</p>
+            <p class="hint">${stepTime(step.slug)}</p>
           </div>`,
         ).join('')}</div>`,
     },

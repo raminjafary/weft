@@ -17,7 +17,9 @@ export default defineRoute({
   head: { title: 'Playground · weft', description: 'Type a fragment and see what it compiles to.' },
   layoutValues: shell({
     heading: 'Playground',
-    lede: 'Type a fragment and see the sealed template it becomes. No files, no build — a file set in memory.',
+    lede:
+      'Type a fragment and see what it compiles to. Nothing is written anywhere — the compiler runs ' +
+      'over a virtual file set, which is why this page is one of the two on this site that is not a file.',
   }),
   // The build's two probes cannot invent the key this page reads, so they would prove it invariant
   // and freeze it into a file that ignores `?src` — which is the whole page. Declared, with the

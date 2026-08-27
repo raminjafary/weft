@@ -14,6 +14,7 @@ export function galleryBody(): string {
   const pages = PAGES.filter((page) => page.examples.length)
   const total = pages.reduce((sum, page) => sum + page.examples.length, 0)
   return (
+    `<span id="all"></span>` +
     prose(
       `<strong>${total}</strong> examples, each a fragment under <code>app/fragments/examples/</code> in this ` +
         'application. Every one is compiled by the build that served you this page, rendered by the same ' +

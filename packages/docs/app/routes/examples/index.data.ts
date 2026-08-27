@@ -10,7 +10,10 @@ export default defineRoute({
     ...GENERATED,
     kickerNote: "from the guide's own registry",
     heading: 'Examples',
-    lede: 'Every live example on this site, with the file that produced it and what the compiler knows about it.',
+    lede:
+      'Every live fragment on this site, with the source that produced it and what the compiler knows ' +
+      'about it. The output beside each source is not a screenshot — it is that fragment, rendered by ' +
+      'this page.',
   }),
   cache: { class: 'public', ttl: '1h' },
   slots: {
