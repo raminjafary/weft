@@ -7,14 +7,15 @@ import { graph, type GraphEdge, type GraphNode } from './graph.ts'
 /**
  * The figure at the top of each guide page: the mechanism, moving.
  *
- * Twenty-two pages, twenty-two figures, and one vocabulary between them — a row that lights when
- * its turn comes, a pill, a bar drawn to scale, a mark travelling an edge. A reader who has read
- * one figure has read how the next one speaks, which is worth more than each being clever.
+ * Twenty-two pages, twenty-two figures, and one vocabulary between them — a row that arrives when
+ * its turn comes, a box, a pill, a bar drawn to scale, a mark travelling an edge, one label swapped
+ * for another. A reader who has read one figure has read how the next one speaks, which is worth
+ * more than each being individually clever.
  *
- * The rule for whether a figure moves at all is that the movement has to *be* the idea. An order of
- * arrival, a size against another size, a value swapped for another, something refused. Where the
- * idea is a shape and not a sequence — a file tree, a nested layout — the figure is still built
- * from the same rows, and the sequence is the order a reader should read them in.
+ * The rule for whether a figure moves at all is that the movement has to *be* the idea: an order of
+ * arrival, a size against another size, a value swapped, something refused. Where the idea is a
+ * shape rather than a sequence — a nested layout, a file tree — the rows still arrive in turn, and
+ * the order is the order to read them in.
  *
  * Every animated element carries `data-wf`, and every keyframe ends at the state that makes the
  * point, so the reduced-motion version is the finished diagram rather than a blank box.
@@ -22,55 +23,101 @@ import { graph, type GraphEdge, type GraphNode } from './graph.ts'
 
 const enc = escapeHtml
 
-/** One cycle for a hero figure. Long enough to read a six-row sequence without hurrying it. */
+/** One cycle. Long enough to read a six-row sequence without hurrying it. */
 const CYCLE = 4.6
+
+/* ── the kit ──────────────────────────────────────────────────────────────── */
 
 /**
  * A row that arrives when its turn comes.
  *
- * This is the whole sequencing primitive: `wf-step` takes an element from 16% opacity to full and
- * holds it there for the rest of the cycle. It never reaches zero — a row at 16% is still legible
- * as a row, so the figure reads as a diagram filling in rather than as content appearing from
- * nowhere.
+ * The base is 16% rather than 0: a row at 16% is still legible as a row, so a figure reads as a
+ * diagram filling in rather than as content appearing out of nowhere — and a reader arriving
+ * mid-cycle sees the shape of the whole thing immediately.
  */
-function step(at: number, body: string): string {
-  return `<div data-wf class="hs" style="animation:wf-step ${CYCLE}s linear ${at.toFixed(2)}s infinite">${body}</div>`
+function step(at: number, body: string, extra = ''): string {
+  return `<div data-wf class="hs"${extra} style="animation:wf-step ${CYCLE}s linear ${at.toFixed(
+    2,
+  )}s infinite">${body}</div>`
 }
 
-/**
- * How loud a mark is.
- *
- * `plain` is the default and writes no class at all — a modifier for "unmodified" is a class name
- * that has to be kept from colliding with something for no benefit, and this one did collide.
- */
 type Tone = 'plain' | 'lit' | 'no' | 'ghost'
 
 function tone(which: Tone): string {
   return which === 'plain' ? '' : ` ${which}`
 }
 
-/** A small labelled block: a slot name, a port, a frame code, a file. */
+/** A line of code at figure scale. Most of these figures are made of these. */
+function code(text: string, which: Tone = 'plain'): string {
+  return `<span class="hc${tone(which)}">${enc(text)}</span>`
+}
+
+/** A small labelled block: a slot, a port, a frame code, a verdict. */
 function pill(text: string, which: Tone = 'plain'): string {
   return `<span class="hp${tone(which)}">${enc(text)}</span>`
 }
 
-/** A line of mono text at figure scale, which most of these rows are made of. */
-function line(text: string, which: Tone = 'plain'): string {
-  return `<span class="hl${tone(which)}">${enc(text)}</span>`
+/** A bordered panel holding one line — a file, a stage, a node in the DOM. */
+function box(body: string, kind: '' | 'lit' | 'dashed' | 'tight' = ''): string {
+  return `<div class="hbox${kind ? ` ${kind}` : ''}">${body}</div>`
 }
 
-/** A bar drawn to scale, with what it is and what it measured. */
-function bar(label: string, share: number, value: string, which: Tone, at: number): string {
-  return `<div class="hb">
-    <span class="hb-name">${enc(label)}</span>
-    <span class="hb-track"><span data-wf class="hb-fill${tone(which)}" style="width:${(share * 100).toFixed(
-      1,
-    )}%;animation:wf-grow ${CYCLE}s cubic-bezier(.2,.7,.3,1) ${at.toFixed(2)}s infinite"></span></span>
-    <span class="hb-val${tone(which)}">${enc(value)}</span>
-  </div>`
+const ARROW = '<span class="harrow">&#8594;</span>'
+
+/** A leader line, so a name on the left and a number on the right belong to each other. */
+const LEAD = '<span class="hlead"></span>'
+
+/** Rows in a column. `tight` is the terminal spacing; the default is the diagram spacing. */
+function rows(items: readonly string[], tight = false): string {
+  return `<div class="hrows${tight ? ' tight' : ''}">${items.join('')}</div>`
 }
 
-/** The frame every hero sits in: the drawing, and the sentence that says what it showed. */
+/** One row across: a label, whatever it is about, and often a number at the end. */
+function row(body: string): string {
+  return `<div class="hrow">${body}</div>`
+}
+
+/** An edge with one mark travelling it — every hand-off in these figures is drawn this way. */
+function wire(at = 0): string {
+  return `<div class="hwire"><span data-wf class="hdot" style="animation:wf-travel ${CYCLE}s linear ${at.toFixed(
+    2,
+  )}s infinite"></span></div>`
+}
+
+/**
+ * One label in the place of another.
+ *
+ * Both sit in the same grid cell rather than being positioned absolutely, so the pair takes the
+ * width of the wider of the two and the row around it does not move when they trade places. A swap
+ * that resized its own row would read as two things happening.
+ */
+function swap(before: string, after: string): string {
+  return `<span class="hswap">
+    <span data-wf class="hswap-a" style="animation:wf-swap-a ${CYCLE}s linear infinite">${before}</span>
+    <span data-wf class="hswap-b" style="animation:wf-swap-b ${CYCLE}s linear infinite">${after}</span>
+  </span>`
+}
+
+/** A bar drawn to scale inside a row. */
+function bar(share: number, which: Tone, at: number): string {
+  return `<span class="hb-track"><span data-wf class="hb-fill${tone(which)}" style="width:${(
+    share * 100
+  ).toFixed(1)}%;animation:wf-grow ${CYCLE}s cubic-bezier(.2,.7,.3,1) ${at.toFixed(
+    2,
+  )}s infinite"></span></span>`
+}
+
+/** A bar row: what it is, how long it took, and the number. */
+function meter(label: string, share: number, value: string, which: Tone, at: number): string {
+  return row(`${code(label)}${bar(share, which, at)}${code(value)}`)
+}
+
+/** A note in the figure's own voice — smaller, and not code. */
+function note(text: string, wide = false): string {
+  return `<span class="hnote${wide ? ' wide' : ''}">${enc(text)}</span>`
+}
+
+/** The frame every hero sits in: the drawing, and the sentence saying what it showed. */
 function frame(slug: string, body: string): string {
   const says = caption(slug)
   return `<figure class="hero-fig">
@@ -79,49 +126,51 @@ function frame(slug: string, body: string): string {
   </figure>`
 }
 
-/** Rows, each arriving in turn. The stagger is computed, so inserting a row retimes the rest. */
-function rows(items: readonly string[], gap = 0.42): string {
-  return `<div class="hrows">${items.map((body, at) => step(at * gap, body)).join('')}</div>`
-}
-
 /* ── the figures ──────────────────────────────────────────────────────────── */
 
-/** What `npm create weft` writes, in the order you would read the folder. */
+/** Every file the command writes, in the order you would read the folder. */
 function gettingStarted(): string {
-  const tree: readonly [string, string, number][] = [
-    ['my-app/', '21 files', 0],
-    ['app/', '', 1],
-    ['layout.tsx', 'the document. Its slot holes are what a route fills', 2],
-    ['layout.css', 'linked by every page under it', 2],
-    ['styles.css', 'the application’s own sheet', 2],
-    ['routes/', 'the route table — this subtree is it', 2],
-    ['index.tsx', '/', 3],
-    ['index.data.ts', 'head, cache policy, loader', 3],
-    ['weft.config.ts', 'every line commented out', 1],
+  const tree: readonly [number, string, string][] = [
+    [0, 'my-app/', '21 files'],
+    [1, 'app/', ''],
+    [2, 'layout.tsx', 'the document. Its slot holes are what a route fills'],
+    [2, 'layout.css', 'linked by every page under it'],
+    [2, 'styles.css', 'the application’s own sheet'],
+    [2, 'routes/', 'the route table — this subtree is it'],
+    [3, 'index.tsx', '/'],
+    [3, 'index.data.ts', 'head, cache policy, loader'],
+    [3, 'index.css', 'linked only by the pages that render index'],
+    [2, 'fragments/', ''],
+    [1, 'weft.config.ts', 'every line commented out — an application with no config still has a store'],
   ]
   return frame(
     'getting-started',
-    `<p class="hcmd"><span class="prompt">$</span> <span class="cmd">npm create weft my-app</span><span
-       data-wf class="caret" style="animation:wf-caret 1.1s steps(1) infinite"></span></p>
-     ${rows(
-       tree.map(
-         ([name, note, depth]) =>
-           `<div class="htree" style="padding-inline-start:${depth * 16}px">${line(
-             name,
-             depth === 0 ? 'lit' : 'plain',
-           )}${note ? `<span class="hnote">${enc(note)}</span>` : ''}</div>`,
-       ),
-       0.26,
-     )}`,
+    `<div class="hcmd">
+       <span class="hc dim">$</span><span class="hc lit">npm create weft my-app</span>
+       <span data-wf class="caret" style="animation:wf-caret 1.1s steps(1) infinite"></span>
+       <span class="hcmd-end">${pill('--template app', 'lit')}${pill('--template minimal')}</span>
+     </div>
+     <div class="hpanel">
+       <div class="hpanel-head">
+         <span class="hpanel-kicker">template app — the default</span>
+         <span class="hnote">a working page, a param route, one mutation</span>
+       </div>
+       ${tree
+         .map(([depth, name, says], at) =>
+           step(
+             at * 0.2,
+             `<div class="htree" style="padding-inline-start:${depth * 16}px">
+                <span class="hc${depth >= 2 ? ' lit' : ' dim'}">${enc(name)}</span>
+                ${says ? `<span class="hnote end">${enc(says)}</span>` : ''}
+              </div>`,
+           ),
+         )
+         .join('')}
+     </div>`,
   )
 }
 
-/**
- * The route table is the file tree, drawn as the walk that produces it.
- *
- * 740 units wide rather than the architecture page's 1320: a guide page's column is 786px, and a
- * figure drawn at the wider scale either scrolls or shrinks its 13px labels to eight.
- */
+/** The route table is the file tree, drawn as the walk that produces it. */
 function anApplication(): string {
   const files: readonly [string, string][] = [
     ['index.tsx', '/'],
@@ -164,73 +213,73 @@ function anApplication(): string {
 /**
  * A template as what it actually is: finished bytes, with gaps.
  *
- * The constant runs are one width and the holes another, and only the holes light — which is the
- * claim the page makes in one picture. The version comes last because it is a property of the
- * whole strip and not of any segment in it.
+ * The constant runs are drawn wide and flat and never move; only the holes arrive. That is the
+ * whole claim of the page in one picture — the bytes are already decided, and a render is what
+ * lands in the spaces between them.
  */
 function fragments(): string {
-  const strip: readonly [number, boolean][] = [
-    [2, false],
-    [0.8, true],
-    [1.4, false],
-    [0.8, true],
-    [1.4, false],
-    [0.8, true],
-    [1.4, false],
-  ]
+  const strip: readonly (number | 'hole')[] = [2, 'hole', 1.4, 'hole', 1.4, 'hole', 1.4]
   let hole = 0
   const cells = strip
-    .map(([flex, isHole]) => {
-      if (!isHole) return `<span class="hseg" style="flex:${flex}"></span>`
+    .map((cell) => {
+      if (cell !== 'hole') return `<span class="hseg" style="flex:${cell}"></span>`
       hole += 1
-      return step(hole * 0.42, `<span class="hseg hole"></span>`).replace(
-        'class="hs"',
-        `class="hs" style="flex:${flex}"`,
-      )
+      return step(hole * 0.84 - 0.42, `<span class="hseg hole"></span>`, ' style="flex:.8"')
     })
     .join('')
   return frame(
     'fragments',
     `<div class="hstrip">${cells}</div>
-     <div class="hstrip-say">
-       <span class="hnote">pre-encoded bytes</span><span class="hnote">·</span>
-       <span class="hnote">holes, filled per render</span>
-       ${step(2.52, `<span class="hl lit">version t_9f4c1ab2 — a hash of its content</span>`)}
-     </div>`,
+     ${row(
+       `${note('pre-encoded bytes')}${note('·')}${note('holes, filled per render')}
+        <span class="hpush"></span>
+        ${step(2.52, code('version t_9f4c1ab2 — a hash of its content', 'lit'))}`,
+     )}`,
   )
 }
 
-/** One fragment inside another, and the flat stream it lowers to. */
+/** One fragment inside another, and the flat stream both of them lower to. */
 function components(): string {
   return frame(
     'components',
-    `${rows(
-      [
-        `<div class="hbox">${line('<Card>')}<span class="hnote">outer template</span></div>`,
-        `<div class="hnest"><div class="hbox dashed">${line('children — one hole, any shape')}</div></div>`,
-      ],
-      0.42,
-    )}
-     <div class="hwire"><span data-wf class="hdot" style="animation:wf-travel ${CYCLE}s linear .6s infinite"></span></div>
-     ${step(1.26, `<div class="hbox lit">${line('one stream of segments · nothing nested at runtime', 'lit')}</div>`)}`,
+    `${step(0, box(`${code('&lt;Card&gt;')}${note('outer template')}`))}
+     <div class="hnest">${step(0.42, box(code('children — one hole, any shape'), 'dashed'))}</div>
+     ${wire()}
+     ${step(1.26, box(code('one stream of segments · nothing nested at runtime', 'lit'), 'lit'))}`,
   )
 }
 
-/** The attribute the compiler stamps, shown where it is stamped: into the bytes. */
+/** The attribute the compiler stamps, and the three places it shows up. */
 function scopedStyles(): string {
+  const panes: readonly [string, string, Tone][] = [
+    [
+      'card.scoped.css — as authored',
+      '.card { border: 1px solid red }\n.card .body { opacity: 0.7 }',
+      'plain',
+    ],
+    [
+      'card.tsx — sealed by the compiler',
+      '<div data-w-d901a5ad class="card">\n  <p data-w-d901a5ad class="body">',
+      'lit',
+    ],
+    ['on the wire', '.card[data-w-d901a5ad] { … }\n.card .body[data-w-d901a5ad] { … }', 'lit'],
+  ]
   return frame(
     'scoped-styles',
-    rows(
-      [
-        `<div class="hbox"><span class="hnote">card.scoped.css — as authored</span>
-          ${line('.card { border: 1px solid red }')}${line('.card .body { opacity: 0.7 }')}</div>`,
-        `<div class="hbox"><span class="hnote">card.tsx — sealed by the compiler</span>
-          ${line('<div data-w-d901a5ad class="card">', 'lit')}</div>`,
-        `<div class="hbox"><span class="hnote">on the wire</span>
-          ${line('.card[data-w-d901a5ad] { … }', 'lit')}</div>`,
-      ],
-      0.5,
-    ),
+    `<div class="hpanes">${panes
+      .map(([head, body, which], at) =>
+        step(
+          at * 0.6,
+          `<div class="hpane">
+             <div class="hpane-head">${enc(head)}</div>
+             <pre class="hpane-body">${body
+               .split('\n')
+               .map((each) => `<span class="hc${tone(which)}">${enc(each)}</span>`)
+               .join('')}</pre>
+           </div>`,
+        ),
+      )
+      .join('')}</div>`,
   )
 }
 
@@ -238,40 +287,38 @@ function scopedStyles(): string {
 function layouts(): string {
   return frame(
     'layouts',
-    `${step(
+    step(
       0,
-      `<div class="hbox">${line('app/layout.tsx — the document')}
-      ${step(
-        0.6,
-        `<div class="hnest"><div class="hbox">${line('routes/guide/layout.tsx — contents, body, outline')}
-          ${step(1.2, `<div class="hnest"><div class="hbox lit">${line('the page — one slot, deep in a chain', 'lit')}</div></div>`)}
-        </div></div>`,
-      )}
-    </div>`,
-    )}`,
+      `<div class="hbox wrap">
+         ${code('app/layout.tsx — the document')}
+         <div class="hinner">${step(
+           0.42,
+           `<div class="hbox wrap inner">
+              ${code('routes/guide/layout.tsx — contents, body, outline')}
+              <div class="hinner">${step(
+                0.84,
+                box(code('the page — one slot, deep in a chain', 'lit'), 'lit'),
+              )}</div>
+            </div>`,
+         )}</div>
+       </div>`,
+    ),
   )
 }
 
-/** A read, and the four things that follow from it with nothing in between to configure. */
+/** A read, and the three things that follow from it with nothing in between to configure. */
 function effectsAndCache(): string {
   return frame(
     'effects-and-cache',
-    `<div class="hchain">${[
-      'const u = ctx.identity()',
-      'taint: identity',
-      'class: private',
-      'key: identity + route:page',
-    ]
-      .map(
-        (part, at) =>
-          `${at ? '<span class="harrow">→</span>' : ''}${step(
-            at * 0.5,
-            `<span class="hl${at === 3 ? ' lit' : ''}">${enc(part)}</span>`,
-          )}`,
-      )
-      .join('')}</div>
-     <p class="hnote wide">There is no setter anywhere in the kernel, the plan DSL or the plugin
-       surface. The absence is the enforcement.</p>`,
+    `${step(
+      0,
+      box(`${code('const u = ')}${code('ctx.identity()', 'lit')}${code('   // a read, inferred', 'ghost')}`),
+    )}
+     ${row(
+       ['taint: identity', 'class: private', 'key: identity + route:page']
+         .map((each, at) => `${at ? ARROW : ''}${step(0.42 + at * 0.42, pill(each, 'lit'))}`)
+         .join(''),
+     )}`,
   )
 }
 
@@ -279,51 +326,72 @@ function effectsAndCache(): string {
  * The two delivery orders, raced on one clock.
  *
  * Both lanes settle at the same instant and carry identical DOM; the only difference is when the
- * fast region became visible, which is the entire claim and the only thing that moves.
+ * fast region became visible, which is the entire claim and the only thing that moves. Each region
+ * is a dashed outline that is filled when it lands — so the space a region will occupy is visible
+ * from the first frame, which is what a placeholder is.
  */
 function slotsAndStreaming(): string {
   const lane = (
     kind: string,
     says: string,
-    bands: readonly { at: string; cls: string; anim: string }[],
-    tick: { at: number; label: string; lit: boolean },
+    bands: readonly { label: string; tall?: boolean; anim: string; lit?: boolean }[],
+    ticks: readonly { at: number; label: string; anim: string; lit?: boolean }[],
   ): string => `<div class="hlane">
-      <div class="hlane-head"><span class="hl${tick.lit ? ' lit' : ''}">${enc(kind)}</span>
-        <span class="hnote">${enc(says)}</span></div>
-      <div class="htrack">
-        <span data-wf class="hband base" style="animation:wf-shell 3.6s linear infinite"></span>
-        ${bands
+      <div class="hlane-head"><span class="hlane-kind">${enc(kind)}</span>${note(says)}</div>
+      <div class="hbands">${bands
+        .map(
+          (band) => `<div class="hband${band.tall === true ? ' tall' : ''}">
+            ${band.tall === true ? `<span class="hband-wait">${enc(band.label)} — 80 ms</span>` : ''}
+            <span data-wf class="hband-in${band.lit === true ? ' lit' : ''}" style="animation:${
+              band.anim
+            } 3.2s linear infinite">${enc(band.label)}</span>
+          </div>`,
+        )
+        .join('')}</div>
+      <div class="hclock">
+        <span data-wf class="hclock-head" style="animation:wf-play 3.2s linear infinite"></span>
+        <span class="hclock-rule"></span>
+        ${ticks
           .map(
-            (band) =>
-              `<span data-wf class="hband ${band.cls}" style="left:${band.at};animation:${band.anim} 3.6s linear infinite"></span>`,
+            (tick) =>
+              `<span data-wf class="hclock-tick${tick.lit === true ? ' lit' : ''}" style="left:${
+                tick.at
+              }%;animation:${tick.anim} 3.2s linear infinite">${enc(tick.label)}</span>`,
           )
           .join('')}
-        <span data-wf class="hplay" style="animation:wf-play 3.6s linear infinite"></span>
-        <span data-wf class="htick ${tick.lit ? 'lit' : ''}" style="left:${tick.at}%;animation:${
-          tick.lit ? 'wf-tick' : 'wf-tick-late'
-        } 3.6s linear infinite">${enc(tick.label)}</span>
       </div>
     </div>`
   return frame(
     'slots-and-streaming',
-    `${lane('In order', 'the shell waits', [{ at: '0%', cls: 'slow', anim: 'wf-fast-io' }], {
-      at: 96,
-      label: '103 ms',
-      lit: false,
-    })}
-     ${lane(
-       'Out of order',
-       'whatever is ready goes first',
-       [
-         { at: '0%', cls: 'fast', anim: 'wf-fast-oo' },
-         { at: '21%', cls: 'slow', anim: 'wf-slow' },
-       ],
-       { at: 21, label: '22 ms', lit: true },
-     )}`,
+    `<div class="hlanes">
+      ${lane(
+        'In order',
+        'the shell waits',
+        [
+          { label: 'shell', anim: 'wf-shell' },
+          { label: 'feed', tall: true, anim: 'wf-slow' },
+          { label: 'prices', anim: 'wf-fast-io', lit: true },
+        ],
+        [{ at: 88, label: '103 ms', anim: 'wf-tick-late' }],
+      )}
+      ${lane(
+        'Out of order',
+        'whatever is ready goes first',
+        [
+          { label: 'shell', anim: 'wf-shell' },
+          { label: 'prices', anim: 'wf-fast-oo', lit: true },
+          { label: 'feed', tall: true, anim: 'wf-slow' },
+        ],
+        [
+          { at: 14, label: '22 ms', anim: 'wf-tick', lit: true },
+          { at: 88, label: '103 ms', anim: 'wf-tick-late' },
+        ],
+      )}
+     </div>`,
   )
 }
 
-/** The waves, and what they cost against doing the same work one slot at a time. */
+/** The waves the kernel builds, and what they cost against the same work one slot at a time. */
 function whereItRuns(): string {
   const slots = [
     { name: 'header', ms: 20 },
@@ -341,17 +409,13 @@ function whereItRuns(): string {
   return frame(
     'where-it-runs',
     `${rows(
-      plan.waves.map(
-        (wave, at) =>
-          `<div class="hwave">${line(`wave ${at + 1}`, 'lit')}${wave
-            .map((name) => pill(name))
-            .join('')}</div>`,
+      plan.waves.map((wave, at) =>
+        step(at * 0.84, row(`${code(`wave ${at + 1}`, 'lit')}${wave.map((name) => pill(name)).join('')}`)),
       ),
-      0.84,
     )}
      <div class="hbars">
-       ${bar('sequential', 1, `${path.sequentialMs.toFixed(1)} ms`, 'ghost', 0)}
-       ${bar('waves', path.ms / path.sequentialMs, `${path.ms.toFixed(1)} ms`, 'lit', 0.32)}
+       ${meter('sequential', 1, `${path.sequentialMs.toFixed(1)} ms`, 'ghost', 0)}
+       ${meter('waves', path.ms / path.sequentialMs, `${path.ms.toFixed(1)} ms`, 'lit', 0.32)}
      </div>`,
   )
 }
@@ -360,82 +424,81 @@ function whereItRuns(): string {
 function declarations(files: number): string {
   return frame(
     'declarations',
-    `<p class="hcmd"><span class="prompt">$</span> <span class="cmd">weft build</span></p>
-     ${rows(
-       [
-         `<span class="hl lit">${enc(`${files} files written to .weft/static/`)}</span>`,
-         `<span class="hl">/play — not a file: reads what you typed</span>`,
-         `<span class="hl">/search — not a file: reads route:q</span>`,
-       ],
-       0.5,
-     )}`,
+    rows(
+      [
+        step(0, code('$ weft build', 'lit')),
+        step(0.42, code(`  ${files} files written to .weft/static/`)),
+        step(0.84, code('  /play — not a file: reads what you typed', 'ghost')),
+        step(1.26, code('  /search — not a file: reads route:q', 'ghost')),
+      ],
+      true,
+    ),
   )
 }
 
 /** A recording, and the one decision it is allowed to change. */
 function measuring(): string {
-  const seen = [
-    { name: 'header', ms: 2 },
-    { name: 'prices', ms: 6 },
-    { name: 'feed', ms: 81 },
-    { name: 'related', ms: 78 },
+  const seen: readonly [string, number, number][] = [
+    ['header', 2, 0.1],
+    ['prices', 6, 0.38],
+    ['feed', 81, 0.66],
+    ['related', 78, 0.94],
   ]
-  const top = Math.max(...seen.map((each) => each.ms))
   return frame(
     'measuring',
-    `<div class="hbars">${seen
-      .map((each, at) =>
-        bar(each.name, each.ms / top, `${each.ms} ms`, each.ms > 40 ? 'lit' : 'plain', at * 0.24),
-      )
-      .join('')}</div>
-     <p class="hnote wide">the next generation plans delivery from it</p>
-     <div class="hswap">
-       <span data-wf class="hl" style="animation:wf-swap-a ${CYCLE}s linear infinite">feed: buffer</span>
-       <span data-wf class="hl lit" style="animation:wf-swap-b ${CYCLE}s linear infinite">feed: stream</span>
-     </div>`,
+    `${seen
+      .map(([name, ms, share], at) => meter(name, share, `${ms} ms`, ms > 40 ? 'lit' : 'ghost', at * 0.16))
+      .join('')}
+     <div class="hafter">${row(
+       `${note('the next generation plans delivery from it')}
+        ${swap(pill('feed: buffer'), pill('feed: stream', 'lit'))}`,
+     )}</div>`,
   )
 }
 
-/** Adoption, and what one write actually touches. */
+/** Adoption records where each value lives, and one write touches exactly that. */
 function theClient(): string {
   return frame(
     'the-client',
-    `<div class="hdom">${Array.from({ length: 5 }, (_, at) =>
-      step(at * 0.2, `<span class="hnode${at === 3 ? ' lit' : ''}">&lt;li&gt;</span>`),
-    ).join('')}</div>
-     ${step(1.2, `<span class="hnote">~200 bindings recorded</span>`)}
-     <div class="hwire"><span data-wf class="hdot" style="animation:wf-travel ${CYCLE}s linear 2s infinite"></span></div>
-     <div class="hwrite">
-       ${step(2.4, `<span class="hl">one signal write</span>`)}
-       <span data-wf class="hl lit flash" style="animation:wf-flash ${CYCLE}s linear infinite">qty 2 → 3</span>
-       ${step(3, `<span class="hnote">0.31 µs, one node, no component code</span>`)}
-     </div>`,
+    `${row(
+      `${Array.from({ length: 5 }, (_, at) => step(at * 0.42, box(code('&lt;li&gt;'), 'tight'))).join('')}
+       <span class="hpush"></span>
+       ${step(2.1, note('~200 bindings recorded'))}`,
+    )}
+     ${wire(2.4)}
+     ${row(
+       `${step(2.52, code('one signal write'))}
+        <span data-wf class="hflash" style="animation:wf-flash ${CYCLE}s linear infinite">${enc('qty 2 → 3')}</span>
+        ${step(3, note('0.31 µs, one node, no component code'))}`,
+     )}`,
   )
 }
 
-/** Staging paints nowhere, so the figure has to show two timelines and one commit. */
+/** Staging paints nowhere, so the figure has to show the staged epoch and the commit separately. */
 function navigation(): string {
   return frame(
     'navigation',
-    rows(
-      [
-        `<div class="hrow">${line('hover')}<span class="hnote">epoch staged — paints nowhere</span>
-          <span class="hl lit end">17 ms</span></div>`,
-        `<div class="hrow">${line('click')}<span class="hnote">COMMIT — every slot flips at once</span></div>`,
-        `<div class="hrow">${line('unstaged', 'ghost')}<span class="hnote">on the demo’s deliberately slow page</span>
-          <span class="hl end">606 ms</span></div>`,
-      ],
-      0.5,
-    ),
+    rows([
+      row(
+        `${code('hover', 'ghost')}${step(0, box(code('epoch staged — paints nowhere'), 'dashed'))}${step(
+          0.84,
+          pill('17 ms', 'lit'),
+        )}`,
+      ),
+      row(
+        `${code('click', 'ghost')}${step(1.26, box(code('COMMIT — every slot flips at once', 'lit'), 'lit'))}`,
+      ),
+      row(
+        `${code('unstaged', 'ghost')}${step(2.1, note('on the demo’s deliberately slow page'))}${step(
+          2.52,
+          pill('606 ms'),
+        )}`,
+      ),
+    ]),
   )
 }
 
-/**
- * One dispatch, two callers, and the same two functions in the middle of both.
- *
- * The bottom row is what each caller gets back, so the two edges into it run backwards across the
- * figure — which is what they are: an answer returning to whoever asked.
- */
+/** One dispatch, two callers, and the same two functions in the middle of both. */
 function intents(): string {
   const nodes: GraphNode[] = [
     {
@@ -486,7 +549,7 @@ function intents(): string {
       y: 100,
       w: 224,
       h: 74,
-      title: 'writes: [] — or the tags it names',
+      title: 'writes: [ … ]',
       notes: ['the tags it declared, and only', 'those'],
       at: 2.3,
     },
@@ -534,13 +597,7 @@ function intents(): string {
   return frame('intents', graph(nodes, edges, { height: 300, cycle: 5.4 }))
 }
 
-/**
- * The socket, and the four things a client says when it opens one.
- *
- * A cycle rather than a pipeline: the client names what it holds, the server answers with the
- * smallest thing that will do, and that answer returns to the client. The two closing edges run
- * backwards, which is the shape of the claim — nothing here is a round of polling.
- */
+/** The socket, the cycle it turns, and the four things a client says when it opens one. */
 function liveRegions(): string {
   const nodes: GraphNode[] = [
     {
@@ -601,13 +658,12 @@ function liveRegions(): string {
   return frame(
     'live-regions',
     `${graph(nodes, edges, { height: 232, cycle: 5.4 })}
-     <p class="hnote wide">up · codes below 0x10 — what the client tells the server</p>
+     <p class="hcap">up · codes below 0x10 — what the client tells the server</p>
      ${rows(
-       codes.map(
-         ([code, name, says]) =>
-           `<div class="hrow">${line(code, 'lit')}${line(name)}<span class="hnote">${enc(says)}</span></div>`,
+       codes.map(([hex, name, says], at) =>
+         step(at * 0.34, row(`${code(hex, 'lit')}${code(name)}${note(says)}`)),
        ),
-       0.34,
+       true,
      )}`,
   )
 }
@@ -616,10 +672,10 @@ function liveRegions(): string {
  * What a page actually downloads: one mark per module, and what they weigh together.
  *
  * The count is `weft.budget.json` — the file the growth cap is a diff of — so it is this site's own
- * walk over HTTP rather than a number about the demo. The marks are the same height on purpose.
- * There is no per-module breakdown in that file, and nineteen bars of varying height would draw a
- * distribution nothing measured: the figure's claim is *how many responses a page fetches*, and the
- * weight is the number beside them.
+ * walk over HTTP rather than a figure about the demo. The marks are the same height on purpose:
+ * there is no per-module breakdown in that file, and bars of varying height would draw a
+ * distribution nothing measured. The claim is how many responses a page fetches; the weight is the
+ * number beside them.
  */
 function whatShips(): string {
   const site = siteWeight()
@@ -632,12 +688,13 @@ function whatShips(): string {
           at * 0.06
         ).toFixed(2)}s infinite"></span>`,
     ).join('')}</div>
-     <div class="hstrip-say">
-       <span class="hnote">${site.modules} modules, served as written, comments intact</span>
-       <span class="hl lit end">${site.brotli.toLocaleString('en-US')} B brotli</span>
-     </div>
-     <p class="hnote wide">gated by <code>budget({ js, grow })</code>, measured on the real walk over HTTP
-       rather than over a bundle — this framework has no bundler to measure.</p>`,
+     ${row(
+       `${note(`${site.modules} modules, served as written, comments intact`)}
+        <span class="hpush"></span>
+        ${code(`${site.brotli.toLocaleString('en-US')} B brotli`, 'lit')}`,
+     )}
+     <p class="hcap">gated by <code>budget({ js, grow })</code>, measured on the real walk over HTTP —
+       this framework has no bundler, so there is no bundle to measure instead.</p>`,
   )
 }
 
@@ -646,105 +703,103 @@ function deploying(): string {
   return frame(
     'deploying',
     `<div class="hports">${Array.from({ length: 11 }, (_, at) =>
-      step(at * 0.28, `<span class="hp lit">${enc(`port ${at + 1} bound`)}</span>`),
+      step(at * 0.23, pill(`port ${at + 1} bound`)),
     ).join('')}</div>
-     <p class="hnote wide">No configuration at all for a first deployment. Bind a port and only that
-       behaviour changes; a port that is not bound refuses by name rather than approximating.</p>`,
+     <p class="hcap">No configuration at all for a first deployment. Bind a port and only that behaviour
+       changes; a port that is not bound refuses by name rather than approximating.</p>`,
   )
 }
 
-/** A region that might live elsewhere, and what happens when it does not answer. */
+/** A region that might live elsewhere, and what happens to the rest when it does not answer. */
 function composition(): string {
   return frame(
     'composition',
-    `<div class="hchain">
-       ${step(0, `<span class="hl">shell — says search</span>`)}
-       <span class="harrow">→</span>
-       ${step(0.5, `<span class="hl">registry: this process · a binding · another pod</span>`)}
-       <span class="harrow">→</span>
-       ${step(1, `<span class="hl lit">REGION search</span>`)}
-     </div>
-     <div class="hwire"><span data-wf class="hdot" style="animation:wf-travel ${CYCLE}s linear 1.4s infinite"></span></div>
-     <div class="hswap">
-       <span data-wf class="hl" style="animation:wf-swap-a ${CYCLE}s linear infinite">that one region degrades to its declared fallback</span>
-       <span data-wf class="hl lit" style="animation:wf-swap-b ${CYCLE}s linear infinite">the other four are untouched</span>
-     </div>`,
+    `${row(
+      `${step(0, box(code('shell — says search')))}${ARROW}${step(
+        0.42,
+        box(code('registry: this process · a binding · another pod'), 'dashed'),
+      )}${ARROW}${step(0.84, pill('REGION search', 'lit'))}`,
+    )}
+     ${wire()}
+     ${row(swap(note('that one region degrades to its declared fallback'), note('the other four are untouched')))}`,
   )
 }
 
-/** Three engines, measured directly, and the one that is labelled a proxy. */
+/** Three engines, measured directly, and the one that is labelled a proxy rather than a phone. */
 function devices(): string {
-  const engines: readonly [string, string, boolean][] = [
-    ['chromium', '22 ms', false],
-    ['firefox', '23 ms', false],
-    ['webkit', '22 ms, a desktop proxy', true],
+  const engines: readonly [string, string][] = [
+    ['chromium', '22 ms'],
+    ['firefox', '23 ms'],
+    ['webkit', '22 ms, a desktop proxy'],
   ]
   return frame(
     'devices',
     rows(
-      engines.map(
-        ([name, value, proxy]) =>
-          `<div class="hrow">${line(name)}<span class="hl ${proxy ? 'ghost' : 'lit'} end">${enc(value)}</span></div>`,
-      ),
-      0.5,
+      engines.map(([name, value], at) => step(at * 0.42, row(`${code(name, 'lit')}${LEAD}${code(value)}`))),
     ),
   )
 }
 
-/** A minor travels both ways; a major does not travel at all. */
+/** A minor travels in both directions; a major does not travel at all. */
 function versioning(): string {
   return frame(
     'versioning',
-    rows(
-      [
-        `<div class="hrow">${line('minor', 'lit')}${line('warp 1.7')}<span class="harrow">→</span>${line(
-          'warp 1.8',
-        )}<span class="harrow">→</span><span class="hl lit end">round-trips</span></div>`,
-        `<div class="hrow">${line('major', 'no')}${line('ir 1.x')}<span class="harrow">→</span>${line(
-          'ir 2.x',
-        )}<span class="hl no end">refused, both versions named</span></div>`,
-      ],
-      0.6,
-    ),
+    rows([
+      row(
+        `${code('minor', 'ghost')}${step(0, pill('warp 1.7'))}${ARROW}${step(0.42, pill('warp 1.8'))}${ARROW}${step(
+          0.84,
+          pill('round-trips', 'lit'),
+        )}`,
+      ),
+      row(
+        `${code('major', 'ghost')}${step(1.26, pill('ir 1.x'))}${ARROW}${step(1.68, pill('ir 2.x'))}${ARROW}${step(
+          2.1,
+          pill('refused, both versions named', 'no'),
+        )}`,
+      ),
+    ]),
   )
 }
 
-/** The probe, and what it costs the request path, which is nothing. */
+/** The probe walks the tree, and what it costs the request path is nothing. */
 function testing(): string {
   return frame(
     'testing',
     `${rows(
       [
-        `<div class="hrow">${line('/')}<span class="hnote">1 hop</span></div>`,
-        `<div class="hrow">${line('search')}<span class="hnote">2 hops</span></div>`,
-        `<div class="hrow">${line('prices')}<span class="hnote">3 hops</span></div>`,
+        step(0, code('/ — 1 hop')),
+        step(0.42, code('  search — 2 hops')),
+        step(0.84, code('    prices — 3 hops', 'lit')),
       ],
-      0.34,
+      true,
     )}
-     <p class="hcmd"><span class="prompt">$</span> <span class="cmd">weft verify --probe</span></p>
-     <div class="hswap">
-       <span data-wf class="hl lit" style="animation:wf-swap-a ${CYCLE}s linear infinite">exit 0</span>
-       <span data-wf class="hl no" style="animation:wf-swap-b ${CYCLE}s linear infinite">exit 1 — regions disagree</span>
-     </div>
-     <p class="hnote wide">the probe costs the request path zero bytes</p>`,
+     <div class="hafter">${row(
+       `${code('weft verify --probe', 'lit')}
+        ${swap(pill('exit 0'), pill('exit 1 — regions disagree', 'no'))}
+        ${note('the probe costs the request path zero bytes')}`,
+     )}</div>`,
   )
 }
 
-/** One command's answer, because the page below is the help text parsed. */
+/** One command's answer, because the page below it is the help text parsed. */
 function cli(): string {
   return frame(
     'cli',
-    `<p class="hcmd"><span class="prompt">$</span> <span class="cmd">weft why /</span><span
-       data-wf class="caret" style="animation:wf-caret 1.1s steps(1) infinite"></span></p>
-     ${rows(
-       [
-         `<span class="hl">shell app/layout.tsx → routes/index.tsx</span>`,
-         `<span class="hl">wave 1  header (buffered) · feed (stream)</span>`,
-         `<span class="hl">wave 2  prices needs feed</span>`,
-         `<span class="hl lit">keys  header: static · feed: shared route:page</span>`,
-       ],
-       0.42,
-     )}`,
+    rows(
+      [
+        step(
+          0,
+          row(
+            `${code('$', 'ghost')}${code('weft why /', 'lit')}<span data-wf class="caret" style="animation:wf-caret 1.1s steps(1) infinite"></span>`,
+          ),
+        ),
+        step(0.42, code('  shell   app/layout.tsx → routes/index.tsx')),
+        step(0.84, code('  wave 1  header (buffered) · feed (stream)')),
+        step(1.26, code('  wave 2  prices needs feed')),
+        step(1.68, code('  keys    header: static · feed: shared route:page')),
+      ],
+      true,
+    ),
   )
 }
 

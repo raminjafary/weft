@@ -1,9 +1,10 @@
 /**
  * What a guide page opens with, beside the route that opens it.
  *
- * A hero figure, a verdict pair and a plain-terms panel are on every page under `/guide/…` and on
- * no other page on this site, so the framework links this sheet there and nowhere else. Every value
- * is spent from `styles.css`; this file defines none.
+ * A hero figure and a plain-terms panel are on every page under `/guide/…` and on no other page on
+ * this site, so the framework links this sheet there and nowhere else. The verdict pair is in
+ * `layout.css` instead, because that component was already there. Every value here is spent from
+ * `styles.css`; this file defines none.
  */
 
 /* ── the figure ───────────────────────────────────────────────────────────── */
@@ -22,6 +23,7 @@
   overscroll-behavior-x: contain;
 }
 
+/** These captions are sentences, not the file-name bar the site's other figures carry. */
 .hero-fig figcaption {
   display: block;
   padding: 11px 16px;
@@ -38,8 +40,7 @@
  * A row that arrives when its turn comes.
  *
  * The base is 16% rather than 0: a row at 16% is still legible as a row, so a figure reads as a
- * diagram filling in rather than as content appearing out of nowhere — and a reader who arrives
- * mid-cycle sees the shape of the whole thing immediately.
+ * diagram filling in rather than as content appearing out of nowhere.
  */
 .hs {
   opacity: 0.16;
@@ -51,6 +52,11 @@
   gap: 8px;
 }
 
+/** Terminal output is a block of lines, so it sits tighter than a column of diagram rows. */
+.hrows.tight {
+  gap: 7px;
+}
+
 .hrow {
   display: flex;
   align-items: center;
@@ -58,46 +64,68 @@
   flex-wrap: wrap;
 }
 
-.hl {
-  font: 12px/1.4 var(--mono);
-  color: var(--ink-soft);
-}
-
-.hl.lit {
-  color: var(--accent-ink);
-}
-
-.hl.ghost {
-  color: var(--dim);
-}
-
-.hl.no {
-  color: var(--danger-ink);
-}
-
-.hl.end {
+/** Pushes whatever follows to the far end of its row. */
+.hpush {
   margin-inline-start: auto;
 }
 
-.hnote {
-  font: 11.5px/1.5 var(--sans);
+.hc {
+  font: 12px/1.4 var(--mono);
+  color: var(--ink-soft);
+  white-space: pre;
+}
+
+.hc.lit {
+  color: var(--accent-ink);
+}
+
+.hc.ghost {
+  color: var(--faint);
+}
+
+.hc.dim {
   color: var(--dim);
 }
 
-.hnote.wide {
-  display: block;
-  margin: 12px 0 0;
+.hc.no {
+  color: var(--danger-ink);
+}
+
+.hnote {
+  font: 11px/1.4 var(--sans);
+  color: var(--dim);
+}
+
+.hnote.end {
+  margin-inline-start: auto;
+  max-width: 34ch;
+  text-align: end;
+}
+
+.hcap {
+  margin: 10px 0 0;
   max-width: 88ch;
+  font: 11px/1.5 var(--sans);
+  color: var(--dim);
+}
+
+.hcap code {
+  padding-inline: 0;
+  background: none;
+  white-space: nowrap;
 }
 
 .hp {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   padding: 5px 9px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
-  font: 11.5px/1 var(--mono);
+  background: var(--surface);
+  font: 12px/1 var(--mono);
   color: var(--ink-soft);
+  white-space: nowrap;
 }
 
 .hp.lit {
@@ -106,29 +134,14 @@
   color: var(--accent-ink);
 }
 
-.harrow {
-  color: var(--faint);
-  font-size: 12px;
-}
-
-.hcmd {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin: 0 0 14px;
-  font: 12.5px/1 var(--mono);
-}
-
-.hcmd .prompt {
-  color: var(--dim);
-}
-
-.hcmd .cmd {
-  color: var(--ink);
+.hp.no {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger-ink);
 }
 
 .hbox {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
@@ -138,6 +151,11 @@
   background: var(--surface);
 }
 
+.hbox.tight {
+  padding: 8px 10px;
+}
+
+/** A hole in the shape of the thing that will fill it — which is what a placeholder is. */
 .hbox.dashed {
   border-style: dashed;
   background: none;
@@ -148,25 +166,46 @@
   background: var(--accent-quiet);
 }
 
-/** A nested band is indented rather than boxed twice: the indent is the nesting. */
+/** A box that holds another box rather than a line, so it stacks instead of sitting in a row. */
+.hbox.wrap {
+  display: block;
+  border-radius: var(--r-lg);
+  padding: 14px;
+}
+
+.hbox.wrap.inner {
+  border-radius: 9px;
+  padding: 13px;
+  background: var(--bg);
+}
+
+.hinner {
+  margin-block-start: 11px;
+}
+
 .hnest {
   padding-inline-start: 26px;
   margin-block-start: 8px;
 }
 
-.hchain {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+.harrow {
+  color: var(--faint);
+  font-size: 14px;
 }
 
-/** An edge with one mark travelling it, which is how every hand-off in these figures is drawn. */
+/** A leader line, so a name on the left and a number on the right belong to each other. */
+.hlead {
+  flex: 1;
+  height: 1px;
+  min-width: 20px;
+  background: var(--line);
+}
+
 .hwire {
   position: relative;
   height: 2px;
-  margin: 10px 0;
-  border-radius: 1px;
+  margin: 14px 0;
+  border-radius: 2px;
   background: var(--line);
 }
 
@@ -180,6 +219,33 @@
   background: var(--accent);
 }
 
+/**
+ * One label in the place of another.
+ *
+ * Both children sit in the same grid cell, so the pair takes the width of the wider of the two and
+ * the row around it does not move when they trade places. A swap that resized its own row would
+ * read as two things happening rather than one.
+ */
+.hswap {
+  display: inline-grid;
+  align-items: center;
+  vertical-align: middle;
+}
+
+.hswap-a,
+.hswap-b {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+}
+
+.hswap-b {
+  opacity: 0;
+}
+
+.hafter {
+  margin-block-start: 10px;
+}
+
 /* ── bars ─────────────────────────────────────────────────────────────────── */
 
 .hbars {
@@ -189,23 +255,15 @@
   margin-block-start: 12px;
 }
 
-.hb {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.hb-name {
+.hrow > .hc:first-child {
   width: 76px;
   flex: none;
-  font: 12px/1.4 var(--mono);
-  color: var(--faint);
 }
 
 .hb-track {
   flex: 1;
   display: block;
-  height: 13px;
+  min-width: 60px;
 }
 
 .hb-fill {
@@ -213,7 +271,7 @@
   height: 13px;
   border-radius: 3px;
   transform-origin: left;
-  background: var(--accent-800);
+  background: var(--accent-700);
 }
 
 .hb-fill.ghost {
@@ -224,25 +282,64 @@
   background: var(--accent);
 }
 
-.hb-val {
-  width: 88px;
-  flex: none;
-  text-align: right;
-  font: 12px/1.4 var(--mono);
-  color: var(--ink-soft);
-}
-
-.hb-val.lit {
-  color: var(--accent-ink);
-}
-
 /* ── the figures that need their own shape ───────────────────────────────── */
 
-/** A template, as the thing it is: runs of finished bytes with gaps between them. */
+.hcmd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-block-end: 18px;
+}
+
+.hcmd-end {
+  margin-inline-start: auto;
+  display: flex;
+  gap: 7px;
+}
+
+.caret {
+  display: inline-block;
+  width: 1.5px;
+  height: 14px;
+  background: var(--accent);
+}
+
+.hpanel {
+  padding: 14px 16px;
+  border: 1px solid var(--accent-edge);
+  border-radius: var(--r-lg);
+  background: var(--accent-quiet);
+}
+
+.hpanel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-block-end: 10px;
+}
+
+.hpanel-kicker {
+  font: 600 10px/1 var(--sans);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.htree {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 2.5px 0;
+}
+
+/** A template: runs of finished bytes, and the gaps between them. */
 .hstrip {
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-block-end: 8px;
 }
 
 .hstrip .hs {
@@ -257,156 +354,166 @@
 }
 
 /**
- * A hole has to be legible as a different thing from the bytes around it.
+ * A hole has to read as a different thing from the bytes around it.
  *
  * On the dark ground the accent's quiet step and the divider that draws a segment land within a few
- * points of each other, so the strip read as seven identical blocks — which is the one thing this
- * figure must not say. The hole takes the accent as a line and a wash of it inside.
+ * points of each other, so the strip read as seven identical blocks — the one thing this figure
+ * must not say. The hole takes the accent as a line, with a wash of it inside.
  */
 .hseg.hole {
   border: 1px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
-.hstrip-say {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-block-start: 12px;
+.hpanes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
 }
 
-.hstrip-say .hs:last-child {
-  margin-inline-start: auto;
+.hpane {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  overflow: hidden;
 }
 
-.htree {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
+.hpane-head {
+  padding: 8px 12px;
+  border-block-end: 1px solid var(--line);
+  font: 11.5px/1 var(--mono);
+  color: var(--faint);
 }
 
-.hwave {
+.hpane-body {
+  display: block;
+  margin: 0;
+  padding: 12px;
+  font: 12px/1.65 var(--mono);
+  overflow-x: auto;
+}
+
+.hpane-body .hc {
+  display: block;
+}
+
+/**
+ * The two delivery orders, side by side on one clock.
+ *
+ * Each region is a dashed outline filled in when it lands, so the space a region *will* occupy is
+ * visible from the first frame — which is exactly what a placeholder is, drawn rather than
+ * described. Both lanes are the same width and the same duration; only the arrival order differs.
+ */
+.hlanes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 26px;
+}
+
+.hlane-head {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.hwave .hl {
-  width: 54px;
-  flex: none;
+.hlane-kind {
+  font: 600 10.5px/1 var(--sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
 }
 
-/** The two delivery orders. Both lanes are the same width and the same duration, always. */
-.hlane + .hlane {
-  margin-block-start: 18px;
-}
-
-.hlane-head {
+.hbands {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin-block-end: 7px;
-}
-
-.htrack {
-  position: relative;
-  height: 26px;
-  border-radius: var(--r-xs);
-  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  flex-direction: column;
+  gap: 6px;
+  margin-block-start: 11px;
 }
 
 .hband {
+  position: relative;
+  height: 26px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-sm);
+}
+
+.hband.tall {
+  height: 38px;
+}
+
+.hband-wait {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  font: 12px/1.4 var(--mono);
+  color: var(--faint);
+}
+
+.hband-in {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 5px;
+  background: var(--line);
+  font: 12px/1.4 var(--mono);
+  color: var(--ink-soft);
+  opacity: 0;
+}
+
+.hband-in.lit {
+  background: var(--accent-quiet);
+  color: var(--accent-ink);
+}
+
+.hclock {
+  position: relative;
+  height: 20px;
+  margin-block-start: 11px;
+}
+
+.hclock-head {
   position: absolute;
   top: 0;
-  height: 26px;
-  border-radius: var(--r-xs);
-}
-
-.hband.base {
-  left: 0;
-  width: 18%;
-  background: var(--accent-800);
-}
-
-.hband.fast {
-  left: 21%;
-  width: 22%;
-  background: var(--accent);
-}
-
-.hband.slow {
-  width: 54%;
-  background: var(--accent-700);
-}
-
-.hplay {
-  position: absolute;
-  top: -4px;
-  bottom: -4px;
+  bottom: 0;
   left: 0;
   width: 2px;
-  background: var(--accent);
-  opacity: 0.7;
+  border-radius: 2px;
+  background: var(--faint);
 }
 
-.htick {
+.hclock-rule {
   position: absolute;
-  top: 30px;
+  top: 9px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--line);
+}
+
+.hclock-tick {
+  position: absolute;
+  top: 12px;
   font: 11px/1 var(--mono);
   color: var(--faint);
   white-space: nowrap;
 }
 
-.htick.lit {
+.hclock-tick.lit {
   color: var(--accent-ink);
 }
 
-.hlane:last-child {
-  margin-block-end: 20px;
-}
-
-.hdom {
-  display: flex;
-  gap: 6px;
-}
-
-.hnode {
-  padding: 5px 9px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-xs);
-  font: 11.5px/1 var(--mono);
-  color: var(--faint);
-}
-
-.hnode.lit {
-  border-color: var(--accent-edge);
-  color: var(--accent-ink);
-}
-
-.hwrite {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.hl.flash {
+.hflash {
   padding: 3px 7px;
   border-radius: var(--r-xs);
-}
-
-.hswap {
-  position: relative;
-  height: 20px;
-  margin-block-start: 12px;
-}
-
-.hswap > * {
-  position: absolute;
-  inset-inline-start: 0;
-  top: 0;
+  font: 12px/1.4 var(--mono);
+  color: var(--accent-ink);
 }
 
 .hports {
@@ -415,21 +522,29 @@
   flex-wrap: wrap;
 }
 
-/** Nineteen modules as nineteen columns: the count is the point, not any one height. */
+/** One mark per module. Same height on purpose — see `whatShips` for why. */
 .hmods {
   display: flex;
   align-items: flex-end;
-  gap: 5px;
-  height: 74px;
+  gap: 3px;
+  height: 42px;
+  margin-block-end: 10px;
 }
 
 .hmod {
   flex: 1;
-  min-width: 6px;
+  min-width: 5px;
   height: 100%;
-  border-radius: 2px;
-  transform-origin: bottom;
+  border-radius: 3px;
+  transform-origin: left;
   background: var(--accent-700);
+}
+
+@media (width < 720px) {
+  .hlanes,
+  .hpanes {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* ── the plain-terms panel ────────────────────────────────────────────────── */
