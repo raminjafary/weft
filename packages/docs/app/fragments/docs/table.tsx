@@ -16,14 +16,7 @@ export interface Cell {
 }
 
 export interface TableProps {
-  /**
-   * Objects rather than strings, because a row's item has to be one.
-   *
-   * `xs.map((x) => <th>{x}</th>)` over a `string[]` is `E_ITEM_NOT_A_VALUE`: a row is its own
-   * template and its holes are filled from the item's fields, so a bare primitive has no field to
-   * name. Wrapping is the cost; a template per column name is what it buys.
-   */
-  headers: { text: string }[]
+  headers: string[]
   rows: { cells: Cell[] }[]
 }
 
@@ -49,7 +42,7 @@ export default fragment(({ headers, rows }: TableProps) => (
       <thead>
         <tr>
           {headers.map((header) => (
-            <th>{header.text}</th>
+            <th>{header}</th>
           ))}
         </tr>
       </thead>

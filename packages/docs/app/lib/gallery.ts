@@ -37,21 +37,3 @@ export function galleryBody(): string {
       .join('')
   )
 }
-
-/**
- * The right column: what the gallery is derived from.
- *
- * The counts are computed from the same registry the body walks, so a page that gains an example
- * cannot leave this column disagreeing with the one beside it.
- */
-export function galleryOutline(): string {
-  const pages = PAGES.filter((page) => page.examples.length)
-  const total = pages.reduce((sum, page) => sum + page.examples.length, 0)
-  return (
-    `<h2 class="hint">This page</h2><dl class="prov">` +
-    `<dt>Examples</dt><dd>${total}</dd>` +
-    `<dt>From</dt><dd>${pages.length} guide page${pages.length === 1 ? '' : 's'}</dd>` +
-    `<dt>Source</dt><dd><code>app/fragments/examples/</code></dd>` +
-    `</dl><p class="hint"><a href="/guide">The guide these are from</a></p>`
-  )
-}

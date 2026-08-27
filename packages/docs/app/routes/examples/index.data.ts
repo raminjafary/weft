@@ -1,5 +1,6 @@
 import { defineRoute } from 'weft'
-import { galleryBody, galleryOutline } from '../../lib/gallery.ts'
+import { galleryBody } from '../../lib/gallery.ts'
+import { galleryOutline } from '../../lib/outlines.ts'
 import { galleryContents } from '../../lib/contents.ts'
 
 export default defineRoute({
@@ -12,6 +13,6 @@ export default defineRoute({
   slots: {
     contents: { fragment: 'docs/contents', load: () => ({ groups: galleryContents() }) },
     body: { html: () => galleryBody() },
-    outline: { html: () => galleryOutline() },
+    outline: { fragment: 'docs/prov', load: () => galleryOutline() },
   },
 })

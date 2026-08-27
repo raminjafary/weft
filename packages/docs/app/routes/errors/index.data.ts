@@ -1,6 +1,7 @@
 import { defineRoute } from 'weft'
 import { errorCodes } from '../../lib/errors.ts'
-import { errorsIndexBody, errorsOutline } from '../../lib/errors-page.ts'
+import { errorsIndexBody } from '../../lib/errors-page.ts'
+import { errorsOutline } from '../../lib/outlines.ts'
 import { errorsContents } from '../../lib/contents.ts'
 
 export default defineRoute({
@@ -16,6 +17,6 @@ export default defineRoute({
   slots: {
     contents: { fragment: 'docs/contents', load: () => ({ groups: errorsContents() }) },
     body: { html: () => errorsIndexBody() },
-    outline: { html: () => errorsOutline() },
+    outline: { fragment: 'docs/prov', load: () => errorsOutline() },
   },
 })

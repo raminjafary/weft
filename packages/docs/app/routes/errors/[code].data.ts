@@ -1,6 +1,7 @@
 import { defineRoute } from 'weft'
 import { errorByCode } from '../../lib/errors.ts'
-import { codeIds, errorBody, errorsOutline } from '../../lib/errors-page.ts'
+import { codeIds, errorBody } from '../../lib/errors-page.ts'
+import { errorsOutline } from '../../lib/outlines.ts'
 import { errorsContents } from '../../lib/contents.ts'
 
 /**
@@ -27,6 +28,6 @@ export default defineRoute({
       load: (_ctx, params) => ({ groups: errorsContents(params.code) }),
     },
     body: { html: (_ctx, params) => errorBody(params.code ?? '') },
-    outline: { html: (_ctx, params) => errorsOutline(params.code) },
+    outline: { fragment: 'docs/prov', load: (_ctx, params) => errorsOutline(params.code) },
   },
 })

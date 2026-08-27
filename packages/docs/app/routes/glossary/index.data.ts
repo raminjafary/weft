@@ -1,5 +1,6 @@
 import { defineRoute } from 'weft'
-import { glossaryBody, glossaryOutline } from '../../lib/glossary.ts'
+import { glossaryBody } from '../../lib/glossary.ts'
+import { glossaryOutline } from '../../lib/outlines.ts'
 import { glossaryContents } from '../../lib/contents.ts'
 
 export default defineRoute({
@@ -15,6 +16,6 @@ export default defineRoute({
   slots: {
     contents: { fragment: 'docs/contents', load: () => ({ groups: glossaryContents() }) },
     body: { html: () => glossaryBody() },
-    outline: { html: () => glossaryOutline() },
+    outline: { fragment: 'docs/prov', load: () => glossaryOutline() },
   },
 })

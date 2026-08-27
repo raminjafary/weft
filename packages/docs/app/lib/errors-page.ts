@@ -122,31 +122,6 @@ export function errorBody(code: string): string {
   )
 }
 
-export function errorsOutline(code?: string): string {
-  const entry = code ? errorByCode(code) : undefined
-  if (!entry) {
-    /**
-     * Totals, not a by-package list — the contents column beside it is already the by-package list.
-     *
-     * It was one here first, which was fine while this page had one column and stopped being fine
-     * the moment it had three: the same nine links twice, once on each side of the prose.
-     */
-    const all = errorCodes()
-    return (
-      `<h2 class="hint">This page</h2><dl class="prov">` +
-      `<dt>Codes</dt><dd>${all.length}</dd>` +
-      `<dt>Packages</dt><dd>${errorsByPackage().length}</dd>` +
-      `<dt>With a spec reference</dt><dd>${all.filter((one) => one.spec.length).length}</dd>` +
-      `</dl>`
-    )
-  }
-  return `<h2 class="hint">This code</h2><dl class="prov">
-    <dt>Package</dt><dd><code>${escapeHtml(entry.package)}</code></dd>
-    <dt>Raised at</dt><dd>${entry.sites.length} site${entry.sites.length === 1 ? '' : 's'}</dd>
-    <dt>Specified in</dt><dd>${entry.spec.length || '—'}</dd>
-  </dl><p class="hint"><a href="/errors">All codes</a></p>`
-}
-
 /** Every code, for the route's declared params. */
 export function codeIds(): string[] {
   return errorCodes().map((entry) => entry.code)

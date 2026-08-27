@@ -411,23 +411,6 @@ export function glossaryBody(): string {
   )
 }
 
-/**
- * The right column: how big the glossary is, and where its entries point.
- *
- * Counting the entries that carry further reading was the obvious second row and it is not worth
- * one — every term has some, so the number is the first row again. What is worth a row is how far
- * out the list reaches, which is the count of distinct destinations behind those links.
- */
-export function glossaryOutline(): string {
-  const targets = new Set(TERMS.flatMap((term) => (term.see ?? []).map((link) => link.href)))
-  return (
-    `<h2 class="hint">This page</h2><dl class="prov">` +
-    `<dt>Terms</dt><dd>${TERMS.length}</dd>` +
-    `<dt>Pointing at</dt><dd>${targets.size} page${targets.size === 1 ? '' : 's'}</dd>` +
-    `</dl><p class="hint"><a href="/guide">The guide these words are used in</a></p>`
-  )
-}
-
 export function slug(term: string): string {
   return term.toLowerCase().replace(/[^a-z0-9]+/g, '-')
 }
