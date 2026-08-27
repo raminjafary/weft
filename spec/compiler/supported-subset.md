@@ -50,6 +50,7 @@ imports, and the compiler recognises them by resolving the import rather than by
 | `<Card>…</Card>`                              | the same, plus the markup between the tags sealed as its own template               |
 | `{children}` in a fragment declaring it       | a `children` hole: the place a caller's markup goes                                 |
 | `<>…</>` at the root                          | a template with no wrapper element                                                  |
+| `{on && <A/>}`, `{on ? <A/> : <B/>}`          | one `variant` hole per branch: each shape sealed, the binding says which renders    |
 
 ## Derived values
 
@@ -89,9 +90,8 @@ design exists not to send.
 - **`&&`.** `{on && <b/>}` reads as a shape rather than a value, and lowering it to one
   would render the string `false` where the author expected nothing. It is refused with the
   alternative named.
-- **A conditional shape.** `{on ? <b/> : <i/>}` needs the byte layout to vary, and a sealed
-  template's layout is fixed. Expressible in principle as variant templates plus a hole that
-  selects among them — the machinery exists for rows and instances — and not built.
+- **A branch a signal decides.** See "Conditional shapes" below: the shape itself is supported, but
+  `{sig() && <A/>}` is `E_BRANCH_ON_SIGNAL` because nothing on the client swaps sealed subtrees.
 
 The escape class still comes from the syntax: arithmetic and comparison cannot produce
 markup and are `proven-safe`, while `+` can concatenate a string and stays `escape`. A
@@ -303,6 +303,8 @@ moving any sibling.
 | `E_HANDLER_NOT_IMPORTED`          | a local function has no module to derive an intent id from             |
 | `E_VOID_CHILDREN`                 | a void element cannot have children                                    |
 | `E_NESTED_FRAGMENT`               | `<>…</>` is allowed only at the root                                   |
+| `E_BRANCH_NOT_SOLE_CHILD`         | a conditional element beside a sibling, whose index would then vary    |
+| `E_BRANCH_ON_SIGNAL`              | a branch decided by a signal, which the client cannot swap             |
 | `E_ROOT_NOT_JSX`, `E_NO_RETURN`   | a fragment must return JSX                                             |
 | `E_FRAGMENT_ARGUMENT`             | `fragment()` takes a function                                          |
 | `E_ATTRIBUTE_UNSUPPORTED`         | an attribute value that is neither a literal nor an expression         |
@@ -320,3 +322,28 @@ node packages/compiler/src/cli.ts packages/compiler/fixtures/*.tsx --out build/i
 It writes one JSON document per template plus a manifest of ids and versions. The
 benchmark compiles its fixtures in-process, so its numbers are always measured against
 emitted IR.
+
+## Conditional shapes
+
+`{on && <A/>}` is a `variant` hole: the branch is sealed as its own template, and the hole writes it
+only when the binding is truthy. `{on ? <A/> : <B/>}` is two of them, over `on` and a `!on` added to
+the derived table.
+
+The byte layout does not vary, which is the property that keeps the template sealed. Both holes are
+always in the parent and both branches always travel; what a value decides is which one is written.
+A falsy branch writes nothing at all rather than a placeholder, so the choice costs no bytes.
+
+A branch is lowered in the enclosing fragment's scope and shares its derived table — the rule a
+component's children already follow. So a branch reads that fragment's props and signals by name and
+needs no projection, and the negated arm is one `!` in a table both arms already share.
+
+Two refusals hold it together. `E_BRANCH_NOT_SOLE_CHILD`: a conditional element must be the only
+child of its element, because a falsy branch writes nothing and a sibling after it would sit at a
+different element index depending on a value — the rule a list lives under, for the same reason.
+And `E_BRANCH_ON_SIGNAL`: a `variant` emits no wiring entry, so nothing on the client swaps one
+sealed subtree for another; a branch a signal decides would render once and never move, which is
+refused rather than shipped as a control that looks live.
+
+A conditional whose arms are _values_ is still one hole and a `cond` entry. The arms decide which
+lowering applies: markup arms seal templates, value arms do not, and a conditional mixing the two is
+refused rather than guessed at.

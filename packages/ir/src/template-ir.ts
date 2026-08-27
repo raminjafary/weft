@@ -31,7 +31,26 @@ export type EscapeClass = 'escape' | 'proven-safe' | 'trusted-raw'
  * list of boundaries.
  */
 export type HoleKind =
-  'text' | 'attr' | 'attr-bool' | 'attr-presence' | 'node' | 'list' | 'slot' | 'component' | 'children'
+  | 'text'
+  | 'attr'
+  | 'attr-bool'
+  | 'attr-presence'
+  | 'node'
+  | 'list'
+  | 'slot'
+  | 'component'
+  | 'children'
+  /**
+   * A shape that renders only when its binding is truthy.
+   *
+   * The one way a sealed template can hold a choice of markup without its byte layout depending on a
+   * value. The hole is always there and always costs the same; what varies is whether the nested
+   * template is written into it. `{on && <A/>}` is one of these, and `{on ? <A/> : <B/>}` is two
+   * adjacent ones over `on` and `!on` — so both shapes are sealed, both travel, and exactly one
+   * renders. Neither the layout nor the version depends on the value, which is what keeps the
+   * template sealed and the delta addressable.
+   */
+  | 'variant'
 
 /** A value's name inside a template. Holes and wiring entries both address values by it. */
 export type BindingId = string
@@ -48,6 +67,7 @@ export interface Hole {
   /**
    * For a `list` hole: the template version each item's values are projected through.
    * For a `component` hole: the template version the instance is rendered through.
+   * For a `variant` hole: the template version written when the binding is truthy.
    */
   nested?: string
   /**
@@ -55,6 +75,10 @@ export interface Hole {
    * instance is a projection of the parent's values, never a value of its own, which is
    * what keeps a component transparent to a delta — a change to the parent binding is a
    * change to the child's hole, with no path syntax to invent.
+   *
+   * For a `variant` hole: the same projection, for the same reason. The markup inside a
+   * branch reads the enclosing fragment's bindings, so the branch is sealed as its own
+   * template and every binding it reads is projected in by name.
    */
   props?: Record<string, BindingId>
   /**

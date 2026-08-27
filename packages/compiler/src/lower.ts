@@ -80,7 +80,7 @@ export interface NestedRequest {
    * whether a decision the parent makes about its instances — isolation, above all — reaches
    * inside it or stops at the boundary.
    */
-  kind: 'row' | 'component' | 'children'
+  kind: 'row' | 'component' | 'children' | 'variant'
   lowered?: Lowered
   sealed?: SealedFragment
 }
@@ -543,6 +543,114 @@ function mapCall(expr: Node): { array: Node; callback: Node } | null {
   return { array: node(callee.object), callback }
 }
 
+/** One arm of a conditional shape: the markup, and the expression that decides it renders. */
+interface Branch {
+  test: Node
+  /** True when the test is the negation of the written expression — the `else` arm of a ternary. */
+  negated: boolean
+  markup: Node
+}
+
+/**
+ * A conditional whose arms are markup, split into the branches a template can seal.
+ *
+ * Returns null for everything else, including a conditional whose arms are values — those are a
+ * `cond` in the derived table and stay one hole, which is cheaper and keeps the markup identical.
+ * The test is what separates them: an arm that is JSX cannot be a value, and an arm that is a value
+ * cannot be a shape, so a conditional mixing the two is refused rather than guessed at.
+ */
+const isMarkup = (n: Node): boolean => n.type === 'JSXElement' || n.type === 'JSXFragment'
+
+function jsxBranches(expr: Node): Branch[] | null {
+  if (expr.type === 'LogicalExpression' && String(expr.operator) === '&&') {
+    const right = node(expr.right)
+    if (!isMarkup(right)) return null
+    return [{ test: node(expr.left), negated: false, markup: right }]
+  }
+
+  if (expr.type === 'ConditionalExpression') {
+    const consequent = node(expr.consequent)
+    const alternate = node(expr.alternate)
+    if (!isMarkup(consequent) && !isMarkup(alternate)) return null
+    const test = node(expr.test)
+    const out: Branch[] = []
+    if (isMarkup(consequent)) out.push({ test, negated: false, markup: consequent })
+    if (isMarkup(alternate)) out.push({ test, negated: true, markup: alternate })
+    return out
+  }
+
+  return null
+}
+
+/**
+ * One branch, sealed as its own template behind a `variant` hole.
+ *
+ * Lowered in *this* fragment's scope and sharing its derived table, the way a component's children
+ * are: the markup was written here, so it reads this fragment's props and signals directly and needs
+ * no projection. That is also why the negated arm can simply add a `!` to the derived table — one
+ * binding namespace, one set of ids.
+ */
+function lowerBranch(branch: Branch, path: number[], em: Emitter, input: LowerInput): void {
+  const tested = classify(branch.test, input, em)
+
+  /**
+   * A branch a signal decides is refused, because the client cannot yet act on it.
+   *
+   * A `variant` emits no wiring entry: the server picks a branch and writes it, and nothing on the
+   * client swaps one sealed subtree for another. Allowing this would compile a control that looks
+   * reactive, renders once, and never moves again — which is the failure the operator set is closed
+   * against for the same stated reason, that a value which stops updating is harder to notice than
+   * a build error.
+   *
+   * A conditional *value* over the same signal is reactive and is the thing to reach for; so is
+   * doing the choice in a loader when the shapes genuinely differ.
+   */
+  if (tested.signal || tested.reactive) {
+    const named = tested.signal?.id ?? tested.binding
+    throw fail(
+      input,
+      branch.test,
+      'E_BRANCH_ON_SIGNAL',
+      `this branch is decided by signal ${named}, and a branch is chosen by the server — nothing on ` +
+        'the client swaps one sealed subtree for another, so it would render once and never change. ' +
+        'Use a conditional value, which is reactive, or render both shapes and choose with a value',
+    )
+  }
+
+  let binding = tested.binding
+  if (branch.negated) {
+    const id = `d${em.derived.length}`
+    em.derived.push({ id, expr: { k: 'un', op: '!', a: { k: 'ref', id: tested.binding } } })
+    binding = id
+  }
+
+  const root =
+    branch.markup.type === 'JSXFragment'
+      ? node({ type: 'JSXFragment', children: branch.markup.children })
+      : branch.markup
+  const id = `${input.id}:${binding}?`
+
+  const lowered = lower({
+    id,
+    root,
+    file: input.file,
+    source: input.source,
+    scope: input.scope,
+    derived: em.derived,
+    ...(input.types ? { types: input.types } : {}),
+  })
+  em.components.push(...lowered.components)
+
+  const holeIndex = hole(em, {
+    kind: 'variant',
+    escape: 'trusted-raw',
+    binding,
+    path,
+    provenance: id,
+  })
+  em.nested.push({ holeIndex, id, kind: 'variant', lowered })
+}
+
 function lowerElement(element: Node, path: number[], em: Emitter, input: LowerInput): void {
   const opening = node(element.openingElement)
   const tag = name(node(opening.name))
@@ -863,6 +971,43 @@ function lowerChildren(
     }
 
     const expression = node(child.expression)
+
+    /**
+     * A choice of markup, before it is tried as a value.
+     *
+     * `{on && <A/>}` and `{on ? <A/> : <B/>}` are shapes rather than values, and a hole holds one
+     * value — so each branch is sealed as a template of its own and the hole says which. The layout
+     * does not vary: both holes are always in the parent, and a falsy one writes nothing.
+     */
+    const branches = jsxBranches(expression)
+    if (branches) {
+      /**
+       * The same rule a list lives under, for exactly the same reason.
+       *
+       * A falsy branch writes nothing, so an element after it would sit at a different index
+       * depending on a value — and every path in this template addresses element positions. Making
+       * the conditional the sole child is what keeps a path a fact about the template rather than
+       * about one render of it.
+       */
+      if (surviving.length !== 1) {
+        throw fail(
+          input,
+          child,
+          'E_BRANCH_NOT_SOLE_CHILD',
+          'a conditional element must be the only child of its element, so that sibling positions ' +
+            'cannot shift with which branch renders. Wrap it, or move the choice into the branches',
+        )
+      }
+      let elementSlot = elementIndex
+      for (const branch of branches) {
+        lowerBranch(branch, [...path, elementSlot++], em, input)
+      }
+      // Every branch occupies its own element position, so a sibling after the conditional is
+      // addressed past all of them whichever one renders.
+      elementIndex = elementSlot
+      return
+    }
+
     const list = mapCall(expression)
 
     if (list) {

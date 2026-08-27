@@ -177,9 +177,116 @@ test('a method call is still refused, because there is nowhere for it to run', a
   assert.equal(error.code, 'E_EXPRESSION_UNSUPPORTED')
 })
 
-test('structural branching is still refused: a template holds one value per hole', async () => {
-  const error = await refusal(
-    'export default fragment(({ on, a }: { on: boolean; a: string }) => <p>{on ? <b>{a}</b> : <i>{a}</i>}</p>)',
+test('a conditional shape is two variant holes, and exactly one renders', async () => {
+  const compiled = await compileSource(
+    PRELUDE +
+      'export default fragment(({ on, a }: { on: boolean; a: string }) => (\n' +
+      '  <div>{on ? <b>{a}</b> : <i>{a}</i>}</div>\n))',
+    'test.tsx',
   )
-  assert.equal(error.code, 'E_EXPRESSION_UNSUPPORTED')
+  const fragment = compiled.fragments[0]
+  assert.ok(fragment)
+  const holes = fragment.entry.holes
+  // Two holes, both always present: the layout is a fact about the template, not about a value.
+  assert.equal(holes.length, 2)
+  assert.equal(holes[0]?.kind, 'variant')
+  assert.equal(holes[1]?.kind, 'variant')
+  assert.equal(holes[0]?.binding, 'on')
+  // The second arm is the negation, added to the derived table rather than needing a node of its own.
+  assert.notEqual(holes[1]?.binding, 'on')
+
+  const byVersion = new Map(fragment.templates.map((t) => [t.version, t]))
+  const shape = (values: Values) => decode(render(fragment.entry, values, (v: string) => byVersion.get(v)))
+  assert.equal(shape({ on: true, a: 'X' }), '<div><b>X</b></div>')
+  assert.equal(shape({ on: false, a: 'X' }), '<div><i>X</i></div>')
+})
+
+test('`&&` renders the branch or nothing at all', async () => {
+  const compiled = await compileSource(
+    PRELUDE +
+      'export default fragment(({ on, a }: { on: boolean; a: string }) => <div>{on && <b>{a}</b>}</div>)',
+    'test.tsx',
+  )
+  const fragment = compiled.fragments[0]
+  assert.ok(fragment)
+  const byVersion = new Map(fragment.templates.map((t) => [t.version, t]))
+  const shape = (values: Values) => decode(render(fragment.entry, values, (v: string) => byVersion.get(v)))
+  assert.equal(shape({ on: true, a: 'X' }), '<div><b>X</b></div>')
+  // Nothing, not an empty placeholder: a falsy branch costs no bytes.
+  assert.equal(shape({ on: false, a: 'X' }), '<div></div>')
+})
+
+test('a branch reads the enclosing fragment directly, with no projection', async () => {
+  // The markup was written here, so it is lowered in this fragment's binding namespace — the same
+  // rule a component's children follow. A prop the branch reads needs nothing declared.
+  const compiled = await compileSource(
+    PRELUDE +
+      'export default fragment(({ on, a, b }: { on: boolean; a: string; b: string }) => ' +
+      '<div>{on ? <b>{a}{b}</b> : <i>{b}</i>}</div>)',
+    'test.tsx',
+  )
+  const fragment = compiled.fragments[0]
+  assert.ok(fragment)
+  const byVersion = new Map(fragment.templates.map((t) => [t.version, t]))
+  const shape = (values: Values) => decode(render(fragment.entry, values, (v: string) => byVersion.get(v)))
+  // The `<!>` are anchor markers: two adjacent text holes need them so a later delta can say which
+  // text node it is writing. Their presence is the branch having gone through ordinary lowering.
+  assert.equal(shape({ on: true, a: 'A', b: 'B' }), '<div><b><!>A<!>B</b></div>')
+  assert.equal(shape({ on: false, a: 'A', b: 'B' }), '<div><i>B</i></div>')
+})
+
+test('branches nest, and work inside a list row', async () => {
+  const compiled = await compileSource(
+    PRELUDE +
+      'export default fragment(({ rows }: { rows: { on: boolean; a: string }[] }) => ' +
+      '<ul>{rows.map((row) => <li>{row.on && <b>{row.a}</b>}</li>)}</ul>)',
+    'test.tsx',
+  )
+  const fragment = compiled.fragments[0]
+  assert.ok(fragment)
+  const byVersion = new Map(fragment.templates.map((t) => [t.version, t]))
+  const shape = (values: Values) => decode(render(fragment.entry, values, (v: string) => byVersion.get(v)))
+  assert.equal(
+    shape({
+      rows: [
+        { on: true, a: 'P' },
+        { on: false, a: 'Q' },
+      ],
+    } as unknown as Values),
+    '<ul><li><b>P</b></li><li></li></ul>',
+  )
+})
+
+test('a conditional element must be the only child, because a falsy branch writes nothing', async () => {
+  const error = await refusal(
+    PRELUDE.length > 0
+      ? 'export default fragment(({ on }: { on: boolean }) => <div>{on && <b>y</b>}<p>after</p></div>)'
+      : '',
+  )
+  // Without this a sibling would sit at a different element index depending on a value, and every
+  // path in the template addresses element positions.
+  assert.equal(error.code, 'E_BRANCH_NOT_SOLE_CHILD')
+  assert.match(error.message, /sibling positions/)
+})
+
+test('a conditional whose arms are values stays one hole, not two variants', async () => {
+  // The cheaper lowering must still win where it applies, or every ternary would seal two templates.
+  const ir = await only(
+    'export default fragment(({ on, a, b }: { on: boolean; a: string; b: string }) => <p>{on ? a : b}</p>)',
+  )
+  assert.equal(ir.holes.length, 1)
+  assert.equal(ir.holes[0]?.kind, 'text')
+})
+
+test('a branch decided by a signal is refused, rather than rendering once and going quiet', async () => {
+  const error = await refusal(
+    'export default fragment(() => {\n' +
+      '  const on = signal(true)\n' +
+      '  return <div>{on() && <b>yes</b>}</div>\n})',
+  )
+  assert.equal(error.code, 'E_BRANCH_ON_SIGNAL')
+  // The refusal names the signal and the alternative; a variant emits no wiring, so the client has
+  // nothing to swap subtrees with and the branch would be a control that never moves.
+  assert.match(error.message, /signal on/)
+  assert.match(error.message, /conditional value/)
 })

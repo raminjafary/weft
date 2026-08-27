@@ -159,6 +159,8 @@ function writeValue(
     case 'slot':
     case 'component':
     case 'children':
+    // A variant is written by `writeHole` before it reaches here, the same as a component.
+    case 'variant':
       return off
     case 'attr-bool':
       return isTruthy(value) ? writeString(hole.attr ?? '', out, off) : off
@@ -240,6 +242,20 @@ function writeHole(
       off,
       childrenFrame(hole, values, resolve, frame),
     )
+  }
+  /**
+   * A branch: the nested template, but only when the binding says so.
+   *
+   * Everything a component hole does, gated. Writing nothing when the test is falsy is what makes a
+   * choice of markup expressible without the byte layout varying — the hole is in the template
+   * either way, and an empty one costs no bytes at all rather than costing a placeholder.
+   */
+  if (hole.kind === 'variant') {
+    if (!isTruthy(values[hole.binding])) return off
+    // The parent's values, not a projection: a branch's markup was written inside this fragment, so
+    // it is lowered in this fragment's binding namespace and reads its props and signals directly —
+    // the same rule a component's children follow, and for the same reason.
+    return writeTemplate(child(hole, resolve), values, resolve, out, off, frame)
   }
   if (hole.kind === 'children') {
     // The caller's markup, rendered against the caller's values and under the frame that

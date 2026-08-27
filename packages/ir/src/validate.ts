@@ -87,8 +87,12 @@ export function validateTemplate(ir: TemplateIR): ValidationResult {
       fail('E_ISOLATED_KIND', `holes[${i}]`, 'only a component hole can be its own cache unit')
     }
     if (h.nested !== undefined) {
-      if (h.kind !== 'list' && h.kind !== 'component')
-        fail('E_NESTED_KIND', `holes[${i}]`, 'only a list or component hole can name a nested template')
+      if (h.kind !== 'list' && h.kind !== 'component' && h.kind !== 'variant')
+        fail(
+          'E_NESTED_KIND',
+          `holes[${i}]`,
+          'only a list, component or variant hole can name a nested template',
+        )
       if (!HEX128.test(h.nested)) {
         fail(
           'E_NESTED_SHAPE',
