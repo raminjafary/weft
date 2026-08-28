@@ -200,9 +200,16 @@ function stringsIn(call: string): string[] {
  * a structured failure names its field — so a `message:`, `reason:` or `detail:` property wins over
  * the longest string, because the longest string in an object literal is often something else.
  */
-/** A scope that hands an underlying failure onward rather than writing its own sentence. */
+/**
+ * A scope that hands an underlying failure onward rather than writing its own sentence.
+ *
+ * `.errors`/`.issues` are here because a collector forwards a *list* rather than one cause —
+ * `E_INVALID_DOCUMENT` prints every complaint the template validator made — and at runtime that
+ * says a great deal. It is the cause's sentence rather than one written in the source, which is the
+ * same bargain the single-cause spellings make, so it belongs in the same state as them.
+ */
 const FORWARDS =
-  /\b(?:error|err|cause)\s*(?:as\s+Error)?\s*\)?\.message|String\(\s*error|reasonOf\(|parsed\.error|lastError|\.stack\b/
+  /\b(?:error|err|cause)\s*(?:as\s+Error)?\s*\)?\.message|String\(\s*error|reasonOf\(|parsed\.error|lastError|\.stack\b|\.(?:errors|issues)\b/
 
 function forwardsAt(source: string, index: number): boolean {
   for (const open of ['{', '('] as const) {
