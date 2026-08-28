@@ -1921,7 +1921,32 @@ function takeOverScroll(): void {
   }
 }
 
-async function go(href: string, mode: 'push' | 'restore', y = 0): Promise<boolean> {
+/**
+ * How a `go` ended, because two of the three are not "it did not work".
+ *
+ * `cold` means nothing was staged for this route and the browser should load it. `stale` means a
+ * newer navigation started while this one was waiting, and the reader is no longer going here — so
+ * it must not paint *and* must not fall back to loading the document, which is the distinction a
+ * boolean could not carry.
+ */
+type Went = 'painted' | 'cold' | 'stale'
+
+/**
+ * Which navigation is the current one.
+ *
+ * A staged route is claimed with no deadline, deliberately — waiting cannot cost more than not
+ * waiting. What that leaves is a click on a slow route followed by clicks on others: the first
+ * claim settles last, and without a ticket it painted last too, landing the reader on the page
+ * they had already changed their mind about. The bug is not the waiting, it is that a navigation
+ * had no way to notice it had been superseded while it waited.
+ *
+ * Bumped by `go` and not by staging. Hovering a link starts a fetch and changes nothing about
+ * where the reader is going, so it must not cancel a click.
+ */
+let navSeq = 0
+
+async function go(href: string, mode: 'push' | 'restore', y = 0): Promise<Went> {
+  const mine = ++navSeq
   takeOverScroll()
   const url = new URL(href, window.location.href)
   const key = stagingKey(url.href, window.location.href)
@@ -1954,24 +1979,32 @@ async function go(href: string, mode: 'push' | 'restore', y = 0): Promise<boolea
     routes.discard(key)
     syncStaged()
     state.nav = { ...state.nav, cold: state.nav.cold + 1 }
-    return false
+    return 'cold'
   }
   const claimed = await routes.claim(key)
   syncStaged()
+  /**
+   * Checked here, between waiting and painting, which is the only place it can be.
+   *
+   * The claim above is where a navigation spends its time, so it is where a newer one overtakes
+   * it. Anything staged for this route stays staged — it was resolved correctly and the reader may
+   * still come back to it — and this call simply stops being a navigation.
+   */
+  if (mine !== navSeq) return 'stale'
   if (!claimed.value) {
     state.nav = { ...state.nav, cold: state.nav.cold + 1 }
-    return false
+    return 'cold'
   }
   const held = claimed.value
   const painted =
     held.kind === 'regions'
       ? await commitRegions(held.regions, mode, y)
       : await commitPage(held.page, mode, y)
-  if (!painted) return false
+  if (!painted) return 'cold'
   state.nav = { ...state.nav, staged: state.nav.staged + 1, lastMs: Math.round(painted - started) }
   log('up', `NAV ${url.pathname}${url.search} ${state.nav.lastMs}ms`)
   announceNavigation(url, held.kind)
-  return true
+  return 'painted'
 }
 
 /**
@@ -2026,11 +2059,21 @@ function scrollForForm(form: HTMLFormElement): 'top' | 'preserve' {
 
 async function navigate(href: string, scroll: 'top' | 'preserve' = scrollFor()): Promise<boolean> {
   const y = scroll === 'preserve' ? Math.round(scrollY) : 0
-  if (await go(href, 'push', y)) {
+  const went = await go(href, 'push', y)
+  if (went === 'painted') {
     // Swapped in place: no document is leaving, so nothing should be recorded on its behalf.
     departingToTop = false
     return true
   }
+  /**
+   * Overtaken, so this is not a navigation any more and must not become one.
+   *
+   * The fallback below is `location.assign`, which is right for a route that was never staged and
+   * exactly wrong here: the reader has since asked for somewhere else, and sending the browser to
+   * this URL would land them on the page they changed their mind about — after the page they
+   * actually wanted had already painted.
+   */
+  if (went === 'stale') return false
   departingToTop = y === 0
   /**
    * The same link, answered by the browser — and `preserve` has to mean the same thing there.
@@ -2264,7 +2307,8 @@ function wireNavigation(): void {
     }
     const y = ((event.state ?? {}) as { weftY?: number }).weftY ?? 0
     void (async () => {
-      if (await go(url.href, 'restore', y)) return
+      // `stale` returns too: a newer traversal is in charge, and reloading would fight it.
+      if ((await go(url.href, 'restore', y)) !== 'cold') return
       /**
        * Nothing staged for the entry being returned to, so it is loaded — streamed, the way the
        * first visit was. What a reload loses is the position, because the browser restores scroll
