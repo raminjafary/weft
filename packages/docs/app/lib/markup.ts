@@ -42,11 +42,16 @@ export function sketch(language: string, code: string): string {
 }
 
 /**
- * An example, as the page shows it: the file, what it rendered, and what the compiler knows.
+ * An example, as the page shows it: what it rendered, the file, and what the compiler knows.
  *
  * The three panels are one fragment's, which is the property the site is built on — so the caption
- * names the file and the facts table is the same sealed template the output came from. A reader who
+ * names the file and the facts are the same sealed template the output came from. A reader who
  * doubts any of it can open the file at that path.
+ *
+ * Output and source are side by side rather than stacked, which is the only arrangement that lets a
+ * reader check the claim the page makes: that the markup on one side is what the file on the other
+ * compiled to. Stacked, the two were a screen apart on every example longer than eight lines, and
+ * comparing them meant scrolling between them.
  */
 export function example(rendered: RenderedExample): string {
   const holes = rendered.facts.holes.length
@@ -88,38 +93,69 @@ export function example(rendered: RenderedExample): string {
         .join(', ')}</dd>`
     : ''
 
-  return `<section class="example">
-  <h3>${escapeHtml(rendered.title)}</h3>
+  return `<section class="example" id="ex-${escapeHtml(anchorOf(rendered.id))}">
+  <div class="example-head">
+    <h3><a class="anchor" href="#ex-${escapeHtml(anchorOf(rendered.id))}">${escapeHtml(rendered.title)}</a></h3>
+    <span class="example-of">${escapeHtml(rendered.id)}</span>
+  </div>
   <p>${rendered.shows}</p>
-  <figure class="code">
-    <figcaption><code>${escapeHtml(rendered.file)}</code> — compiled by this application</figcaption>
-    <pre><code data-lang="tsx">${highlight('tsx', rendered.source.trim())}</code></pre>
-  </figure>
-  <figure class="output">
-    <figcaption>Rendered, from the template that file produced</figcaption>
-    <div class="output-frame" data-example="${escapeHtml(rendered.id)}">${rendered.html}</div>
-  </figure>${rendered.adopt ?? ''}
-  <details class="facts">
-    <summary>What the compiler knows about it</summary>
-    <dl class="prov">
-      <dt>Sealed templates</dt><dd>${rendered.facts.templates}</dd>
-      <dt>Version</dt><dd><code>${escapeHtml(rendered.facts.version)}</code></dd>
-      <dt>Reads</dt><dd>${
-        rendered.facts.reads.length
-          ? rendered.facts.reads.map((r) => `<code>${escapeHtml(r)}</code>`).join(', ')
-          : '<em>nothing — so its class is static and its key is its content address</em>'
-      }</dd>
-      <dt>Wire forms</dt><dd>${rendered.facts.forms.map((f) => `<code>${escapeHtml(f)}</code>`).join(', ')}</dd>
-      ${derived}
-    </dl>
+  <div class="duo">
+    <figure class="output">
+      <figcaption>output</figcaption>
+      <div class="output-frame" data-example="${escapeHtml(rendered.id)}">${rendered.html}</div>
+    </figure>
+    <figure class="code">
+      <figcaption><code>${escapeHtml(rendered.file)}</code></figcaption>
+      <pre><code data-lang="tsx">${highlight('tsx', rendered.source.trim())}</code></pre>
+    </figure>
+  </div>${rendered.adopt ?? ''}
+  <details class="facts" open>
+    <summary>What the compiler knows</summary>
+    ${tiles(rendered)}
     <h4>Holes</h4>
     ${holes}
     <h4>What the client wires on adoption</h4>
     ${wiring}
     ${state}
+    <dl class="prov">
+      <dt>Sealed templates</dt><dd>${rendered.facts.templates}</dd>
+      <dt>Version</dt><dd><code>${escapeHtml(rendered.facts.version)}</code></dd>
+      ${derived}
+    </dl>
   </details>
   ${rendered.note ? `<p class="hint">${rendered.note}</p>` : ''}
 </section>`
+}
+
+/**
+ * The four numbers worth reading before the tables under them.
+ *
+ * Every one is derived from the same sealed template the output came from, which is why they can be
+ * this terse: an empty effect set really does mean the class is static, and it is not a claim this
+ * file is making on the compiler's behalf.
+ */
+function tiles(rendered: RenderedExample): string {
+  const { holes, reads, forms } = rendered.facts
+  const elided = holes.filter((hole) => hole.escape === 'none').length
+  const cells: { label: string; value: string; accent?: boolean }[] = [
+    { label: 'Holes', value: String(holes.length) },
+    { label: 'Escape elided', value: String(elided), accent: elided > 0 },
+    { label: 'Effect set', value: reads.length ? reads.join(' · ') : 'none — static' },
+    { label: 'Wire forms', value: forms.join(' · '), accent: true },
+  ]
+  return `<div class="tiles">${cells
+    .map(
+      (cell) =>
+        `<div class="tile"><span>${escapeHtml(cell.label)}</span><b${
+          cell.accent ? ' class="lit"' : ''
+        }>${escapeHtml(cell.value)}</b></div>`,
+    )
+    .join('')}</div>`
+}
+
+/** `examples/badge` is one fragment, and `ex-examples-badge` is the place on the page it is at. */
+function anchorOf(id: string): string {
+  return id.replace(/[^A-Za-z0-9]+/g, '-')
 }
 
 /** Markup, as it arrived, for a hole whose content is already markup. */

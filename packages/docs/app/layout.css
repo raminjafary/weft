@@ -265,6 +265,16 @@ main {
 
 /* ── the article ──────────────────────────────────────────────────────────── */
 
+/**
+ * The article is a container, so what is in it can size to the column rather than to the window.
+ *
+ * The same block appears in a two-column shell and a three-column one, which are 53rem and 40rem
+ * wide at the same viewport width. See `.duo` for the case this exists for.
+ */
+article {
+  container: article / inline-size;
+}
+
 .crumbs {
   display: flex;
   flex-wrap: wrap;
@@ -301,8 +311,27 @@ article h3 {
   scroll-margin-top: calc(var(--head-h) + 20px);
 }
 
+/**
+ * A paragraph is spaced from above, like every other block on the page.
+ *
+ * Everything a body slot emits — a figure, a note, a table, a strip, a panel of tiles — carries
+ * `margin-block-start` and nothing below, which is the rule that makes a run of mixed blocks space
+ * evenly whatever order they come in. The base `p` in `styles.css` is spaced from below instead,
+ * being the browser's convention, and the two together meant a paragraph after any of those blocks
+ * sat flush against its bottom edge: the sentence under a goal callout, the one under a diff, the
+ * one under an example's output. Inside a component that sets its own paragraph margins — a card, a
+ * note, a rail — that component still wins, which is why this is scoped to the article's own prose.
+ */
+article p,
+.prose p {
+  margin-block: 18px 0;
+}
+
+/* A heading already carries 44px above it; its own paragraph belongs closer than the default. */
 article h2 + p,
-article h3 + p {
+article h3 + p,
+.prose h2 + p,
+.prose h3 + p {
   margin-block-start: 12px;
 }
 
@@ -751,10 +780,23 @@ figure.code pre {
   margin-block-start: 40px;
 }
 
-.example > h3 {
+.example-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.example-head h3 {
   margin-block-start: 0;
   font-size: 20px;
   letter-spacing: -0.02em;
+}
+
+/** Which fragment it is. The convention name, so the file it names can be found by reading it. */
+.example-of {
+  font: 12px/1 var(--mono);
+  color: var(--faint);
 }
 
 .example > p {
@@ -762,6 +804,64 @@ figure.code pre {
   max-width: 74ch;
   font-size: 14.5px;
   line-height: 1.6;
+}
+
+/**
+ * What it rendered, beside the file that rendered it.
+ *
+ * Two equal columns, because neither is the subordinate one: the claim this page makes is that
+ * these are two views of a single compilation, and a layout that put one under the other made the
+ * reader hold the first in their head while scrolling to the second.
+ */
+.duo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+  margin-block-start: 16px;
+}
+
+/**
+ * Side by side only where the column is wide enough for both halves to be readable.
+ *
+ * A container query and not a media query, because what decides this is the width of the article
+ * and not the width of the window: at the same viewport the gallery's article is 65rem and a guide
+ * page's is 49rem, because one shell has two columns and the other has three. Keyed to the
+ * viewport, a wide window put the guide's examples in two 24rem columns and wrapped every line of
+ * both. The threshold is what a half of this is: below 56rem the source column is under 27rem, and
+ * a line of this repository's TSX does not fit in one.
+ */
+@container article (width < 56rem) {
+  .duo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.duo > figure {
+  margin: 0;
+  min-width: 0;
+}
+
+/**
+ * Source in a half-width column wraps rather than scrolls.
+ *
+ * A line of this repository's TSX is eighty to ninety characters and the column is about sixty, so
+ * `overflow-x: auto` here hid the end of nearly every line behind a scrollbar the reader has to
+ * find. Wrapped, the whole declaration is on screen beside the markup it produced, which is the
+ * only reason the two are side by side.
+ */
+.duo pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The fallback where container queries are not supported: below this the article is narrow too. */
+@supports not (container-type: inline-size) {
+  @media (width < 1100px) {
+    .duo {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
 }
 
 .facts {
@@ -781,6 +881,46 @@ figure.code pre {
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--dim);
+}
+
+/**
+ * The four facts, as a row of small boxes above the tables that expand them.
+ *
+ * Label over value, the opposite way round from `.stat`: these are read as a row of answers to
+ * four fixed questions, so the questions come first and the eye runs along the second line.
+ */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 14px;
+  margin-block-start: 12px;
+}
+
+.tile {
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.tile span {
+  display: block;
+  font: 600 10px/1 var(--sans);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.tile b {
+  display: block;
+  margin-block-start: 6px;
+  font: 500 15px/1.3 var(--mono);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.tile b.lit {
+  color: var(--accent-ink);
 }
 
 .api-entry {
@@ -851,26 +991,6 @@ figure.code pre {
   font-size: 13.5px;
   line-height: 1.6;
   color: var(--faint);
-}
-
-.jump {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  font: 500 12.5px/1 var(--mono);
-}
-
-.jump a {
-  padding: 4px 7px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  color: var(--ink-soft);
-}
-
-.jump a:hover {
-  border-color: var(--accent-edge);
-  color: var(--accent);
-  text-decoration: none;
 }
 
 /* A message the framework actually raises, quoted as it arrives. */
@@ -1700,6 +1820,29 @@ figure.code pre {
   color: var(--dim);
 }
 
+/**
+ * How many matched, and how to move through them, pinned to the panel's two edges.
+ *
+ * The panel is the scroll container, so both of these scrolled away with the list — and the two
+ * things a reader needs from them are needed exactly while scrolling: whether there are more, and
+ * that ↑↓ moves between them. The negative offsets are the panel's own 10px of padding, so the
+ * pinned rows cover it rather than leaving a strip of list showing above and below.
+ */
+.finder > .finder-count {
+  position: sticky;
+  top: -10px;
+  z-index: 1;
+  background: var(--surface);
+}
+
+.finder > .finder-foot {
+  position: sticky;
+  bottom: -10px;
+  z-index: 1;
+  padding-block-end: 11px;
+  background: var(--surface);
+}
+
 .finder-foot span {
   display: flex;
   align-items: center;
@@ -2355,53 +2498,324 @@ table.rows .num {
 
 /* ── the glossary's letter index ─────────────────────────────────────────── */
 
-/**
- * A glossary is a page people arrive at knowing the word they want.
- *
- * So the letters lead, and only the ones with a term under them: an alphabet with half its links
- * dead is a worse index than none, and one that needs maintaining as terms are added is worse still.
- */
-.jump {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin: 22px 0 6px;
-  padding-block-end: 16px;
-  border-block-end: 1px solid var(--line);
-}
-
-.jump-kind {
-  font: 600 10px/1 var(--sans);
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-
-.jump a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 6px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  font: 500 12px/1 var(--mono);
-  color: var(--ink-soft);
-}
-
-.jump a:hover {
-  border-color: var(--accent-edge);
-  background: var(--accent-quiet);
-  color: var(--accent-ink);
-  text-decoration: none;
-}
-
 /** Which part of the framework a term belongs to, beside the term. */
 .term-of {
   margin-inline-start: 10px;
   font: 12px/1 var(--sans);
   font-weight: 400;
   color: var(--faint);
+}
+
+/* ── the refusal panel ────────────────────────────────────────────────────── */
+
+/**
+ * A code's page opens with the refusal itself, in one bordered panel.
+ *
+ * The border is the danger hue rather than the accent, which is the distinction `--danger` exists
+ * to make: a refusal is not an accent, and reading it as one is the mistake. Everything the panel
+ * holds was already on the page — the message, the package, the file, the documents — spread over a
+ * heading, a quotation, two prose paragraphs and two tables of one column each.
+ */
+.refusal-panel {
+  margin-block-start: 34px;
+  padding: 22px 24px;
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
+  border-radius: var(--r-xl);
+  background: var(--danger-wash);
+}
+
+.refusal-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.refusal-kind {
+  padding: 3px 9px;
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
+  border-radius: var(--r-pill);
+  font: 500 11px/1.4 var(--sans);
+  color: var(--danger-ink);
+}
+
+/* The file the throw is in. Pushed to the far edge, where every rail on this site puts a number. */
+.refusal-where {
+  margin-inline-start: auto;
+  font: 12.5px/1.5 var(--mono);
+  color: var(--faint);
+}
+
+.refusal-where a {
+  color: var(--ink-soft);
+}
+
+.refusal-panel .message {
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+
+.refusal-panel .hint {
+  margin: 10px 0 0;
+}
+
+/* A code with no sentence of its own says why, in the place the sentence would have been. */
+.refusal-none {
+  margin: 16px 0 0;
+  max-width: 80ch;
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+/**
+ * Label and value, the shape a fact takes when there are two or three of them.
+ *
+ * Not a table: a table draws a header row and a rule per line, which for three facts is more
+ * furniture than fact. The label column is `max-content`, so the values line up on one edge.
+ */
+.facts-rows {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 16px;
+  margin: 16px 0 0;
+  font-size: 13.5px;
+}
+
+.facts-rows dt {
+  color: var(--dim);
+}
+
+.facts-rows dd {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+@media (width < 700px) {
+  .facts-rows {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .facts-rows dd {
+    margin-block-end: 8px;
+  }
+}
+
+/* ── the strip ────────────────────────────────────────────────────────────── */
+
+/**
+ * What a generated page is made of, on one line above it.
+ *
+ * One box rather than `.stats`' three, because these numbers are a header and not a figure: they
+ * describe the page below them, so they read as a sentence across and carry the caveat that
+ * qualifies them on the same line rather than in a paragraph underneath.
+ */
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  flex-wrap: wrap;
+  margin-block-start: 22px;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.strip-cell b {
+  display: block;
+  font-size: 21px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.strip-cell b.lit {
+  color: var(--accent-ink);
+}
+
+.strip-cell span {
+  display: block;
+  margin-block-start: 5px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--faint);
+}
+
+/**
+ * The caveat, beside the numbers where the line has room and under them where it has not.
+ *
+ * `flex: 1 1 30ch` is what does that: it asks for thirty characters, takes the rest of the line if
+ * that is what is left, and wraps to a full-width row of its own when the numbers have used the
+ * line up. Pinning it right with `margin-inline-start: auto` instead left a column of dead space
+ * under the numbers on every article narrower than the mock.
+ */
+.strip-note {
+  flex: 1 1 30ch;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--faint);
+}
+
+.strip-cell {
+  flex: none;
+}
+
+@media (width < 760px) {
+  .strip {
+    gap: 18px;
+  }
+}
+
+/**
+ * A generated module's name is the import you write, so it is set in the face you write it in.
+ *
+ * Only here: every other `h1` on the site is a sentence, and this one is a specifier.
+ */
+.api > h1 {
+  font-family: var(--mono);
+  letter-spacing: -0.02em;
+}
+
+/* ── the gallery's group headings ─────────────────────────────────────────── */
+
+/**
+ * Which guide page a run of examples is from, on one line with the way back to it.
+ *
+ * The backlink was a paragraph under the heading, which put a heading, a link and then the first
+ * example's rule in three stacked rows — a section that looked empty until you scrolled past it.
+ */
+.gallery-group {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-block-start: 52px;
+  scroll-margin-top: calc(var(--head-h) + 20px);
+}
+
+.gallery-group h2 {
+  margin: 0;
+}
+
+.gallery-from {
+  font-size: 13px;
+}
+
+.gallery-count {
+  margin-inline-start: auto;
+  font: 500 13px/1 var(--mono);
+  color: var(--faint);
+}
+
+/* The first example under a group heading carries the group's spacing, not its own. */
+.gallery-group + .example {
+  margin-block-start: 26px;
+}
+
+/* ── the tutorial's parts, and the steps in them ──────────────────────────── */
+
+.tutorial-needs {
+  margin: 22px 0 0;
+  max-width: 74ch;
+}
+
+/**
+ * A part: what it is for on the left, and the steps in it beside that.
+ *
+ * The description column is fixed rather than fractional so that the four parts' left edges agree
+ * down the page — a part with a one-line blurb and one with three should still start their steps
+ * at the same x, or the page reads as four unrelated blocks.
+ */
+.part {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  gap: 32px;
+  margin-block-start: 44px;
+  padding-block-start: 26px;
+  border-block-start: 1px solid var(--line);
+  scroll-margin-top: calc(var(--head-h) + 20px);
+}
+
+.part-of h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.part-of p {
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.part-of .hint {
+  margin-block-start: 12px;
+}
+
+.part-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 14px;
+  align-content: start;
+}
+
+.step-card {
+  display: block;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: inherit;
+}
+
+.step-card:hover {
+  text-decoration: none;
+}
+
+.step-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+
+/* Zero-padded, so a two-digit tutorial does not shift its titles by a character half way down. */
+.step-num {
+  font: 500 13px/1 var(--mono);
+  color: var(--accent);
+}
+
+.step-title {
+  font: 500 15px/1.25 var(--sans);
+  color: var(--ink);
+}
+
+.step-mins {
+  flex: none;
+  margin-inline-start: auto;
+  font: 12px/1 var(--mono);
+  white-space: nowrap;
+  color: var(--faint);
+}
+
+.step-card p {
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+/* What the step has you run, read out of the step. See `stepMentions` for why it is not written. */
+.step-card .step-runs {
+  font: 12px/1.5 var(--mono);
+  color: var(--faint);
+}
+
+@media (width < 900px) {
+  .part {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
 }

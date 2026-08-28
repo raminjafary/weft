@@ -13,11 +13,12 @@ interface Props {
 }
 
 /**
- * The glossary's layout: the reference sections, the jump list, and the terms.
+ * The glossary's layout: the terms under their letters, and the terms.
  *
- * The jump list used to be built into the route's body string, which meant it was recomputed and
- * re-sent with the prose on every render. As a hole it is one cache entry, and it sits in the rail
- * the rest of the site already uses for the same job.
+ * The index used to be a row of letter chips in the route's body string, recomputed and re-sent
+ * with the prose on every render. It is the contents rail now — a sealed template, one cache entry,
+ * and the same column the rest of the site indexes a section in — with the letters as its group
+ * headings, so the index is the terms rather than a second thing pointing at them.
  */
 export default fragment(
   ({ heading, lede, kickerClass, kicker, kickerNote, contents, body, outline }: Props) => (

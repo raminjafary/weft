@@ -2,6 +2,7 @@ import type { Block } from '../fragments/docs/page.tsx'
 import { bespoke, cell, heading, note, prose, table } from './blocks.ts'
 import { errorByCode, errorCodes, errorsByPackage, type ErrorCode } from './errors.ts'
 import { PAGES } from './pages.ts'
+import { strip } from './figures.ts'
 import { escapeHtml } from './escape.ts'
 
 const REPO = 'https://github.com/raminjafary/weft/blob/main'
@@ -24,9 +25,22 @@ export function errorsIndexBody(): Block[] {
   const percent = (n: number) => `${Math.round((n / all.length) * 100)}%`
 
   const blocks: Block[] = [
+    // The counts as a strip rather than a five-column table of one row: a table draws a header rule
+    // and a body rule to say five numbers, and the numbers are the header of this page rather than a
+    // figure on it.
+    bespoke(
+      strip(
+        [
+          { value: String(all.length), note: 'codes, extracted from the source' },
+          { value: `${own} (${percent(own)})`, note: 'carry a sentence of their own', lit: true },
+          { value: String(wrapped), note: 'forward the failure underneath' },
+          { value: String(silent), note: 'say nothing at all' },
+        ],
+        `<strong>${withSpec}</strong> of them (${percent(withSpec)}) are named by a specification ` +
+          'document, which is the argument for the refusal rather than the refusal itself.',
+      ),
+    ),
     prose(
-      `Every named refusal in the framework: <strong>${all.length}</strong> codes, extracted from the ` +
-        'source that raises them.',
       'This framework refuses by name rather than by falling back. A capability that does not exist, a ' +
         'declaration that contradicts a derivation, a read the compiler cannot put in a cache key — each ' +
         'of those has a code and a sentence, and the sentence was written for whoever hit it. So this ' +
@@ -40,18 +54,6 @@ export function errorsIndexBody(): Block[] {
         'in the first month and there would be no way to tell which. So the page walks every package’s ' +
         'src/ directory, and a test walks the same tree and fails if a code exists in the source and ' +
         'not here. Adding a refusal to the framework adds a row without anybody remembering to.',
-    ),
-    table(
-      ['Codes', 'Own sentence', 'Forwards a cause', 'Says nothing', 'With a spec reference'],
-      [
-        [
-          cell.text(String(all.length)),
-          cell.text(`${own} (${percent(own)})`),
-          cell.text(String(wrapped)),
-          cell.text(String(silent)),
-          cell.text(`${withSpec} (${percent(withSpec)})`),
-        ],
-      ],
     ),
     note(
       'why',
@@ -108,30 +110,7 @@ export function errorBody(code: string): Block[] {
     ]
   }
 
-  const blocks: Block[] = [bespoke(`<p class="kind">${escapeHtml(entry.package)}</p>`)]
-
-  if (entry.message) {
-    blocks.push(bespoke(`<blockquote class="message refusal">${escapeHtml(entry.message)}</blockquote>`))
-    blocks.push(
-      prose(
-        'That is the message as the source writes it, with interpolations shown as an ellipsis. It is a ' +
-          'reconstruction of the template, not a capture of a runtime string.',
-      ),
-    )
-  } else {
-    blocks.push(
-      note(
-        'careful',
-        entry.detail === 'wrapped' ? 'Forwards the failure underneath it' : 'Raised with no message',
-        entry.detail === 'wrapped'
-          ? 'This code carries whatever went wrong beneath it — a parse error, a region that would not ' +
-              'answer — so at runtime it does say something. What it says is the cause’s sentence rather ' +
-              'than one written in the source, which is why there is none to quote here.'
-          : 'This code is thrown with nothing but itself. The file below is the only explanation there ' +
-              'is, and that is a gap in the framework rather than in this page.',
-      ),
-    )
-  }
+  const blocks: Block[] = [refusalPanel(entry)]
 
   blocks.push(heading('Where it is raised', 'raised'))
   blocks.push(
@@ -143,23 +122,6 @@ export function errorBody(code: string): Block[] {
       ]),
     ),
   )
-
-  const introduces = introducedBy(entry)
-  if (introduces.length) {
-    blocks.push(heading('Introduced by', 'introduced'))
-    blocks.push(
-      prose(
-        'A refusal makes sense once you know the mechanism it protects. These guide pages are the ' +
-          'introduction to the documents this code is specified in:',
-      ),
-    )
-    blocks.push(
-      table(
-        ['Guide page', 'What it covers'],
-        introduces.map((page) => [cell.link(page.title, `/guide/${page.slug}`), cell.text(page.lede)]),
-      ),
-    )
-  }
 
   const near = nearby(entry)
   if (near.length) {
@@ -182,26 +144,77 @@ export function errorBody(code: string): Block[] {
     )
   }
 
+  return blocks
+}
+
+/**
+ * What a code's page opens with: the refusal itself, and the two facts that place it.
+ *
+ * One panel rather than a heading, a quotation and two more sections, because the four things a
+ * reader who just hit a refusal wants — what the framework said, which package said it, which
+ * document argues for it, and which guide page introduces the mechanism — are one thought and were
+ * spread over half a page. The specification documents used to have a section of their own headed
+ * "The argument for it", whose whole content was the same list this panel's `Specified in` row
+ * carries, under a paragraph explaining that a code is a string.
+ */
+function refusalPanel(entry: ErrorCode): Block {
+  const kind =
+    entry.detail === 'prose'
+      ? 'named refusal'
+      : entry.detail === 'wrapped'
+        ? 'forwards its cause'
+        : 'raised with no message'
+
+  const where = entry.sites[0]
+  const rows: string[] = []
+
   if (entry.spec.length) {
-    blocks.push(heading('The argument for it', 'argument'))
-    blocks.push(
-      prose(
-        'A code is a string; the reason it exists is a paragraph. These specification documents mention it:',
-      ),
-    )
-    blocks.push(
-      table(
-        ['Document'],
-        entry.spec.map((doc) => [cell.codeLink(doc, `${REPO}/${doc}`)]),
-      ),
-    )
-  } else {
-    blocks.push(
-      prose('No specification document mentions this code. What it means is the message and the file above.'),
+    rows.push(
+      `<dt>Specified in</dt><dd>${entry.spec
+        .map((doc) => `<a href="${REPO}/${escapeHtml(doc)}"><code>${escapeHtml(doc)}</code></a>`)
+        .join('<span class="api-dot">·</span>')}</dd>`,
     )
   }
 
-  return blocks
+  const introduces = introducedBy(entry)
+  if (introduces.length) {
+    rows.push(
+      `<dt>Introduced by</dt><dd>${introduces
+        .map((page) => `<a href="/guide/${escapeHtml(page.slug)}">${escapeHtml(page.title)}</a>`)
+        .join('<span class="api-dot">·</span>')}</dd>`,
+    )
+  }
+
+  const said = entry.message
+    ? `<blockquote class="message refusal">${escapeHtml(entry.message)}</blockquote>
+       <p class="hint">The message as the source writes it, with interpolations shown as an ellipsis.
+       It is a reconstruction of the template, not a capture of a runtime string.</p>`
+    : entry.detail === 'wrapped'
+      ? `<p class="refusal-none">This code carries whatever went wrong beneath it — a parse error, a
+         region that would not answer — so at runtime it does say something. What it says is the
+         cause’s sentence rather than one written in the source, which is why there is none to quote.</p>`
+      : `<p class="refusal-none">This code is raised with nothing but itself. The file below is the
+         only explanation there is, and that is a gap in the framework rather than in this page.</p>`
+
+  return bespoke(`<div class="refusal-panel">
+  <div class="refusal-head">
+    <span class="refusal-kind">${escapeHtml(kind)}</span>
+    <span class="badge mute">${escapeHtml(entry.package)}</span>
+    ${
+      where
+        ? `<span class="refusal-where"><a href="${REPO}/${escapeHtml(where.file)}"><code>${escapeHtml(
+            where.file,
+          )}</code></a>${
+            entry.sites.length > 1
+              ? `<span class="api-dot">·</span><a href="#raised">${entry.sites.length} places</a>`
+              : ''
+          }</span>`
+        : ''
+    }
+  </div>
+  ${said}
+  ${rows.length ? `<dl class="facts-rows">${rows.join('')}</dl>` : ''}
+</div>`)
 }
 
 /** Every code, for the route's declared params. */

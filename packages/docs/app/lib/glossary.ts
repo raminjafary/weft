@@ -394,7 +394,6 @@ export function glossaryBody(): string {
         '<strong>Plan</strong> is not a build configuration. And hydration does not happen at all — the ' +
         'word for what replaces it is <strong>adoption</strong>.',
     ) +
-    jumpTo() +
     `<div class="terms">` +
     TERMS.map(
       (term) => `<section class="term" id="${slug(term.term)}">
@@ -418,25 +417,4 @@ export function glossaryBody(): string {
 
 export function slug(term: string): string {
   return term.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-}
-
-/**
- * The letters that actually have a term under them.
- *
- * A glossary this length is a page people arrive at knowing the word they want, and scrolling past
- * thirty-five entries to reach one is the wrong shape for that. Only the letters present are shown:
- * an alphabet with fourteen dead links in it would be a worse index than none, and would need
- * maintaining every time a term is added.
- */
-function jumpTo(): string {
-  const letters = [...new Set(TERMS.map((term) => term.term.slice(0, 1).toUpperCase()))].toSorted()
-  return `<nav class="jump" aria-label="Jump to a letter">
-    <span class="jump-kind">Jump to</span>
-    ${letters
-      .map((letter) => {
-        const first = TERMS.find((term) => term.term.slice(0, 1).toUpperCase() === letter)
-        return `<a href="#${slug(first?.term ?? '')}">${escapeHtml(letter)}</a>`
-      })
-      .join('')}
-  </nav>`
 }

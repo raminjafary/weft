@@ -31,8 +31,12 @@ export function galleryBody(): string {
     pages
       .map(
         (page) =>
-          `<h2 id="${page.slug}"><a class="anchor" href="#${page.slug}">${page.title}</a></h2>` +
-          `<p class="hint"><a href="/guide/${page.slug}">Read the page this is from →</a></p>` +
+          // Heading and backlink on one line: as a heading with a paragraph under it, a group whose
+          // first example is a divider away read as an empty section.
+          `<div class="gallery-group" id="${page.slug}">` +
+          `<h2><a class="anchor" href="#${page.slug}">${page.title}</a></h2>` +
+          `<a class="gallery-from" href="/guide/${page.slug}">Read the page this is from →</a>` +
+          `<span class="gallery-count">${page.examples.length}</span></div>` +
           page.examples.map((ex) => example(renderExample(ex))).join(''),
       )
       .join('')

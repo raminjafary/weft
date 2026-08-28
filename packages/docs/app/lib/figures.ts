@@ -209,6 +209,25 @@ export function stats(items: readonly { value: string; note: string; lit?: boole
 }
 
 /**
+ * The same numbers as `stats`, in one bar, with the sentence that qualifies them beside it.
+ *
+ * A separate component and not a variant, because the two answer different questions. Tiles are for
+ * figures a reader compares — three measurements of one run — and each gets its own box. A strip is
+ * a header: it says what the page below it is made of, so it reads as one line and carries the
+ * caveat on the same line rather than as a paragraph underneath that nobody joins up to it.
+ */
+export function strip(items: readonly { value: string; note: string; lit?: boolean }[], aside = ''): string {
+  return `<div class="strip">${items
+    .map(
+      (item) =>
+        `<div class="strip-cell"><b${item.lit ? ' class="lit"' : ''}>${enc(item.value)}</b><span>${enc(
+          item.note,
+        )}</span></div>`,
+    )
+    .join('')}${aside ? `<p class="strip-note">${aside}</p>` : ''}</div>`
+}
+
+/**
  * A diff, as the two lines that changed rather than as a file.
  *
  * A tutorial step that shows a whole file again to change two lines of it makes the reader do the

@@ -362,12 +362,20 @@ h2.hint {
   margin: 0 0 11px;
 }
 
+/**
+ * The sentence under the heading, and the only block on the page spaced from both sides.
+ *
+ * The body below it is a slot, so the first thing in it is not the lede's sibling and cannot be
+ * selected from here — and what that thing is varies by page: a paragraph, a strip of numbers, a
+ * panel. Each carries its own space above; this adds the rest of the gap that separates the head of
+ * the page from its body, whichever of them comes first.
+ */
 .lede {
   font-size: 16.5px;
   line-height: 1.6;
   color: var(--ink-soft);
   max-width: 70ch;
-  margin: 16px 0 30px;
+  margin: 16px 0 12px;
 }
 
 .hint {
@@ -884,7 +892,7 @@ h2.hint {
 /* Boxes: a card, a tile, a button — something with an edge and room around it. */
 :is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit),
 /* Rows: a line in a rail, an icon, a tab. The wash alone; a halo on a 26px control is a smudge. */
-:is(.jump a, .contents a, .outline a, .top-icon, .tty-tab span, .pane-tab span, .panel-tab-in) {
+:is(.contents a, .outline a, .top-icon, .tty-tab span, .pane-tab span, .panel-tab-in) {
   --mx: 50%;
   --my: 50%;
 
@@ -937,8 +945,8 @@ h2.hint {
 
 :is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit):hover,
 :is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit):focus-visible,
-:is(.jump a, .contents a, .outline a, .top-icon):hover,
-:is(.jump a, .contents a, .outline a, .top-icon):focus-visible,
+:is(.contents a, .outline a, .top-icon):hover,
+:is(.contents a, .outline a, .top-icon):focus-visible,
 :is(.tty-tab, .pane-tab, .panel-tab):hover :is(span, .panel-tab-in) {
   --glow: 1;
 }
@@ -953,7 +961,7 @@ h2.hint {
 
 @media (prefers-reduced-motion: reduce) {
   :is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit),
-  :is(.jump a, .contents a, .outline a, .top-icon) {
+  :is(.contents a, .outline a, .top-icon) {
     transition: none;
   }
 

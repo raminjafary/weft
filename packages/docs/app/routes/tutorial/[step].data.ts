@@ -12,10 +12,13 @@ export default defineRoute({
   }),
   layoutValues: (params) =>
     shell({
-      heading: STEP_BY_SLUG[params.step ?? '']?.title ?? 'Not found',
+      // The number comes off the heading because the kicker above it is `Part two · Step 4 of 6`,
+      // and no crumb is drawn because the trail it would draw is `Tutorial / Steps / <this page>` —
+      // a link to the index the rail already holds, a middle crumb that is not a page, and then the
+      // heading again.
+      heading: (STEP_BY_SLUG[params.step ?? '']?.title ?? 'Not found').replace(/^\d+\s*—\s*/, ''),
       lede: STEP_BY_SLUG[params.step ?? '']?.lede ?? 'This step does not exist.',
       kicker: stepKicker(params.step ?? ''),
-      section: 'Steps',
     }),
   cache: { class: 'public', ttl: '1h' },
   params: { step: STEPS.map((step) => step.slug) },

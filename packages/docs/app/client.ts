@@ -165,7 +165,7 @@ function theme(): void {
  */
 const GLOWS =
   '.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit, .top-icon,' +
-  ' .jump a, .contents a, .outline a, .tty-tab span, .pane-tab span, .panel-tab-in'
+  ' .contents a, .outline a, .tty-tab span, .pane-tab span, .panel-tab-in'
 
 let glowing = false
 
