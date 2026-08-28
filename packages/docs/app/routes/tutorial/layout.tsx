@@ -9,6 +9,8 @@ interface Props {
   kickerClass: string
   kicker: string
   kickerNote: string
+  /** `shell` for a step, `shell one` for the index — which has no rail. See `lib/shell.ts`. */
+  shellClass: string
   contents: string
   body: string
   outline: string
@@ -26,8 +28,19 @@ interface Props {
  * cut, streamed independently, with its own cache policy — which a shared component could not give.
  */
 export default fragment(
-  ({ heading, lede, section, kickerClass, kicker, kickerNote, contents, body, outline }: Props) => (
-    <div class="shell">
+  ({
+    heading,
+    lede,
+    section,
+    kickerClass,
+    kicker,
+    kickerNote,
+    shellClass,
+    contents,
+    body,
+    outline,
+  }: Props) => (
+    <div class={shellClass}>
       <aside class="rail" aria-label="Tutorial steps">
         <slot name="contents">{contents}</slot>
       </aside>

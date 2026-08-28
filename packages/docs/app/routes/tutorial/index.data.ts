@@ -1,5 +1,4 @@
 import { defineRoute } from '@weftjs/core'
-import { tutorialContents } from '../../lib/contents.ts'
 import { shell } from '../../lib/shell.ts'
 import { tutorialIndexBody } from '../../lib/tutorial.ts'
 
@@ -9,6 +8,9 @@ export default defineRoute({
     description: 'One application, and every mechanism it can be asked to use.',
   },
   layoutValues: shell({
+    // No rail: the page below is the whole tutorial, and a column repeating it beside it is the
+    // contents of the thing the reader is already looking at.
+    shellClass: 'shell one',
     kicker: 'Tutorial',
     heading: 'One application, and every mechanism it can be asked to use',
     lede:
@@ -18,13 +20,10 @@ export default defineRoute({
   }),
   cache: { class: 'public', ttl: '1h' },
   slots: {
-    contents: { fragment: 'docs/contents', load: () => ({ groups: tutorialContents() }) },
+    contents: { fragment: 'docs/contents', load: () => ({ groups: [] }) },
     body: { html: () => tutorialIndexBody() },
-    outline: {
-      html: `<h2 class="eyebrow">The habit worth learning</h2>
-        <p class="hint">After every step, run <code>weft why &lt;route&gt;</code>. The plan is generated from
-        what you wrote, and reading it is how you find out that a declaration you did not make was decided
-        for you — and which read decided it.</p>`,
-    },
+    // Both columns are empty on this page, and the shell it names draws neither. A hole still has
+    // to be filled — an unfilled one is `E_SHELL_HOLE_UNFILLED`, and rightly.
+    outline: { html: '' },
   },
 })

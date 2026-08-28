@@ -585,9 +585,11 @@ export function tutorialIndexBody(): string {
       { value: String(files), note: 'files in the application by the last step' },
       { value: '1', note: 'application, carried the whole way', lit: true },
     ]) +
-    `<p class="hint tutorial-needs">You need Node 22 or later and nothing else. There is no scaffolding
-     step you cannot read, and every step says what changed, what the framework then knew, and which
-     command shows it.</p>` +
+    // The band's rule spans the column while its sentence keeps a readable measure, which is two
+    // widths and therefore two elements.
+    `<div class="tutorial-band"><p class="hint">You need Node 22 or later and nothing else. There is
+     no scaffolding step you cannot read, and every step says what changed, what the framework then
+     knew, and which command shows it.</p></div>` +
     PARTS.map((part) => {
       const steps = STEPS.filter((step) => step.part === part.id)
       if (!steps.length) return ''
@@ -601,7 +603,16 @@ export function tutorialIndexBody(): string {
         </div>
         <div class="part-steps">${steps.map(stepCard).join('')}</div>
       </section>`
-    }).join('')
+    }).join('') +
+    // The outline column's, until this page stopped having one. It is the sentence the tutorial
+    // exists to teach, so it moved into the page rather than going with the column.
+    note(
+      'why',
+      'The habit worth learning',
+      'After every step, run <code>weft why &lt;route&gt;</code>. The plan is generated from what you ' +
+        'wrote, and reading it is how you find out that a declaration you did not make was decided for ' +
+        'you — and which read decided it.',
+    )
   )
 }
 

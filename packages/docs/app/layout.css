@@ -208,6 +208,22 @@ main {
   gap: 52px;
 }
 
+/**
+ * One column: a section whose page *is* its own contents, so a rail would repeat it.
+ *
+ * The rail is still in the layout — the nested chain is the file tree, so the tutorial's index and
+ * its steps are one template — and the index fills that slot with nothing. Hidden rather than
+ * absent for that reason, and it costs an empty `<nav>`.
+ */
+.shell.one {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.shell.one .rail,
+.shell.one .outline-rail {
+  display: none;
+}
+
 /* The landing page and the playground own their whole width. */
 .shell.full {
   display: block;
@@ -2717,9 +2733,44 @@ table.rows .num {
 
 /* ── the tutorial's parts, and the steps in them ──────────────────────────── */
 
-.tutorial-needs {
-  margin: 22px 0 0;
+/**
+ * The head of the tutorial index, closed by a rule.
+ *
+ * The design draws the eyebrow, the heading, the lede and the four numbers as one band across the
+ * page with a divider under it, and the parts below. The band is not an element — the heading and
+ * the lede are the layout's and the numbers are the body's — so the rule is drawn by the last thing
+ * in it. The rule spans the column and the sentence keeps a readable measure, which is two widths
+ * and therefore the wrapper as well as the paragraph.
+ */
+.tutorial-band {
+  padding-block-end: 26px;
+  border-block-end: 1px solid var(--line);
+}
+
+.tutorial-band p {
+  margin: 26px 0 0;
   max-width: 74ch;
+}
+
+/* The index is the one page whose heading is the whole tutorial, and it is set at that scale. */
+.shell.one article > h1 {
+  font-size: 44px;
+  line-height: 1.1;
+  letter-spacing: -0.032em;
+  max-width: 22ch;
+}
+
+.shell.one .lede {
+  font-size: 17px;
+  max-width: 74ch;
+  margin-block-end: 0;
+}
+
+/* Four across, and not wider than four of them want to be. */
+.shell.one .stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  max-width: 1040px;
+  margin-block-start: 26px;
 }
 
 /**
@@ -2731,11 +2782,9 @@ table.rows .num {
  */
 .part {
   display: grid;
-  grid-template-columns: 15rem minmax(0, 1fr);
-  gap: 32px;
-  margin-block-start: 44px;
-  padding-block-start: 26px;
-  border-block-start: 1px solid var(--line);
+  grid-template-columns: 216px minmax(0, 1fr);
+  gap: 34px;
+  margin-block-start: 34px;
   scroll-margin-top: calc(var(--head-h) + 20px);
 }
 
@@ -2757,8 +2806,8 @@ table.rows .num {
 
 .part-steps {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   align-content: start;
 }
 
@@ -2817,5 +2866,17 @@ table.rows .num {
   .part {
     grid-template-columns: minmax(0, 1fr);
     gap: 20px;
+  }
+
+  .part-steps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shell.one .stats {
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  }
+
+  .shell.one article > h1 {
+    font-size: 34px;
   }
 }

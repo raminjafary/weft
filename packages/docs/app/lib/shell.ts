@@ -46,6 +46,15 @@ export interface ShellInput {
   kickerNote?: string
   /** The middle crumb — the group a guide page is in. Empty draws no trail. */
   section?: string
+  /**
+   * Which shell the section's layout draws: `shell`, `shell two`, `shell one`.
+   *
+   * A class name and not a conditional, for the reason `kickerClass` is one — and here there is a
+   * second reason. The nested layout chain is the file tree, so `/tutorial` and `/tutorial/:step`
+   * are the same layout file and cannot be given different ones; the index has no rail and a step
+   * page does, and a hole is how one template serves both.
+   */
+  shellClass?: string
 }
 
 /**
@@ -64,6 +73,7 @@ export function shell(input: ShellInput): Record<string, unknown> {
     kickerClass: input.kickerClass ?? 'kicker',
     kicker: input.kicker ?? '',
     kickerNote: input.kickerNote ?? '',
+    shellClass: input.shellClass ?? 'shell',
     versions: versionPill(),
     repo: REPO,
     boot: BOOT,
