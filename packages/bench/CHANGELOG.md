@@ -4,7 +4,17 @@ Every commit in this repository appears here, not only `feat` and `fix`. The sec
 generated from Conventional Commit types by `scripts/release/`, and a package changelog holds
 the commits scoped to that package.
 
-## [0.2.0](https://github.com/raminjafary/weft/compare/v0.1.1...HEAD) (2026-08-28)
+## [0.3.0](https://github.com/raminjafary/weft/compare/v0.2.0...HEAD) (2026-08-28)
+
+### ✨ Features
+
+* the walk over HTTP is a command, so the cross-check can be re-run ([55d4979](https://github.com/raminjafary/weft/commit/55d4979798aabf47c7c2696e3667318c6dcc8949))
+
+### 🐛 Bug Fixes
+
+* a shaped link cancelled the bytes it had already accepted, so nav never finished ([eec3402](https://github.com/raminjafary/weft/commit/eec34021ee35bb533e85317af833e12d4a1b2061))
+
+## [0.2.0](https://github.com/raminjafary/weft/compare/v0.1.1...v0.2.0) (2026-08-28)
 
 ### ✨ Features
 

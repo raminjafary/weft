@@ -4,7 +4,15 @@ Every commit in this repository appears here, not only `feat` and `fix`. The sec
 generated from Conventional Commit types by `scripts/release/`, and a package changelog holds
 the commits scoped to that package.
 
-## [0.2.0](https://github.com/raminjafary/weft/compare/v0.1.1...HEAD) (2026-08-28)
+## [0.2.1](https://github.com/raminjafary/weft/compare/v0.2.0...HEAD) (2026-08-28)
+
+### 🐛 Bug Fixes
+
+* a report whose lines are not lines, a document count that counted files, and two scaffold gaps ([1fe6151](https://github.com/raminjafary/weft/commit/1fe6151446a6b6c38136e8ef82204be7961a0b9e))
+* a page an intent invalidates was frozen into a file nothing can invalidate ([0848c76](https://github.com/raminjafary/weft/commit/0848c761de45af3fe4eeefe4f96527b14317af9f))
+* the client announced its version on every message, so a live page's buttons did nothing ([72955c7](https://github.com/raminjafary/weft/commit/72955c771ae25481061dacb36ec5804565a2171a))
+
+## [0.2.0](https://github.com/raminjafary/weft/compare/v0.1.1...v0.2.0) (2026-08-28)
 
 ### ✨ Features
 

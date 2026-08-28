@@ -4,7 +4,26 @@ Every commit in this repository appears here, not only `feat` and `fix`. The sec
 generated from Conventional Commit types by `scripts/release/`, and a package changelog holds
 the commits scoped to that package.
 
-## [0.2.0](https://github.com/raminjafary/weft/compare/v0.1.1...HEAD) (2026-08-28)
+## [0.2.1](https://github.com/raminjafary/weft/compare/v0.2.0...HEAD) (2026-08-28)
+
+### ✨ Features
+
+* **bench:** the walk over HTTP is a command, so the cross-check can be re-run ([55d4979](https://github.com/raminjafary/weft/commit/55d4979798aabf47c7c2696e3667318c6dcc8949))
+
+### 🐛 Bug Fixes
+
+* **weft:** a report whose lines are not lines, a document count that counted files, and two scaffold gaps ([1fe6151](https://github.com/raminjafary/weft/commit/1fe6151446a6b6c38136e8ef82204be7961a0b9e))
+* **weft:** a page an intent invalidates was frozen into a file nothing can invalidate ([0848c76](https://github.com/raminjafary/weft/commit/0848c761de45af3fe4eeefe4f96527b14317af9f))
+* **compiler:** an optional peer imported statically is not optional, and npm create weft died on it ([6e49fc0](https://github.com/raminjafary/weft/commit/6e49fc0a028c7dfde0f2de8ec6749b5e17879147))
+* **weft:** the client announced its version on every message, so a live page's buttons did nothing ([72955c7](https://github.com/raminjafary/weft/commit/72955c771ae25481061dacb36ec5804565a2171a))
+* **repo:** the navigation table has both its columns, and the download figure is checkable ([f909a40](https://github.com/raminjafary/weft/commit/f909a404c5961c9a725b7864ac58f0f19b648f09))
+* **bench:** a shaped link cancelled the bytes it had already accepted, so nav never finished ([eec3402](https://github.com/raminjafary/weft/commit/eec34021ee35bb533e85317af833e12d4a1b2061))
+
+### 🚚 Chores
+
+* **repo:** the budget and the lockfile follow the two changes that moved them ([ec528c9](https://github.com/raminjafary/weft/commit/ec528c987df8eec081c2fd24b862115bcfa8f15a))
+
+## [0.2.0](https://github.com/raminjafary/weft/compare/v0.1.1...v0.2.0) (2026-08-28)
 
 ### ✨ Features
 
