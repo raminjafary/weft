@@ -11,15 +11,16 @@ import { blockingSsrCandidate } from './candidates/blocking-ssr.ts'
 import { writeFileSync } from 'node:fs'
 import { measureBudgets, MEASURED, recordBudgets } from './budget.ts'
 import { fillerSize } from '@weftjs/kernel'
-import { DELAYS, measureSlots, probeIncrementalDsd } from './measure/slots.ts'
+import { DELAYS, type DsdProbe, measureSlots, probeIncrementalDsd, type SlotRun } from './measure/slots.ts'
 import { checkAll } from './equivalence.ts'
 import { measureClientRuntime } from './measure/client-runtime.ts'
 import { fileURLToPath } from 'node:url'
 import { measureChannel } from './measure/channel.ts'
-import { formatSharedDelta, measureSharedDelta } from './measure/shared-delta.ts'
-import { formatL0, measureL0 } from './measure/l0.ts'
-import { formatDecode, measureDecode } from './measure/decode.ts'
-import { formatNavigation, measureNavigation } from './measure/navigation.ts'
+import { formatSharedDelta, measureSharedDelta, type SharedDeltaReport } from './measure/shared-delta.ts'
+import { formatL0, type L0Report, measureL0 } from './measure/l0.ts'
+import { MEASURED_RUNS, recordMeasured } from './measured.ts'
+import { type DecodeRun, formatDecode, measureDecode } from './measure/decode.ts'
+import { formatNavigation, measureNavigation, type NavReport } from './measure/navigation.ts'
 import { compileScenario } from './compiled.ts'
 import { renderMarkdown, comparison } from './report.ts'
 import { run } from './runner.ts'
@@ -128,11 +129,11 @@ const HELP = `weft-bench — phase-zero benchmark harness
   client    run the client runtime's own conformance checks in every engine
   channel   which binding a real browser opens, and what it does when the upgrade is refused
   budget    bundle each entry and measure it against its byte budget (--write records it)
-  slots     stream a route in both orders, and probe incremental shadow DOM
-  deltas    shared vs per-connection delta computation, the phase 6 claim
-  l0        a document served from the build against the same document rendered
-  nav       a staged click against the same click handed back to the browser
-  decode    frames decoded on the main thread against the same frames decoded in a worker
+  slots     stream a route in both orders, and probe incremental shadow DOM (--write)
+  deltas    shared vs per-connection delta computation, the phase 6 claim (--write)
+  l0        a document served from the build against the same document rendered (--write)
+  nav       a staged click against the same click handed back to the browser (--write)
+  decode    frames decoded on the main thread against the same frames decoded in a worker (--write)
   devices   list the devices --devices names, and whether each driver answers
   list      list axes, scenarios, and candidates
   ir        print the sealed, versioned IR for a scenario
@@ -154,7 +155,7 @@ run flags
   --ops N           renders per batch (default 200)
   --clients N       clients in the deltas comparison (default 1000)
   --app DIR         the application l0 and nav measure (default demo)
-  --route PATTERN   which document l0 measures (default the largest one)
+  --route PATTERNS  which documents l0 measures, comma-separated (default the largest one)
   --from PATH       the page nav starts every click from (default /)
   --to PATHS        which links nav clicks (default every internal link on --from)
   --engines         chromium,firefox,webkit (browser axes; requires playwright)
@@ -166,6 +167,7 @@ run flags
                     (Appium and XCUITest). Run the 'devices' command to check one answers
   --out DIR         where to write the report (default results/)
   --no-strict       measure even if the wire forms disagree
+  --write           record what was measured into measured.json, for the documents that quote it
 `
 
 async function main(): Promise<number> {
@@ -241,12 +243,15 @@ async function main(): Promise<number> {
   if (command === 'slots') {
     const engines = enginesFrom(flags.engines, ['chromium', 'firefox', 'webkit'])
     let failed = false
+    const runs: SlotRun[] = []
+    const probes: DsdProbe[] = []
 
     process.stdout.write(
       `the slow region is first in document order, ${DELAYS.feed}ms against ${DELAYS.recs}ms\n\n`,
     )
     for (const engine of engines) {
       const measured = await measureSlots(engine, Number(flags.iterations ?? 5))
+      runs.push(measured)
       if (!measured.sameDom) {
         failed = true
         process.stdout.write(
@@ -272,10 +277,15 @@ async function main(): Promise<number> {
     process.stdout.write('\nincremental declarative shadow DOM, host closes at 60ms\n\n')
     for (const engine of engines) {
       const probe = await probeIncrementalDsd(engine)
+      probes.push(probe)
       const incremental = probe.shadowRootMs !== null && probe.shadowRootMs < 55
       process.stdout.write(
         `${engine.padEnd(9)} shadow root at ${probe.shadowRootMs === null ? 'never' : `${probe.shadowRootMs.toFixed(0)}ms`}  slotted at ${probe.slottedMs === null ? 'never' : `${probe.slottedMs.toFixed(0)}ms`}  rendered ${probe.renderedBeforeClose}  ${incremental ? 'incremental' : 'NOT INCREMENTAL'}\n`,
       )
+    }
+    if (flags.write !== undefined) {
+      recordMeasured('slots', { delays: DELAYS, filler: fillerSize(), runs, dsd: probes })
+      process.stdout.write(`\nwrote ${MEASURED_RUNS}\n`)
     }
     return failed ? 1 : 0
   }
@@ -308,9 +318,15 @@ async function main(): Promise<number> {
   if (command === 'deltas') {
     const clients = Number(flags.clients ?? 1_000)
     const scenarios = (csv(flags.scenarios) ?? ['cart', 'feed']).map(scenarioById)
+    const reports: SharedDeltaReport[] = []
     for (const s of scenarios) {
       const report = await measureSharedDelta(s, clients)
+      reports.push(report)
       process.stdout.write(`${formatSharedDelta(report)}\n`)
+    }
+    if (flags.write !== undefined) {
+      recordMeasured('deltas', reports)
+      process.stdout.write(`wrote ${MEASURED_RUNS}\n`)
     }
     process.stdout.write(
       '\nPhoenix is not running here. The per-connection figure is a real per-connection differ\n' +
@@ -321,18 +337,36 @@ async function main(): Promise<number> {
   }
 
   if (command === 'l0') {
-    const report = await measureL0({
-      root: flags.app ?? positional[0] ?? 'demo',
-      iterations: Number(flags.iterations ?? 200),
-      warmup: Number(flags.warmup ?? 30),
-      ...(flags.route ? { path: flags.route } : {}),
-    })
-    process.stdout.write(formatL0(report))
+    /**
+     * `--route` takes a list, because the specification's table is a list.
+     *
+     * `spec/kernel/static.md` prints a row per document the build wrote, and one invocation could
+     * only ever measure one of them — so the second row was measured once by hand and then stayed
+     * where it was while the document under it changed size. Measuring the set in one run is what
+     * makes the table a record of a run rather than of two runs a month apart.
+     */
+    const routes = csv(flags.route) ?? [undefined]
+    const reports: L0Report[] = []
+    for (const path of routes) {
+      const report = await measureL0({
+        root: flags.app ?? positional[0] ?? 'demo',
+        iterations: Number(flags.iterations ?? 200),
+        warmup: Number(flags.warmup ?? 30),
+        ...(path ? { path } : {}),
+      })
+      reports.push(report)
+      process.stdout.write(formatL0(report))
+    }
+    if (flags.write !== undefined) {
+      recordMeasured('l0', reports)
+      process.stdout.write(`wrote ${MEASURED_RUNS}\n`)
+    }
     return 0
   }
 
   if (command === 'nav') {
     const engines = enginesFrom(flags.engines, ['chromium'])
+    const navs: NavReport[] = []
     for (const engine of engines) {
       const report = await measureNavigation({
         root: flags.app ?? positional[0] ?? 'demo',
@@ -344,16 +378,27 @@ async function main(): Promise<number> {
         ...(flags.bandwidth ? { bandwidthKbps: Number(flags.bandwidth) } : {}),
         ...(flags.loss ? { lossPercent: Number(flags.loss) } : {}),
       })
+      navs.push(report)
       process.stdout.write(formatNavigation(report))
+    }
+    if (flags.write !== undefined) {
+      recordMeasured('nav', navs)
+      process.stdout.write(`wrote ${MEASURED_RUNS}\n`)
     }
     return 0
   }
 
   if (command === 'decode') {
     const engines = enginesFrom(flags.engines, ['chromium'])
+    const decodes: DecodeRun[] = []
     for (const engine of engines) {
       const measured = await measureDecode(engine, Number(flags.rows ?? 400), Number(flags.iterations ?? 40))
+      decodes.push(measured)
       process.stdout.write(formatDecode(measured))
+    }
+    if (flags.write !== undefined) {
+      recordMeasured('decode', decodes)
+      process.stdout.write(`wrote ${MEASURED_RUNS}\n`)
     }
     return 0
   }

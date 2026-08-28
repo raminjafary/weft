@@ -1,0 +1,1676 @@
+{
+  "decode": {
+    "environment": {
+      "when": "2026-08-28T10:21:31.376Z",
+      "node": "v24.18.0",
+      "v8": "13.6.233.17-node.50",
+      "platform": "darwin",
+      "release": "25.6.0",
+      "arch": "arm64",
+      "cpu": "Apple M4",
+      "cores": 10,
+      "memoryGb": 16,
+      "freeMemoryGb": 2.1,
+      "commit": "41ad38d",
+      "loadAverage": [2.41, 2.03, 2.03]
+    },
+    "measured": [
+      {
+        "engine": "chromium",
+        "engineVersion": "151.0.7922.34",
+        "rows": 400,
+        "bytes": 10812,
+        "iterations": 40,
+        "main": {
+          "n": 40,
+          "min": 0,
+          "p50": 0,
+          "p95": 0.10000002384185791,
+          "p99": 0.10000002384185791,
+          "max": 0.10000002384185791,
+          "mean": 0.030000004172325134,
+          "stddev": 0.04640955454375148,
+          "mad": 0
+        },
+        "worker": {
+          "n": 40,
+          "min": 0,
+          "p50": 0.09999996423721313,
+          "p95": 0.10500002205371828,
+          "p99": 0.2610000026226043,
+          "max": 0.30000001192092896,
+          "mean": 0.06999999582767487,
+          "stddev": 0.06484695836739951,
+          "mad": 5.960464477539063e-8
+        }
+      }
+    ]
+  },
+  "deltas": {
+    "environment": {
+      "when": "2026-08-28T10:21:30.207Z",
+      "node": "v24.18.0",
+      "v8": "13.6.233.17-node.50",
+      "platform": "darwin",
+      "release": "25.6.0",
+      "arch": "arm64",
+      "cpu": "Apple M4",
+      "cores": 10,
+      "memoryGb": 16,
+      "freeMemoryGb": 2.1,
+      "commit": "41ad38d",
+      "loadAverage": [2.36, 2.01, 2.03]
+    },
+    "measured": [
+      {
+        "scenario": "cart",
+        "clients": 1000,
+        "changedRows": 2,
+        "totalRows": 12,
+        "results": [
+          {
+            "strategy": "per-connection",
+            "arrival": "aligned",
+            "clients": 1000,
+            "computations": 1000,
+            "memoized": 0,
+            "storeReads": 0,
+            "storeWrites": 0,
+            "bytesDelivered": 77000,
+            "ms": 5.331666000000013
+          },
+          {
+            "strategy": "shared",
+            "arrival": "aligned",
+            "clients": 1000,
+            "computations": 1,
+            "memoized": 999,
+            "storeReads": 1001,
+            "storeWrites": 1,
+            "bytesDelivered": 77000,
+            "ms": 0.5426249999999868
+          },
+          {
+            "strategy": "per-connection",
+            "arrival": "staggered",
+            "clients": 1000,
+            "computations": 1000,
+            "memoized": 0,
+            "storeReads": 0,
+            "storeWrites": 0,
+            "bytesDelivered": 90411,
+            "ms": 3.65787499999999
+          },
+          {
+            "strategy": "shared",
+            "arrival": "staggered",
+            "clients": 1000,
+            "computations": 1000,
+            "memoized": 0,
+            "storeReads": 2000,
+            "storeWrites": 1000,
+            "bytesDelivered": 90411,
+            "ms": 7.801208000000003
+          }
+        ]
+      },
+      {
+        "scenario": "feed",
+        "clients": 1000,
+        "changedRows": 6,
+        "totalRows": 50,
+        "results": [
+          {
+            "strategy": "per-connection",
+            "arrival": "aligned",
+            "clients": 1000,
+            "computations": 1000,
+            "memoized": 0,
+            "storeReads": 0,
+            "storeWrites": 0,
+            "bytesDelivered": 233000,
+            "ms": 9.196499999999958
+          },
+          {
+            "strategy": "shared",
+            "arrival": "aligned",
+            "clients": 1000,
+            "computations": 1,
+            "memoized": 999,
+            "storeReads": 1001,
+            "storeWrites": 1,
+            "bytesDelivered": 233000,
+            "ms": 0.4419589999999971
+          },
+          {
+            "strategy": "per-connection",
+            "arrival": "staggered",
+            "clients": 1000,
+            "computations": 1000,
+            "memoized": 0,
+            "storeReads": 0,
+            "storeWrites": 0,
+            "bytesDelivered": 247780,
+            "ms": 9.602749999999958
+          },
+          {
+            "strategy": "shared",
+            "arrival": "staggered",
+            "clients": 1000,
+            "computations": 1000,
+            "memoized": 0,
+            "storeReads": 2000,
+            "storeWrites": 1000,
+            "bytesDelivered": 247780,
+            "ms": 18.74445800000001
+          }
+        ]
+      }
+    ]
+  },
+  "l0": {
+    "environment": {
+      "when": "2026-08-28T10:21:30.983Z",
+      "node": "v24.18.0",
+      "v8": "13.6.233.17-node.50",
+      "platform": "darwin",
+      "release": "25.6.0",
+      "arch": "arm64",
+      "cpu": "Apple M4",
+      "cores": 10,
+      "memoryGb": 16,
+      "freeMemoryGb": 2.1,
+      "commit": "41ad38d",
+      "loadAverage": [2.41, 2.03, 2.03]
+    },
+    "measured": [
+      {
+        "root": "demo",
+        "path": "/",
+        "bytes": 6174,
+        "iterations": 200,
+        "l0": {
+          "ttfb": {
+            "n": 200,
+            "min": 0.06116700000001174,
+            "p50": 0.0683335000000227,
+            "p95": 0.09224825000001713,
+            "p99": 0.114734250000007,
+            "max": 0.15150000000005548,
+            "mean": 0.07230998500000368,
+            "stddev": 0.011219503518014437,
+            "mad": 0.003478999999970256
+          },
+          "ttlb": {
+            "n": 200,
+            "min": 0.06979200000000674,
+            "p50": 0.07781249999999318,
+            "p95": 0.10473299999996186,
+            "p99": 0.13396800000000667,
+            "max": 0.17070800000004738,
+            "mean": 0.08206397000000208,
+            "stddev": 0.012843561446197875,
+            "mad": 0.004166499999996631
+          }
+        },
+        "kernel": {
+          "ttfb": {
+            "n": 200,
+            "min": 0.19962500000002592,
+            "p50": 0.25445800000002805,
+            "p95": 0.3404527000000143,
+            "p99": 0.5398425000000319,
+            "max": 0.6010830000000169,
+            "mean": 0.2603899950000019,
+            "stddev": 0.053758880522947264,
+            "mad": 0.028541500000017095
+          },
+          "ttlb": {
+            "n": 200,
+            "min": 0.20674999999999955,
+            "p50": 0.2688955000000135,
+            "p95": 0.3610624999999885,
+            "p99": 0.5476761700000267,
+            "max": 0.6180420000000026,
+            "mean": 0.2733539500000009,
+            "stddev": 0.056035563998417484,
+            "mad": 0.032207500000055234
+          }
+        }
+      },
+      {
+        "root": "demo",
+        "path": "/app/article",
+        "bytes": 3640,
+        "iterations": 200,
+        "l0": {
+          "ttfb": {
+            "n": 200,
+            "min": 0.046959000000015294,
+            "p50": 0.06099999999997863,
+            "p95": 0.08967019999996637,
+            "p99": 0.11418616999995264,
+            "max": 0.12374999999997272,
+            "mean": 0.0638122949999996,
+            "stddev": 0.0126227735800149,
+            "mad": 0.005875000000003183
+          },
+          "ttlb": {
+            "n": 200,
+            "min": 0.049834000000032574,
+            "p50": 0.06435399999998026,
+            "p95": 0.09532499999996842,
+            "p99": 0.12010367000001106,
+            "max": 0.13654200000007677,
+            "mean": 0.06763438499999892,
+            "stddev": 0.013703130521061797,
+            "mad": 0.00602150000003121
+          }
+        },
+        "kernel": {
+          "ttfb": {
+            "n": 200,
+            "min": 0.1608330000000251,
+            "p50": 0.2013545000000363,
+            "p95": 0.26946520000003005,
+            "p99": 0.35497183999995147,
+            "max": 1.2666659999999865,
+            "mean": 0.21409480499999858,
+            "stddev": 0.08126634094586796,
+            "mad": 0.013041499999928874
+          },
+          "ttlb": {
+            "n": 200,
+            "min": 0.16620800000009694,
+            "p50": 0.2090629999999578,
+            "p95": 0.2806500000000594,
+            "p99": 0.364178089999992,
+            "max": 1.276791000000003,
+            "mean": 0.22181312000000447,
+            "stddev": 0.08179614590314462,
+            "mad": 0.013249000000030264
+          }
+        }
+      }
+    ]
+  },
+  "nav": {
+    "environment": {
+      "when": "2026-08-28T10:22:08.567Z",
+      "node": "v24.18.0",
+      "v8": "13.6.233.17-node.50",
+      "platform": "darwin",
+      "release": "25.6.0",
+      "arch": "arm64",
+      "cpu": "Apple M4",
+      "cores": 10,
+      "memoryGb": 16,
+      "freeMemoryGb": 1.8,
+      "commit": "41ad38d",
+      "loadAverage": [2.09, 1.99, 2.02]
+    },
+    "measured": [
+      {
+        "root": "demo",
+        "engine": "chromium",
+        "engineVersion": "151.0.7922.34",
+        "iterations": 10,
+        "latencyMs": 0,
+        "bandwidthKbps": 0,
+        "lossPercent": 0,
+        "link": "loopback: no network was modelled",
+        "pairs": [
+          {
+            "from": "/",
+            "to": "/app/ordinary/pantry",
+            "staged": {
+              "samples": [
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 16,
+                "p50": 16,
+                "p95": 17.099999999999998,
+                "p99": 17.82,
+                "max": 18,
+                "mean": 16.2,
+                "stddev": 0.6324555320336759,
+                "mad": 0
+              }
+            },
+            "browser": {
+              "samples": [
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 6,
+                "p50": 6,
+                "p95": 6.549999999999999,
+                "p99": 6.91,
+                "max": 7,
+                "mean": 6.1,
+                "stddev": 0.31622776601683794,
+                "mad": 0
+              }
+            }
+          },
+          {
+            "from": "/",
+            "to": "/app/feed",
+            "staged": {
+              "samples": [
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 15,
+                  "documents": 0
+                },
+                {
+                  "ms": 20,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 19,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 15,
+                "p50": 18,
+                "p95": 19.549999999999997,
+                "p99": 19.91,
+                "max": 20,
+                "mean": 17.9,
+                "stddev": 1.2866839377079187,
+                "mad": 0
+              }
+            },
+            "browser": {
+              "samples": [
+                {
+                  "ms": 15,
+                  "documents": 1
+                },
+                {
+                  "ms": 16,
+                  "documents": 1
+                },
+                {
+                  "ms": 15,
+                  "documents": 1
+                },
+                {
+                  "ms": 15,
+                  "documents": 1
+                },
+                {
+                  "ms": 16,
+                  "documents": 1
+                },
+                {
+                  "ms": 15,
+                  "documents": 1
+                },
+                {
+                  "ms": 16,
+                  "documents": 1
+                },
+                {
+                  "ms": 16,
+                  "documents": 1
+                },
+                {
+                  "ms": 16,
+                  "documents": 1
+                },
+                {
+                  "ms": 16,
+                  "documents": 1
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 15,
+                "p50": 16,
+                "p95": 16,
+                "p99": 16,
+                "max": 16,
+                "mean": 15.6,
+                "stddev": 0.5163977794943222,
+                "mad": 0
+              }
+            }
+          },
+          {
+            "from": "/",
+            "to": "/app/cart",
+            "staged": {
+              "samples": [
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 15,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 19,
+                  "documents": 0
+                },
+                {
+                  "ms": 15,
+                  "documents": 0
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 15,
+                "p50": 16.5,
+                "p95": 18.549999999999997,
+                "p99": 18.91,
+                "max": 19,
+                "mean": 16.6,
+                "stddev": 1.2649110640673518,
+                "mad": 0.5
+              }
+            },
+            "browser": {
+              "samples": [
+                {
+                  "ms": 14,
+                  "documents": 2
+                },
+                {
+                  "ms": 15,
+                  "documents": 2
+                },
+                {
+                  "ms": 13,
+                  "documents": 2
+                },
+                {
+                  "ms": 14,
+                  "documents": 2
+                },
+                {
+                  "ms": 14,
+                  "documents": 2
+                },
+                {
+                  "ms": 13,
+                  "documents": 2
+                },
+                {
+                  "ms": 15,
+                  "documents": 2
+                },
+                {
+                  "ms": 14,
+                  "documents": 2
+                },
+                {
+                  "ms": 14,
+                  "documents": 2
+                },
+                {
+                  "ms": 14,
+                  "documents": 2
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 13,
+                "p50": 14,
+                "p95": 15,
+                "p99": 15,
+                "max": 15,
+                "mean": 14,
+                "stddev": 0.6666666666666666,
+                "mad": 0
+              }
+            }
+          },
+          {
+            "from": "/",
+            "to": "/app/dashboard",
+            "staged": {
+              "samples": [
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 19,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 16,
+                "p50": 17.5,
+                "p95": 18.549999999999997,
+                "p99": 18.91,
+                "max": 19,
+                "mean": 17.4,
+                "stddev": 0.966091783079296,
+                "mad": 0.5
+              }
+            },
+            "browser": {
+              "samples": [
+                {
+                  "ms": 604,
+                  "documents": 1
+                },
+                {
+                  "ms": 607,
+                  "documents": 1
+                },
+                {
+                  "ms": 606,
+                  "documents": 1
+                },
+                {
+                  "ms": 606,
+                  "documents": 1
+                },
+                {
+                  "ms": 606,
+                  "documents": 1
+                },
+                {
+                  "ms": 607,
+                  "documents": 1
+                },
+                {
+                  "ms": 605,
+                  "documents": 1
+                },
+                {
+                  "ms": 607,
+                  "documents": 1
+                },
+                {
+                  "ms": 606,
+                  "documents": 1
+                },
+                {
+                  "ms": 605,
+                  "documents": 1
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 604,
+                "p50": 606,
+                "p95": 607,
+                "p99": 607,
+                "max": 607,
+                "mean": 605.9,
+                "stddev": 0.9944289260117531,
+                "mad": 1
+              }
+            }
+          },
+          {
+            "from": "/",
+            "to": "/app/article",
+            "staged": {
+              "samples": [
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 1,
+                "p50": 1,
+                "p95": 1,
+                "p99": 1,
+                "max": 1,
+                "mean": 1,
+                "stddev": 0,
+                "mad": 0
+              }
+            },
+            "browser": {
+              "samples": [
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 6,
+                "p50": 7,
+                "p95": 7,
+                "p99": 7,
+                "max": 7,
+                "mean": 6.6,
+                "stddev": 0.5163977794943222,
+                "mad": 0
+              }
+            }
+          },
+          {
+            "from": "/",
+            "to": "/app/composed",
+            "staged": {
+              "samples": [
+                {
+                  "ms": 2,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 1,
+                "p50": 1,
+                "p95": 1.549999999999999,
+                "p99": 1.9100000000000001,
+                "max": 2,
+                "mean": 1.1,
+                "stddev": 0.31622776601683794,
+                "mad": 0
+              }
+            },
+            "browser": {
+              "samples": [
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 5,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 5,
+                "p50": 6,
+                "p95": 7,
+                "p99": 7,
+                "max": 7,
+                "mean": 6.3,
+                "stddev": 0.6749485577105528,
+                "mad": 0.5
+              }
+            }
+          },
+          {
+            "from": "/",
+            "to": "/docs",
+            "staged": {
+              "samples": [
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 14,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 14,
+                "p50": 16.5,
+                "p95": 18,
+                "p99": 18,
+                "max": 18,
+                "mean": 16.7,
+                "stddev": 1.3374935098492586,
+                "mad": 1
+              }
+            },
+            "browser": {
+              "samples": [
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 8,
+                  "documents": 1
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 7,
+                "p50": 7,
+                "p95": 7.549999999999999,
+                "p99": 7.91,
+                "max": 8,
+                "mean": 7.1,
+                "stddev": 0.31622776601683794,
+                "mad": 0
+              }
+            }
+          },
+          {
+            "from": "/",
+            "to": "/docs/nesting",
+            "staged": {
+              "samples": [
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 16,
+                "p50": 16,
+                "p95": 17.099999999999998,
+                "p99": 17.82,
+                "max": 18,
+                "mean": 16.2,
+                "stddev": 0.6324555320336759,
+                "mad": 0
+              }
+            },
+            "browser": {
+              "samples": [
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 6,
+                "p50": 6,
+                "p95": 6,
+                "p99": 6,
+                "max": 6,
+                "mean": 6,
+                "stddev": 0,
+                "mad": 0
+              }
+            }
+          }
+        ],
+        "skipped": ["/live/race/out-of-order"],
+        "raced": 0
+      }
+    ]
+  },
+  "slots": {
+    "environment": {
+      "when": "2026-08-28T10:21:29.705Z",
+      "node": "v24.18.0",
+      "v8": "13.6.233.17-node.50",
+      "platform": "darwin",
+      "release": "25.6.0",
+      "arch": "arm64",
+      "cpu": "Apple M4",
+      "cores": 10,
+      "memoryGb": 16,
+      "freeMemoryGb": 2.1,
+      "commit": "41ad38d",
+      "loadAverage": [2.36, 2.01, 2.03]
+    },
+    "measured": {
+      "delays": {
+        "feed": 80,
+        "recs": 20
+      },
+      "filler": 329,
+      "runs": [
+        {
+          "engine": "chromium",
+          "engineVersion": "151.0.7922.34",
+          "inOrder": [
+            {
+              "feed": 86,
+              "recs": 107.60000002384186
+            },
+            {
+              "feed": 82.5,
+              "recs": 104.79999995231628
+            },
+            {
+              "feed": 83.5,
+              "recs": 104.80000001192093
+            },
+            {
+              "feed": 82.80000001192093,
+              "recs": 105
+            },
+            {
+              "feed": 82.80000001192093,
+              "recs": 105.19999998807907
+            },
+            {
+              "feed": 82.39999997615814,
+              "recs": 103.69999998807907
+            },
+            {
+              "feed": 83.19999998807907,
+              "recs": 105.5
+            },
+            {
+              "feed": 83.80000001192093,
+              "recs": 106.10000002384186
+            },
+            {
+              "feed": 82.80000001192093,
+              "recs": 105.30000001192093
+            },
+            {
+              "feed": 83.69999998807907,
+              "recs": 104.60000002384186
+            },
+            {
+              "feed": 83.5,
+              "recs": 103.5
+            },
+            {
+              "feed": 82.5,
+              "recs": 103.80000001192093
+            },
+            {
+              "feed": 82.80000001192093,
+              "recs": 105.19999998807907
+            },
+            {
+              "feed": 83.09999996423721,
+              "recs": 104.5
+            },
+            {
+              "feed": 82.79999995231628,
+              "recs": 104.19999998807907
+            }
+          ],
+          "outOfOrder": [
+            {
+              "recs": 26.899999976158142,
+              "feed": 83.69999998807907
+            },
+            {
+              "recs": 23,
+              "feed": 83.40000003576279
+            },
+            {
+              "recs": 21.5,
+              "feed": 82.80000001192093
+            },
+            {
+              "recs": 20.899999976158142,
+              "feed": 83.30000001192093
+            },
+            {
+              "recs": 23.19999998807907,
+              "feed": 83.69999998807907
+            },
+            {
+              "recs": 22.30000001192093,
+              "feed": 82.30000001192093
+            },
+            {
+              "recs": 21.80000001192093,
+              "feed": 83.20000004768372
+            },
+            {
+              "recs": 22.399999976158142,
+              "feed": 82.80000001192093
+            },
+            {
+              "recs": 22.299999952316284,
+              "feed": 83.79999995231628
+            },
+            {
+              "recs": 23.30000001192093,
+              "feed": 82.80000001192093
+            },
+            {
+              "recs": 23.299999952316284,
+              "feed": 83.69999998807907
+            },
+            {
+              "recs": 23.30000001192093,
+              "feed": 83.5
+            },
+            {
+              "recs": 23.5,
+              "feed": 83.09999996423721
+            },
+            {
+              "recs": 23.30000001192093,
+              "feed": 83.5
+            },
+            {
+              "recs": 22.69999998807907,
+              "feed": 83.19999998807907
+            }
+          ],
+          "sameDom": true
+        },
+        {
+          "engine": "firefox",
+          "engineVersion": "153.0",
+          "inOrder": [
+            {
+              "feed": 108,
+              "recs": 108
+            },
+            {
+              "feed": 105,
+              "recs": 106
+            },
+            {
+              "feed": 99,
+              "recs": 107
+            },
+            {
+              "feed": 109,
+              "recs": 109
+            },
+            {
+              "feed": 107,
+              "recs": 108
+            },
+            {
+              "feed": 100,
+              "recs": 105
+            },
+            {
+              "feed": 106,
+              "recs": 106
+            },
+            {
+              "feed": 106,
+              "recs": 106
+            },
+            {
+              "feed": 106,
+              "recs": 108
+            },
+            {
+              "feed": 103,
+              "recs": 103
+            },
+            {
+              "feed": 106,
+              "recs": 106
+            },
+            {
+              "feed": 102,
+              "recs": 105
+            },
+            {
+              "feed": 106,
+              "recs": 106
+            },
+            {
+              "feed": 104,
+              "recs": 108
+            },
+            {
+              "feed": 103,
+              "recs": 106
+            }
+          ],
+          "outOfOrder": [
+            {
+              "recs": 44,
+              "feed": 109
+            },
+            {
+              "recs": 24,
+              "feed": 84
+            },
+            {
+              "recs": 23,
+              "feed": 83
+            },
+            {
+              "recs": 25,
+              "feed": 84
+            },
+            {
+              "recs": 25,
+              "feed": 85
+            },
+            {
+              "recs": 23,
+              "feed": 84
+            },
+            {
+              "recs": 23,
+              "feed": 83
+            },
+            {
+              "recs": 24,
+              "feed": 85
+            },
+            {
+              "recs": 25,
+              "feed": 83
+            },
+            {
+              "recs": 23,
+              "feed": 84
+            },
+            {
+              "recs": 25,
+              "feed": 85
+            },
+            {
+              "recs": 24,
+              "feed": 84
+            },
+            {
+              "recs": 26,
+              "feed": 86
+            },
+            {
+              "recs": 23,
+              "feed": 83
+            },
+            {
+              "recs": 23,
+              "feed": 84
+            }
+          ],
+          "sameDom": true
+        },
+        {
+          "engine": "webkit",
+          "engineVersion": "26.5",
+          "inOrder": [
+            {
+              "feed": 84,
+              "recs": 114
+            },
+            {
+              "feed": 83,
+              "recs": 105
+            },
+            {
+              "feed": 85,
+              "recs": 106
+            },
+            {
+              "feed": 83,
+              "recs": 105
+            },
+            {
+              "feed": 82,
+              "recs": 105
+            },
+            {
+              "feed": 83,
+              "recs": 106
+            },
+            {
+              "feed": 82,
+              "recs": 104
+            },
+            {
+              "feed": 82,
+              "recs": 104
+            },
+            {
+              "feed": 82,
+              "recs": 105
+            },
+            {
+              "feed": 82,
+              "recs": 104
+            },
+            {
+              "feed": 82,
+              "recs": 104
+            },
+            {
+              "feed": 83,
+              "recs": 106
+            },
+            {
+              "feed": 82,
+              "recs": 105
+            },
+            {
+              "feed": 82,
+              "recs": 105
+            },
+            {
+              "feed": 82,
+              "recs": 105
+            }
+          ],
+          "outOfOrder": [
+            {
+              "recs": 24,
+              "feed": 84
+            },
+            {
+              "recs": 24,
+              "feed": 84
+            },
+            {
+              "recs": 23,
+              "feed": 82
+            },
+            {
+              "recs": 22,
+              "feed": 82
+            },
+            {
+              "recs": 22,
+              "feed": 83
+            },
+            {
+              "recs": 24,
+              "feed": 84
+            },
+            {
+              "recs": 24,
+              "feed": 82
+            },
+            {
+              "recs": 22,
+              "feed": 82
+            },
+            {
+              "recs": 23,
+              "feed": 82
+            },
+            {
+              "recs": 23,
+              "feed": 82
+            },
+            {
+              "recs": 22,
+              "feed": 83
+            },
+            {
+              "recs": 23,
+              "feed": 83
+            },
+            {
+              "recs": 22,
+              "feed": 82
+            },
+            {
+              "recs": 23,
+              "feed": 83
+            },
+            {
+              "recs": 23,
+              "feed": 81
+            }
+          ],
+          "sameDom": true
+        }
+      ],
+      "dsd": [
+        {
+          "engine": "chromium",
+          "shadowRootMs": 6.100000023841858,
+          "slottedMs": 67.60000002384186,
+          "renderedBeforeClose": true,
+          "closedMs": 68.40000003576279
+        },
+        {
+          "engine": "firefox",
+          "shadowRootMs": 41,
+          "slottedMs": 74,
+          "renderedBeforeClose": true,
+          "closedMs": 80
+        },
+        {
+          "engine": "webkit",
+          "shadowRootMs": 9,
+          "slottedMs": 65,
+          "renderedBeforeClose": true,
+          "closedMs": 66
+        }
+      ]
+    }
+  }
+}

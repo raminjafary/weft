@@ -94,7 +94,20 @@ export async function run(options: RunOptions): Promise<RunResult> {
   }
 
   const axes: Axis[] = (options.axes ?? AXES.map((a) => a.id)).map(axisById)
-  const scenarios: Scenario[] = (options.scenarios ?? ['shell', 'cart', 'feed']).map(scenarioById)
+  /**
+   * `derived` is in the default set because without it one of the eight axes measures nothing.
+   *
+   * `isolated-dom-update` is the signal write — one value, one node, no diff — and the three
+   * scenarios that were the default carry no signal at all. So every run declared the axis, walked
+   * the scenarios, found no `write` timing to summarise, and wrote a table with no rows in it. The
+   * axis has never produced a number since it was added, and the figure the documents quote for it
+   * had no run behind it.
+   *
+   * A default set that cannot exercise an axis the harness declares is not a default, it is a
+   * silent gap. `derived` carries both a plain signal and one behind a derived value, which is the
+   * pair this axis compares.
+   */
+  const scenarios: Scenario[] = (options.scenarios ?? ['shell', 'cart', 'feed', 'derived']).map(scenarioById)
   const candidates = options.candidates
   const warnings: string[] = []
   const rows: Row[] = []

@@ -191,8 +191,34 @@ export async function measureDecode(
   }
 }
 
-export function formatDecode(run: DecodeRun): string {
+/**
+ * The comparison, or the reason there is not one.
+ *
+ * A browser's `performance.now()` is deliberately coarse — 100 µs in Chromium, and coarser still
+ * where cross-origin isolation is off — so a decode this small lands on zero often enough to be
+ * the median. Dividing by that median printed `Infinity× slower off-thread`, which is not a
+ * measurement of anything: the honest reading is that the main-thread decode is under the clock,
+ * and the worker's floor is not.
+ *
+ * So the ratio is only stated when both halves are above the resolution the samples reveal. Below
+ * it, the sentence says what the numbers actually support — the cost of moving the work is
+ * measurable and the work itself is not, which is the same conclusion, arrived at honestly.
+ */
+function verdict(run: DecodeRun): string {
+  if (run.main.p50 === 0) {
+    return (
+      `The main-thread decode is under this engine's clock resolution and the worker's floor is not.` +
+      `\n  A postMessage and a structured clone back are the whole of the difference;`
+    )
+  }
   const ratio = run.worker.p50 / run.main.p50
+  return (
+    `${ratio >= 1 ? `${ratio.toFixed(1)}× slower off-thread` : `${(1 / ratio).toFixed(1)}× faster off-thread`}.` +
+    ` The worker's floor is a postMessage and a structured clone back;`
+  )
+}
+
+export function formatDecode(run: DecodeRun): string {
   return [
     '',
     `  ${run.engine} ${run.engineVersion} — a DELTA of ${run.rows} changed values, ${run.bytes} B on the wire`,
@@ -201,8 +227,7 @@ export function formatDecode(run: DecodeRun): string {
     `  main thread    p50 ${run.main.p50.toFixed(3)} ms   p95 ${run.main.p95.toFixed(3)} ms`,
     `  worker         p50 ${run.worker.p50.toFixed(3)} ms   p95 ${run.worker.p95.toFixed(3)} ms`,
     '',
-    `  ${ratio >= 1 ? `${ratio.toFixed(1)}× slower off-thread` : `${(1 / ratio).toFixed(1)}× faster off-thread`}.` +
-      ` The worker's floor is a postMessage and a structured clone back; a decode has to be`,
+    `  ${verdict(run)} a decode has to be`,
     '  larger than that floor before moving it is anything but a cost.',
     '',
   ].join('\n')

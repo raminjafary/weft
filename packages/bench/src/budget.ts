@@ -233,8 +233,9 @@ export const BUDGETS: ByteBudget[] = [
      * This entry claimed to be the download figure and it was wrong by 3.6×. It bundles with
      * Rolldown and minifies, and this framework has no bundler and no minifier: a page fetches the
      * boot module and every module it imports as separate responses, served as written with their
-     * types stripped and their comments intact. Walking that graph and compressing each response
-     * the way it arrives gives **44,716 B** for the demo against the 13,033 B below.
+     * types stripped. Walking that graph and compressing each response the way it arrives gives
+     * **25,992 B** for the demo against the 13,991 B below — it was 44,716 against 13,033 when this
+     * was written, and closed to under 2× when a production build stopped shipping its comments.
      *
      * The entry stays, because a gate on how much code there *is* is worth having and this is a
      * good one — minified bytes are a proxy for logic that comments and formatting do not move. It
