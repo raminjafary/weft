@@ -10,31 +10,9 @@ import type { RouteModule, SlotDeclaration } from './route.ts'
 import type { App } from './serve.ts'
 
 /**
- * L0: the tier where the kernel is not involved at all.
- *
- * The design's cheapest tier is a document that reads nothing, resolved once at build time and
- * served as a file. It was the last unimplemented thing in the cache ladder, and the reason it
- * stayed unimplemented is that "reads nothing" is easy to assert and hard to *prove*: the
- * compiler infers the read set of a fragment, and a route also runs a loader, a head function
- * and an html thunk that no compiler saw. A page whose fragments read nothing and whose loader
- * reads a cookie is not static, and nothing in the effect set says so.
- *
- * So eligibility is decided twice, and a document is only written when both agree.
- *
- * **Structurally**, from what the compiler and the plan already know: every fragment on the page
- * reads nothing, no instance is isolated, nothing is live or refreshed, no guard runs, no budget
- * is a function of the request, the route takes no parameters, and the slots buffer.
- *
- * **Empirically**, by rendering the route twice through the real kernel under two requests that
- * differ in everything a document is allowed to be indifferent to — cookies, locale, device,
- * identity, flags, query string and the clock — and requiring the bytes to come out identical.
- * That is what catches the loader the compiler never saw, and it is a measurement rather than a
- * declaration, which is the standard the rest of this repository is held to.
- *
- * What is still not caught is stated rather than hidden: a loader that reads the wall clock or
- * the environment directly, behind the framework's back, is the case the compiler's untracked-
- * effect ban exists to prevent — and `.data.ts` is not compiled, so the ban does not reach it.
- * The differential probe catches such a read only when it reaches the bytes.
+ * L0: the tier where the kernel is not involved at all. Eligibility is decided twice — structurally,
+ * from what the compiler and the plan already know, and empirically, by rendering the route twice
+ * under requests that differ in everything a document may be indifferent to. See `spec/kernel/static.md`.
  */
 export type StaticRefusal =
   | 'L0_PARAMS'
@@ -73,11 +51,8 @@ export interface StaticInput {
   /** The innermost layout: the one whose `body` hole the page goes in. */
   shell: CompiledFragment
   /**
-   * Every layer of the document, outermost first, `shell` included.
-   *
-   * A nested layout's reads are the document's exactly as the outer layout's are, so a chain whose
-   * dashboard layout reads a cookie is not a file — and checking only the innermost or only the
-   * outermost would write one. Defaults to `[shell]`, which is what a route with no nested layout has.
+   * Every layer of the document, outermost first, `shell` included: a nested layout's reads are the
+   * document's exactly as the outer layout's are. Defaults to `[shell]`.
    */
   layers?: readonly CompiledFragment[]
   slots: {
@@ -88,28 +63,15 @@ export interface StaticInput {
     streams: boolean
   }[]
   /**
-   * Every cache tag some intent in this application declares it writes.
-   *
-   * The other half of an agreement that already exists on both sides: a slot declares the tags that
-   * invalidate it, an intent declares the tags it writes, and the pair is what makes push
-   * invalidation work without anything subscribing. A file is the one place that agreement cannot
-   * reach — nothing can drop a document off a disk — so a page whose tags appear here is refused
-   * rather than frozen. Both halves are build-time declarations, so this is derivable, and until it
-   * was derived a page tagged `counter` was written out holding whatever the counter was at build
-   * time and served that forever.
+   * Every cache tag some intent in this application declares it writes. A file is the one place the
+   * tag/writes agreement cannot reach, so a page whose tags appear here is refused rather than
+   * frozen. See `spec/kernel/static.md`.
    */
   written?: ReadonlySet<string>
 }
 
-/**
- * How many files one route may become.
- *
- * A cap rather than a warning, because the failure it prevents is silent: three parameters with
- * fifty values each is 125,000 documents, and a build that wrote them would look like it was
- * working. Where the crossover actually is depends on how expensive the render is and how many of
- * those URLs anybody visits, which is a deployment's knowledge — so the refusal names the number
- * and hands the decision back.
- */
+/** How many files one route may become. A cap rather than a warning: the failure it prevents is
+ * silent. See `spec/kernel/static.md`. */
 const MAX_DOCUMENTS = 1_000
 
 /** Every combination of the declared values, in declaration order so the output is stable. */
@@ -138,24 +100,13 @@ function isolatedIn(fragment: CompiledFragment): TemplateIR | undefined {
   return fragment.templates.find((template) => template.holes.some((hole) => hole.isolated))
 }
 
-/**
- * The structural half, decided where the route is generated and carried on it.
- *
- * Each refusal names the page's own vocabulary — the fragment, the slot, the declaration — rather
- * than the mechanism, because the reader is someone asking why their page is not a file.
- */
+/** The structural half. Each refusal names the page's own vocabulary rather than the mechanism. */
 export function staticVerdict(input: StaticInput): StaticVerdict {
   const { pattern, module: declared_, shell, slots } = input
   const layers = input.layers ?? [shell]
 
-  /**
-   * The one refusal the route declares rather than the build deriving.
-   *
-   * Checked first, because the derivations below would otherwise say this page *is* a file — which
-   * is the exact situation the declaration exists for: a loader reading a query key neither probe
-   * invents renders identically under both, and the page gets frozen ignoring the parameter it was
-   * written to read.
-   */
+  // The one refusal the route declares rather than the build deriving. Checked first: the
+  // derivations below would otherwise say this page *is* a file. See `spec/kernel/static.md`.
   if (declared_.static === false) {
     return {
       static: false,
@@ -166,14 +117,8 @@ export function staticVerdict(input: StaticInput): StaticVerdict {
     }
   }
 
-  /**
-   * A parameterised route is a file per value, when the values are a set the application declared.
-   *
-   * The refusal used to be unconditional and the reason was sound: a pattern with a parameter has no
-   * single URL. What it was missing is that a route saying its `category` is one of two things has
-   * *two* URLs, and each is as provable as any other document. A wildcard is still refused, because
-   * a set nobody can enumerate is not a set.
-   */
+  // A parameterised route is a file per value, when the values are a declared set. A wildcard is
+  // still refused: a set nobody can enumerate is not a set.
   const names = [...pattern.matchAll(/:([A-Za-z0-9_]+)/g)].map((match) => match[1] as string)
   if (pattern.includes('*')) {
     return {
@@ -196,15 +141,9 @@ export function staticVerdict(input: StaticInput): StaticVerdict {
     }
   }
 
-  /**
-   * A page composed out of another deployment's regions is not a file, and it is refused before
-   * anything is measured.
-   *
-   * The empirical half cannot settle this: two renders of a composed page could agree by accident
-   * because the region happened to answer identically twice, and a document written on that
-   * evidence would be a cache of somebody else's deployment. What the region reads is its own and
-   * it can be rolled without this build knowing, so the honest answer is structural.
-   */
+  // A page composed out of another deployment's regions is not a file, refused before anything is
+  // measured: two renders could agree by accident, and a region can be rolled without this build
+  // knowing.
   const composed = slots.find((slot) => slot.declaration.region?.remote)
   if (composed) {
     return {
@@ -214,14 +153,9 @@ export function staticVerdict(input: StaticInput): StaticVerdict {
     }
   }
 
-  /**
-   * A `route:` read of a parameter whose values are declared is not a reason to refuse.
-   *
-   * It is the opposite: it is the read that makes the enumeration *worth* doing. Every other read
-   * is a function of a request nobody can enumerate — a cookie, an identity, a clock — and a
-   * declared parameter is a function of a set the application wrote down. So those reads are taken
-   * out of the refusal, and one file is written per value.
-   */
+  // A `route:` read of a parameter whose values are declared is the read that makes the enumeration
+  // worth doing, not a reason to refuse — every other read is a function of a request nobody can
+  // enumerate.
   const enumerable = new Set(names.map((name) => `route:${name}`))
   for (const fragment of [...layers, ...slots.map((slot) => slot.fragment)]) {
     if (!fragment) continue
@@ -335,15 +269,7 @@ export function fileFor(pattern: string): string {
   return pattern === '/' ? 'index.html' : `${pattern.replace(/^\/|\/$/g, '')}/index.html`
 }
 
-/**
- * The two requests a static document has to be indifferent to.
- *
- * Everything varied here is something the framework can vary: a header it reads, a cookie the
- * session port parses, a flag it resolves, a query it exposes, and the clock it hands to
- * `ctx.now()`. A document that comes out the same under both is a document that does not
- * depend on any of them — which is a stronger statement than the effect set alone can make,
- * because the effect set does not cover the route's own loader.
- */
+/** The two requests a static document has to be indifferent to. See `spec/kernel/static.md`. */
 interface Probe {
   label: string
   headers?: Record<string, string>
@@ -371,10 +297,7 @@ const HOSTILE: Probe = {
   clock: LATER,
 }
 
-/**
- * The same variation, one axis at a time. Only run for a route that failed the combined probe,
- * so the report can say *what* the document depends on rather than that it depends on something.
- */
+/** The same variation, one axis at a time, for a route that failed the combined probe. */
 const AXES: Probe[] = [
   { label: 'a cookie', headers: { cookie: 'sid=probe.1; currency=USD; theme=dark' } },
   { label: 'the locale', headers: { 'accept-language': 'ar-IQ,ar;q=0.9' } },
@@ -394,9 +317,7 @@ const AXES: Probe[] = [
 function portsFor(config: ResolvedConfig, probe: Probe): Ports {
   const axes = config.flags
   return {
-    // A store of its own, per render. Sharing one would defeat the whole probe: a static key is
-    // the fragment's content address and nothing else, so the second render would be answered
-    // from the first one's entry and every document would look invariant.
+    // A store of its own, per render — sharing one would defeat the whole probe.
     store: memoryStore({ maxBytes: 16 * 1024 * 1024 }),
     session: cookieSession({ cookie: config.session.cookie }),
     flags: staticFlags({
@@ -438,13 +359,8 @@ function same(a: Uint8Array, b: Uint8Array): boolean {
 }
 
 /**
- * The headers a file is served with.
- *
- * Content type and `Vary` are the render's own. `Cache-Control` is not, and the difference is
- * deliberate: with no declared policy the kernel emits `no-store`, because a kernel cannot know
- * whether the thing it just rendered may be held. Here it can — the document was just proved
- * invariant under every axis the framework can vary — and `no-store` would contradict the ETag
- * that goes with it. A route that declares a policy still gets the one it declared.
+ * The headers a file is served with. Content type and `Vary` are the render's own; `Cache-Control`
+ * is not — a kernel cannot know a render is cacheable, and a proved-invariant document can.
  */
 function headersFor(rendered: Headers, policy: { shared: number; stale: number }): Record<string, string> {
   const out: Record<string, string> = {
@@ -458,16 +374,8 @@ function headersFor(rendered: Headers, policy: { shared: number; stale: number }
 }
 
 /**
- * What a document proved invariant is allowed to say for itself.
- *
- * `max-age=0` is for the browser and never changes: a reader revalidates, and against an ETag over
- * bytes that did not move that is a 304. Everything after it is for the shared cache in front of
- * the deployment, and is there only because the deployment said how long it may answer — see
- * `WeftConfig.documents`. Said nothing, and this is exactly the header it has always been.
- *
- * `must-revalidate` is dropped once a shared cache has a lifetime, because the two contradict each
- * other and the contradiction is what made the tier unservable: `s-maxage` grants the cache a
- * window and `must-revalidate` takes it back on the same line.
+ * What a document proved invariant is allowed to say for itself. `must-revalidate` is dropped once
+ * a shared cache has a lifetime: the two contradict each other. See `WeftConfig.documents`.
  */
 function invariant(policy: { shared: number; stale: number }): string {
   if (policy.shared <= 0) return 'public, max-age=0, must-revalidate'
@@ -475,13 +383,7 @@ function invariant(policy: { shared: number; stale: number }): string {
   return `public, max-age=0, s-maxage=${policy.shared}${stale}`
 }
 
-/**
- * Render every structurally static page twice and keep the ones whose bytes matched.
- *
- * Twice, under requests that differ in everything a document is allowed to be indifferent to —
- * because the structural half cannot see a loader, and a page frozen into a file that varies is the
- * one failure this tier must not be able to produce.
- */
+/** Render every structurally static page twice and keep the ones whose bytes matched. */
 export async function prerender(app: App): Promise<Prerendered> {
   const documents: Prerendered['documents'] = []
   const refused: Prerendered['refused'] = []
@@ -492,13 +394,8 @@ export async function prerender(app: App): Promise<Prerendered> {
       continue
     }
 
-    /**
-     * One document per URL, which for a parameterised route is one per declared combination.
-     *
-     * Each is proved on its own. Two values of one parameter are two different documents and the
-     * invariance test says nothing about the second because it passed for the first — a loader that
-     * reads a cookie only when the category is `household` is exactly the bug this catches.
-     */
+    // One document per URL, which for a parameterised route is one per declared combination. Each
+    // is proved on its own — passing for one value says nothing about another.
     for (const params of route.static.params ?? [{}]) {
       await one(route, params)
     }
@@ -590,12 +487,8 @@ export interface ServedDocument {
 }
 
 /**
- * The build's documents, loaded back.
- *
- * A deployment that never ran `weft build` has none, and that is not an error: `weft start`
- * refuses a missing IR manifest already, and a static directory is a tier rather than a
- * requirement. What would be an error is a manifest naming a file that is not there, because the
- * route would then answer with nothing while the build report says it is a file.
+ * The build's documents, loaded back. No manifest is not an error — a static directory is a tier
+ * rather than a requirement. A manifest naming a file that is not there is.
  */
 export async function loadDocuments(config: ResolvedConfig): Promise<Map<string, ServedDocument>> {
   const dir = join(config.root, config.outDir, STATIC_DIR)

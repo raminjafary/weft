@@ -40,6 +40,27 @@ be found by an index fixed at compile time. Each row element is adopted as its o
 template instance with `origin: 'element'`, which is why the compiler refuses a row whose
 root is a fragment — the parent's children could not be divided into rows.
 
+## What the server decides to send, and what it decides not to
+
+Wiring alone is not the test for whether a slot gets a payload at all — the question is whether
+anything can actually drive it: a signal to change a value, an intent to attach a listener to, a
+channel to deliver a delta, or another region reading exposed values out of this one. `wire()`
+resolves every non-event entry through the signal table, so with no signals every lookup misses and
+every entry hits its own no-op — the region is walked and nothing is bound. A slot whose only wiring
+is a `list` op over server data is exactly that case, and it is the common one: any fragment that
+maps a list has wiring, so any static page that became a fragment shipped a payload describing
+templates nothing would ever write to. Measured on this project's own error pages: 28 kB per page,
+over 327 of them. A slot with no signals, no events, not live, and exposing nothing ships no payload
+at all.
+
+**Which values travel is derived, not declared.** A client-owned derived value is one whose
+expression reads a signal, and the client recomputes it — so it needs every _other_ binding that
+expression reads: `qty() * unitPrice` is recomputed in the browser, so the browser needs
+`unitPrice`, and nothing else out of the value set. This used to be a declaration on the route,
+until it was obvious it should not be — the answer is already in the IR, and a hand-written list is
+a list that goes stale the moment somebody edits the template. What is left of `expose` is an
+override, for a value the browser needs for a reason the template cannot show.
+
 ## What the checks caught
 
 The conformance suite is not decoration. Two of its checks exist because they failed:

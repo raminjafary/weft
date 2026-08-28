@@ -71,6 +71,36 @@ resolutions produce different bytes and one entry cannot hold both.
 So `ResolvedKey` carries `components` and `axes` as separate fields, and `keyMaterial`
 includes both.
 
+## Two corrections a generated plan needed and a hand-written one does not
+
+A cache key is `id@version` plus the reads the compiler saw, resolved before the render — which is
+sound while a fragment's values are a function of its own reads, true when an application binds one
+fragment to one slot by hand. A **generated** plan breaks that assumption twice.
+
+**The id has to be scoped to the route and the slot.** Four pages can bind the framework's own
+`markup` fragment to four slots with four different loaders, and `markup` itself reads nothing — so
+all four resolve to the same key, and the first one to render answers for the rest. `weft`'s
+generator scopes every slot's id to `${slot.id}@${route pattern}:${slot name}`, which is what makes
+them four cached things again. Two tabs on the same route and slot still share one entry, which is
+the sharing that was ever worth having.
+
+**A route's own params have to be folded into the identity.** `/app/ordinary/:category` is one
+route, one slot and one template, and its loader lives in a `.data.ts` the compiler never reads — so
+`route:category` is never in the effect set, the key cannot contain it, and whichever category
+rendered first answers for every other one. Route params are a _bounded_ set, so folding them into
+the id costs one entry per value rather than a wrong page — the same trade would be unbounded for a
+query string, which is why what the generator instead reads out of the declaration file and folds
+into `effects.reads` is a `route:` taint. Scoped per route rather than per slot, because a read in
+one slot's loader taints every slot the route generates: a shared taint costs an entry that could
+have been split, and the opposite mistake costs a wrong page.
+
+The same correction applies one level up, to the **document**. Every page sharing `layout.tsx`
+shares its id and version, so a document-level cache policy keyed on that alone would make every
+page built from the same layout one cache entry. The generator scopes a document's id to the route
+pattern the same way, and folds into its effects whatever the route's own `head`, `layoutValues` and
+`guard` read — all three live in the `.data.ts` the compiler never sees, and any of them may read the
+request.
+
 ## What is derived alongside the key
 
 | Derived       | From                                       |

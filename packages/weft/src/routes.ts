@@ -56,16 +56,9 @@ import type { ResolvedConfig } from './config.ts'
 const utf8 = new TextEncoder()
 
 /**
- * The generated plan, which is the whole point of the convention.
- *
- * A route file and its declaration become a `Plan` and a `RouteBindings` — the pair that was
- * always the framework's real input and that, until now, every application had to write by
- * hand. Two hundred lines of wiring per application became this file once.
- *
- * Nothing here invents a fact. Cache classes, read sets and escape decisions come from the
- * compiler; placement comes from the route's own declaration; and the plan is validated
- * against the former before it is lowered, so a declaration that contradicts the code fails
- * the build with the read that caused it named.
+ * The generated plan: a route file and its declaration become a `Plan` and a `RouteBindings`.
+ * Nothing here invents a fact — cache classes, read sets and escape decisions come from the
+ * compiler, placement from the declaration, and the plan is validated against the former.
  */
 export interface GeneratedRoute {
   pattern: string
@@ -75,30 +68,19 @@ export interface GeneratedRoute {
   /** Slots this route can refresh over the channel, by slot name. */
   live: Record<string, LiveSlot>
   /**
-   * Every region of this route, live or not, by slot name.
-   *
-   * `live` is the subset a slot declared refreshable, which is the right gate for a *refresh*: a
-   * region nobody said could change should not be re-rendered under a reader. Staging a route is
-   * the other question — the reader is about to see the whole page, so every region of it has to
-   * be produced — and the gate for that is whether the route was asked for at all.
+   * Every region of this route, live or not, by slot name. `live` gates a *refresh*; staging a
+   * route needs every region regardless, because the reader is about to see the whole page.
    */
   regions: Record<string, LiveSlot>
   /**
-   * Regions of this route that render on another deployment, by slot name, as the composer needs them.
-   *
-   * Carried on the route because a region is composed on three paths and only one of them is the
-   * document request: a refresh over the channel and a route being staged both have to reach the same
-   * region with the same budget, the same contract and the same declared degradation. The derivation
-   * is the plan layer's — `regionSpecOf` — so nothing here can disagree with what the document did.
+   * Regions of this route that render on another deployment, by slot name. Carried on the route
+   * because a region is composed on three paths, and all three have to reach the same deployment
+   * with the same budget and contract. Derived by the plan layer's `regionSpecOf`.
    */
   remote: Record<string, RegionSpec>
   /**
-   * The shell values this route offers its regions, resolved for a set of params.
-   *
-   * The one channel between a shell and the regions inside it, read from the same `shellValues` the
-   * document rendered with rather than from a second source — so what a region is handed over the
-   * channel is what the page it is part of actually shows. Empty for a route that exposes nothing,
-   * which is every route until one says otherwise.
+   * The shell values this route offers its regions, resolved for a set of params — read from the
+   * same `shellValues` the document rendered with. See `spec/kernel/composition.md`.
    */
   exposed(params: Record<string, string>): Promise<Record<string, string>>
   /** The document this route is rendered into. Two routes share regions only if they share it. */
@@ -109,9 +91,7 @@ export interface GeneratedRoute {
   holes: string[]
   /**
    * Whether every byte of this document is decided before a request exists, and if not, why not.
-   *
-   * Structural only: it is what the compiler and the plan already know, which is everything
-   * except what the route's own loader does. `prerender` settles that half by measurement.
+   * Structural only — `prerender` settles the half that needs measurement.
    */
   static: StaticVerdict
   /**
@@ -120,11 +100,7 @@ export interface GeneratedRoute {
    * the plan's own delivery — see `E_ETAG_STREAMS`.
    */
   etag: boolean
-  /**
-   * Stylesheets this route links, in cascade order: the page's own, and the one belonging to
-   * every fragment it actually renders. A page links the CSS of the components on it and no
-   * others, which is the same argument the design makes about templates one level up.
-   */
+  /** Stylesheets this route links, in cascade order: the page's own, then every fragment it renders. */
   css: string[]
 }
 
@@ -210,22 +186,9 @@ function cacheOf(
 }
 
 /**
- * Placement, and the one part of it a measurement may overrule.
- *
- * A profile decides delivery and nothing else. It cannot move a fragment, change a cache class or
- * touch a key: those are the compiler's and the convention's, and a recording of last Tuesday has
- * no standing over any of them. What it does have standing over is whether a region is worth its
- * own flush, which is a question about milliseconds — and the declaration loses that one, because
- * the declaration was a guess and this is a measurement.
- */
-/**
- * The placement a slot and a region share, which is all of it except where the render happens.
- *
- * Structural rather than over `SlotBuilder`, because a region builder deliberately has no
- * `executor` method: a region's executor is the reserved name meaning *the registry decides*, and a
- * builder that could also be handed a tier would be two answers to one question. Everything else —
- * delivery, cache, budget, refresh, form, needs — is identical, which is the point the plan layer
- * makes by building a region out of a slot in the first place.
+ * The placement a slot and a region share: everything except where the render happens. A profile
+ * may overrule only delivery — it cannot move a fragment, change a cache class or touch a key. See
+ * `spec/plan/profile.md`.
  */
 interface Placeable {
   stream(options?: { prio?: number }): unknown
@@ -263,12 +226,8 @@ function applyPlacement(builder: Placeable, declaration: SlotDeclaration, decide
 }
 
 /**
- * A region, as the plan layer's builder, from what the route declared.
- *
- * The one thing this does *not* transcribe is where the region runs. `remote` says a boundary is
- * crossed and the contract says what the shell expects to find on the far side; which deployment
- * that is comes from `weft.config.ts`, so rolling a region is a write there rather than a rebuild
- * here. That omission is the whole reason the registry is a port.
+ * A region, as the plan layer's builder. The one thing not transcribed is where it runs — that
+ * comes from `weft.config.ts`. See `spec/kernel/composition.md`.
  */
 function regionOf(name: string, region: RegionDeclaration): RegionBuilder {
   const builder = regionSpec(name)
@@ -285,13 +244,8 @@ function regionOf(name: string, region: RegionDeclaration): RegionBuilder {
   return builder
 }
 
-/**
- * The document a route is wrapped in.
- *
- * Named layouts exist because a page with a different shape needs different slot holes, and the
- * plan is generated per route — so nothing has to agree across routes about what the holes are.
- * That is the property a single global layout was quietly costing.
- */
+/** The document a route is wrapped in. Named layouts exist because a page with a different shape
+ * needs different slot holes, and the plan is generated per route. */
 function layoutFor(compiled: CompiledApp, name: string | undefined, where: string): CompiledFragment {
   const found = name ? compiled.fragments[`layout:${name}`] : compiled.fragments.layout
   if (!found) {
@@ -306,13 +260,8 @@ function layoutFor(compiled: CompiledApp, name: string | undefined, where: strin
 }
 
 /**
- * The nested layouts a route is wrapped in, outermost first.
- *
- * The chain comes from the file tree — `app/routes/dashboard/layout.tsx` wraps `/dashboard` and
- * everything under it — so nothing declares it and nothing can declare it differently. What each
- * link fills is `body`, which is the same convention the page itself uses one level in: a layout
- * hole named `body` is where the thing this document wraps goes, whether that thing is a page or
- * another layout.
+ * The nested layouts a route is wrapped in, outermost first. The chain comes from the file tree, so
+ * nothing declares it and nothing can declare it differently.
  */
 function nestedFor(compiled: CompiledApp, discovered: Discovered, pattern: string): CompiledFragment[] {
   return chainFor(pattern, discovered.nested).map((entry) => {
@@ -352,12 +301,9 @@ function documentOf(layers: readonly CompiledFragment[]): string {
 }
 
 /**
- * Every boundary a chain leaves, in document order.
- *
- * Not a concatenation: a nested layout's holes appear where the layout does, so a chain whose outer
- * document is header/body/footer and whose inner one is main/aside leaves header, main, aside,
- * footer — and the stream sends them in that order. Concatenating would put the footer's bytes
- * before the inner layout's, which is the one thing document order is for.
+ * Every boundary a chain leaves, in document order. Not a concatenation: a nested layout's holes
+ * appear where the layout does, so header/body/footer wrapping main/aside leaves header, main,
+ * aside, footer — and the stream sends them in that order.
  */
 function chainHoles(layers: readonly CompiledFragment[]): string[] {
   const walk = (index: number): string[] => {
@@ -370,13 +316,8 @@ function chainHoles(layers: readonly CompiledFragment[]): string[] {
 }
 
 /**
- * A chain has to be a chain: every layer but the innermost needs a hole for the next one.
- *
- * Checked here rather than left to the plan layer because the plan layer sees fragment ids and
- * this sees files — and "app/routes/dashboard/layout.tsx has nowhere to go" is the sentence
- * somebody can act on. A duplicate hole name is refused for the same reason: the plan keys slots
- * by name and the client addresses regions by name, so two layers leaving `aside` would be one
- * region with two places to be.
+ * A chain has to be a chain: every layer but the innermost needs a hole for the next one. Checked
+ * here rather than in the plan layer, which sees fragment ids and not files.
  */
 function checkChain(layers: readonly CompiledFragment[], pattern: string): void {
   for (let i = 0; i < layers.length - 1; i++) {
@@ -408,12 +349,9 @@ function checkChain(layers: readonly CompiledFragment[], pattern: string): void 
 }
 
 /**
- * Which fragment renders a slot, given what its declaration named.
- *
- * `html` means markup rather than content, and goes through the framework's one deliberately
- * unescaped fragment. A name means `app/fragments/<name>.tsx`. Neither means the global
- * `app/slots/<name>.tsx`, and none of the three means a build error that names all three ways
- * out — a slot that renders nothing should say so before it is deployed.
+ * Which fragment renders a slot, given what its declaration named: `html` goes through the one
+ * unescaped fragment, a name means `app/fragments/<name>.tsx`, neither means the global
+ * `app/slots/<name>.tsx`, and none of the three is a build error naming all three ways out.
  */
 function fragmentFor(
   compiled: CompiledApp,
@@ -441,17 +379,8 @@ function fragmentFor(
 }
 
 /**
- * What a slot's values are, whatever the declaration said. A `load` is data, an `html` is
- * markup that goes through the framework's one unescaped fragment, and a slot with neither
- * renders its fragment with no values — which is right for a static header.
- */
-/**
- * A slot's values, and the context its loader is given.
- *
- * The kernel's context is what tracks reads; `withServices` adds what the deployment bound — a
- * settings table and a data port — without touching it. Wrapping here rather than in the kernel
- * is deliberate: a loader is a front-door concept, so what a loader can reach is the front door's
- * decision and costs the document request path nothing.
+ * A slot's values, and the context its loader is given. `withServices` adds what the deployment
+ * bound without touching the kernel's own read-tracking context — a loader is a front-door concept.
  */
 function valuesOf(
   declaration: SlotDeclaration,
@@ -471,14 +400,7 @@ function valuesOf(
   return async () => ({}) as Values
 }
 
-/**
- * The adopt payload, derived rather than written.
- *
- * A page's client work is a function of what the compiler put in the template: a signal
- * declaration, a wiring entry, a derived expression. So the framework can produce the whole
- * table — and produce nothing at all for a slot with no wiring, which is the case that should
- * cost nothing and previously cost an application a hand-written script tag either way.
- */
+/** The adopt payload, derived rather than written, from what the compiler put in the template. */
 export interface AdoptOptions {
   /** Extra value names beyond the ones a client-owned derived expression is seen to read. */
   expose?: readonly string[]
@@ -487,77 +409,33 @@ export interface AdoptOptions {
   /** What the client queries to find the region. Defaults to the slot's own wrapper. */
   selector?: string
   /**
-   * `refresh(everyMs, { when })` from the plan, carried to the client that has to act on it.
-   *
-   * It was recorded and read by one thing — a build-time warning about a remote region with cache
-   * tags and no interval, which named the interval as the design's stated fallback for push
-   * invalidation across a tier boundary. That made it the fallback nothing implemented. The client
-   * asks on an interval instead, under the conditions the plan declared: `visible` because a tab
-   * nobody is looking at should not poll, `focused` and `idle` for the same reason at finer grain.
+   * `refresh(everyMs, { when })` from the plan: the design's stated fallback for push invalidation
+   * across a tier boundary. See `spec/kernel/composition.md`.
    */
   refresh?: { everyMs: number; when?: readonly string[] }
 }
 
 /**
  * The adopt payload: everything the client needs to bind a rendered region, and nothing else.
- *
  * Exported because a page whose subject *is* adoption has to be able to show you the real one.
- * A demo that hand-rolled this would be showing you a payload the runtime does not read, which
- * is worse than showing nothing — it looks right and does nothing.
  */
-/**
- * The scroll restore, as bytes in the document rather than code in the module.
- *
- * It used to live in `boot.ts`, whose comment argued that a deferred module runs after parsing and
- * therefore before the next paint. The argument is sound and the premise is wrong: a module body does
- * not run until its whole static import graph resolves, and the client's is nineteen modules. Measured
- * on a dev server, render-blocking CSS finished at 37 ms and the module graph at 48 ms — so the page
- * sat painted at the top for eleven milliseconds and then jumped, which is the blink that comment was
- * written to prevent.
- *
- * Nothing inside the module graph can fix that, so this is a classic inline script and a layout
- * renders it at the end of the body: during parse, with the document's height already known, long
- * before anything is fetched. A layout that does not render it is not broken — the value goes unused
- * and `boot.ts` still restores, late, exactly as before.
- *
- * A key existing is the whole condition, and it is enough because recording is what decides. While
- * the engine owns scroll nothing records, so a reload finds no key here and the engine restores it
- * natively before the first paint; once the framework has taken scroll over, `pagehide` records and
- * this is what puts it back. Gating on the navigation type instead was tried and was wrong twice: it
- * consumed the key before deciding to stand down, which destroyed the position outright, and it
- * stood down on exactly the reload that had nobody else to restore it.
- *
- * Keyed on the pathname alone, matching `handOff`, and that is the point rather than an oversight.
- * Pressing Compile on the playground goes to a different *query* on the same path, which is precisely
- * the navigation whose position is worth keeping — keying on the query too was tried here and meant
- * the key written on the way out never matched the page that arrived, so nothing was ever restored
- * and every submit leaked a key.
- */
+/** The scroll restore, as an inline script rendered at the end of the body. See `spec/client/navigation.md`. */
 const SCROLL_PRELUDE =
   '<script>(function(){try{' +
   'var k="weft:scroll:"+location.pathname,v=sessionStorage.getItem(k);if(!v)return;' +
   'sessionStorage.removeItem(k);var y=+v;if(!(y>0))return;' +
   'var land=function(){window.scrollTo({top:y,behavior:"instant"})};land();' +
-  // Recorded so a readout can say *when* the restore happened rather than that it did. The number is
-  // the whole argument for this script existing: it has to be under the first paint.
+  // Recorded so a readout can say when the restore happened.
   'window.__weftScrollAt=performance.now();' +
-  /**
-   * The same re-land `boot.ts` had, kept here because this script is now the one that consumes the
-   * key — so without it the safety net was simply gone. A streamed slot, a late font or an image with
-   * no dimensions can all change the height after this runs, and then the first attempt fell short.
-   * Skipped entirely if the reader has since scrolled themselves, which is the only signal that the
-   * position is no longer wanted.
-   */
+  // A re-land: a streamed slot or a late-loading image can change the height after the first
+  // attempt. Skipped if the reader has since scrolled themselves.
   'if(document.readyState!=="complete")addEventListener("load",function(){' +
   'if(Math.abs(window.scrollY-y)>4&&window.scrollY<4)land()},{once:true})' +
   '}catch(e){}})()</script>'
 
 /**
- * The payload that binds a slot's template to the markup this render produced, or null.
- *
- * Null for a slot nothing on the client could act on, which is the case a hand-written script tag
- * could never get right — it had to be written before anyone knew whether the slot needed one.
- * `selector` exists so a caller that is not a slot can name the element it rendered into.
+ * The payload that binds a slot's template to the markup this render produced, or null for a slot
+ * nothing on the client could act on. See `spec/client/adoption.md`.
  */
 export function adoptScript(
   slot: string,
@@ -568,28 +446,13 @@ export function adoptScript(
   const { entry } = fragment
   const live = options.live ?? false
   const expose = options.expose ?? []
-  // Every template, not only the entry: a quantity box inside a list row has its wiring in the
-  // row's template, and a region whose only interactive part is a row is still interactive.
+  // Every template, not only the entry: a row's own wiring makes the region interactive too.
   const nested = fragment.templates.filter((template) => template.version !== entry.version)
-  /**
-   * What the client could actually do with a payload for this slot.
-   *
-   * Wiring alone is not it, and counting it was costing real bytes. `wire()` resolves every
-   * non-event entry through `bindDerived(derived, signals)`, so with no signals that lookup misses
-   * and every entry hits its `continue` — the region is walked and nothing is bound. A slot whose
-   * only wiring is a `list` op over server data is exactly that case, and it is the common one:
-   * any fragment that maps a list has wiring, so any page whose body became a fragment shipped a
-   * payload describing templates nothing would ever write to. On this site that was 28 kB per
-   * error page, over 327 of them.
-   *
-   * So the question is not whether wiring exists but whether anything can drive it: a signal to
-   * change a value, an intent to attach a listener to, a channel to deliver a delta, or another
-   * region reading exposed values out of this one.
-   */
+  // Whether anything can actually drive the wiring, not whether it exists. See
+  // `spec/client/adoption.md`.
   const hasSignals = fragment.templates.some((t) => t.signals.length > 0)
   const hasEvents = fragment.templates.some((t) => t.wiring.some((w) => w.op === 'event'))
-  // A static slot ships nothing. That is the case a hand-written script tag could never get
-  // right, because it had to be written before anyone knew whether the slot needed one.
+  // A static slot ships nothing.
   if (!hasSignals && !hasEvents && !live && expose.length === 0) return null
 
   const intents: Record<string, string> = {}
@@ -608,22 +471,14 @@ export function adoptScript(
     slot,
     selector: options.selector ?? `[data-weft-slot="${slot}"]`,
     template: clientView(entry),
-    /**
-     * The row and component templates this region needs.
-     *
-     * Adoption walks a list hole by looking up `hole.nested` in the templates the client holds,
-     * so a region whose rows carry wiring is unadoptable without them. Shipping only the entry
-     * meant a quantity box inside a row was bound to nothing at all — the markup was there, the
-     * wiring was in the IR, and nothing connected the two.
-     */
+    /** The row and component templates this region needs, so a row's own wiring is adoptable. */
     templates: nested.map(clientView),
     base: baseRenderId(entry, values),
     signals: entry.signals.map((declaration) => ({ id: declaration.id, init: declaration.init })),
     values: exposed,
     intents,
     live,
-    // Only for a slot that can actually be refreshed. An interval on a region the channel cannot
-    // refresh would be a timer that fires forever and asks nobody.
+    // Only for a slot that can actually be refreshed.
     ...(live && options.refresh ? { refresh: options.refresh } : {}),
   }
   return `<script type="application/json" data-weft="adopt">${JSON.stringify(payload).replace(
@@ -632,18 +487,7 @@ export function adoptScript(
   )}</script>`
 }
 
-/**
- * Which values the browser needs, derived rather than declared.
- *
- * A client-owned derived value is one whose expression reads a signal, and the client recomputes
- * it — so it needs every *other* binding that expression reads. `qty() * unitPrice` is recomputed
- * in the browser, so the browser needs `unitPrice`, and nothing else out of the value set.
- *
- * This was a declaration on the route until it was obvious it should not be: the answer is in the
- * IR, and a page that had to list these by hand is a page whose list goes stale the moment
- * somebody edits the template. What is left of `expose` is an override, for a value the browser
- * needs for a reason the template cannot show.
- */
+/** Which values the browser needs, derived rather than declared. See `spec/client/adoption.md`. */
 function neededInBrowser(fragment: CompiledFragment): string[] {
   const { entry } = fragment
   if (!entry.derived.length) return []
@@ -660,19 +504,10 @@ function neededInBrowser(fragment: CompiledFragment): string[] {
 }
 
 /**
- * Every slot's bytes get a wrapper element, and that is not decoration.
- *
- * Adoption addresses nodes by index from a root, so the root has to be an element whose
- * children are exactly the template's top-level nodes — which a bare `<slot>` is not once
- * anything else is inside it. The wrapper is also what a channel delta and an HTML fallback
- * target by name, so one element serves three mechanisms.
+ * Every slot's bytes get a wrapper element: adoption addresses nodes by index from a root, and the
+ * wrapper is also what a channel delta and an HTML fallback target by name.
  */
-/**
- * The params a slot's cache identity has to carry, as a stable string.
- *
- * Sorted, because two requests to the same route must not resolve to two keys because the router
- * happened to fill the map in a different order.
- */
+/** The params a slot's cache identity has to carry, as a stable string. Sorted, so key order is stable. */
 function paramsOf(params: Record<string, string>): string {
   const entries = Object.entries(params).sort(([a], [b]) => a.localeCompare(b))
   return entries.length ? `?${entries.map(([k, v]) => `${k}=${v}`).join('&')}` : ''
@@ -695,74 +530,25 @@ function wrapSlot(
   const open = utf8.encode(`<div data-weft-slot="${name}">`)
   return {
     ...slot,
-    /**
-     * The cached thing is a slot on a route, not a fragment.
-     *
-     * A cache key is `id@version` plus the reads the compiler saw, and it is resolved *before* the
-     * render — so it cannot contain a hash of values it has not computed yet. That is sound while
-     * a fragment's values are a function of its own reads, which is true when an application binds
-     * one fragment to one slot by hand.
-     *
-     * A generated plan breaks it. Four pages bind the framework's `markup` fragment to four slots
-     * with four different loaders, and `markup` reads nothing — so all four resolve to one key and
-     * the first one to render answers for the rest. Scoping the id to the route and slot is what
-     * makes them four cached things. Two tabs on the same route and slot still share one, which is
-     * the sharing that was ever worth having.
-     *
-     * The params are the same argument one level down, and it took a second page to see it.
-     * `/app/ordinary/:category` is one route, one slot and one template, and its loader is a `.ts`
-     * file the compiler never reads — so `route:category` is not in the effect set, the key cannot
-     * contain it, and whichever category rendered first answered for the other one. A route param
-     * is part of what a slot on a generated route *is*, so it is part of the identity, and a
-     * loader that ignores its params pays a cache entry per param rather than a wrong page.
-     */
+    // The cached thing is a slot on a route, not a fragment: id scoped to route and slot, params
+    // folded into the identity. See `spec/kernel/cache.md`.
     id: `${slot.id}@${pattern}:${name}${paramsOf(params)}`,
-    /**
-     * What the fragment reads, and what the route's own declaration reads.
-     *
-     * The paragraph above folds params into the identity because the loader that reads them is a
-     * file the compiler never saw. That is a patch shaped like the bounded case: a route's params
-     * are a set, so an entry per value is a cost you can reason about. A query string is not a set,
-     * and folding one into the identity would be an unbounded key — so what goes in is the *reads*,
-     * which the compiler now takes from the declaration file. `route:rows` in the effect set is a
-     * key component resolved from the request, which is what a read has always been.
-     *
-     * Per route rather than per slot: a read in one slot's loader taints every slot on the route.
-     * That costs an entry that could have been shared, and the opposite error costs a wrong page.
-     */
+    // What the fragment reads, and what the route's own declaration reads — a query string's
+    // reads, not folded into the id because it is unbounded. See `spec/kernel/cache.md`.
     effects: declared.length
       ? unionEffects([slot.effects, { reads: [...declared], writes: [], envelope: [], residency: 'either' }])
       : slot.effects,
     render: async (ctx) => {
-      /**
-       * Where a profile's numbers come from.
-       *
-       * Here rather than in a telemetry port, because a port sees `slot.render` with a slot name
-       * and no route — and `body` is a different slot on every page. This wrapper is the one place
-       * that holds both, and it is only reached when the store did not already have the bytes, so
-       * a render counted here is a render that happened.
-       */
+      // Where a profile's numbers come from: the one place that holds both the route and the slot.
       const at = recorder ? performance.now() : 0
       const bytes = await slot.render(ctx)
       recorder?.render(pattern, name, performance.now() - at, bytes.length)
       const values = captured.get(ctx as unknown as object)?.get(name)
-      /**
-       * A live slot records the render the client is about to be shown.
-       *
-       * A delta is computed against the base the client says it is holding, and the server can
-       * only do that if it can recover that base. Without this the *first* refresh on every page
-       * fell back to sending the region's HTML — the delta path only started working on the
-       * second interaction, which is the one nobody measures and everybody notices.
-       */
+      // A live slot records the render the client is about to be shown, so the first refresh can
+      // already be a delta. See `spec/kernel/surgical.md`.
       if (live && fragment && values) await recordBase(store, fragment.entry, values)
-      /**
-       * A remote region ships no adopt payload from here, and that is the right silence.
-       *
-       * Adoption binds a template this process compiled to markup this process rendered. A region's
-       * markup came from another deployment along with its own templates, in its own frames — so the
-       * payload that binds it is the region's to send, and one written here would describe a
-       * template this process has never seen.
-       */
+      // A remote region ships no adopt payload from here: adoption binds a template this process
+      // compiled, and a region's templates came from another deployment.
       const script =
         fragment && values
           ? adoptScript(name, fragment, values, {
@@ -786,57 +572,26 @@ export interface GenerateOptions {
   discovered: Discovered
   compiled: CompiledApp
   config: ResolvedConfig
-  /**
-   * The one stylesheet a page links, resolved when the page renders rather than when it is
-   * generated. The URL carries a digest of the bundle's contents, and the bundle is not
-   * assembled until the generator has said which fragments the page renders — so the href does
-   * not exist yet at generation time, and pretending otherwise would mean an unrevved URL.
-   */
+  /** The one stylesheet a page links, resolved when the page renders — the href does not exist yet at generation time. */
   styleHref(pattern: string): string
-  /**
-   * A fragment file's colocated stylesheets, in cascade order: the global `.css` first, then the
-   * `.scoped.css` narrowed to that fragment's own elements. Either may be absent.
-   */
+  /** A fragment file's colocated stylesheets, in cascade order: global `.css`, then `.scoped.css`. */
   styleOf(file: string): readonly string[]
   /** Where a live slot's base render is recorded, so its first refresh can be a delta. */
   store: StorePort
-  /**
-   * Every cache tag some intent declares it writes, so a page a mutation invalidates is not frozen
-   * into a file nothing can invalidate. See `StaticInput.written`.
-   */
+  /** Every cache tag some intent writes. See `StaticInput.written`. */
   written?: ReadonlySet<string>
   /** What this deployment bound. A loader is handed the services half of it. */
   ports: Ports
-  /**
-   * What a recording of this application decided about delivery, if there is one.
-   *
-   * Placement stays the convention's: which fragment fills which hole is a fact about the file
-   * tree. What a profile decides is the half that is about *time* — whether a region is worth
-   * arriving separately — because that is not in the file tree and an author asked to guess it
-   * guesses `stream: true` on everything.
-   */
+  /** What a recording decided about delivery. Placement stays the convention's; a profile decides
+   * only whether a region is worth arriving separately. */
   profile?: Decisions
   /** Where a render's cost is recorded, when this process was asked to record one. */
   recorder?: Recorder
   /** The client entry the layout loads. Also a digest-bearing URL, so also resolved late. */
   runtime(): string
-  /**
-   * `<link rel="modulepreload">` for every module this page will fetch, as markup.
-   *
-   * Supplied by the framework rather than written into a layout, because the module graph is the
-   * framework's to know and a hand-written list is a list that goes stale the first time an import
-   * is added. A layout that renders it flattens the browser's discovery chain — with no bundler,
-   * a module three imports deep is otherwise three round trips away — and a layout that does not
-   * is exactly as correct as it was before, just slower.
-   */
+  /** `<link rel="modulepreload">` for every module this page will fetch. See `spec/kernel/static.md`. */
   preload(): string
-  /**
-   * `<link rel="canonical">` for this page, or nothing.
-   *
-   * A canonical URL is absolute by convention, so it needs the origin the config supplies — and
-   * with no origin this is empty rather than a relative guess, because a canonical pointing at the
-   * wrong host is worse for a crawler than none at all.
-   */
+  /** `<link rel="canonical">` for this page, or nothing without an origin. See `spec/kernel/static.md`. */
   canonical(pattern: string, params: Record<string, string>): string
   brand: string
 }
@@ -874,16 +629,8 @@ interface OneOptions extends GenerateOptions {
 }
 
 /**
- * The reads a route's declaration file performs, resolved once when the route is generated.
- *
- * The compiler infers a *fragment's* reads, and that was the whole of what a cache key contained.
- * A route's loader lives in a `.data.ts` the compiler never read, so `ctx.query('rows')` there
- * tainted nothing — the key could not contain it, and whichever value rendered first answered for
- * every other one until the entry expired. Route params had been patched around by folding them
- * into a slot's identity; a query string has no bounded set to fold.
- *
- * Read here rather than during a request because a key must be resolvable before the render, and
- * because the answer is a property of the file rather than of the request.
+ * The reads a route's declaration file performs, resolved once when the route is generated — a
+ * property of the file rather than of the request. See `spec/kernel/cache.md`.
  */
 async function reads(file: string | undefined): Promise<readonly string[]> {
   if (!file) return []
@@ -898,13 +645,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
   const nested = nestedFor(compiled, discovered, route.pattern)
   /**
    * The document, as the layers it is made of: the application's own, then every nested layout
-   * from the shallowest directory inwards.
-   *
-   * One list, used everywhere `layout` alone used to be, because every question about a document
-   * is a question about the whole chain — which holes it leaves, what it reads, what stylesheets it
-   * links, and which two routes are the same document. `inner` is the layer the page goes in, which
-   * is the last one; for a route with no nested layout that is the application's own and every
-   * expression below reduces to what it was.
+   * from the shallowest directory inwards. `inner` is the last layer, where the page goes.
    */
   const layers = [layout, ...nested]
   const inner = layers[layers.length - 1] as CompiledFragment
@@ -940,15 +681,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
   // because an unfilled hole is a build error in the plan layer and silence is worse than a box.
   const declarations: Record<string, { declaration: SlotDeclaration; fragment?: CompiledFragment }> = {}
   for (const name of holes) {
-    /**
-     * A region that renders somewhere else has no local fragment, and that is not a gap to fill.
-     *
-     * Every other branch below resolves a slot to compiled bytes-producer in this process. A remote
-     * region's producer is another deployment, so there is nothing here to name — what stands in for
-     * it is the contract, which is where its reads and therefore the document's cache class come
-     * from. Anything that reaches for a fragment past this point has to cope with its absence, and
-     * the type says so rather than a comment.
-     */
+    // A region that renders somewhere else has no local fragment — the contract stands in for it.
     const asked = module_.slots?.[name]
     if (asked?.region?.remote) {
       if (asked.executor) {
@@ -1037,13 +770,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
   const slots: Record<string, SlotBinding> = {}
   const live: Record<string, LiveSlot> = {}
   const regions: Record<string, LiveSlot> = {}
-  /**
-   * The bytes behind a region's declared degradation, resolved once here rather than per failure.
-   *
-   * A `fallback` names a fragment and the plan layer refuses a name nothing supplies bytes for, so
-   * this is where the name becomes bytes: rendered with no values, because a fallback that needed a
-   * loader would need the loader that just failed.
-   */
+  /** The bytes behind a region's declared degradation, resolved once here rather than per failure. */
   const degraded: Record<string, { fallback?: Uint8Array; placeholder?: Uint8Array }> = {}
   for (const name of holes) {
     const { declaration, fragment } = declarations[name] as (typeof declarations)[string]
@@ -1106,14 +833,8 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
 
   const head = module_.head
   const extra = module_.layoutValues
-  /**
-   * Which nav entry is the page you are on, decided by the router rather than by string equality.
-   *
-   * A nav href is a URL somebody can click and a route is a pattern, so `/app/ordinary/pantry`
-   * and `/app/ordinary/:category` are never equal — and every parameterised page in the chrome
-   * was therefore permanently not-current. Matching with the same router that resolved the
-   * request means one notion of "this URL is that page", not two.
-   */
+  // Which nav entry is the page you are on, matched with the router rather than by string
+  // equality: a nav href is a URL and a route is a pattern, and they are never equal.
   const matcher = createRouter([{ pattern: route.pattern, value: true }])
   const isCurrent = (href: string): boolean => {
     try {
@@ -1150,8 +871,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     ...(module_.guard ? { guards: { 'route.guard': module_.guard } } : {}),
   }
 
-  // A layout hole the framework cannot fill is named here rather than rendered empty. The
-  // whole argument for a convention is that what is missing is missing loudly.
+  // A layout hole the framework cannot fill is named here rather than rendered empty.
   const supplied = new Set<string>([
     ...STANDARD,
     ...Object.keys(typeof extra === 'function' ? extra({}) : (extra ?? {})),
@@ -1160,21 +880,9 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
   // chain is one document with one head, and a hole in the third layer is as unfilled as one in
   // the first.
   for (const layer of layers) {
-    /**
-     * A derived hole is not unfilled — it is computed, and what it is computed *from* is checked
-     * instead.
-     *
-     * `{title ? … : …}` and `` class={`note note-${kind}`} `` lower to a hole bound to `d0`, with
-     * the expression tree beside it in `entry.derived`. The renderer resolves those from the values
-     * it was handed before it writes a byte, so `d0` is never something a route could supply —
-     * counting it as unfilled made every conditional and every template literal in a layout an
-     * `E_LAYOUT_HOLE_UNFILLED` naming a binding nobody wrote and nobody could.
-     *
-     * Skipping them outright would be the other mistake: a typo inside the expression would then
-     * render nothing, silently, which is exactly what this check exists to prevent. So the tree is
-     * walked and every `ref` in it has to be supplied — a hole in a layout is still unfilled when
-     * what it reads is missing, whether it reads it directly or through an expression.
-     */
+    // A derived hole is not unfilled — it is computed, and what it is computed *from* is checked
+    // instead: a conditional or template literal lowers to a hole bound to a derived id, and every
+    // `ref` inside that expression has to be supplied, or a typo would render nothing silently.
     const derived = new Map((layer.entry.derived ?? []).map((entry) => [entry.id, entry.expr]))
     for (const hole of layer.entry.holes) {
       if (hole.kind === 'slot' || hole.kind === 'component') continue
@@ -1207,8 +915,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     {
       facts,
       executors: Object.keys(options.config.executors),
-      // The store's own declarations, so the rules that check a plan against them have something
-      // to check against. Passing only `facts` left `E_CONSISTENCY_MISMATCH` unable to fire.
+      // So `E_CONSISTENCY_MISMATCH` has something to check the plan against.
       store: {
         name: options.store.name,
         consistency: options.store.consistency,
@@ -1218,20 +925,13 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     },
     {
       ...bindings,
-      // Only when the route composes one. A plan with no region needs no ports here, and passing
-      // them anyway would make every route look like a composite in `weft why`.
+      // Only when the route composes one, or every route would look like a composite in `weft why`.
       ...(composes ? { regions: { ports: options.ports, degraded } } : {}),
     },
   )
   const order = module_.order
-  /**
-   * A conditional page has to be a complete one.
-   *
-   * `orderOf` in the plan layer already derives `out-of-order` from any slot that asked to stream,
-   * so this is the same fact seen from the other side: a route that declares an ETag and streams is
-   * asking for a digest of something that does not exist yet when the header has to be written.
-   * Refused where it is declared, with both halves named.
-   */
+  // A conditional page has to be a complete one: an ETag over a streaming route asks for a digest
+  // of something that does not exist yet when the header must be written. See `E_ETAG_STREAMS`.
   if (module_.etag) {
     const streaming = plan.slots.filter((slot) => slot.delivery === 'stream').map((slot) => slot.name)
     const asked = typeof order === 'string' ? order : undefined
@@ -1243,12 +943,8 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
       )
     }
   }
-  /**
-   * Slots whose budget is a function of the request, and the declared one they override.
-   *
-   * Collected here rather than looked up per request: the declaration is build-time knowledge,
-   * and a resolver that had to re-read it on every request would be doing the plan's work again.
-   */
+  /** Slots whose budget is a function of the request, and the declared one they override. Collected
+   * here because the declaration is build-time knowledge. */
   const perRequest = holes
     .map((name) => ({
       name,
@@ -1257,23 +953,12 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     .filter((entry): entry is { name: string; for: NonNullable<typeof entry.for> } => Boolean(entry.for))
 
   /**
-   * The document's identity and reads, over the whole chain.
-   *
-   * A nested layout is part of the document, so what it reads is what the document reads — leaving
-   * it out would advertise a page as shareable on the strength of its outer layout alone. The id
-   * and version are joined rather than hashed because they are only ever compared: two routes share
-   * a document when they were built from the same files in the same order.
+   * The document's identity and reads, over the whole chain. Joined rather than hashed, because
+   * they are only ever compared: two routes share a document when built from the same files.
    */
   const documentId = layers.map((layer) => layer.entry.id).join('>')
   const documentVersion = layers.map((layer) => layer.entry.version).join('+')
-  /**
-   * The document reads what its layers read, and what the route's own declaration reads.
-   *
-   * `head`, `layoutValues` and a guard are all in the `.data.ts` and all of them may read the
-   * request — a title that names the query, a heading that names the param. Leaving them out
-   * advertised a page as shareable on the strength of its layout alone, which is the same mistake
-   * one level up from the slots below.
-   */
+  /** The document reads what its layers read, and what the route's declaration reads. See `spec/kernel/cache.md`. */
   const documentEffects = unionEffects([
     ...layers.map((layer) => layer.entry.effects),
     { reads: [...declared], writes: [], envelope: [], residency: 'either' },
@@ -1292,21 +977,14 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     }
     return {
       ...resolved,
-      /**
-       * The document is a route, not a layout.
-       *
-       * Every page sharing `layout.tsx` shares its id and version, so a document policy would
-       * make all of them one cache entry — and the first page rendered would answer for the rest.
-       * The same reasoning as the slot ids below, one level up.
-       */
+      // The document is a route, not a layout. See `spec/kernel/cache.md`.
       shell: {
         id: `${documentId}@${route.pattern}`,
         version: documentVersion,
         effects: documentEffects,
       },
       ...(order ? { order: typeof order === 'function' ? order(params) : order } : {}),
-      // `wrapSlot` returns a slot of its own making, so the overrides are assigned onto it rather
-      // than spread into a third object nobody else can see.
+      // Assigned rather than spread into a third object nobody else can see.
       slots: resolved.slots.map((slot) =>
         Object.assign(
           wrapSlot(
@@ -1334,9 +1012,8 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
     if (!exposes.length) return {}
     const values = (await bindings.shellValues?.(params)) ?? ({} as Values)
     const record = values as unknown as Record<string, unknown>
-    // Stringified for the reason the server side stringifies them: these cross a serialisation on
-    // their way to another deployment, and a value that was a number in one topology and a string in
-    // the other is a bug that only shows up in one of them.
+    // Stringified: these cross a serialisation to another deployment, and a value that differs by
+    // type between the two topologies is a bug that only shows up in one of them.
     return Object.fromEntries(exposes.map((name) => [name, String(record[name] ?? '')]))
   }
 
@@ -1390,13 +1067,8 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
   }
 }
 
-/**
- * A slot's declared refresh interval, as the client needs it: milliseconds and the conditions.
- *
- * `when` is the plan's own condition vocabulary — `visible`, `focused`, `idle` — carried across as
- * strings rather than re-modelled, because the client is the only layer that can evaluate any of
- * them and a second spelling would be a second thing to keep in agreement.
- */
+/** A slot's declared refresh interval, as the client needs it. `when` is the plan's own condition
+ * vocabulary, carried across as strings rather than re-modelled. */
 function refreshOf(plan: Plan, slot: string): { everyMs: number; when?: readonly string[] } | undefined {
   const spec = plan.slots.find((candidate) => candidate.name === slot)?.refresh
   if (!spec) return undefined

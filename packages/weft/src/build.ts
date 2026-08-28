@@ -10,38 +10,19 @@ import type { Discovered } from './convention.ts'
 import type { ResolvedConfig, WeftConfig } from './config.ts'
 
 /**
- * What a deployment needs, written down.
- *
- * Sealed templates, the generated plan, the intent manifest, every revved asset and a byte
- * report. The plan is the interesting artifact: it is the thing an application used to
- * hand-write, so writing it out is what makes a generated one reviewable — a diff on
- * `routes.json` is a diff on placement, which is the whole reason a plan is data rather than a
- * function that runs.
- *
- * Every URL in `assets/manifest.json` carries a digest of its contents, so the directory can be
- * handed to a CDN as it is and served immutable. Nothing in here is minified, and that is not an
- * omission: a minifier is a dependency with an opinion about your code, and the framework's own
- * claim is about how many bytes a page needs rather than how tightly they are packed.
+ * What a deployment needs, written down: sealed templates, the generated plan, the intent
+ * manifest, every revved asset and a byte report. `routes.json` is reviewable because the plan is
+ * data rather than a function that runs. Nothing is minified — see `spec/kernel/budgets.md`.
  */
 export interface BuildReport {
   outDir: string
   templates: number
-  /**
-   * What a page downloads, and every declared ceiling it broke.
-   *
-   * One number for the application rather than one per route, because there is no bundler here and
-   * therefore no per-route JavaScript — see `js-budget.ts` for what that does to the declaration.
-   */
+  /** What a page downloads, and every declared ceiling it broke. One number for the application:
+   * there is no bundler and therefore no per-route JavaScript. */
   client: { raw: number; brotli: number; modules: number; baseline?: number }
   routes: { pattern: string; slots: number; markupBytes: number; styles: string[]; live: string[] }[]
   intents: { id: string; name: string; module: string }[]
-  /**
-   * The catalogue: what a client on this deployment may ask to have rendered, and by what.
-   *
-   * In the report for the same reason the intents are, and one reason stronger — this is the set a
-   * *browser* can name, so it is the set somebody reviewing a deployment most needs to be able to see
-   * without reading the application.
-   */
+  /** The catalogue: what a client on this deployment may ask to have rendered, and by what. */
   renderables: {
     id: string
     name: string
@@ -53,12 +34,8 @@ export interface BuildReport {
   /** Every region a route composes, and where this deployment's registry says it is. */
   regions: { region: string; route: string; locus: string; where: string }[]
   assets: { href: string; bytes: number; immutable: boolean }[]
-  /**
-   * L0: the documents resolved here rather than per request, and what each one costs.
-   *
-   * `pattern` is the route and `path` is the URL, and they differ for a parameterised route — one
-   * route with a declared parameter set is one document per value, each proved on its own.
-   */
+  /** L0: the documents resolved here rather than per request. `pattern` is the route, `path` the
+   * URL — they differ for a parameterised route, one document per declared value. */
   static: { pattern: string; path: string; file: string; bytes: number }[]
   /** Every route that is not one of them, with the reason. A tier nobody can see is a tier nobody uses. */
   refused: { pattern: string; code: StaticRefusal; reason: string }[]
@@ -106,8 +83,7 @@ export async function build(root: string, overrides: WeftConfig = {}): Promise<B
   }
   await writeFile(join(out, 'ir', 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
 
-  // The generated plan, as data: reviewable, diffable, and the artifact a profile-guided
-  // planner would rewrite.
+  // The generated plan, as data: reviewable, diffable.
   await writeFile(
     join(out, 'routes.json'),
     `${JSON.stringify(
@@ -124,8 +100,7 @@ export async function build(root: string, overrides: WeftConfig = {}): Promise<B
     join(out, 'intents.json'),
     `${JSON.stringify({ entries: app.intents.entries, names: app.intents.names }, null, 2)}\n`,
   )
-  // Its own file rather than a section of the one above, because it is a different question with a
-  // different audience: `intents.json` is what may be written, and this is what may be asked for.
+  // Its own file: a different question from `intents.json`, which is what may be written.
   await writeFile(
     join(out, 'catalogue.json'),
     `${JSON.stringify({ entries: app.catalogue.entries, names: app.catalogue.names }, null, 2)}\n`,
@@ -140,14 +115,8 @@ export async function build(root: string, overrides: WeftConfig = {}): Promise<B
     await writeFile(target, body)
     assets.push({ href, bytes: body.byteLength, immutable: asset.immutable })
   }
-  /**
-   * The module trees, materialised.
-   *
-   * `files` never held them — a mounted directory is read when a request arrives — so up to here
-   * the output was a site with every document and no runtime. Written now at the same URLs the
-   * manifest already claimed, which is what makes the sentence at the top of this file true: the
-   * directory can be handed to a CDN as it is.
-   */
+  // The module trees, materialised: `files` never held them, so up to here the output was a site
+  // with every document and no runtime.
   for (const [href, body] of await moduleFiles(app.assets, bootPrelude(app))) {
     const target = join(out, 'assets', href.replace(/^\//, ''))
     await mkdir(dirname(target), { recursive: true })
@@ -157,14 +126,8 @@ export async function build(root: string, overrides: WeftConfig = {}): Promise<B
   }
   await writeFile(join(out, 'assets', 'manifest.json'), `${JSON.stringify(app.assets.manifest, null, 2)}\n`)
 
-  /**
-   * L0, and the only tier that produces files rather than behaviour.
-   *
-   * Every document here was rendered by the real kernel and then proved not to depend on the
-   * request, so the directory can be handed to a CDN and the kernel is never invoked for those
-   * paths again. What is refused is written down beside it, because a page that *nearly* made it
-   * is the one its author most wants to hear about.
-   */
+  // L0, and the only tier that produces files rather than behaviour. What is refused is written
+  // down beside it. See `spec/kernel/static.md`.
   const prerendered = await prerender(app)
   for (const document of prerendered.documents) {
     const target = join(out, STATIC_DIR, document.file)
@@ -178,18 +141,11 @@ export async function build(root: string, overrides: WeftConfig = {}): Promise<B
   await mkdir(join(out, STATIC_DIR), { recursive: true })
   await writeFile(join(out, STATIC_DIR, 'manifest.json'), `${JSON.stringify(staticManifest, null, 2)}\n`)
 
-  /**
-   * The client, measured and gated.
-   *
-   * `budget({ js })` was parsed and stored and read by nothing, which made it the one declaration in
-   * the plan DSL that could be wrong forever. It is enforced here because here is where the bytes
-   * exist — and it is enforced against what a page actually downloads, module by module, because a
-   * framework with no bundler has no chunk to report instead.
-   */
+  // The client, measured and gated: `budget({ js })` is enforced here, against what a page
+  // actually downloads module by module. See `spec/kernel/budgets.md`.
   const client = await measureClientJs(app.assets, app.assets.app)
-  // Beside the application's config rather than inside `.weft/`, which is generated and ignored: a
-  // growth cap measured against a file nobody can commit is a growth cap that only ever compares a
-  // machine to itself. Here it is a diff.
+  // Beside the config rather than inside `.weft/`, which is gitignored: a growth cap needs
+  // something committed to diff against.
   const baselinePath = join(root, 'weft.budget.json')
   const baseline = await readBaseline(baselinePath)
   const broken = checkJsBudgets(app.routes, client, baseline)
@@ -250,11 +206,8 @@ export async function build(root: string, overrides: WeftConfig = {}): Promise<B
 }
 
 /**
- * The sealed markup a page carries: the part of it that is not values.
- *
- * Every template each slot needs, not only its entry — a page whose static text lives in a list
- * row or in a composed component would otherwise report almost nothing, which is the opposite of
- * what this number exists to show.
+ * The sealed markup a page carries: the part of it that is not values. Every template each slot
+ * needs, not only its entry, or a page whose text lives in a row would report almost nothing.
  */
 function markupBytes(compiled: CompiledApp, ids: readonly string[]): number {
   const counted = new Set<string>()
@@ -272,12 +225,8 @@ function markupBytes(compiled: CompiledApp, ids: readonly string[]): number {
 }
 
 /**
- * The build, loaded back.
- *
- * `weft start` runs no compiler: no parse, no type checker, no sealing. It reads the sealed
- * templates the build wrote and validates each one on the way in, which is the property that
- * makes the artifact worth having — what is served is byte-for-byte what was measured, and a
- * template edited underneath the build fails to parse rather than serving quietly.
+ * The build, loaded back. `weft start` runs no compiler — it reads the sealed templates the build
+ * wrote and validates each on the way in, so what is served is byte-for-byte what was measured.
  */
 export async function loadBuild(discovered: Discovered, config: ResolvedConfig): Promise<CompiledApp> {
   const dir = join(config.root, config.outDir, 'ir')
@@ -297,9 +246,7 @@ export async function loadBuild(discovered: Discovered, config: ResolvedConfig):
   }
 
   const fragments: Record<string, CompiledFragment> = {}
-  // A deployment may or may not have shipped `app/`. A station that shows source gets it when it
-  // is there and an empty string when it is not, rather than the build failing over a display
-  // concern.
+  // A station that shows source gets it when `app/` shipped and an empty string when it did not.
   const sourceOf = async (file: string): Promise<string> => {
     try {
       return await readFile(join(config.root, file), 'utf8')
@@ -325,15 +272,8 @@ export async function loadBuild(discovered: Discovered, config: ResolvedConfig):
     }
   }
 
-  /**
-   * Every route with a template of its own has to be in the build. A page added since would
-   * otherwise 404 with no explanation of why.
-   *
-   * A route with no `.tsx` is exempt, and that is not a loosening: its body is named by its
-   * declaration — a shared fragment, or markup through the framework's own — so there is no
-   * `route:` template for the build to be missing. Requiring one refused to start any application
-   * whose pages are declarations, which is both applications in this repository.
-   */
+  // Every route with a template of its own has to be in the build, or a page added since 404s
+  // with no explanation. A route with no `.tsx` is exempt — its body is named by its declaration.
   for (const route of discovered.routes) {
     if (!route.file || fragments[`route:${route.pattern}`]) continue
     throw new Error(
@@ -344,13 +284,7 @@ export async function loadBuild(discovered: Discovered, config: ResolvedConfig):
   return { fragments, diagnostics: [], templates: [...templates.values()] }
 }
 
-/**
- * The build report, and it is the thing worth reading.
- *
- * A line per route, then the L0 section: which pages became files, and for every page that did not,
- * the code and the read that refused it. That list is the performance review of an application, and
- * it is generated rather than requested.
- */
+/** The build report: a line per route, then the L0 section — which pages became files, and why not. */
 export function formatReport(report: BuildReport): string {
   const lines: string[] = ['']
   lines.push(`  ${report.templates} sealed templates · ${report.routes.length} routes`)
@@ -401,8 +335,8 @@ export function formatReport(report: BuildReport): string {
         `  region ${region.region.padEnd(16)} ${region.locus.padEnd(8)} ${region.where.padEnd(20)} ${region.route}`,
       )
     }
-    // Printed rather than left to a command nobody runs: the registry is a deployment's and can be
-    // written to without anybody rebuilding, so the build states what it saw and `weft verify` gates.
+    // The registry can be written to without anybody rebuilding, so the build states what it saw
+    // and `weft verify` gates.
     lines.push(`  \`weft verify --probe\` asks each one what it is serving right now`)
   }
   if (report.diagnostics.length) {
@@ -418,13 +352,8 @@ export function formatReport(report: BuildReport): string {
   return lines.join('\n')
 }
 
-/**
- * The recorded figure a growth cap is measured against, or nothing on a first build.
- *
- * A file in the build output rather than a query against a branch: this repository has no CI, and a
- * baseline nobody can see is a baseline nobody can reason about. Committing it makes a regression a
- * diff.
- */
+/** The recorded figure a growth cap is measured against, or nothing on a first build. Committed,
+ * so a regression is a diff. */
 async function readBaseline(path: string): Promise<number | undefined> {
   try {
     const held = JSON.parse(await readFile(path, 'utf8')) as { brotli?: number }

@@ -2,39 +2,10 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 /**
- * A plan generated from measurement rather than from a convention.
- *
- * The convention was the harder half and it came first: a route's placement is derived from the
- * file tree, written to `routes.json`, and diffable in review. What it cannot know is what any of
- * it *costs*. Whether a slot should stream depends on how long that slot takes on this deployment
- * with this data, which is not a property of the file tree and is not something an author should be
- * asked to guess — they guess `stream: true` on everything, which buys an out-of-order filler for a
- * page whose regions all arrive together.
- *
- * So: record what happened, and let the recording decide the parts of the plan that are about time.
- *
- * Three rules the format follows, and each one is a mistake this could otherwise make.
- *
- * **A profile is evidence, not configuration.** Nothing here is hand-written; every number came
- * from a render. A profile somebody edited is a plan somebody wrote by hand with extra steps, so
- * `weft profile` prints the decisions and their evidence together and the file records how many
- * samples each one rests on.
- *
- * **A decision states its sample count.** Two requests are not a measurement. A slot under the
- * floor is left exactly as the convention placed it, and the report says which slots were skipped
- * for want of evidence rather than silently treating one sample as a fact.
- *
- * **It expires.** A profile is a description of a deployment at a moment: the data grew, the
- * database moved, the page changed. An old profile is worse than none, because it looks current.
+ * A plan generated from measurement rather than from a convention. Record what happened, and let
+ * the recording decide the parts of the plan that are about time. See `spec/plan/profile.md`.
  */
-/**
- * Bumped to '2' when a recording started counting discoveries.
- *
- * A minor addition to the format is still a format change, and the reader's rule is that a profile
- * from a different version is ignored rather than half-read — because a decision made from fields
- * that are not there is a decision made from zero, and zero here means "described and never
- * followed", which is the opposite of the truth for a recording that never counted.
- */
+/** Bumped to '2' when a recording started counting discoveries. See `spec/plan/profile.md`. */
 export const PROFILE_VERSION = '2'
 
 /** What one slot cost, over every render the recording saw. Renders and cache hits kept apart. */
@@ -58,17 +29,7 @@ export interface RouteObservation {
   from: Record<string, number>
   /**
    * Times this route was *described* to a client that had not been to it, and times a description
-   * was then used.
-   *
-   * The measurement that decides whether describing a subtree is worth it, and the reason it has to
-   * be a measurement: a `PLAN` frame is bytes spent on a page nobody may click, and whether that pays
-   * is the same question as whether a route is worth staging, with the same answer. Nothing recorded
-   * it until now, so the handshake described what the transition table said and no number ever came
-   * back to say whether the describing helped.
-   *
-   * `described` counts descriptions handed out. `followed` counts the ones where the client
-   * subsequently asked for that route — a `WARM at=`, which is only possible *because* it had been
-   * described, since a client with no description does not know the shell matches.
+   * was then used. See `spec/plan/profile.md`.
    */
   described: number
   followed: number
@@ -99,14 +60,8 @@ export const MIN_TRANSITIONS = 4
 export const MIN_SHARE = 0.15
 /** How many times a route has to have been described before the number says anything. */
 export const MIN_DESCRIBED = 8
-/**
- * How often a description has to be followed to be worth sending.
- *
- * Lower than `MIN_SHARE` on purpose, and the asymmetry is the point: a description is a line in a
- * frame the connection was already getting, and what it buys when it is followed is a round trip
- * *and* a server render of a page nobody clicked. Staging is the expensive one — it runs loaders — so
- * it needs a higher bar. Describing is cheap enough that being wrong four times out of five still pays.
- */
+/** How often a description has to be followed to be worth sending. Lower than `MIN_SHARE`,
+ * deliberately: describing is cheap and staging runs loaders. See `spec/plan/profile.md`. */
 export const MIN_FOLLOW_SHARE = 0.2
 
 interface Sample {
@@ -119,14 +74,10 @@ interface Sample {
 export interface Recorder {
   /** A document request arrived for this route. */
   request(route: string, from?: string): void
-  /**
-   * This route was described to a client that had not been to it, in a `PLAN` frame.
-   *
-   * Recorded per described route rather than per frame, because the decision is per route: a
-   * handshake that describes four routes of which one is ever followed should describe one.
-   */
+  /** This route was described to a client that had not been to it, in a `PLAN` frame. Recorded per
+   * described route rather than per frame. */
   described(route: string): void
-  /** A described route was then asked for. The half that says whether the describing paid. */
+  /** A described route was then asked for. */
   followed(route: string): void
   /** A slot rendered, which means the store did not already have it. */
   render(route: string, slot: string, ms: number, bytes: number): void
@@ -138,12 +89,8 @@ export interface Recorder {
 }
 
 /**
- * The recorder, which is deliberately not a telemetry port.
- *
- * A `TelemetryPort` sees `slot.render` with a slot name and no route, because the executor that
- * emits it has no idea what page it is on — and a slot named `body` is a different slot on every
- * route. The front door knows both, so this is wired where the front door already wraps a slot's
- * render, and the request path pays nothing for a profile nobody asked to record.
+ * The recorder, which is deliberately not a telemetry port: a `TelemetryPort` sees a slot name and
+ * no route, and the front door knows both.
  */
 export function createRecorder(now: () => number = () => Date.now()): Recorder {
   const started = now()
@@ -190,8 +137,7 @@ export function createRecorder(now: () => number = () => Date.now()): Recorder {
     render(route, slot, ms, bytes) {
       renders++
       const found = sample(route, slot)
-      // Bounded: a long-running deployment would otherwise accumulate a number per render, and a
-      // reservoir of the most recent thousand describes the deployment as it is now anyway.
+      // Bounded to the most recent thousand: describes the deployment as it is now.
       found.ms.push(ms)
       if (found.ms.length > 1_000) found.ms.shift()
       found.bytes = Math.max(found.bytes, bytes)
@@ -272,23 +218,14 @@ export interface DiscoverDecision {
 }
 
 /**
- * Everything a recording decided, and what it refused to decide.
- *
- * Delivery is the decision worth making from measurement because it is the one an author cannot
- * make correctly from a file tree. Placement, cache classes and keys are untouched: a recording of
- * last Tuesday has no standing over what the compiler inferred.
+ * Everything a recording decided, and what it refused to decide. Placement, cache classes and keys
+ * are untouched — a recording has no standing over what the compiler inferred.
  */
 export interface Decisions {
   routes: RouteDecision[]
   /**
-   * Which routes are worth describing before anybody looks at them.
-   *
-   * The one thing about discovery that was never a measurement. A `PLAN` frame describes routes a
-   * client has not been to, and whether that pays is not knowable from a file tree — so the recording
-   * counts descriptions handed out against descriptions followed, and a route nobody follows stops
-   * being described. Routes with too few descriptions to say are absent rather than defaulted, and
-   * `describe` is `true` for them wherever a caller has to choose: an unmeasured route keeps the
-   * behaviour it had, which is the same rule delivery follows.
+   * Which routes are worth describing before anybody looks at them. Too few descriptions to say is
+   * absent rather than defaulted. See `spec/plan/profile.md`.
    */
   discover: DiscoverDecision[]
   /** Slots the profile saw too little of to say anything about. */
@@ -298,16 +235,7 @@ export interface Decisions {
 }
 
 /**
- * What the numbers decide, and — as importantly — what they refuse to.
- *
- * Delivery is the decision worth making from a profile, because it is the one an author cannot
- * make correctly from the file tree. A slot that is slow while something else on the page is fast
- * should stream: the fast region paints and the slow one arrives when it arrives. A page whose
- * regions are all fast should buffer every one of them, because then the plan lowers to `in-order`
- * and the out-of-order filler is not on the wire at all — which is a saving the convention cannot
- * see, since nothing in the file tree says how long a loader takes.
- *
- * Priority follows from the same numbers: fastest first, so the region that can paint soonest does.
+ * What the numbers decide, and — as importantly — what they refuse to. See `spec/plan/profile.md`.
  */
 export function decide(profile: Profile): Decisions {
   const routes: RouteDecision[] = []
@@ -390,12 +318,8 @@ export function decide(profile: Profile): Decisions {
 }
 
 /**
- * Whether describing a route pays, per route, from what the recording saw.
- *
- * Two numbers and one ratio, and the interesting half is what it refuses to decide: a route described
- * fewer than `MIN_DESCRIBED` times gets no entry at all, so a caller falls back to describing it. An
- * unmeasured route keeps the behaviour it had — the same rule delivery follows, and the reason a
- * recording of last Tuesday cannot quietly turn a feature off.
+ * Whether describing a route pays, per route. Fewer than `MIN_DESCRIBED` descriptions gets no
+ * entry, so a caller falls back to describing it — the same rule delivery follows.
  */
 function discoveries(profile: Profile): DiscoverDecision[] {
   const out: DiscoverDecision[] = []
@@ -429,11 +353,8 @@ function staging(observed: RouteObservation): string[] {
 }
 
 /**
- * The transitions, read the other way round.
- *
- * The profile records where a request *came from*, because that is what a `Referer` says. What a
- * navigation needs is the opposite: given the page you are on, where are you likely to go. So the
- * table is inverted once, here, rather than by every reader of it.
+ * The transitions, read the other way round: the profile records where a request came from, and a
+ * navigation needs the opposite. Inverted once, here, rather than by every reader.
  */
 export function likelyNext(profile: Profile): Record<string, string[]> {
   const forward = new Map<string, Map<string, number>>()
@@ -464,13 +385,7 @@ export async function writeProfile(root: string, outDir: string, profile: Profil
   return path
 }
 
-/**
- * The profile on disk, or null.
- *
- * A profile from a different format version is ignored rather than half-read: the numbers mean
- * what the version says they mean, and a plan generated from a misread profile is worse than one
- * generated from no profile at all.
- */
+/** The profile on disk, or null. A different format version is ignored rather than half-read. */
 export async function readProfile(root: string, outDir: string): Promise<Profile | null> {
   try {
     const raw = await readFile(join(root, outDir, PROFILE_FILE), 'utf8')

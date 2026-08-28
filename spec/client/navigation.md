@@ -121,6 +121,29 @@ because two mechanisms both trying to put the reader back is worse than either: 
 restores after load, so a position this runtime had already put back was quietly undone a frame
 later. Taking it over means every path has to record one, so leaving a page records where it was.
 
+**The handoff to a fresh document is an inline script, not a module.** It used to run from
+`boot.ts`, on the argument that a deferred module runs after parsing and therefore before the next
+paint — sound reasoning over a wrong premise, since a module body does not run until its whole
+static import graph resolves, and the client's is nineteen modules deep. Measured on a dev server,
+render-blocking CSS finished at 37 ms and the module graph at 48 ms: the page sat painted at the top
+for eleven milliseconds and then jumped, which is the blink the mechanism exists to prevent. Nothing
+inside the module graph can fix that, so the restore is a classic inline script rendered at the end
+of the body — during parse, with the document's height already known, long before anything is
+fetched.
+
+A key existing in session storage is the whole condition for running it, and that is enough because
+recording is what decides: while the browser engine owns scroll, nothing records one, so a reload
+finds no key and the engine restores natively before the first paint; once the framework has taken
+scroll over, leaving a page records one and this is what puts it back. Gating on the navigation type
+instead was tried and was wrong twice — it consumed the key before deciding to stand down, which
+destroyed the position outright, and it stood down on exactly the reload that had nobody else to
+restore it.
+
+Keyed on the pathname alone, deliberately not the query string. Pressing a control that changes only
+the query is precisely the navigation whose position is worth keeping, and keying on the query too
+meant the key written on the way out never matched the page that arrived — nothing was restored, and
+every one of those leaked a key.
+
 **Twice, one frame apart.** Every landing is attempted immediately and again on the next frame if
 it did not take. The document has just been rewritten and its height is whatever layout has got
 to; asking for a position past the bottom of a short document clamps it to the top, and the
