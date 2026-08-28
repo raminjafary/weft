@@ -180,24 +180,33 @@ export function createBinaryDecoder(options: DecoderOptions = {}): Decoder {
 
       for (;;) {
         if (buf.length < 8) break
+        // A second preamble where a frame was due. Named rather than waited on: the magic parses as
+        // a header claiming a body no sender will ever send, so the alternative is a decoder that
+        // buffers a live channel forever without one word about why.
+        if (decodeUtf8.decode(buf.subarray(0, 4)) === WARP_MAGIC) {
+          throw new Error(
+            `E_REPEATED_PREAMBLE: a stream announces its version once, and this one did so twice`,
+          )
+        }
         const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength)
         const code = buf[0] as number
         const flags = buf[1] as number
         const headerLen = view.getUint16(2, true)
         const bodyLen = view.getUint32(4, true)
         const total = 8 + headerLen + bodyLen
+        // Before the wait for the rest, not after: direction is in the first byte, and a frame going
+        // the wrong way should be refused when it is read rather than when it is complete.
+        if (options.expect && directionOfCode(code) !== options.expect) {
+          throw new Error(
+            `E_WRONG_DIRECTION: frame code 0x${code.toString(16)} is not a ${options.expect} frame`,
+          )
+        }
         if (buf.length < total) break
 
         const header = decodeHeader(decodeUtf8.decode(buf.subarray(8, 8 + headerLen)))
         const hasBody = (flags & 1) === 1
         const bodyIsText = (flags & 2) === 2
         const body = hasBody ? buf.slice(8 + headerLen, total) : undefined
-
-        if (options.expect && directionOfCode(code) !== options.expect) {
-          throw new Error(
-            `E_WRONG_DIRECTION: frame code 0x${code.toString(16)} is not a ${options.expect} frame`,
-          )
-        }
 
         const kind = kindForCode(code)
         if (!kind) {

@@ -166,3 +166,54 @@ test('a decoder expecting one direction refuses the other by name', () => {
     /E_WRONG_DIRECTION/,
   )
 })
+
+/**
+ * A socket is one stream, so its decoder consumes one preamble — and what happens to the second
+ * one decides whether a bug like this is five minutes or an afternoon.
+ *
+ * `WRP1\x01\x08\x00\x00` parses as a perfectly well-formed frame header: code 0x57, a 12624-byte
+ * header and a 2049-byte body. So a decoder that simply carried on would sit waiting for 14 KB
+ * that no sender is going to send, on a channel that stays open and reports nothing — which is
+ * exactly what shipped, and what made every intent on a live page silently do nothing.
+ */
+test('a second preamble mid-stream is refused by name rather than waited on', () => {
+  const decoder = createBinaryDecoder({ expect: 'up' })
+  assert.deepEqual(
+    decoder.push(encodeStream([frame('REFRESH', { s: 'body' })])).map((f) => f.kind),
+    ['REFRESH'],
+    'the first stream is ordinary',
+  )
+  assert.throws(
+    () => decoder.push(encodeStream([frame('REFRESH', { s: 'body' })])),
+    /E_REPEATED_PREAMBLE/,
+    'and the second announcement is named, not absorbed',
+  )
+})
+
+/** The continuation a socket actually sends: frames with no preamble, on a decoder that has one. */
+test('frames without a preamble continue a stream that already announced itself', () => {
+  const decoder = createBinaryDecoder({ expect: 'up' })
+  decoder.push(encodeStream([frame('RESIDENT', { warp: '1.8.0' })]))
+  const next = decoder.push(encodeBinaryFrame(frame('INTENT', { i: '885475' })))
+  assert.deepEqual(
+    next.map((f) => f.kind),
+    ['INTENT'],
+    'a socket announces once and then sends frames',
+  )
+  const third = decoder.push(encodeBinaryFrame(frame('REFRESH', { s: 'body' })))
+  assert.deepEqual(
+    third.map((f) => f.kind),
+    ['REFRESH'],
+  )
+})
+
+/** Direction is in the first byte, so it is refused on read rather than after the body arrives. */
+test('a wrong-direction frame is refused before its body is waited for', () => {
+  const decoder = createBinaryDecoder({ expect: 'up' })
+  decoder.push(preamble())
+  // A header claiming a large body, of a frame travelling the wrong way. Only the eight header
+  // bytes are pushed: a decoder that checked direction after completing the frame would return
+  // nothing here and wait, which is indistinguishable from a slow peer.
+  const down = encodeBinaryFrame(frame('ACK', { i: 'x' }, utf8.encode('x'.repeat(4096))))
+  assert.throws(() => decoder.push(down.subarray(0, 8)), /E_WRONG_DIRECTION/)
+})

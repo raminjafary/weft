@@ -27,7 +27,9 @@ import {
   type Region,
 } from '@weftjs/client'
 import {
+  concatBytes,
   createBinaryDecoder,
+  encodeBinaryFrame,
   encodeStream,
   frame as warpFrame,
   WARP_VERSION,
@@ -1032,9 +1034,26 @@ async function render(id: string, slot: string, params: unknown = {}): Promise<n
   return state.writes - before
 }
 
+function upFrames(frames: readonly ChannelFrame[]): Frame[] {
+  return frames.map((f) => warpFrame(f.kind as FrameKind, f.header, f.body, true)) as Frame[]
+}
+
 function encodeUp(frames: readonly ChannelFrame[]): Uint8Array<ArrayBuffer> {
-  const encoded = frames.map((f) => warpFrame(f.kind as FrameKind, f.header, f.body, true)) as Frame[]
-  return new Uint8Array(encodeStream(encoded))
+  return new Uint8Array(encodeStream(upFrames(frames)))
+}
+
+/**
+ * The same frames without a preamble, for a binding where one has already been sent.
+ *
+ * A stream announces its version once. The half-duplex bindings are one stream per request, so
+ * each carries its own; a socket is one stream for the channel's whole life, and the decoder on
+ * the other end consumes a preamble exactly once. Repeating it per message is what turned every
+ * frame after the first into a header claiming a 14 KB body that never arrived — silently, because
+ * a decoder waiting for the rest of a frame has nothing to complain about yet.
+ */
+function encodeUpContinued(frames: readonly ChannelFrame[]): Uint8Array<ArrayBuffer> {
+  const parts = upFrames(frames).map(encodeBinaryFrame)
+  return new Uint8Array(parts.reduce<Uint8Array>((acc, p) => concatBytes(acc, p), new Uint8Array(0)))
 }
 
 /**
@@ -1273,10 +1292,14 @@ async function open(): Promise<Wire> {
     await arrived(new Uint8Array(await response.arrayBuffer()), createBinaryDecoder({ expect: 'down' }))
   }
 
+  /** Whether this socket has announced its version. One stream, so exactly one preamble. */
+  let announced = false
+
   const post = async (frames: readonly ChannelFrame[]): Promise<void> => {
     for (const f of frames) log('up', describe(f))
     if (socket) {
-      socket.send(encodeUp(frames) as Uint8Array<ArrayBuffer>)
+      socket.send((announced ? encodeUpContinued(frames) : encodeUp(frames)) as Uint8Array<ArrayBuffer>)
+      announced = true
       return
     }
     if (turning) {
