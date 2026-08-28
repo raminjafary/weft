@@ -1377,6 +1377,14 @@ export async function appHandler(app: App): Promise<Handler> {
 
   const prelude = bootPrelude(app)
 
+  /**
+   * Modules already transformed, by the URL they answer.
+   *
+   * Bounded by the number of modules the application has, which is a build-time constant — a page
+   * loads twenty-odd and there is no way for a request to invent a twenty-first.
+   */
+  const served = new Map<string, string>()
+
   // The deployment's ports, plus the one that is a property of this response rather than of the
   // deployment: 103 goes out on a socket, so the transport is per request and nothing else is.
   const kernelFor = (res: ServerResponse): Kernel =>
@@ -1519,11 +1527,26 @@ export async function appHandler(app: App): Promise<Handler> {
         res.writeHead(404, { 'content-type': 'text/plain' }).end(`no such module: ${name}\n`)
         return
       }
-      // Legible in dev, small everywhere else: the one reader who wants these comments is the one
-      // who opened devtools on their own machine.
-      const body = browserModule(await readFile(source, 'utf8'), tree, prefix, {
-        comments: app.mode === 'dev' ? 'keep' : 'strip',
-      })
+      /**
+       * Transformed once, outside dev.
+       *
+       * Serving a module reads it, parses it to find its comments, strips them and rewrites its
+       * specifiers — a few milliseconds for a module the size of `boot.ts`, and it was happening on
+       * every request. `weft build` pays that cost once and a CDN serves files, so a deployment
+       * behind one never noticed; a deployment that runs `weft start` — which is every host that
+       * keeps a process, and the whole reason the turn binding exists — paid it per request forever.
+       *
+       * Safe because the answer cannot change: outside dev the source is not being edited, and the
+       * path already carries a digest of the bundle, so a URL that would produce different bytes is
+       * a different URL. In dev nothing is cached, which is the point of dev.
+       */
+      const cached = app.mode === 'dev' ? undefined : served.get(path)
+      const body =
+        cached ??
+        browserModule(await readFile(source, 'utf8'), tree, prefix, {
+          comments: app.mode === 'dev' ? 'keep' : 'strip',
+        })
+      if (!cached && app.mode !== 'dev') served.set(path, body)
       const payload = path === assets.boot ? prelude + body : body
       const headers: Record<string, string> = {
         'content-type': 'text/javascript; charset=utf-8',
