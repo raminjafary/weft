@@ -217,3 +217,22 @@ test('a wrong-direction frame is refused before its body is waited for', () => {
   const down = encodeBinaryFrame(frame('ACK', { i: 'x' }, utf8.encode('x'.repeat(4096))))
   assert.throws(() => decoder.push(down.subarray(0, 8)), /E_WRONG_DIRECTION/)
 })
+
+/**
+ * The property the repeated-preamble guard rests on: no frame can begin with the magic.
+ *
+ * The guard reads four bytes and compares them to `WRP1`. That is only sound because a frame's
+ * first byte is a code and no code is `0x57`. Asserted rather than assumed — a future frame kind
+ * allocated at `0x57` would turn a legitimate frame into a protocol error, and the failure would
+ * look like the bug the guard was added to catch rather than like a code collision.
+ */
+test('no frame code collides with the first byte of the preamble', () => {
+  const magicFirstByte = preamble()[0]
+  assert.equal(magicFirstByte, 0x57, 'WRP1 begins with W')
+  for (const [kind, def] of Object.entries(FRAMES)) {
+    assert.notEqual(def.code, magicFirstByte, `${kind} is allocated at 0x57, which the magic claims`)
+  }
+  for (const retired of RETIRED) {
+    assert.notEqual(retired.code, magicFirstByte, `${retired.was} was at 0x57 and could come back`)
+  }
+})

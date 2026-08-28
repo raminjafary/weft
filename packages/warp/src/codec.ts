@@ -185,7 +185,9 @@ export function createBinaryDecoder(options: DecoderOptions = {}): Decoder {
         // buffers a live channel forever without one word about why.
         if (decodeUtf8.decode(buf.subarray(0, 4)) === WARP_MAGIC) {
           throw new Error(
-            `E_REPEATED_PREAMBLE: a stream announces its version once, and this one did so twice`,
+            `E_REPEATED_PREAMBLE: a stream announces its version once and this one did so twice. ` +
+              `Send the preamble with the first message on a connection and frames alone after it — ` +
+              `a whole-stream encoder called per message is what produces this`,
           )
         }
         const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength)
