@@ -33,6 +33,17 @@ const TOKEN_ADVICE =
  */
 export function canPublishUnattended(names = [], otp) {
   if (otp) return { ok: true, why: 'a one-time password was supplied with --otp' }
+
+  /**
+   * A terminal can answer the prompt, so there is nothing here to refuse.
+   *
+   * This check exists because `pnpm publish` fails with `ERR_PNPM_OTP_NON_INTERACTIVE` when nothing
+   * can type a code — and it was refusing the ordinary case too, where somebody is sitting in front
+   * of it and npm is about to open a browser. Whether a code can be answered is a question about
+   * the terminal, not about the account, and `isTTY` is the whole of it.
+   */
+  if (process.stdin.isTTY) return { ok: true, why: 'a terminal is attached, so npm can ask' }
+
   const token = process.env.NPM_TOKEN ?? process.env.NODE_AUTH_TOKEN
 
   // The account's own setting, asked only when there is no token. `npm profile get` needs a login
@@ -107,7 +118,7 @@ function tokenCapability(token) {
   const row = rows[index]
   if (!row) return undefined
 
-  const scopes = (row.scopes ?? []).map((entry) => entry.name)
+  const scopes = (row.scopes ?? []).map((entry) => entry?.name).filter((name) => typeof name === 'string')
   return {
     bypass: row.bypass_2fa === true,
     scopes,
