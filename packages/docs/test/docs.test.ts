@@ -19,7 +19,7 @@ import { infer } from '../app/infer.ts'
 import { commands, options } from '../app/lib/cli.ts'
 import { budgets, ceilingFor } from '../app/lib/budgets.ts'
 import { namedCount, specifiedIn } from '../app/lib/specified.ts'
-import { drawnDependencies } from '../app/lib/architecture.ts'
+import { drawnDependencies, frameVocabulary, FRAME_SAYS } from '../app/lib/architecture.ts'
 import { drawn as figuresDrawn } from '../app/lib/heroes.ts'
 import { caption, opened } from '../app/lib/openers.ts'
 import { artifacts } from '../app/lib/versions.ts'
@@ -832,4 +832,29 @@ test('the packages with a byte budget are the ones that ship somewhere', () => {
   assert.ok(ceilingFor('@weftjs/kernel'), 'a deployment downloads the kernel')
   assert.ok(ceilingFor('@weftjs/client'), 'a browser downloads the client')
   assert.equal(ceilingFor('@weftjs/ir'), undefined, 'nothing gates a data format by bytes')
+})
+
+/**
+ * The frame vocabulary on the guide index, against the frame table it claims to be.
+ *
+ * The figure reads the set and the direction out of `FRAMES`, so those cannot drift. What can is
+ * the half a program cannot supply — what each frame is *for* — and a kind added to the protocol
+ * would appear on the page with an empty sentence beside it. That is the failure this catches:
+ * silently, the page would still render.
+ */
+test('every frame in the protocol has a sentence on the architecture page, and no extras', () => {
+  const { up, down } = frameVocabulary()
+  const drawn = [...up, ...down].sort()
+  const said = Object.keys(FRAME_SAYS).sort()
+  assert.deepEqual(
+    drawn.filter((k) => !FRAME_SAYS[k]),
+    [],
+    'a frame kind the figure draws with nothing to say about it',
+  )
+  assert.deepEqual(
+    said.filter((k) => !drawn.includes(k)),
+    [],
+    'a sentence about a frame the protocol no longer has',
+  )
+  assert.equal(up.length > 0 && down.length > 0, true, 'the table was read, not guessed')
 })

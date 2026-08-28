@@ -1,5 +1,5 @@
 import { criticalPath, schedule, serverCapabilities, type DagNode } from '@weftjs/kernel'
-import { negotiate, WARP_VERSION, type Transport } from '@weftjs/warp'
+import { FRAMES, negotiate, WARP_VERSION, type Transport } from '@weftjs/warp'
 import { escapeHtml } from './escape.ts'
 import { graph, type GraphEdge, type GraphNode } from './graph.ts'
 import { artifacts } from './versions.ts'
@@ -627,6 +627,171 @@ function bindings(): string {
   )
 }
 
+/**
+ * The one difference between the bindings, as the thing it actually is: a delay.
+ *
+ * Drawn as a timeline rather than a diagram because the difference is temporal and nothing static
+ * shows it. On a held binding the write and the telling are the same instant. On a turn the write
+ * happens, nothing is delivered — there is no connection to deliver on — and the telling waits for
+ * the reader's next request. Both rows run on one cycle so the gap is the figure.
+ *
+ * Every animated element carries `data-wf`, which is what the site's reduced-motion rule keys on:
+ * with motion off the whole thing is still a legible diagram of the two orders of events.
+ */
+function carried(): string {
+  const row = (name: string, note: string, cells: string) =>
+    `<div class="dlv-row"><span class="dlv-name">${enc(name)}</span>
+      <div class="dlv-track">${cells}</div>
+      <span class="dlv-note">${enc(note)}</span></div>`
+  const mark = (at: number, cls: string, label: string, delay: number) =>
+    `<span class="dlv-mark ${cls}" style="left:${at}%"><i data-wf
+       style="animation:wf-pulse 6s linear ${delay}s infinite"></i>${enc(label)}</span>`
+  return figure(
+    `<div class="dlv">
+      ${row(
+        'socket, stream, sse',
+        'the write and the telling are one instant',
+        `<span class="dlv-line"></span>
+         ${mark(6, 'dlv-write', 'a write invalidates', 0.6)}
+         <span class="dlv-run" data-wf style="animation:wf-draw 6s linear 0.7s infinite"></span>
+         ${mark(40, 'dlv-told', 'STALE, pushed', 1.1)}`,
+      )}
+      ${row(
+        'turn',
+        'nothing to push to, so the journal holds it until the reader asks',
+        `<span class="dlv-line"></span>
+         ${mark(6, 'dlv-write', 'the same write', 0.6)}
+         <span class="dlv-hold" data-wf style="animation:wf-nodein 6s linear 1.1s infinite"></span>
+         ${mark(62, 'dlv-ask', 'the reader’s next turn', 3.2)}
+         ${mark(88, 'dlv-told', 'STALE, carried', 3.5)}`,
+      )}
+    </div>`,
+    'The whole of what a turn gives up, drawn to scale: not whether the reader is told, but when. ' +
+      'Everything the client asks for is answered on the same request that asked.',
+  )
+}
+
+/**
+ * What each frame is for, in a phrase — the one half of the vocabulary a program cannot supply.
+ *
+ * The *set* and the direction of travel are read from `FRAMES` itself, so a frame added to the
+ * protocol appears here without anybody remembering to add it. What cannot be derived is what it
+ * means, so that is written down — and `test/docs.test.ts` asserts this record covers the table
+ * exactly, which turns "somebody forgot" into a failing build rather than a gap on the page.
+ */
+export const FRAME_SAYS: Record<string, string> = {
+  RESIDENT: 'what I am: versions, forms, transport, engine',
+  HELD: 'what I am showing, per region',
+  REFRESH: 'this region, again',
+  WARM: 'stage this and paint nothing — a template, a route, or a subtree of the plan',
+  INTENT: 'run this write',
+  RESUME: 'I was evicted; continue from this epoch',
+  WARP: 'everything settled, and every downgrade named',
+  SHELL: 'the document around the holes',
+  SLOT: 'a hole, and which region fills it',
+  HTML: 'the whole region, as markup',
+  TPL: 'a sealed template you did not hold',
+  DATA: 'values, for a region that can project them',
+  DELTA: 'only what changed, against a base you named',
+  PATCH: 'addressed the way adoption addresses the DOM',
+  SIGNAL: 'a shell value a region on this page consumes',
+  COMMIT: 'paint the epoch — the only frame that changes what is seen',
+  MOD: 'a module this region needs',
+  CSS: 'a stylesheet, before the thing it styles paints',
+  STALE: 'something you hold is known wrong; ask when you like',
+  NAV: 'the route you staged, and whether it shares this shell',
+  PLAN: 'routes you have not been to, and what they cost',
+  ERROR: 'refused, by name',
+  REDIRECT: 'go here instead',
+  COOKIE: 'set this, because a channel is not a response',
+  ACK: 'your intent, and whether its epoch survives',
+  REGION: 'frames another deployment produced, passed through',
+}
+
+/** Every frame kind, split by which way it travels — read from the protocol, not retyped. */
+export function frameVocabulary(): { up: string[]; down: string[] } {
+  const up: string[] = []
+  const down: string[] = []
+  for (const [kind, spec] of Object.entries(FRAMES)) {
+    ;((spec as { dir: string }).dir === 'up' ? up : down).push(kind)
+  }
+  return { up, down }
+}
+
+function vocabulary(): string {
+  const { up, down } = frameVocabulary()
+  const col = (title: string, note: string, kinds: string[], base: number) =>
+    `<div class="voc-col">
+      <h4>${enc(title)}<span>${enc(note)}</span></h4>
+      <ul>${kinds
+        .map(
+          (k, i) =>
+            `<li data-wf style="animation:wf-nodein 9s linear ${(base + i * 0.12).toFixed(2)}s infinite">
+              <code>${enc(k)}</code><span>${enc(FRAME_SAYS[k] ?? '')}</span></li>`,
+        )
+        .join('')}</ul>
+    </div>`
+  return figure(
+    `<div class="voc">
+      ${col('Up', `${up.length} kinds — everything a client can ask`, up, 0.2)}
+      ${col('Down', `${down.length} kinds — everything a server can say`, down, 0.5)}
+    </div>
+    <p class="gfx-note">One vocabulary, every binding. A turn narrows <em>when</em> the right-hand
+      column can be sent, never which of it exists — which is why the same client code applies
+      frames from a socket, from an event stream and from a POST response without knowing the
+      difference.</p>`,
+    `${up.length + down.length} frame kinds is the entire protocol surface. The set and the ` +
+      'direction here are read from the frame table itself, so this figure cannot drift from it.',
+  )
+}
+
+/**
+ * An epoch: frames that arrive and deliberately do not paint.
+ *
+ * The other figure on this page that has to move, and for the same reason as the delivery timeline
+ * — the whole idea is an ordering. Data lands, and nothing changes on screen. More data lands.
+ * Then one `COMMIT`, and everything appears at once. Drawn statically it is two lists; drawn in
+ * time it is the reason a background revalidation cannot disturb a half-typed form.
+ */
+function epochs(): string {
+  const lane = (
+    name: string,
+    note: string,
+    cells: readonly { at: number; label: string; paint: boolean }[],
+  ) =>
+    `<div class="ep-lane">
+      <span class="ep-name">${enc(name)}</span>
+      <div class="ep-track"><span class="dlv-line"></span>${cells
+        .map(
+          (c) =>
+            `<span class="ep-cell${c.paint ? ' ep-paint' : ''}" style="left:${c.at}%"><i data-wf
+              style="animation:wf-pulse 7s linear ${(c.at / 100) * 5 + 0.4}s infinite"></i>${enc(c.label)}</span>`,
+        )
+        .join('')}</div>
+      <span class="dlv-note">${enc(note)}</span>
+    </div>`
+  return figure(
+    `<div class="dlv">
+      ${lane('without epochs', 'every frame paints as it lands, including the ones nobody asked for', [
+        { at: 8, label: 'DELTA — paints', paint: true },
+        { at: 38, label: 'DELTA — paints', paint: true },
+        { at: 70, label: 'DELTA — paints', paint: true },
+      ])}
+      ${lane('staged in an epoch', 'three frames change nothing; one COMMIT changes everything, at once', [
+        { at: 8, label: 'DELTA — staged', paint: false },
+        { at: 38, label: 'DELTA — staged', paint: false },
+        { at: 70, label: 'COMMIT — paints', paint: true },
+      ])}
+    </div>
+    <p class="gfx-note">A frame carrying an epoch is invisible until its <code>COMMIT</code>, and
+      that is a property of where frames are routed rather than of anything an application remembers
+      to do. It is also what makes a staged route possible: a whole page can be resolved and held,
+      painting nothing, until the reader actually clicks.</p>`,
+    'Nothing paints on arrival unless the frame says to — which is what lets the server revalidate ' +
+      'under a reader without ever disturbing what they are doing.',
+  )
+}
+
 /** The axes the handshake settles, each with what it decides and what it costs to lose. */
 const AXES: readonly { key: string; is: string; lost: string }[] = [
   {
@@ -815,6 +980,7 @@ export function architecture(counts: ArchCounts): string {
         'gets there — and the two are independent, so every form is available on every binding.',
     )}
     ${bindings()}
+    ${vocabulary()}
 
     <div class="arch-prose">
       <p>The whole handshake is one frame each way. The client sends <code>RESIDENT</code>: the protocol
@@ -861,6 +1027,12 @@ export function architecture(counts: ArchCounts): string {
         A deployment that did not say is still not stranded: the first refusal switches bindings and takes the
         refused frames as a turn rather than losing them.</p>
 
+      <h3>The difference, drawn to scale</h3>
+    </div>
+
+    ${carried()}
+
+    <div class="arch-prose">
       <p>The gap a turn leaves is filled from outside the hub, by whichever of two things a deployment
         needs. A <em>fanout</em> carries an invalidation to the other instances holding a connection right now,
         which is what more than one replica requires whatever binding it serves. A <em>journal</em> writes down
@@ -871,6 +1043,15 @@ export function architecture(counts: ArchCounts): string {
 
     ${heading(
       '7',
+      'What paints, and when',
+      'Frames arriving is not the same as the page changing, and keeping those two apart is what ' +
+        'makes a background revalidation safe. Data staged under an epoch is resolved, held, and ' +
+        'invisible; only <code>COMMIT</code> paints, and it paints all of it at once.',
+    )}
+    ${epochs()}
+
+    ${heading(
+      '8',
       'From your files to what the browser fetches',
       'The build produces sealed templates, a generated plan, a manifest and revved assets — and prints ' +
         'which pages became files. Nothing is bundled at any point, which is why the byte budget is measured ' +
