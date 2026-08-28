@@ -117,7 +117,11 @@ export async function forms(id: string): Promise<FormsReport> {
         'This proves the forms agree byte for byte. It says nothing about which form is faster to apply, which is a separate axis measured in a real engine.',
     },
     scenario: report.scenario,
-    checks: report.checks.map((c) => ({ name: c.name, ok: c.ok, ...(c.detail ? { detail: c.detail } : {}) })),
+    checks: report.checks.map((c) => {
+      const check: { name: string; ok: boolean; detail?: string } = { name: c.name, ok: c.ok }
+      if (c.detail) check.detail = c.detail
+      return check
+    }),
   }
 }
 

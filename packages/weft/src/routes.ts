@@ -170,7 +170,7 @@ async function loadModule(file: string | undefined): Promise<RouteModule> {
 
 function labelOf(pattern: string): string {
   if (pattern === '/') return 'Home'
-  const last = pattern.split('/').filter(Boolean).at(-1) as string
+  const last = pattern.split('/').findLast(Boolean) as string
   return last.replace(/[-_]/g, ' ').replace(/^./, (c) => c.toUpperCase())
 }
 
@@ -1211,22 +1211,26 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
         effects: documentEffects,
       },
       ...(order ? { order: typeof order === 'function' ? order(params) : order } : {}),
-      slots: resolved.slots.map((slot) => ({
-        ...wrapSlot(
-          slot,
-          slot.name,
-          route.pattern,
-          params,
-          (declarations[slot.name] as (typeof declarations)[string]).fragment,
-          captured,
-          expose,
-          Boolean(live[slot.name]),
-          options.store,
-          refreshOf(plan, slot.name),
-          options.recorder,
+      // `wrapSlot` returns a slot of its own making, so the overrides are assigned onto it rather
+      // than spread into a third object nobody else can see.
+      slots: resolved.slots.map((slot) =>
+        Object.assign(
+          wrapSlot(
+            slot,
+            slot.name,
+            route.pattern,
+            params,
+            (declarations[slot.name] as (typeof declarations)[string]).fragment,
+            captured,
+            expose,
+            Boolean(live[slot.name]),
+            options.store,
+            refreshOf(plan, slot.name),
+            options.recorder,
+          ),
+          overrides.get(slot.name),
         ),
-        ...overrides.get(slot.name),
-      })),
+      ),
     }
   }
 
@@ -1271,12 +1275,20 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
       layers,
       slots: holes.map((name) => {
         const held = declarations[name] as (typeof declarations)[string]
-        return {
+        const entry: {
+          name: string
+          fragment?: CompiledFragment
+          declaration: SlotDeclaration
+          streams: boolean
+        } = {
           name,
-          ...(held.fragment ? { fragment: held.fragment } : {}),
           declaration: held.declaration,
           streams: plan.slots.find((slot) => slot.name === name)?.delivery === 'stream',
         }
+        // Assigned rather than spread, because `exactOptionalPropertyTypes` wants the key absent
+        // and not present-and-undefined, and that is what an `if` says.
+        if (held.fragment) entry.fragment = held.fragment
+        return entry
       }),
     }),
   }

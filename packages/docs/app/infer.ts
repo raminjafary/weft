@@ -161,14 +161,15 @@ export function infer(source: string): Inference {
   const hints: Hint[] = holes(source).map(({ binding, where, at }) => {
     const declared = types.get(binding)
     const type = declared ?? 'unknown'
-    return {
+    const hint: Hint = {
       binding,
       type,
       escape: escapeFor(type, where),
       where,
       line: lineOf(source, at),
-      ...(declared ? {} : { undeclared: true }),
     }
+    if (!declared) hint.undeclared = true
+    return hint
   })
 
   const reads: Reading[] = []

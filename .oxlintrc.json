@@ -16,6 +16,7 @@
     "unicorn/prefer-node-protocol": "error",
     "no-await-in-loop": "off",
     "unicorn/no-array-sort": "off",
+    "oxc/no-map-spread": "off",
     "unicorn/prefer-add-event-listener": "off",
     "no-underscore-dangle": "off"
   },
