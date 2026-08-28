@@ -119,16 +119,44 @@ async function main() {
   const framework = packages.get(FRAMEWORK_PACKAGE)
   if (!framework)
     fail(`no ${FRAMEWORK_PACKAGE} in packages/. Update FRAMEWORK_PACKAGE in scripts/release/config.mjs.`)
-  // A first release is tagged at the version the framework's manifest already carries, which is
-  // where this project starts; every one after it bumps the repository's own number.
-  const version = firstRelease ? framework.version : bump(rootManifest.version, plan.rootLevel)
+
+  /**
+   * The tag is the framework's version, not a number of the repository's own.
+   *
+   * It used to be the latter, bumped by the highest level any commit asked for — so a `feat` scoped
+   * `repo` moved the tag a minor while every published package moved a patch, and a release where
+   * nothing shipped a feature came out as `v0.2.0` over nine packages at `0.1.1`. A tag that
+   * disagrees with every version under it is a tag nobody can read.
+   *
+   * `@weftjs/core` depends on the whole graph, so anything published moves it and the two agree by
+   * construction. The exception is a release that touches only `create-weft`, which depends on the
+   * framework rather than the other way round: there the framework is added to the release at a
+   * patch, because a release has to have a number and this is the one it means.
+   */
+  let frameworkRelease = plan.releases.find((entry) => entry.name === FRAMEWORK_PACKAGE)
+  if (!firstRelease && !frameworkRelease) {
+    frameworkRelease = {
+      name: framework.name,
+      package: framework,
+      level: 'patch',
+      from: framework.version,
+      to: bump(framework.version, 'patch'),
+      commits: [],
+      propagatedFrom: [],
+      direct: false,
+    }
+    plan.releases.push(frameworkRelease)
+    plan.published.push(frameworkRelease)
+    warn(`nothing changed ${FRAMEWORK_PACKAGE}; moving it a patch so the tag has a version to be`)
+  }
+  const version = firstRelease ? framework.version : frameworkRelease.to
   const tag = `v${version}`
   if (tags.includes(tag))
     refuse(
       `${tag} already exists. A release that got this far is finished with \`pnpm release --publish-only\`, or undone with \`pnpm release:undo ${tag}\`.`,
     )
 
-  printPlan(plan, { version, rootFrom: rootManifest.version, firstRelease })
+  printPlan(plan, { version, firstRelease })
   if (!plan.published.length) {
     warn('no published package changed. The commits in this range are repository-level.')
     if (!flags.yes && !dryRun)
@@ -324,9 +352,9 @@ function preflight({ dryRun, publishOnly, refuse }) {
  * Whether a bump was asked for by a commit or forced by a dependency is the one thing an operator
  * cannot work out from the version numbers, and it is the thing most likely to be a surprise.
  */
-function printPlan(plan, { version, rootFrom, firstRelease }) {
+function printPlan(plan, { version, firstRelease }) {
   step(`Plan — ${bold(`v${version}`)}`)
-  if (!firstRelease) say(dim(`  the repository moves ${rootFrom} → ${version} (${plan.rootLevel})`))
+  if (!firstRelease) say(dim(`  the tag is ${FRAMEWORK_PACKAGE}'s version, and the repository follows it`))
   for (const release of plan.releases) {
     const visibility = release.package.isPrivate ? dim(' private') : ''
     const reason = release.direct
