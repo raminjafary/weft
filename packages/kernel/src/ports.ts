@@ -195,6 +195,17 @@ export interface FlagPort {
 
 // ── session ──────────────────────────────────────────────────────────────────────────
 
+/**
+ * Who is asking, and the cookies that say so.
+ *
+ * The one port whose reads change a cache key: `identity` taints `identity`, which forces a private
+ * class, so a fragment that asks who the reader is can never be in a shared cache. That is why this
+ * is a port and not a helper — the kernel has to be able to see the read to derive the key from it.
+ *
+ * Writing is phase A only, and the port returns the cookies rather than setting them: only the
+ * envelope knows whether it is still open, and a port that could write a header after the first
+ * body byte would be a port that can fail halfway through a response.
+ */
 export interface SessionPort {
   readonly name: string
   /** Null for an anonymous request. Reading this taints `identity`, which forces a private class. */
@@ -372,6 +383,16 @@ export interface FanoutPort {
 
 // ── telemetry ────────────────────────────────────────────────────────────────────────
 
+/**
+ * Where the marks and the measures go.
+ *
+ * Two methods, because a render produces exactly two kinds of fact: an instant something happened,
+ * and how long something took. Anything richer is the collector's to build out of them.
+ *
+ * The kernel measures whether or not one of these is bound — an unbound telemetry drops the numbers
+ * rather than never producing them, because a figure that only exists when somebody is watching is
+ * a figure that changes the thing it measures.
+ */
 export interface TelemetryPort {
   readonly name: string
   mark(name: string, at: number): void
@@ -380,6 +401,14 @@ export interface TelemetryPort {
 
 // ── transport ────────────────────────────────────────────────────────────────────────
 
+/**
+ * What the runtime underneath can do that the Fetch API cannot express.
+ *
+ * Small on purpose, and it will stay small: everything the kernel needs from a server it gets from
+ * `Request` and `Response`, which is what lets the same kernel run on Node, Deno, Bun, a worker and
+ * the edge unchanged. This is the exceptions — the parts of HTTP that have no place in that API and
+ * are worth having anyway.
+ */
 export interface TransportPort {
   readonly name: string
   /**

@@ -94,6 +94,17 @@ export interface Intent<I = unknown> {
   limit?: IntentLimit
   /** Invalidate every declared tag on success without naming them again. */
   invalidatesAll?: boolean
+  /**
+   * The mutation itself. The only thing in this framework allowed to change anything.
+   *
+   * `ctx` is the one context with a `revalidate` on it — a render's has no such method, which is
+   * how "a render cannot write" is enforced by the type system rather than by a convention. A
+   * `revalidate` naming a tag this intent did not declare in `writes` throws.
+   *
+   * Returning nothing is success. Returning an `IntentResult` is how an intent says what the caller
+   * should see: a value for the JSON binding, a redirect for the form post, a status other than
+   * 200. Throwing is a 500 and is logged; refusing input is `input`'s job and is a 422.
+   */
   run(ctx: IntentContext, input: I): Promise<IntentResult | void> | IntentResult | void
 }
 

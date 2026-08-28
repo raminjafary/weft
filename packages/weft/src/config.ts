@@ -34,7 +34,12 @@ export interface WeftConfig {
   srcDir?: string
   /** Where `weft build` writes. Defaults to `.weft`. */
   outDir?: string
+  /**
+   * Defaults to 3000. A port on the WHATWG bad-port list is `E_BLOCKED_PORT` rather than a
+   * deployment whose documents serve perfectly and whose channel silently never connects.
+   */
   port?: number
+  /** What the server binds to. Defaults to `localhost`, which is not reachable from another host. */
   host?: string
   /** Extra stylesheets, in order, after the framework's own. Paths are relative to the project. */
   css?: string[]
@@ -68,12 +73,26 @@ export interface WeftConfig {
   store?: StorePort
   /** Flag axes. Only a declared axis can be read, so a typo is a build error rather than a branch. */
   flags?: Record<string, string[]>
+  /**
+   * What the session cookie is called. Defaults to `sid`.
+   *
+   * The name and nothing else: whether there is a session at all, how long it lives and what it
+   * holds are the `SessionPort`'s, and the front door binds a cookie-backed one with no
+   * configuration. This is here because two applications behind one host cannot both be `sid`.
+   */
   session?: { cookie?: string }
   /**
    * Executors beyond `inline` and `client`. A slot naming one that is not bound here fails the
    * build with the slot named, rather than refusing at request time.
    */
   executors?: Record<string, KernelExecutor>
+  /**
+   * Where spans and counters go. Unbound, they are computed and dropped.
+   *
+   * Dropped rather than never produced: the kernel measures a render whether or not anybody is
+   * listening, because a number that only exists when telemetry is bound is a number that changes
+   * the thing it measures.
+   */
   telemetry?: TelemetryPort
   /**
    * Where each region a route composes actually is.
@@ -104,7 +123,21 @@ export interface WeftConfig {
    * other two alone, which is the whole claim a port makes.
    */
   config?: ConfigPort
+  /**
+   * What this build calls itself, and where it is running.
+   *
+   * Read by the trace, by `weft verify`, and by every region answering a probe — which is why the
+   * default reads the host's own idea of a revision rather than defaulting to a constant that would
+   * make two deployments indistinguishable.
+   */
   deployment?: DeploymentPort
+  /**
+   * Where a loader's data comes from, named rather than anonymous.
+   *
+   * The default is real: access is bounded by a deadline and counted, so a loader that hangs is a
+   * slot that degrades rather than a request that never ends. Binding this replaces the bound, not
+   * the fact that there is one.
+   */
   db?: DbPort
   /**
    * What a call is counted against, and — only if you want to own it — how the counting is done.
@@ -248,9 +281,30 @@ export interface ResolvedConfig extends Required<Pick<WeftConfig, 'srcDir' | 'ou
   profile: boolean
   types: boolean
   store?: StorePort
+  /**
+   * Where spans and counters go. Unbound, they are computed and dropped.
+   *
+   * Dropped rather than never produced: the kernel measures a render whether or not anybody is
+   * listening, because a number that only exists when telemetry is bound is a number that changes
+   * the thing it measures.
+   */
   telemetry?: TelemetryPort
   config?: ConfigPort
+  /**
+   * What this build calls itself, and where it is running.
+   *
+   * Read by the trace, by `weft verify`, and by every region answering a probe — which is why the
+   * default reads the host's own idea of a revision rather than defaulting to a constant that would
+   * make two deployments indistinguishable.
+   */
   deployment?: DeploymentPort
+  /**
+   * Where a loader's data comes from, named rather than anonymous.
+   *
+   * The default is real: access is bounded by a deadline and counted, so a loader that hangs is a
+   * slot that degrades rather than a request that never ends. Binding this replaces the bound, not
+   * the fact that there is one.
+   */
   db?: DbPort
   limits?: LimitPort | { counted: CountedAgainst }
   authority?: AuthorityConfig

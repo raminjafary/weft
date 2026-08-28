@@ -19,18 +19,63 @@ export type RouteLoad = (
 
 /** What a slot declares about being held. Checked against what its fragment reads. */
 export interface CacheDeclaration {
+  /**
+   * `public` or `private`. Checked against the class this slot's reads derive, never trusted.
+   *
+   * Declaring `public` on a fragment the compiler saw read an identity is a build error naming the
+   * read, because the alternative is one reader's page in a shared cache.
+   */
   class: PolicyClass
+  /**
+   * How long an entry may be served. `'5m'`, `'1h'`, or milliseconds.
+   *
+   * Required rather than optional wherever a fragment read the clock: `ctx.now()` taints `time`,
+   * and a policy with no TTL over a read of the time is an entry nothing can ever invalidate.
+   */
   ttl?: string | number
+  /**
+   * Stale-while-revalidate: how long past the TTL an entry may still answer while it refreshes
+   * behind the request. Same spellings as `ttl`.
+   */
   swr?: string | number
+  /**
+   * What invalidates this. An intent that declares one of these tags drops this entry when it runs.
+   *
+   * A tag is the only handle anything has on a cached slot, which is why an intent's `writes` is
+   * the complete set and an undeclared `revalidate` throws — an invalidation nobody could predict
+   * by reading the code is worse than a stale page.
+   */
   tags?: string[]
+  /**
+   * What the store this deployment bound can honestly claim. Defaults to `eventual`.
+   *
+   * Declared here so a slot that cannot tolerate a read-your-writes gap says so and is refused on a
+   * store that cannot promise it, rather than being intermittently wrong on one instance.
+   */
   consistency?: 'eventual' | 'strong'
 }
 
 /** What a slot may spend, in the spellings a person writes: `'120ms'`, `'8kb'`. */
 export interface BudgetDeclaration {
+  /** CPU this slot may spend before the exceed policy applies. `'120ms'`, or milliseconds. */
   cpu?: string | number
+  /**
+   * JavaScript this slot may add to the page. `'8kb'`, or bytes.
+   *
+   * A ceiling on what was *built*, so nothing at request time can change it — which is why
+   * `budgetFor` may override `cpu` and not this.
+   */
   js?: string | number
+  /** How much the ceiling above may grow before the build fails. A growth cap is a diff. */
   grow?: string | number
+  /**
+   * What happens when the slot does not fit: `stale`, `client`, `fallback`, `placeholder` or
+   * `fail`.
+   *
+   * The executor boundary is also the budget boundary, which is most of why per-slot executors
+   * exist at all: a slot that blows its budget is killed and degrades, and nothing else on the page
+   * notices.
+   */
   onExceed?: ExceedPolicy
 }
 
@@ -90,12 +135,26 @@ export interface SlotDeclaration {
    * one deliberately-unescaped fragment.
    */
   fragment?: string
+  /**
+   * Where this slot's values come from. Its result is what the fragment renders with.
+   *
+   * Runs in phase B, after the envelope is sealed, so it cannot redirect and cannot set a header —
+   * that is `guard`'s job. A loader that throws degrades this slot and nothing else on the page.
+   */
   load?: RouteLoad
   /** Markup rather than content — a control panel, a readout. Goes through `raw()`, and says so. */
   html?: string | ((ctx: RenderContext, params: Record<string, string>) => string | Promise<string>)
+  /** How long this region may be held and what invalidates it. See `CacheDeclaration`. */
   cache?: CacheDeclaration
   /** Streamed with an optional priority. `false` buffers, which derives in-order delivery. */
   stream?: boolean | { prio?: number }
+  /**
+   * Re-render through this slot's own memo, so only the holes whose values moved cost bytes.
+   *
+   * A different question from where the render happens: the executor answers *who* produces bytes
+   * from a template, and this answers *which of last time's bytes can be reused*. Worth it for a
+   * slot whose template is large and whose values mostly are not — a table, a long list.
+   */
   incremental?: boolean
   /**
    * Re-render this slot after a response rather than on a reader's request.
@@ -107,13 +166,35 @@ export interface SlotDeclaration {
    * their own hover.
    */
   speculate?: boolean | 'profile'
+  /**
+   * Where this slot renders, by the name it is bound under in `weft.config.ts`.
+   *
+   * `inline` and `client` are always available. Anything else has to be in `executors` there, or
+   * the build fails with `E_UNKNOWN_EXECUTOR` and the slot named — rather than the slot refusing at
+   * request time on the one deployment that forgot it.
+   */
   executor?: string
+  /** What this slot may spend, and what happens when it does not fit. See `BudgetDeclaration`. */
   budget?: BudgetDeclaration
   /** Overrides `budget`'s cpu ceiling and exceed policy for this request. See `BudgetFor`. */
   budgetFor?: BudgetFor
   /** Rendered while the slot is degraded. Without one a degraded slot is empty, which is honest. */
   placeholder?: string
+  /**
+   * Re-render this slot on a clock while a reader is on the page. `'30s'`, or milliseconds.
+   *
+   * Only does anything on a `live` slot, because the refresh travels over the channel — without
+   * one there is nothing to push the new bytes down.
+   */
   refresh?: string | number
+  /**
+   * Which encoding this slot's updates would rather use, and what to fall back to.
+   *
+   * A preference and not a choice: the negotiated form is decided per request from what the client
+   * announced and what the compiler proved equivalent, and every form of a fragment produces
+   * identical bytes. This tilts the decision for a slot whose author knows something the
+   * negotiation does not.
+   */
   form?: { prefer?: WireForm; fallback?: WireForm }
   /** Data this slot depends on, by slot name. A slot merely nested inside another does not declare it. */
   needs?: string[]
@@ -129,8 +210,11 @@ export interface SlotDeclaration {
 
 /** What goes in the document head for this route. A function of the params, never of the request. */
 export interface HeadDeclaration {
+  /** The document's `<title>`. */
   title?: string
+  /** The `<meta name="description">`, and what a share card says. */
   description?: string
+  /** Any other `<meta name=… content=…>` pair. `og:` and `twitter:` names are written as given. */
   meta?: Record<string, string>
 }
 
@@ -147,6 +231,12 @@ export interface RouteModule {
    * generated per route, so nothing has to agree across them.
    */
   layout?: string
+  /**
+   * The title, the description and any other meta tag, as a value or a function of the params.
+   *
+   * A function of the params and never of the request: a head that varied per request would vary
+   * the document, and the document's cache key is derived from what its fragments read.
+   */
   head?: HeadDeclaration | ((params: Record<string, string>) => HeadDeclaration)
   /**
    * Extra values for the layout's own holes, beyond the six the framework always supplies.
@@ -159,10 +249,13 @@ export interface RouteModule {
   layoutValues?: Record<string, unknown> | ((params: Record<string, string>) => Record<string, unknown>)
   /** The `body` slot's values. */
   load?: RouteLoad
+  /** The `body` slot's cache policy. Every other slot declares its own. See `CacheDeclaration`. */
   cache?: CacheDeclaration
   /** What the document response advertises. Checked against the strictest class on the page. */
   document?: CacheDeclaration
+  /** The `body` slot's delivery. `false` buffers, which derives in-order delivery for the page. */
   stream?: boolean | { prio?: number }
+  /** The `body` slot's incremental re-render. See `SlotDeclaration.incremental`. */
   incremental?: boolean
   /**
    * Re-render this page's body after a response rather than on a reader's request.
@@ -174,12 +267,19 @@ export interface RouteModule {
    * their own hover.
    */
   speculate?: boolean | 'profile'
+  /** The `body` slot is refreshable over the channel. See `SlotDeclaration.live`. */
   live?: boolean
+  /** Rendered while the body is degraded. Without one a degraded body is empty, which is honest. */
   placeholder?: string
+  /** Where the body renders. See `SlotDeclaration.executor`. */
   executor?: string
+  /** What the body may spend, and what happens when it does not fit. See `BudgetDeclaration`. */
   budget?: BudgetDeclaration
+  /** Overrides the body budget's cpu ceiling and exceed policy for this request. See `BudgetFor`. */
   budgetFor?: BudgetFor
+  /** Re-render the body on a clock while a reader is on the page. See `SlotDeclaration.refresh`. */
   refresh?: string | number
+  /** Which encoding the body's updates would rather use. See `SlotDeclaration.form`. */
   form?: { prefer?: WireForm; fallback?: WireForm }
   /**
    * Runs in phase A, where the envelope is still open — so a redirect here is a real redirect
@@ -188,9 +288,22 @@ export interface RouteModule {
   guard?: (ctx: EnvelopeContext) => boolean | Promise<boolean>
   /** Where a refusing guard sends the request. Without one it refuses with `status`. */
   redirect?: string
+  /**
+   * What a refusing guard answers with when there is no `redirect`. Defaults to 403.
+   *
+   * Set in phase A, where the envelope is still open, which is the only reason a real status is
+   * available at all: after the first body byte the response has already promised a 200.
+   */
   status?: number
   /** The layout's other slot holes, filled per route. `body` is this file and cannot be redeclared. */
   slots?: Record<string, SlotDeclaration>
+  /**
+   * Ceiling on concurrent slot renders for this page, overriding the deployment's own.
+   *
+   * The deployment sets the general answer in `weft.config.ts`; this is for the one page whose
+   * fan-out is different from the rest of the application — forty queries from one page will melt a
+   * database whatever the other pages do.
+   */
   maxConcurrency?: number
   /**
    * Delivery order, when it has to be a control rather than a consequence.
