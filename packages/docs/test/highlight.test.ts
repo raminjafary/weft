@@ -72,3 +72,29 @@ test('plain runs carry no element, so highlighting does not inflate a block', ()
   // `fragment` is neither keyword nor type, so it must arrive as bare text.
   assert.match(highlight('ts', 'fragment'), /^fragment$/)
 })
+
+/**
+ * A string is a string wherever it starts, including immediately after a bracket.
+ *
+ * The punctuation branch was a greedy run of everything that is not a letter, a digit or a space —
+ * which includes a quote. So it reached `['cart']` first and produced a punct token `['`, a plain
+ * `cart` and a punct `']`: every array of strings, every call with a string argument and every
+ * object with a quoted key on this site, highlighted as though the quotes were brackets. It read as
+ * *nearly* right, which is why it survived: the colours were wrong on characters nobody looks at.
+ */
+test('punctuation before a quote does not swallow the string', () => {
+  for (const source of ["writes: ['cart']", "f('a')", "{'k': 1}", 'a["b"]']) {
+    const out = highlight('ts', source)
+    assert.equal(
+      /<span class="t-punct">[^<]*(&#39;|&quot;)/.test(out),
+      false,
+      `a punct token carries a quote in ${source}: ${out}`,
+    )
+    assert.match(out, /<span class="t-string">/, `no string token at all in ${source}`)
+  }
+})
+
+/** An unterminated quote is still a token rather than a byte the scanner spins on. */
+test('an unterminated quote is emitted and stepped past', () => {
+  assert.match(highlight('ts', "x = 'open"), /<span class="t-punct">&#39;<\/span>open/)
+})

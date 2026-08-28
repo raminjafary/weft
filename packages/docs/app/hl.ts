@@ -128,7 +128,11 @@ const TS = new RegExp(
     '(?<open><\\s*[A-Za-z][\\w.-]*)',
     '(?<word>[A-Za-z_$][\\w$]*)',
     '(?<space>\\s+)',
-    '(?<punct>[^\\sA-Za-z_$\\d]+)',
+    // Quotes are excluded from the run, and the second alternative is what catches an unterminated
+    // one. Greedy punctuation that could swallow a quote is how `['cart']` highlighted as a punct
+    // token `['`, a plain `cart` and a punct `']` — every string on this site preceded directly by
+    // a bracket, a brace or a paren, which is most of them.
+    '(?<punct>[^\\sA-Za-z_$\\d\'"`]+|[\'"`])',
   ].join('|'),
   'gy',
 )
