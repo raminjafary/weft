@@ -65,10 +65,4 @@ export const SECTIONS: readonly Section[] = [
     label: 'Playground',
     blurb: 'Type a fragment and see what it compiles to. No files, no build — a virtual file set.',
   },
-  {
-    href: '/search',
-    label: 'Search',
-    blurb: 'Every page, step, term, error code and export — matched server-side, with nothing to download.',
-    derived: true,
-  },
 ]

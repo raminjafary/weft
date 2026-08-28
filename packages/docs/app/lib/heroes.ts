@@ -431,7 +431,7 @@ function declarations(files: number): string {
         step(0, code('$ weft build', 'lit')),
         step(0.42, code(`  ${files} files written to .weft/static/`)),
         step(0.84, code('  /play — not a file: reads what you typed', 'ghost')),
-        step(1.26, code('  /search — not a file: reads route:q', 'ghost')),
+        step(1.26, code('  /play — not a file: reads route:src', 'ghost')),
       ],
       true,
     ),

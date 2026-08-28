@@ -43,9 +43,10 @@ interface ShellProps {
  * lede are *not* here — the design puts them inside the article column, to the right of the
  * contents rail, so the section layouts own them and the two pages with no rail render their own.
  *
- * The search box is a `GET` to a route, which is what lets it sit in a layout that ships no
- * JavaScript of its own: there is nothing to initialise and no index to fetch. `app/client.ts`
- * upgrades it to a ⌘K dropdown afterwards, and the form underneath it keeps working either way.
+ * There is no search box. It was a `GET` to a `/search` route with a ⌘K dropdown layered over it,
+ * and both are gone along with the route and its index: the site is a few hundred documents a
+ * crawler and a browser's own find-in-page already reach, and a search page is the one page here
+ * that could never be a file.
  */
 export default fragment(
   ({
@@ -118,32 +119,6 @@ export default fragment(
                 ))}
               </nav>
               <div class="top-end">
-                <form class="find" method="get" action="/search" role="search">
-                  <svg
-                    class="find-icon"
-                    width="13"
-                    height="13"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.6"
-                    aria-hidden="true"
-                  >
-                    <circle cx="6.8" cy="6.8" r="4.6" />
-                    <path d="M10.3 10.3 14 14" />
-                  </svg>
-                  <input
-                    id="q"
-                    type="search"
-                    name="q"
-                    placeholder="Search"
-                    autocomplete="off"
-                    aria-label="Search this site"
-                  />
-                  <kbd class="find-key" aria-hidden="true">
-                    ⌘K
-                  </kbd>
-                </form>
                 <span class="ver" title="The wire formats this build stamps on a document">
                   {versions}
                 </span>

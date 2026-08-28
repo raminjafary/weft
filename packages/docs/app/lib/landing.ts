@@ -23,7 +23,6 @@ export interface Counts {
   codes: number
   examples: number
   terms: number
-  index: number
   templates: number
   pages: number
 }
@@ -512,9 +511,9 @@ export function landingBody(counts: Counts): string {
         <tr><td>The L0 tier</td><td><code>weft build</code> writes this whole site as files. The kernel is not invoked to serve them</td></tr>
         <tr><td>Slots as cache units</td><td>The contents column is a region of its own, so it is one entry across a section rather than a copy per page</td></tr>
         <tr><td>A component's own stylesheet</td><td>Every example on this site carries a <code>.scoped.css</code> the compiler narrowed to its elements</td></tr>
-        <tr><td>Declared refusals</td><td>The playground and search are the two pages that are <em>not</em> files, and both say why</td></tr>
+        <tr><td>Declared refusals</td><td>The playground is the one page that is <em>not</em> a file, and the build says why</td></tr>
         <tr><td>The compiler's virtual file set</td><td>The playground compiles what you type without writing it anywhere</td></tr>
-        <tr><td>A read as a cache axis</td><td><code>/search?q=</code> taints <code>route:q</code>, so every query is its own content-addressed entry</td></tr>
+        <tr><td>A read as a cache axis</td><td><code>/play?src=</code> taints <code>route:src</code>, so every source is its own content-addressed entry</td></tr>
         <tr><td>An intent, with no JavaScript on the page</td><td>The form on <a href="/guide/intents">intents</a> posts to a real intent in this application</td></tr>
       </tbody></table></div>
     </section>

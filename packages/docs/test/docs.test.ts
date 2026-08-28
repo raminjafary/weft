@@ -23,7 +23,6 @@ import { drawnDependencies, frameVocabulary, FRAME_SAYS } from '../app/lib/archi
 import { drawn as figuresDrawn } from '../app/lib/heroes.ts'
 import { caption, opened } from '../app/lib/openers.ts'
 import { artifacts } from '../app/lib/versions.ts'
-import { indexSize, search } from '../app/lib/search.ts'
 import { wireSizes } from '../app/lib/wire.ts'
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url))
@@ -404,31 +403,6 @@ test('the wire forms measured on the page rank the way the page says', () => {
   assert.ok(patch < html, `patch ${patch} is not smaller than html ${html}`)
 })
 
-/** Search is a function of the site's own registries, so it can be tested without serving a page. */
-function hit(query: string, href: string): void {
-  const results = search(query)
-  assert.ok(
-    results.some((result) => result.href === href),
-    `${query} did not find ${href}; got ${results
-      .slice(0, 4)
-      .map((result) => result.href)
-      .join(', ')}`,
-  )
-}
-
-test('search finds a page, a section, a term, an error and an export', () => {
-  assert.ok(indexSize() > 800, `only ${indexSize()} things indexed`)
-  hit('intents', '/guide/intents')
-  hit('instant navigation', '/guide/navigation')
-  hit('E_NO_SHELL', '/errors/E_NO_SHELL')
-  hit('defineRoute', '/api/weft#defineRoute')
-  hit('adoption', '/glossary#adoption')
-  hit('playground', '/play')
-
-  assert.deepEqual(search(''), [], 'an empty query is the empty state, not every page')
-  assert.deepEqual(search('zzzqqq'), [], 'a query that matches nothing matches nothing')
-})
-
 /**
  * Every name a sketch imports from this framework is a name this framework exports.
  *
@@ -472,29 +446,6 @@ test('every framework name a sketch imports actually exists', () => {
   assert.ok(found > 8, `only ${found} imported names found: the scan lost something`)
 })
 
-/**
- * A results page carries the query that produced it.
- *
- * The header's box cannot be pre-filled — `layoutValues` is handed route params and `q` is a query
- * parameter — so before the slot grew one of its own, `/search?q=fragment` showed "52 results for
- * fragment" above an empty input, and refining a search meant retyping it.
- */
-test('the search results page comes back with the query still in the box', async () => {
-  const serving = await serveApp(await app())
-  servers.push(serving)
-
-  const found = await (await fetch(new URL('/search?q=fragment', serving.url))).text()
-  assert.match(found, /<input[^>]*name="q"[^>]*value="fragment"/)
-
-  const missing = await (await fetch(new URL('/search?q=zzzqqq', serving.url))).text()
-  assert.match(missing, /<input[^>]*name="q"[^>]*value="zzzqqq"/)
-
-  // A quote in the query must not close the attribute it is rendered into.
-  const hostile = await (await fetch(new URL('/search?q=a%22+onfocus%3Dalert(1)', serving.url))).text()
-  assert.doesNotMatch(hostile, /value="a" onfocus/)
-  assert.match(hostile, /value="a&quot; onfocus=alert\(1\)"/)
-})
-
 /** Every page answers, and none of them answers with a stack trace. */
 test('every route in the site serves a document', async () => {
   const serving = await serveApp(await app())
@@ -513,9 +464,6 @@ test('every route in the site serves a document', async () => {
     '/errors',
     '/errors/E_NO_SHELL',
     '/play',
-    '/search',
-    '/search?q=slot',
-    '/search?q=zzzqqq',
   ]
   for (const path of paths) {
     const response = await fetch(new URL(path, serving.url))

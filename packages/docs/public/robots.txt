@@ -2,10 +2,9 @@
 User-agent: *
 Allow: /
 
-# Except the two routes that are functions of their query string. Both pages are indexable; it is
-# the combinations that are not, because there is no end to them and each one costs a render.
+# Except the one route that is a function of its query string. The page is indexable; it is the
+# combinations that are not, because there is no end to them and each one costs a render.
 Disallow: /play?
-Disallow: /search?
 
 # Written by `weft site` from the documents it actually published, so it cannot name a page
 # that does not exist or miss one that does.

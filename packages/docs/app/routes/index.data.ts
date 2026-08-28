@@ -6,7 +6,6 @@ import { errorCodes } from '../lib/errors.ts'
 import { surface } from '../lib/surface.ts'
 import { PAGES } from '../lib/pages.ts'
 import { TERMS } from '../lib/glossary.ts'
-import { indexSize } from '../lib/search.ts'
 
 /**
  * The landing page, and the only page that says what this site is.
@@ -39,7 +38,6 @@ export default defineRoute({
           codes: errorCodes().length,
           examples: exampleCount(),
           terms: TERMS.length,
-          index: indexSize(),
           templates: Object.keys(allFragments()).length,
           pages: PAGES.length,
         }),

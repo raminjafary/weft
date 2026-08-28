@@ -429,7 +429,7 @@ function tiers(files: number): string {
       w: 232,
       h: 74,
       title: 'static: false',
-      notes: ['/play and /search, with a reason', 'each'],
+      notes: ['/play, and the build says why', 'it cannot be one'],
       at: 3.1,
     },
   ]

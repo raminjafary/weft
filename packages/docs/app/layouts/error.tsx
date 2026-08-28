@@ -92,9 +92,6 @@ export default fragment(
               <a class="btn btn-primary" href={backHref}>
                 {backLabel}
               </a>
-              <a class="btn" href="/search">
-                Search the site
-              </a>
             </p>
             <pre class={stackClass}>
               <code>{stack}</code>
