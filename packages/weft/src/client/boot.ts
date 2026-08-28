@@ -1992,6 +1992,7 @@ async function commitRegions(staged: StagedRegions, mode: 'push' | 'restore', y:
   observed?.()
   const painted = performance.now()
   landAt(url, y)
+  announceNavigation(url, 'regions')
   await rebind(url)
   // What the server's own numbers say this reader is likely to want next, once each.
   for (const route of staged.next.slice(0, 2)) {
@@ -2057,8 +2058,9 @@ async function commitPage(page: StagedPage, mode: 'push' | 'restore', y: number)
   observed?.()
   speculate()
   landAt(url, y)
-  // After the number: rebinding is a POST, and what the click bought is a page that is on screen
-  // and interactive, not a round trip that happens to follow it.
+  announceNavigation(url, 'document')
+  // After the announcement: rebinding is a POST, and what the click bought is a page that is on
+  // screen and interactive, not a round trip that happens to follow it.
   await rebind(url)
   return painted
 }
@@ -2193,7 +2195,6 @@ async function go(href: string, mode: 'push' | 'restore', y = 0): Promise<Went> 
   if (!painted) return 'cold'
   state.nav = { ...state.nav, staged: state.nav.staged + 1, lastMs: Math.round(painted - started) }
   log('up', `NAV ${url.pathname}${url.search} ${state.nav.lastMs}ms`)
-  announceNavigation(url, held.kind)
   return 'painted'
 }
 
@@ -2208,6 +2209,19 @@ async function go(href: string, mode: 'push' | 'restore', y = 0): Promise<Went> 
  *
  * `detail` says where and how, because the two answers differ: `regions` means this document
  * survived and only its slots changed, and `document` means the whole shell was replaced.
+ *
+ * **In the same task as the paint, and this is the whole of why it is fired from inside the
+ * commit.** It used to be fired by `go`, which is after the commit has returned — and a commit
+ * ends by rebinding the channel, which is a POST. So the listener ran a round trip after the new
+ * document was on screen, and everything it restores was missing for that long: on this project's
+ * own site the reader's theme reverted to the server's for the length of a request and then
+ * corrected itself, and the control that the stylesheet gates on a flag set by an inline script
+ * vanished and came back. Neither was broken. Both were late.
+ *
+ * The rule the ordering encodes: what an application does on a swap is part of painting the page,
+ * and nothing that is part of painting the page may wait for the network. So it goes after the
+ * scroll has landed and before `rebind`, which means the listener's DOM writes land in the same
+ * frame as the swap and there is no moment where the page is half the previous one.
  */
 function announceNavigation(url: URL, kind: 'regions' | 'document'): void {
   document.dispatchEvent(
