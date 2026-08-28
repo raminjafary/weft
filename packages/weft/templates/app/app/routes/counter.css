@@ -1,7 +1,22 @@
+/*
+ * A page with four things on it, centred in the column rather than stacked against its left edge.
+ *
+ * `justify-items: start` is right when a page is full of content and wrong when it is this: on a
+ * wide window the count, the two buttons and one sentence sat in the top-left corner of an empty
+ * 72rem column, which reads as a layout that has not finished loading. The measure keeps the
+ * sentence readable; `place-items` is what puts the column in the middle of the page.
+ */
 .counter {
   display: grid;
   gap: 1rem;
-  justify-items: start;
+  place-items: center;
+  max-width: var(--weft-measure);
+  margin-inline: auto;
+  text-align: center;
+}
+
+.counter .weft-hint {
+  max-width: 46ch;
 }
 
 .counter-value {

@@ -24,6 +24,21 @@
   --weft-radius: 10px;
   --weft-gap: 1.25rem;
   --weft-measure: 68ch;
+  /*
+   * The page's column, and the gutter either side of it.
+   *
+   * One pair of tokens rather than a width on `.weft-main` alone, because the header, the content
+   * and the footer are three separate bands and a width on one of them centres that band against
+   * nothing. That is what they used to do: `.weft-main` was centred at 72rem while the header and
+   * footer were full-bleed with only a viewport gutter, so on a wide screen the brand sat at the
+   * window edge, the content began 350px further in, and the footer went back to the edge again.
+   * Three left edges on one page.
+   *
+   * So the bands stay full-bleed — a border that stops short of the window looks like a mistake —
+   * and their *content* is inset to the same column with the padding below.
+   */
+  --weft-shell: 72rem;
+  --weft-gutter: clamp(1rem, 4vw, 3rem);
   --weft-sans:
     ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --weft-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
@@ -67,6 +82,31 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/*
+ * A document as tall as the window, so a page with four things on it does not leave its footer
+ * floating in the middle of the screen with the background showing underneath.
+ *
+ * Conditional on the page using this stylesheet's own layout band, and that is the whole reason for
+ * `:has`. An application writes its own `layout.tsx` — the demo and the documentation site both do,
+ * with a sidebar and a header of their own and no `.weft-main` anywhere — and turning every `body`
+ * into a flex column would re-lay-out pages that never asked this stylesheet for a layout. Scoped
+ * this way it reaches the framework's own document and the scaffold, which are the pages whose
+ * footer position this stylesheet is responsible for.
+ *
+ * `100dvh` rather than `100vh`: on a phone the dynamic viewport accounts for the browser's chrome
+ * coming and going, and `vh` there is a footer pushed just off the bottom of the screen.
+ */
+body:has(> .weft-main) {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The band holding the page takes the slack, so the footer after it lands on the bottom edge. */
+body:has(> .weft-main) > .weft-main {
+  flex: 1 0 auto;
+}
+
 /* ── chrome ──────────────────────────────────────────────────────────────────────── */
 
 .weft-top {
@@ -74,7 +114,8 @@ body {
   align-items: baseline;
   gap: 1.5rem;
   flex-wrap: wrap;
-  padding: 1rem clamp(1rem, 4vw, 3rem);
+  padding-block: 1rem;
+  padding-inline: max(var(--weft-gutter), calc((100% - var(--weft-shell)) / 2 + var(--weft-gutter)));
   border-bottom: 1px solid var(--weft-line);
   background: color-mix(in srgb, var(--weft-surface) 70%, transparent);
   position: sticky;
@@ -115,14 +156,15 @@ body {
 }
 
 .weft-main {
-  max-width: 72rem;
+  max-width: var(--weft-shell);
   margin: 0 auto;
-  padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 4vw, 3rem) 5rem;
+  padding: clamp(1.5rem, 4vw, 3rem) var(--weft-gutter) 5rem;
 }
 
 .weft-foot {
   border-top: 1px solid var(--weft-line);
-  padding: 1.5rem clamp(1rem, 4vw, 3rem);
+  padding-block: 1.5rem;
+  padding-inline: max(var(--weft-gutter), calc((100% - var(--weft-shell)) / 2 + var(--weft-gutter)));
   color: var(--weft-muted);
   font-size: 0.875rem;
 }
@@ -425,6 +467,23 @@ th {
 
 .weft-hero .weft-lede {
   font-size: clamp(1.0625rem, 1rem + 0.4vw, 1.25rem);
+}
+
+/*
+ * Content centred in the column, for a page that has little of it.
+ *
+ * Left-aligned text is right for a page of prose and wrong for four elements on an empty screen:
+ * they read as a layout that stopped halfway rather than as a page. The measure comes with it,
+ * because centred text that runs the width of a wide window is worse than either.
+ */
+.weft-center {
+  max-width: var(--weft-measure);
+  margin-inline: auto;
+  text-align: center;
+}
+
+.weft-center .weft-row {
+  justify-content: center;
 }
 
 .weft-eyebrow {
