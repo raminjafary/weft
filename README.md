@@ -8,14 +8,15 @@ Lambda or Workers, the same channel becomes a request and its response, and ever
 asks for still works: intents, surgical refreshes, and a whole route staged before it is clicked.
 Nothing degrades silently — whatever a host cannot do is a named line on the handshake.
 
-The wire form of a piece of UI — full markup, a surgical delta, a patch — is chosen per request from
-a set of encodings the compiler has proven equivalent, instead of being frozen at build time.
+A piece of UI can travel as full markup, as a surgical delta, or as a patch. The compiler proves the
+three say the same thing, and the server picks one per request — where most frameworks freeze that
+choice at build time.
 
-A folder is an application: the file tree _is_ the route table, and nothing registers anything.
-`app/routes/about.data.ts` answers `/about` and `app/routes/guide/[page].data.ts` answers
-`/guide/:page`, because of where they are. Fragments in `app/fragments/` are compiled by being
-there; writes in `app/intents/` become the intent manifest by being there. There is no wiring file
-to keep in step with the directory, and no config file you must have.
+A folder is an application. The file tree _is_ the route table: `app/routes/about.data.ts` answers
+`/about` and `app/routes/guide/[page].data.ts` answers `/guide/:page`, because of where they sit.
+Fragments compile by being in `app/fragments/`; writes become the intent manifest by being in
+`app/intents/`. Nothing registers anything — no wiring file to keep in step with the directory, and
+no config file you must have.
 
 There is also no bundler, no virtual DOM, and no component code running in the browser: the
 compiler seals your pages into templates, the server fills them, and the client runtime binds what
