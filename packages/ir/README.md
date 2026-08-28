@@ -19,7 +19,7 @@ visits.
 
 The package holds the IR types, the sealing and versioning rules, the effect sets a fragment
 carries, and the renderer that turns pre-encoded byte segments into a response — measured at
-1.4–1.96× a string-concatenating SSR of the same templates.
+1.37–2.14× a string-concatenating SSR of the same templates.
 
 ## Version
 

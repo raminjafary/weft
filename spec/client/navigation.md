@@ -282,8 +282,11 @@ letting the browser do it** for a page the server produces quickly, because the 
 than a local request that never left the machine. What the staging removes is the round trip and
 the render, and loopback has neither — so the same two routes measured through the harness's
 link proxy at 100 ms RTT come out 7.3× and 19.0× instead — those two are the only figures on this
-page from an earlier run, because `--latency` currently hangs before it launches a browser, and a
-number is better labelled than quietly replaced. The dashboard is the case that wins without any
+page from an earlier run, and they are labelled rather than quietly replaced. A `--latency` run is
+slow out of proportion to the latency it injects: every navigation goes through the shaper twice,
+and forty of them did not finish in the time the eight loopback routes took several times over.
+That is a cost of the proxy rather than of the mechanism being measured, and it is the reason this
+column is older than the rest of the table. The dashboard is the case that wins without any
 latency at all, because its slots are deliberately slow: 606 ms of server work the reader spent
 hovering rather than waiting.
 

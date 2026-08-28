@@ -222,6 +222,10 @@ test('the README quotes the axes at the values the shipped run measured', () => 
       },
     )
   }
+  holds(
+    ['README.md', 'spec/client/adoption.md'],
+    claims.filter((claim) => claim.text.includes('ms') || claim.text.includes('µs')),
+  )
   holds(['README.md'], claims)
 })
 
