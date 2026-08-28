@@ -31,9 +31,9 @@
   },
   {
     "id": "front-door",
-    "raw": 45192,
-    "gzip": 15476,
-    "brotli": 13991
+    "raw": 45330,
+    "gzip": 15500,
+    "brotli": 14031
   },
   {
     "id": "kernel",

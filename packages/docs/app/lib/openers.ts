@@ -1,7 +1,7 @@
 import { plainTerms, verdictPair, type Refusal, type Verdict } from './figures.ts'
 import { figure as benchFigure } from './bench.ts'
 import { demoWeight, downloadRatio } from './budgets.ts'
-import { fillerBytes, raceFigure, stagedClick } from './measured.ts'
+import { download, fillerBytes, raceFigure, stagedClick } from './measured.ts'
 import { SLOTS } from './architecture.ts'
 import { criticalPath } from '@weftjs/kernel'
 
@@ -288,7 +288,7 @@ const OPENERS: Record<string, Opener> = {
     },
     plain:
       'There is no bundler. The browser fetches the files on disk with their types stripped, so what you read is what runs. The budget is measured on that real fetch, not on an imaginary bundle.',
-    caption: `The bundled figure is the code, not the download, and the difference is ${downloadRatio()}×. The gated number is the walk over HTTP, which agrees with the bundle walk within 0.3%.`,
+    caption: `The bundled figure is the code, not the download, and the difference is ${downloadRatio()}×. The gated number is the walk over HTTP, which agrees with the build's own walk within ${download().drift}.`,
   },
   deploying: {
     ok: {

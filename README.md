@@ -206,15 +206,15 @@ stateful process per connection.
 Adoption walks the DOM the parser built and records where each value lives, with no component code
 executing. 50-row region, ~200 bindings, p50:
 
-|                                  | Chromium  | Firefox   | WebKit    |
-| -------------------------------- | --------- | --------- | --------- |
-| Adopt the region                 | 0.044 ms  | 0.1 ms    | 0.045 ms  |
-| Parse the same markup            | 0.076 ms  | 0.06 ms   | 0.14 ms   |
-| Apply a 12-path delta surgically | 0.0018 ms | 0.0029 ms | 0.0021 ms |
-| One signal write to one node     | 0.52 µs   | 1.41 µs   | 1.31 µs   |
+|                                  | Chromium  | Firefox   | WebKit   |
+| -------------------------------- | --------- | --------- | -------- |
+| Adopt the region                 | 0.045 ms  | 0.1 ms    | 0.05 ms  |
+| Parse the same markup            | 0.077 ms  | 0.06 ms   | 0.14 ms  |
+| Apply a 12-path delta surgically | 0.0018 ms | 0.0029 ms | 0.002 ms |
+| One signal write to one node     | 0.52 µs   | 1.41 µs   | 1.32 µs  |
 
 A delta applied as designed — one write per changed value, into DOM that already exists — is
-**21–67× cheaper** than the parse it replaces. The signal-write row is at the floor and is meant to
+**21–68× cheaper** than the parse it replaces. The signal-write row is at the floor and is meant to
 be: it is a tie with every compiled reactive runtime, and at half a microsecond it is also close to
 what these engines' clocks can resolve.
 
@@ -226,11 +226,11 @@ the same compiled templates, so this compares the mechanism and nothing else.
 
 | Scenario      | Segments            | String SSR |       |
 | ------------- | ------------------- | ---------- | ----- |
-| shell, 707 B  | 1,201,504 renders/s | 561,534    | 2.14× |
-| cart, 12 rows | 213,999             | 156,357    | 1.37× |
-| feed, 50 rows | 56,674              | 39,728     | 1.43× |
+| shell, 707 B  | 1,036,941 renders/s | 511,345    | 2.03× |
+| cart, 12 rows | 199,817             | 163,337    | 1.22× |
+| feed, 50 rows | 52,574              | 41,918     | 1.25× |
 
-The 1.37–2.14× lives in server capacity; it is invisible to latency.
+The 1.22–2.03× lives in server capacity; it is invisible to latency.
 
 **Repeat visits.** Templates persist in IndexedDB, are advertised to the server as a coarse digest,
 and arrive as `TPL` frames only when the client does not already hold them:
@@ -259,8 +259,9 @@ compression, which is in [`spec/kernel/surgical.md`](spec/kernel/surgical.md) wi
 still the right answer there.
 
 **Instant navigation.** Hover stages a route into an epoch that paints nowhere; a click commits it as
-a DOM swap. 17.5 ms staged against 606.0 ms on the demo's deliberately slow page, and 7–19× on
-ordinary ones at 100 ms injected RTT. On loopback a staged click is _slower_ than letting the browser do it,
+a DOM swap. 17.0 ms staged against 605.0 ms on the demo's deliberately slow page, and at 100 ms
+injected RTT every route but one wins — 3.25× to 111×, the exception being the page the server
+produces fastest. On loopback a staged click is _slower_ than letting the browser do it,
 which is the honest floor of the idea and is in
 [`spec/client/navigation.md`](spec/client/navigation.md) with the table.
 
@@ -276,7 +277,7 @@ A test fails the moment an entry crosses its ceiling.
 | Content route — adopt and bind            | **2,251**  | 5,120   |
 | App route — adopt, bind, patch, epochs    | **3,190**  | 12,288  |
 | Server kernel — the document request path | **8,273**  | 8,320   |
-| Front door — the code, bundled            | **13,991** | 14,336  |
+| Front door — the code, bundled            | **14,031** | 14,336  |
 
 Fifteen entries in all, each with its own stated ceiling rather than a share of one — see
 [`DESIGN.md`](DESIGN.md#byte-budgets-which-are-gates-rather-than-reports) for the full table, the

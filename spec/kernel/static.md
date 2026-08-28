@@ -260,7 +260,7 @@ comments — right for a source map, wrong for a payload. This framework explain
 its own modules and every byte of that was reaching browsers that cannot read it.
 
 Removing it halves the client payload: the documentation site went from 59,719 to 29,356 bytes
-brotli, the demo from 50,048 to 25,992. `weft dev` keeps every comment, because the one reader who
+brotli, the demo from 50,048 to 25,835. `weft dev` keeps every comment, because the one reader who
 wants them is the one with devtools open on their own machine. Both current figures are read from
 the `weft.budget.json` each build writes, so this paragraph is checkable rather than remembered.
 

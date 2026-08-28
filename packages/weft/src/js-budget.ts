@@ -31,6 +31,14 @@ export interface JsMeasurement {
   brotli: number
 }
 
+/**
+ * One budget the client did not meet, and everything needed to say whose it was.
+ *
+ * `declaredBy` is the slot that wrote the ceiling, or `document` for a route-level declaration, and
+ * it is separate from `route` because a slot can be on several. `baseline` is present only for a
+ * growth cap: a ceiling is absolute and a growth cap is a comparison, so one of them has a second
+ * number in it and the other does not.
+ */
 export interface JsVerdict {
   route: string
   /** The slot that declared the ceiling, or `document` for a route-level declaration. */
@@ -126,6 +134,15 @@ export function checkJsBudgets(
   return out
 }
 
+/**
+ * A refused budget, as the sentence the build prints.
+ *
+ * Two codes rather than one, because the two failures need different answers: a ceiling says the
+ * page is too big and a growth cap says it got bigger, and only the second is a diff somebody just
+ * made. Both name the route and the declaration, and neither claims to know which slot is
+ * responsible — there is no bundler here, so the client is the application's and not a slot's share
+ * of it, and the message says so rather than implying an attribution it cannot make.
+ */
 export function describeJsVerdict(verdict: JsVerdict): string {
   if (verdict.kind === 'growth') {
     return (

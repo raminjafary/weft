@@ -42,7 +42,7 @@ is the argument, and the client's channel ceiling moved from 4,096 in the same c
 | `entry-nav.ts` | Plus routes staged and unpainted, `NAV` frames, and what a click is | 4,970 B | 5,120 B |
 | `entry-discover.ts` | Plus what it knows about routes it has not been to | 5,331 B | 6,144 B |
 | `index.ts` | Everything | 6,137 B | 6,144 B |
-| `boot.ts` (front door) | The front door's code, bundled and minified — see below | 13,991 B | 14,336 B |
+| `boot.ts` (front door) | The front door's code, bundled and minified — see below | 14,031 B | 14,336 B |
 
 Navigation is the client-side case of the rule below: 851 bytes on top of a channel route, in an
 entry of its own, because a page that links nowhere should not carry the staging model. Discovery is
@@ -107,8 +107,8 @@ reason written down; what it is _not_ is the number a reader pays, which is the 
 this page is Rolldown-bundled and minified. This framework has no bundler and no minifier, and says
 so in `build.ts`: a page fetches the boot module and each module it imports as its own response,
 served as written with types stripped. Walked and compressed the way it arrives, the demo's client is
-**25,992 B across 19 modules** against the 13,991 B in the table — 1.9×, and the same walk over HTTP
-agrees within 0.3%. The reversal is in [`FINDINGS.md`](../FINDINGS.md); what to do about it is a
+**25,835 B across 19 modules** against the 14,031 B in the table — 1.8×, and the same walk over HTTP
+agrees within 0.34%. The reversal is in [`FINDINGS.md`](../FINDINGS.md); what to do about it is a
 separate question from what to call it, and the first step was to stop publishing the smaller number
 as the one a reader pays.
 

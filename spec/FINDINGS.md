@@ -39,15 +39,16 @@ compressing each response the way it arrives:
 
 | The demo's client            | Modules | Raw       | Brotli       |
 | ---------------------------- | ------- | --------- | ------------ |
-| Bundled and minified         | 1       | 45,192 B  | 13,991 B     |
-| **Served, module by module** | 19      | 110,643 B | **25,992 B** |
+| Bundled and minified         | 1       | 45,330 B  | 14,031 B     |
+| **Served, module by module** | 19      | 111,388 B | **25,835 B** |
 
-**1.9× the figure that was published**, and the same walk over HTTP against the running server
-agrees within 0.3% — 25,923 B.
+**1.8× the figure that was published**, and the same walk over HTTP against the running server
+agrees within 0.34% — 25,923 B against 25,835. `weft-bench download` is that cross-check, so it is
+re-runnable rather than remembered.
 
 It was 3.5× when this was written, and the gap closed from the other end rather than by anything
 here turning out to be wrong. A production build now strips comments, which took the served figure
-from 46,698 B to 25,992: this codebase explains itself at length in its own modules, and every byte
+from 46,698 B to 25,835: this codebase explains itself at length in its own modules, and every byte
 of that was being downloaded by browsers that cannot read it. The finding is unchanged and the
 number is nearly half — a bundled entry is still not what a page pays, and 1.9× is still not a
 rounding error.
@@ -220,7 +221,7 @@ reported it **1.28× worse** than sending markup. That number was published here
 commits. It was measuring a client that could not address its own holes: only signal-wired
 bindings carried addressing, so a server-owned value could not be located. With anchors on
 holes (IR 2.1.0) a delta is applied as designed — one write per changed value — and is
-**21–67× cheaper** than the parse it replaces.
+**21–68× cheaper** than the parse it replaces.
 
 The lesson is not about deltas. A measurement of a capability that does not exist yet
 measures the stand-in, and reports it as if it were the thing.

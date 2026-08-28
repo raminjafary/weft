@@ -55,7 +55,15 @@ interface DeltaReport {
 
 interface NavReport {
   engine: string
+  /** The injected round trip. Zero is loopback, and the two are separate rows of the same table. */
+  latencyMs: number
   pairs: { to: string; staged: { summary: { p50: number } }; browser: { summary: { p50: number } } }[]
+}
+
+interface DownloadReport {
+  served: { modules: number; raw: number; brotli: number }
+  built: { modules: number; raw: number; brotli: number }
+  driftPercent: number
 }
 
 interface L0Report {
@@ -158,17 +166,21 @@ export function deltaClients(scenario = 'feed'): string {
  * The dashboard by default: it is the one page in the demo whose slots are slow on purpose, so it
  * is the row where the ratio is about the mechanism rather than about how fast loopback is.
  */
-export function stagedClick(route = 'dashboard'): { staged: string; browser: string } {
+export function stagedClick(
+  route = 'dashboard',
+  latencyMs = 0,
+): { staged: string; browser: string; ratio: string } {
   const pair = section<NavReport[]>('nav')
-    ?.find((report) => report.engine === 'chromium')
+    ?.find((report) => report.engine === 'chromium' && report.latencyMs === latencyMs)
     ?.pairs.find((p) => p.to.includes(route))
-  if (!pair) return { staged: 'not measured', browser: 'not measured' }
+  if (!pair) return { staged: 'not measured', browser: 'not measured', ratio: 'not measured' }
   // One decimal, which is what the harness itself prints: ten samples of a millisecond-resolution
   // clock land on halves often enough that rounding them away turns 17.5 into 18 and loses the only
   // digit separating two of these routes.
   return {
     staged: `${pair.staged.summary.p50.toFixed(1)} ms`,
     browser: `${pair.browser.summary.p50.toFixed(1)} ms`,
+    ratio: `${(pair.browser.summary.p50 / pair.staged.summary.p50).toFixed(2)}×`,
   }
 }
 
@@ -181,4 +193,22 @@ export function l0Rows(): { path: string; bytes: string; l0: string; kernel: str
     kernel: `${report.kernel.ttlb.p50.toFixed(3)} ms`,
     ratio: `${(report.kernel.ttlb.p50 / report.l0.ttlb.p50).toFixed(2)}×`,
   }))
+}
+
+/**
+ * What a page downloads, and how closely the build's own walk agrees with the wire.
+ *
+ * Two independent walks of one graph: `weft build` reads the files, `weft-bench download` asks the
+ * running server. The agreement is what makes either publishable, and it was a sentence quoting a
+ * hand-made measurement until the command existed.
+ */
+export function download(): { served: string; built: string; drift: string; modules: string } {
+  const report = section<DownloadReport>('download')
+  if (!report) return { served: 'not measured', built: 'not measured', drift: 'not measured', modules: '?' }
+  return {
+    served: report.served.brotli.toLocaleString('en-US'),
+    built: report.built.brotli.toLocaleString('en-US'),
+    drift: `${report.driftPercent.toFixed(2)}%`,
+    modules: String(report.served.modules),
+  }
 }

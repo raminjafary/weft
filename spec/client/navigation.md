@@ -270,28 +270,34 @@ The demo, in Chromium, ten samples each:
 
 | Route             | Staged  | Browser  | Loopback | 100 ms RTT |
 | ----------------- | ------- | -------- | -------- | ---------- |
-| `/app/article`    | 1.0 ms  | 7.0 ms   | 7.00×    | —          |
-| `/app/composed`   | 1.0 ms  | 6.0 ms   | 6.00×    | —          |
-| `/app/cart`       | 16.5 ms | 14.0 ms  | 0.85×    | —          |
-| `/app/ordinary/…` | 16.0 ms | 6.0 ms   | 0.38×    | 7.3×       |
-| `/app/feed`       | 18.0 ms | 16.0 ms  | 0.89×    | 19.0×      |
-| `/app/dashboard`  | 17.5 ms | 606.0 ms | 34.63×   | —          |
+| `/app/article`    | 1.0 ms  | 6.0 ms   | 6.00×    | 111.00×    |
+| `/app/composed`   | 1.0 ms  | 6.0 ms   | 6.00×    | 3.25×      |
+| `/app/cart`       | 17.0 ms | 14.0 ms  | 0.82×    | 19.12×     |
+| `/app/ordinary/…` | 16.0 ms | 6.0 ms   | 0.38×    | 0.44×      |
+| `/app/feed`       | 18.0 ms | 15.5 ms  | 0.86×    | 13.09×     |
+| `/docs`           | 16.0 ms | 7.0 ms   | 0.44×    | 7.23×      |
+| `/docs/nesting`   | 16.0 ms | 6.0 ms   | 0.38×    | 7.00×      |
+| `/app/dashboard`  | 17.0 ms | 605.0 ms | 35.59×   | 41.53×     |
 
-Read the first column of ratios as the honest floor: **on loopback a staged click is slower than
-letting the browser do it** for a page the server produces quickly, because the swap costs more
-than a local request that never left the machine. What the staging removes is the round trip and
-the render, and loopback has neither — so the same two routes measured through the harness's
-link proxy at 100 ms RTT come out 7.3× and 19.0× instead — those two are the only figures on this
-page from an earlier run, and they are labelled rather than quietly replaced. A `--latency` run is
-slow out of proportion to the latency it injects: every navigation goes through the shaper twice,
-and forty of them did not finish in the time the eight loopback routes took several times over.
-That is a cost of the proxy rather than of the mechanism being measured, and it is the reason this
-column is older than the rest of the table. The dashboard is the case that wins without any
-latency at all, because its slots are deliberately slow: 606 ms of server work the reader spent
-hovering rather than waiting.
+The `Staged` and `Browser` columns are loopback. Read that ratio as the honest floor: **on loopback a
+staged click is slower than letting the browser do it** for a page the server produces quickly,
+because the swap costs more than a local request that never left the machine. What the staging
+removes is the round trip and the render, and loopback has neither — so the last column is every
+route again through the harness's link proxy at 100 ms RTT, the same ten samples each way.
 
-Two routes come in at 1.0 ms staged. Those are the pages the client can serve entirely from what it
-already staged — no document at all — and they are the shape the whole mechanism is for.
+Both columns come from the same recorded run, which they did not until this page was written a third
+time. The 100 ms column used to hold two figures from a much older run, because `nav --latency`
+could not complete: the harness's link proxy cancelled the delayed writes it was holding whenever a
+socket closed, so a browser — which closes connections constantly — waited forever for the tail of
+the first module it fetched. Any injected latency did it, including one millisecond, which is what
+finally showed the delay had never been the variable.
+
+Read the 100 ms column as the case the mechanism is for, and the loopback column as its floor.
+`/app/ordinary/…` loses in both, and it is the page the server produces fastest. `/app/article` and
+`/app/composed` come in at 1.0 ms staged because the client serves them from what it already holds,
+with no document at all — and the first of those is 111× at 100 ms RTT for exactly that reason. The
+dashboard wins without any latency at all, because its slots are deliberately slow: 605 ms of server
+work the reader spent hovering rather than waiting.
 
 The bytes are identical either way. A staged navigation transfers the same document, from the same
 kernel, on the same route; what changes is when it is asked for. That is also why `--bandwidth`

@@ -147,7 +147,7 @@ ceiling.
 | Channel route — plus routing frames       | **4,121**  | 4,512  | 11,915 | 4,608   |
 | Patching route — plus applying a patch    | **4,601**  | 5,076  | 13,857 | 5,120   |
 | Navigating route — plus staged routes     | **4,970**  | 5,446  | 14,315 | 5,120   |
-| Front door — the code, bundled            | **13,991** | 15,476 | 45,192 | 14,336  |
+| Front door — the code, bundled            | **14,031** | 15,500 | 45,330 | 14,336  |
 | Server kernel — the document request path | **8,273**  | 9,288  | 24,241 | 8,320   |
 | Kernel + intent dispatch                  | **9,802**  | 11,049 | 29,321 | 10,240  |
 | Kernel + surgical refresh and epochs      | **11,039** | 12,388 | 33,359 | 12,288  |
@@ -159,7 +159,7 @@ ceiling.
 
 **The front-door row is the code, not the download, and the difference is 1.9×.** It bundles with
 Rolldown and minifies; this framework has neither, so a page fetches nineteen modules served as
-written — **25,992 B brotli** for the demo, agreeing within 0.3% with the same walk over HTTP. That is now the gated number: `budget({ js, grow })` in the plan is enforced by
+written — **25,835 B brotli** for the demo, agreeing within 0.34% with the same walk over HTTP. That is now the gated number: `budget({ js, grow })` in the plan is enforced by
 `weft build`, which writes `weft.budget.json` so a regression is a diff. The bundled row stays as a
 gate on how much code there is, and stopped claiming to be what anybody pays. See
 [`spec/FINDINGS.md`](spec/FINDINGS.md).

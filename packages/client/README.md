@@ -14,7 +14,7 @@ npm install @weftjs/client
 **Nothing mounts.** Adoption walks the DOM the parser already built and records where each value
 lives, with no component code executing. On a 50-row region with ~200 bindings that is 0.044–0.105 ms
 — faster than parsing the same markup in Chromium and WebKit — and applying a 12-path delta
-afterwards costs 0.0018–0.0029 ms, **21–67× cheaper than the parse it replaces**.
+afterwards costs 0.0018–0.0029 ms, **21–68× cheaper than the parse it replaces**.
 
 **Epochs separate data currency from view currency.** Staged frames paint nothing; one `COMMIT`
 flips every slot at once. Prefetch cannot disturb the present, rollback is discarding an epoch, and

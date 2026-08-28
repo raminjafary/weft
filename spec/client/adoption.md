@@ -62,12 +62,12 @@ rather than the tree the browser ended up with.
 
 50-row region, ~200 bindings, p50, per engine.
 
-|                                  | Chromium  | Firefox   | WebKit    |
-| -------------------------------- | --------- | --------- | --------- |
-| Adopt the region                 | 0.044 ms  | 0.1 ms    | 0.045 ms  |
-| Parse the same markup            | 0.076 ms  | 0.06 ms   | 0.14 ms   |
-| Apply a 12-path delta surgically | 0.0018 ms | 0.0029 ms | 0.0021 ms |
-| One signal write to one node     | 0.52 µs   | 1.41 µs   | 1.31 µs   |
+|                                  | Chromium  | Firefox   | WebKit   |
+| -------------------------------- | --------- | --------- | -------- |
+| Adopt the region                 | 0.045 ms  | 0.1 ms    | 0.05 ms  |
+| Parse the same markup            | 0.077 ms  | 0.06 ms   | 0.14 ms  |
+| Apply a 12-path delta surgically | 0.0018 ms | 0.0029 ms | 0.002 ms |
+| One signal write to one node     | 0.52 µs   | 1.41 µs   | 1.32 µs  |
 
 Adoption costs about what parsing the region costs — less in Chromium and WebKit, more in
 Firefox — which is the honest reading of "startup is cheap": it is cheap because it is
@@ -75,7 +75,7 @@ proportional to bindings, not because it is free.
 
 The delta figure is the one that changed a conclusion. Before this runtime existed the
 harness measured a delta by re-projecting the whole region, and reported it _worse_ than
-sending markup. Applied as designed it is 21–67× cheaper than the parse it replaces,
+sending markup. Applied as designed it is 21–68× cheaper than the parse it replaces,
 which is what the form was for.
 
 ## Controls

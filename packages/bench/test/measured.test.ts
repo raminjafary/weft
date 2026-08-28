@@ -115,8 +115,10 @@ test('every document quoting the shared refresh quotes both blocks of it', () =>
  */
 test('every document quoting a staged navigation quotes the run that measured it', () => {
   const reports = section<NavReport[]>('nav')
-  const chromium = reports.find((report) => report.engine === 'chromium')
-  assert.ok(chromium, 'the nav run has no chromium in it')
+  const chromium = reports.find((report) => report.engine === 'chromium' && report.latencyMs === 0)
+  assert.ok(chromium, 'the nav run has no loopback chromium in it')
+  const shaped = reports.find((report) => report.engine === 'chromium' && report.latencyMs > 0)
+  assert.ok(shaped, 'the nav record has no run over an injected link, so the table has one column')
 
   const slow = chromium.pairs.find((pair) => pair.to.includes('dashboard'))
   assert.ok(slow, 'the nav run did not click the dashboard, which is the slow page')
@@ -166,11 +168,25 @@ test('every row of the L0 table is a row of the run that measured it', () => {
  * a test rather than for more care.
  */
 function published(): Map<string, number> {
-  const dir = fileURLToPath(new URL('../../../results/', import.meta.url))
+  const root = fileURLToPath(new URL('../../../', import.meta.url))
+  const dir = join(root, 'results')
+  /**
+   * The runs this repository ships, which is not the same as the runs on this machine.
+   *
+   * `results/` is gitignored except for the files named in it, and that list is the definition of
+   * "published" — a site that states a measurement ships the measurement it states. Reading the
+   * directory instead would mean anybody who ran the harness locally failed this test, because
+   * their run is newer than the one the documents quote. Their run disagreeing with the documents
+   * is not a defect; it is what running a benchmark on a different machine does.
+   */
+  const shipped = readFileSync(join(root, '.gitignore'), 'utf8')
+    .split('\n')
+    .flatMap((line) => /^!results\/(.+\.json)$/.exec(line.trim())?.[1] ?? [])
+  assert.ok(shipped.length > 0, '.gitignore names no published run, so nothing states what shipped')
+
   const figures = new Map<string, number>()
-  for (const name of readdirSync(dir)
-    .filter((file) => file.endsWith('.json'))
-    .sort()) {
+  for (const name of shipped.toSorted()) {
+    assert.ok(readdirSync(dir).includes(name), `.gitignore publishes ${name} and results/ does not have it`)
     const raw = JSON.parse(readFileSync(join(dir, name), 'utf8')) as {
       rows: {
         axis: string
@@ -188,6 +204,50 @@ function published(): Map<string, number> {
   }
   return figures
 }
+
+/**
+ * The cross-check the specification has always claimed and never been able to re-run.
+ *
+ * `spec/FINDINGS.md` says the build's walk and the browser's walk agree, and for two versions that
+ * sentence carried a figure measured once by hand — while the figure beside it went stale twice.
+ * `weft-bench download` is that measurement as a command, and this holds the document to it.
+ *
+ * The drift is asserted as a bound rather than quoted, because it is the agreement that is the
+ * claim: two independent walks of the same graph landing within a percent of each other is what
+ * makes either of them worth publishing. A percent apart is compression noise on nineteen separate
+ * brotli streams; ten would mean one of the walks is wrong.
+ */
+test('the build walk and the browser walk agree, and the documents quote the walk', () => {
+  const report = section<{
+    served: { modules: number; brotli: number }
+    built: { modules: number; brotli: number }
+    driftPercent: number
+  }>('download')
+
+  assert.equal(report.served.modules, report.built.modules, 'the two walks found different module sets')
+  assert.ok(
+    report.driftPercent < 1,
+    `the walks are ${report.driftPercent.toFixed(2)}% apart, which is too far to call agreement`,
+  )
+  holds(
+    ['spec/FINDINGS.md'],
+    [
+      {
+        what: 'what the browser actually fetched',
+        text: report.served.brotli.toLocaleString('en-US'),
+      },
+    ],
+  )
+  holds(
+    ['spec/FINDINGS.md', 'DESIGN.md', 'spec/kernel/budgets.md'],
+    [
+      {
+        what: 'what the build says a page downloads',
+        text: report.built.brotli.toLocaleString('en-US'),
+      },
+    ],
+  )
+})
 
 test('the README quotes the axes at the values the shipped run measured', () => {
   const figures = published()

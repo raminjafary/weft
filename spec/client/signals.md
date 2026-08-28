@@ -62,7 +62,7 @@ and should not be reported as a win.
 Those two columns stay as they were measured, back to back on one machine, because that is
 the only way the comparison is worth anything — the `Set` implementation no longer exists
 and cannot be re-run. The linked graph on its own, on the current build, is 0.52 µs on
-Chromium, 1.41 µs on Firefox and 1.31 µs on WebKit. Read the pair above as the A/B it was
+Chromium, 1.41 µs on Firefox and 1.32 µs on WebKit. Read the pair above as the A/B it was
 and this line as where the surviving half stands now; a machine, a browser version and two
 years of engine work are all in the difference between them.
 

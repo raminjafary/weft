@@ -144,7 +144,7 @@ export function siteWeight(): SiteWeight {
  *
  * Three pages named the demo's download in prose — a hero figure, a guide opener and a paragraph on
  * the architecture page — and all three had it as 46,698 B, which was true until a production build
- * stopped shipping its own comments and took it to 25,992. A number typed into three files is a
+ * stopped shipping its own comments and took it to 25,835. A number typed into three files is a
  * number that goes stale in three files, so it is read from the file the build writes.
  */
 export function demoWeight(): SiteWeight {

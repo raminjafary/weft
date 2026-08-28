@@ -168,6 +168,37 @@
       }
     ]
   },
+  "download": {
+    "environment": {
+      "when": "2026-08-28T11:53:57.512Z",
+      "node": "v24.18.0",
+      "v8": "13.6.233.17-node.50",
+      "platform": "darwin",
+      "release": "25.6.0",
+      "arch": "arm64",
+      "cpu": "Apple M4",
+      "cores": 10,
+      "memoryGb": 16,
+      "freeMemoryGb": 0.6,
+      "commit": "037465c",
+      "loadAverage": [1.48, 1.75, 1.89]
+    },
+    "measured": {
+      "root": "demo",
+      "path": "/app/ordinary/:category",
+      "served": {
+        "modules": 19,
+        "raw": 111612,
+        "brotli": 25923
+      },
+      "built": {
+        "modules": 19,
+        "raw": 111388,
+        "brotli": 25835
+      },
+      "driftPercent": 0.3394668826910465
+    }
+  },
   "l0": {
     "environment": {
       "when": "2026-08-28T10:21:30.983Z",
@@ -296,7 +327,7 @@
   },
   "nav": {
     "environment": {
-      "when": "2026-08-28T10:22:08.567Z",
+      "when": "2026-08-28T11:56:19.360Z",
       "node": "v24.18.0",
       "v8": "13.6.233.17-node.50",
       "platform": "darwin",
@@ -305,9 +336,9 @@
       "cpu": "Apple M4",
       "cores": 10,
       "memoryGb": 16,
-      "freeMemoryGb": 1.8,
-      "commit": "41ad38d",
-      "loadAverage": [2.09, 1.99, 2.02]
+      "freeMemoryGb": 1,
+      "commit": "037465c",
+      "loadAverage": [1.61, 1.72, 1.86]
     },
     "measured": [
       {
@@ -326,11 +357,809 @@
             "staged": {
               "samples": [
                 {
-                  "ms": 18,
+                  "ms": 16,
                   "documents": 0
                 },
                 {
                   "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 16,
+                "p50": 16,
+                "p95": 17,
+                "p99": 17,
+                "max": 17,
+                "mean": 16.3,
+                "stddev": 0.4830458915396479,
+                "mad": 0
+              }
+            },
+            "browser": {
+              "samples": [
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 6,
+                "p50": 6,
+                "p95": 6,
+                "p99": 6,
+                "max": 6,
+                "mean": 6,
+                "stddev": 0,
+                "mad": 0
+              }
+            }
+          },
+          {
+            "from": "/",
+            "to": "/app/feed",
+            "staged": {
+              "samples": [
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 19,
+                  "documents": 0
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 17,
+                "p50": 18,
+                "p95": 18.549999999999997,
+                "p99": 18.91,
+                "max": 19,
+                "mean": 17.9,
+                "stddev": 0.5676462121975466,
+                "mad": 0
+              }
+            },
+            "browser": {
+              "samples": [
+                {
+                  "ms": 15,
+                  "documents": 1
+                },
+                {
+                  "ms": 15,
+                  "documents": 1
+                },
+                {
+                  "ms": 15,
+                  "documents": 1
+                },
+                {
+                  "ms": 16,
+                  "documents": 1
+                },
+                {
+                  "ms": 15,
+                  "documents": 1
+                },
+                {
+                  "ms": 16,
+                  "documents": 1
+                },
+                {
+                  "ms": 16,
+                  "documents": 1
+                },
+                {
+                  "ms": 15,
+                  "documents": 1
+                },
+                {
+                  "ms": 17,
+                  "documents": 1
+                },
+                {
+                  "ms": 17,
+                  "documents": 1
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 15,
+                "p50": 15.5,
+                "p95": 17,
+                "p99": 17,
+                "max": 17,
+                "mean": 15.7,
+                "stddev": 0.8232726023485646,
+                "mad": 0.5
+              }
+            }
+          },
+          {
+            "from": "/",
+            "to": "/app/cart",
+            "staged": {
+              "samples": [
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 15,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 15,
+                "p50": 17,
+                "p95": 17.549999999999997,
+                "p99": 17.91,
+                "max": 18,
+                "mean": 16.6,
+                "stddev": 0.8432740427115678,
+                "mad": 0.5
+              }
+            },
+            "browser": {
+              "samples": [
+                {
+                  "ms": 15,
+                  "documents": 2
+                },
+                {
+                  "ms": 14,
+                  "documents": 2
+                },
+                {
+                  "ms": 14,
+                  "documents": 2
+                },
+                {
+                  "ms": 14,
+                  "documents": 2
+                },
+                {
+                  "ms": 15,
+                  "documents": 2
+                },
+                {
+                  "ms": 14,
+                  "documents": 2
+                },
+                {
+                  "ms": 14,
+                  "documents": 2
+                },
+                {
+                  "ms": 14,
+                  "documents": 2
+                },
+                {
+                  "ms": 15,
+                  "documents": 2
+                },
+                {
+                  "ms": 14,
+                  "documents": 2
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 14,
+                "p50": 14,
+                "p95": 15,
+                "p99": 15,
+                "max": 15,
+                "mean": 14.3,
+                "stddev": 0.4830458915396479,
+                "mad": 0
+              }
+            }
+          },
+          {
+            "from": "/",
+            "to": "/app/dashboard",
+            "staged": {
+              "samples": [
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 15,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 15,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 15,
+                "p50": 17,
+                "p95": 17,
+                "p99": 17,
+                "max": 17,
+                "mean": 16.4,
+                "stddev": 0.843274042711568,
+                "mad": 0
+              }
+            },
+            "browser": {
+              "samples": [
+                {
+                  "ms": 606,
+                  "documents": 1
+                },
+                {
+                  "ms": 606,
+                  "documents": 1
+                },
+                {
+                  "ms": 606,
+                  "documents": 1
+                },
+                {
+                  "ms": 603,
+                  "documents": 1
+                },
+                {
+                  "ms": 605,
+                  "documents": 1
+                },
+                {
+                  "ms": 603,
+                  "documents": 1
+                },
+                {
+                  "ms": 605,
+                  "documents": 1
+                },
+                {
+                  "ms": 605,
+                  "documents": 1
+                },
+                {
+                  "ms": 604,
+                  "documents": 1
+                },
+                {
+                  "ms": 603,
+                  "documents": 1
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 603,
+                "p50": 605,
+                "p95": 606,
+                "p99": 606,
+                "max": 606,
+                "mean": 604.6,
+                "stddev": 1.264911064067352,
+                "mad": 1
+              }
+            }
+          },
+          {
+            "from": "/",
+            "to": "/app/article",
+            "staged": {
+              "samples": [
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 2,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 1,
+                "p50": 1,
+                "p95": 1.549999999999999,
+                "p99": 1.9100000000000001,
+                "max": 2,
+                "mean": 1.1,
+                "stddev": 0.31622776601683794,
+                "mad": 0
+              }
+            },
+            "browser": {
+              "samples": [
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 6,
+                "p50": 6,
+                "p95": 7,
+                "p99": 7,
+                "max": 7,
+                "mean": 6.4,
+                "stddev": 0.5163977794943222,
+                "mad": 0
+              }
+            }
+          },
+          {
+            "from": "/",
+            "to": "/app/composed",
+            "staged": {
+              "samples": [
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 1,
+                  "documents": 0
+                },
+                {
+                  "ms": 2,
+                  "documents": 0
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 1,
+                "p50": 1,
+                "p95": 1.549999999999999,
+                "p99": 1.9100000000000001,
+                "max": 2,
+                "mean": 1.1,
+                "stddev": 0.31622776601683794,
+                "mad": 0
+              }
+            },
+            "browser": {
+              "samples": [
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 5,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 5,
+                "p50": 6,
+                "p95": 7,
+                "p99": 7,
+                "max": 7,
+                "mean": 6.3,
+                "stddev": 0.6749485577105528,
+                "mad": 0.5
+              }
+            }
+          },
+          {
+            "from": "/",
+            "to": "/docs",
+            "staged": {
+              "samples": [
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 16,
+                "p50": 16,
+                "p95": 17,
+                "p99": 17,
+                "max": 17,
+                "mean": 16.3,
+                "stddev": 0.4830458915396479,
+                "mad": 0
+              }
+            },
+            "browser": {
+              "samples": [
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 6,
+                "p50": 7,
+                "p95": 7,
+                "p99": 7,
+                "max": 7,
+                "mean": 6.6,
+                "stddev": 0.5163977794943222,
+                "mad": 0
+              }
+            }
+          },
+          {
+            "from": "/",
+            "to": "/docs/nesting",
+            "staged": {
+              "samples": [
+                {
+                  "ms": 14,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
                   "documents": 0
                 },
                 {
@@ -368,13 +1197,13 @@
               ],
               "summary": {
                 "n": 10,
-                "min": 16,
+                "min": 14,
                 "p50": 16,
-                "p95": 17.099999999999998,
-                "p99": 17.82,
-                "max": 18,
-                "mean": 16.2,
-                "stddev": 0.6324555320336759,
+                "p95": 16.549999999999997,
+                "p99": 16.91,
+                "max": 17,
+                "mean": 15.9,
+                "stddev": 0.7378647873726217,
                 "mad": 0
               }
             },
@@ -389,15 +1218,7 @@
                   "documents": 1
                 },
                 {
-                  "ms": 6,
-                  "documents": 1
-                },
-                {
-                  "ms": 6,
-                  "documents": 1
-                },
-                {
-                  "ms": 6,
+                  "ms": 7,
                   "documents": 1
                 },
                 {
@@ -419,32 +1240,58 @@
                 {
                   "ms": 6,
                   "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
+                },
+                {
+                  "ms": 6,
+                  "documents": 1
                 }
               ],
               "summary": {
                 "n": 10,
                 "min": 6,
                 "p50": 6,
-                "p95": 6.549999999999999,
-                "p99": 6.91,
+                "p95": 7,
+                "p99": 7,
                 "max": 7,
-                "mean": 6.1,
-                "stddev": 0.31622776601683794,
+                "mean": 6.2,
+                "stddev": 0.4216370213557839,
                 "mad": 0
               }
             }
-          },
+          }
+        ],
+        "skipped": ["/live/race/out-of-order"],
+        "raced": 0
+      },
+      {
+        "root": "demo",
+        "engine": "chromium",
+        "engineVersion": "151.0.7922.34",
+        "iterations": 10,
+        "latencyMs": 100,
+        "bandwidthKbps": 0,
+        "lossPercent": 0,
+        "link": "100 ms RTT, unlimited bandwidth, no loss",
+        "pairs": [
           {
             "from": "/",
-            "to": "/app/feed",
+            "to": "/app/ordinary/pantry",
             "staged": {
               "samples": [
                 {
-                  "ms": 18,
+                  "ms": 16,
                   "documents": 0
                 },
                 {
-                  "ms": 17,
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
                   "documents": 0
                 },
                 {
@@ -452,87 +1299,28 @@
                   "documents": 0
                 },
                 {
-                  "ms": 20,
+                  "ms": 16,
                   "documents": 0
-                },
-                {
-                  "ms": 18,
-                  "documents": 0
-                },
-                {
-                  "ms": 18,
-                  "documents": 0
-                },
-                {
-                  "ms": 19,
-                  "documents": 0
-                },
-                {
-                  "ms": 18,
-                  "documents": 0
-                },
-                {
-                  "ms": 18,
-                  "documents": 0
-                },
-                {
-                  "ms": 18,
-                  "documents": 0
-                }
-              ],
-              "summary": {
-                "n": 10,
-                "min": 15,
-                "p50": 18,
-                "p95": 19.549999999999997,
-                "p99": 19.91,
-                "max": 20,
-                "mean": 17.9,
-                "stddev": 1.2866839377079187,
-                "mad": 0
-              }
-            },
-            "browser": {
-              "samples": [
-                {
-                  "ms": 15,
-                  "documents": 1
                 },
                 {
                   "ms": 16,
-                  "documents": 1
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
                 },
                 {
                   "ms": 15,
-                  "documents": 1
-                },
-                {
-                  "ms": 15,
-                  "documents": 1
+                  "documents": 0
                 },
                 {
                   "ms": 16,
-                  "documents": 1
-                },
-                {
-                  "ms": 15,
-                  "documents": 1
-                },
-                {
-                  "ms": 16,
-                  "documents": 1
-                },
-                {
-                  "ms": 16,
-                  "documents": 1
-                },
-                {
-                  "ms": 16,
-                  "documents": 1
-                },
-                {
-                  "ms": 16,
-                  "documents": 1
+                  "documents": 0
                 }
               ],
               "summary": {
@@ -542,129 +1330,70 @@
                 "p95": 16,
                 "p99": 16,
                 "max": 16,
-                "mean": 15.6,
-                "stddev": 0.5163977794943222,
+                "mean": 15.8,
+                "stddev": 0.421637021355784,
                 "mad": 0
-              }
-            }
-          },
-          {
-            "from": "/",
-            "to": "/app/cart",
-            "staged": {
-              "samples": [
-                {
-                  "ms": 17,
-                  "documents": 0
-                },
-                {
-                  "ms": 16,
-                  "documents": 0
-                },
-                {
-                  "ms": 17,
-                  "documents": 0
-                },
-                {
-                  "ms": 16,
-                  "documents": 0
-                },
-                {
-                  "ms": 16,
-                  "documents": 0
-                },
-                {
-                  "ms": 17,
-                  "documents": 0
-                },
-                {
-                  "ms": 15,
-                  "documents": 0
-                },
-                {
-                  "ms": 18,
-                  "documents": 0
-                },
-                {
-                  "ms": 19,
-                  "documents": 0
-                },
-                {
-                  "ms": 15,
-                  "documents": 0
-                }
-              ],
-              "summary": {
-                "n": 10,
-                "min": 15,
-                "p50": 16.5,
-                "p95": 18.549999999999997,
-                "p99": 18.91,
-                "max": 19,
-                "mean": 16.6,
-                "stddev": 1.2649110640673518,
-                "mad": 0.5
               }
             },
             "browser": {
               "samples": [
                 {
-                  "ms": 14,
-                  "documents": 2
+                  "ms": 6,
+                  "documents": 1
                 },
                 {
-                  "ms": 15,
-                  "documents": 2
+                  "ms": 6,
+                  "documents": 1
                 },
                 {
-                  "ms": 13,
-                  "documents": 2
+                  "ms": 7,
+                  "documents": 1
                 },
                 {
-                  "ms": 14,
-                  "documents": 2
+                  "ms": 8,
+                  "documents": 1
                 },
                 {
-                  "ms": 14,
-                  "documents": 2
+                  "ms": 8,
+                  "documents": 1
                 },
                 {
-                  "ms": 13,
-                  "documents": 2
+                  "ms": 8,
+                  "documents": 1
                 },
                 {
-                  "ms": 15,
-                  "documents": 2
+                  "ms": 8,
+                  "documents": 1
                 },
                 {
-                  "ms": 14,
-                  "documents": 2
+                  "ms": 6,
+                  "documents": 1
                 },
                 {
-                  "ms": 14,
-                  "documents": 2
+                  "ms": 6,
+                  "documents": 1
                 },
                 {
-                  "ms": 14,
-                  "documents": 2
+                  "ms": 7,
+                  "documents": 1
                 }
               ],
               "summary": {
                 "n": 10,
-                "min": 13,
-                "p50": 14,
-                "p95": 15,
-                "p99": 15,
-                "max": 15,
-                "mean": 14,
-                "stddev": 0.6666666666666666,
-                "mad": 0
+                "min": 6,
+                "p50": 7,
+                "p95": 8,
+                "p99": 8,
+                "max": 8,
+                "mean": 7,
+                "stddev": 0.9428090415820634,
+                "mad": 1
               }
             }
           },
           {
             "from": "/",
-            "to": "/app/dashboard",
+            "to": "/app/feed",
             "staged": {
               "samples": [
                 {
@@ -672,11 +1401,11 @@
                   "documents": 0
                 },
                 {
-                  "ms": 16,
+                  "ms": 17,
                   "documents": 0
                 },
                 {
-                  "ms": 19,
+                  "ms": 16,
                   "documents": 0
                 },
                 {
@@ -688,11 +1417,11 @@
                   "documents": 0
                 },
                 {
-                  "ms": 18,
+                  "ms": 17,
                   "documents": 0
                 },
                 {
-                  "ms": 16,
+                  "ms": 17,
                   "documents": 0
                 },
                 {
@@ -711,67 +1440,295 @@
               "summary": {
                 "n": 10,
                 "min": 16,
-                "p50": 17.5,
-                "p95": 18.549999999999997,
-                "p99": 18.91,
-                "max": 19,
-                "mean": 17.4,
-                "stddev": 0.966091783079296,
+                "p50": 17,
+                "p95": 18,
+                "p99": 18,
+                "max": 18,
+                "mean": 17.2,
+                "stddev": 0.6324555320336759,
+                "mad": 0
+              }
+            },
+            "browser": {
+              "samples": [
+                {
+                  "ms": 221,
+                  "documents": 1
+                },
+                {
+                  "ms": 229,
+                  "documents": 1
+                },
+                {
+                  "ms": 220,
+                  "documents": 1
+                },
+                {
+                  "ms": 220,
+                  "documents": 1
+                },
+                {
+                  "ms": 225,
+                  "documents": 1
+                },
+                {
+                  "ms": 230,
+                  "documents": 1
+                },
+                {
+                  "ms": 222,
+                  "documents": 1
+                },
+                {
+                  "ms": 230,
+                  "documents": 1
+                },
+                {
+                  "ms": 223,
+                  "documents": 1
+                },
+                {
+                  "ms": 220,
+                  "documents": 1
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 220,
+                "p50": 222.5,
+                "p95": 230,
+                "p99": 230,
+                "max": 230,
+                "mean": 224,
+                "stddev": 4.216370213557839,
+                "mad": 2.5
+              }
+            }
+          },
+          {
+            "from": "/",
+            "to": "/app/cart",
+            "staged": {
+              "samples": [
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 15,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 15,
+                "p50": 17,
+                "p95": 17,
+                "p99": 17,
+                "max": 17,
+                "mean": 16.6,
+                "stddev": 0.6992058987801011,
+                "mad": 0
+              }
+            },
+            "browser": {
+              "samples": [
+                {
+                  "ms": 322,
+                  "documents": 2
+                },
+                {
+                  "ms": 334,
+                  "documents": 2
+                },
+                {
+                  "ms": 320,
+                  "documents": 2
+                },
+                {
+                  "ms": 320,
+                  "documents": 2
+                },
+                {
+                  "ms": 328,
+                  "documents": 2
+                },
+                {
+                  "ms": 330,
+                  "documents": 2
+                },
+                {
+                  "ms": 327,
+                  "documents": 2
+                },
+                {
+                  "ms": 320,
+                  "documents": 2
+                },
+                {
+                  "ms": 328,
+                  "documents": 2
+                },
+                {
+                  "ms": 323,
+                  "documents": 2
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 320,
+                "p50": 325,
+                "p95": 332.2,
+                "p99": 333.64,
+                "max": 334,
+                "mean": 325.2,
+                "stddev": 4.894441291460708,
+                "mad": 4
+              }
+            }
+          },
+          {
+            "from": "/",
+            "to": "/app/dashboard",
+            "staged": {
+              "samples": [
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 18,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 17,
+                  "documents": 0
+                },
+                {
+                  "ms": 16,
+                  "documents": 0
+                }
+              ],
+              "summary": {
+                "n": 10,
+                "min": 16,
+                "p50": 17,
+                "p95": 17.549999999999997,
+                "p99": 17.91,
+                "max": 18,
+                "mean": 16.7,
+                "stddev": 0.6749485577105528,
                 "mad": 0.5
               }
             },
             "browser": {
               "samples": [
                 {
-                  "ms": 604,
+                  "ms": 707,
                   "documents": 1
                 },
                 {
-                  "ms": 607,
+                  "ms": 707,
                   "documents": 1
                 },
                 {
-                  "ms": 606,
+                  "ms": 707,
                   "documents": 1
                 },
                 {
-                  "ms": 606,
+                  "ms": 705,
                   "documents": 1
                 },
                 {
-                  "ms": 606,
+                  "ms": 706,
                   "documents": 1
                 },
                 {
-                  "ms": 607,
+                  "ms": 708,
                   "documents": 1
                 },
                 {
-                  "ms": 605,
+                  "ms": 705,
                   "documents": 1
                 },
                 {
-                  "ms": 607,
+                  "ms": 706,
                   "documents": 1
                 },
                 {
-                  "ms": 606,
+                  "ms": 706,
                   "documents": 1
                 },
                 {
-                  "ms": 605,
+                  "ms": 705,
                   "documents": 1
                 }
               ],
               "summary": {
                 "n": 10,
-                "min": 604,
-                "p50": 606,
-                "p95": 607,
-                "p99": 607,
-                "max": 607,
-                "mean": 605.9,
-                "stddev": 0.9944289260117531,
+                "min": 705,
+                "p50": 706,
+                "p95": 707.55,
+                "p99": 707.91,
+                "max": 708,
+                "mean": 706.2,
+                "stddev": 1.0327955589886444,
                 "mad": 1
               }
             }
@@ -837,56 +1794,56 @@
             "browser": {
               "samples": [
                 {
-                  "ms": 6,
+                  "ms": 112,
                   "documents": 1
                 },
                 {
-                  "ms": 7,
+                  "ms": 111,
                   "documents": 1
                 },
                 {
-                  "ms": 6,
+                  "ms": 114,
                   "documents": 1
                 },
                 {
-                  "ms": 7,
+                  "ms": 111,
                   "documents": 1
                 },
                 {
-                  "ms": 7,
+                  "ms": 110,
                   "documents": 1
                 },
                 {
-                  "ms": 6,
+                  "ms": 109,
                   "documents": 1
                 },
                 {
-                  "ms": 7,
+                  "ms": 109,
                   "documents": 1
                 },
                 {
-                  "ms": 7,
+                  "ms": 108,
                   "documents": 1
                 },
                 {
-                  "ms": 6,
+                  "ms": 113,
                   "documents": 1
                 },
                 {
-                  "ms": 7,
+                  "ms": 118,
                   "documents": 1
                 }
               ],
               "summary": {
                 "n": 10,
-                "min": 6,
-                "p50": 7,
-                "p95": 7,
-                "p99": 7,
-                "max": 7,
-                "mean": 6.6,
-                "stddev": 0.5163977794943222,
-                "mad": 0
+                "min": 108,
+                "p50": 111,
+                "p95": 116.19999999999999,
+                "p99": 117.64,
+                "max": 118,
+                "mean": 111.5,
+                "stddev": 2.9533408577782247,
+                "mad": 2
               }
             }
           },
@@ -900,7 +1857,11 @@
                   "documents": 0
                 },
                 {
-                  "ms": 1,
+                  "ms": 2,
+                  "documents": 0
+                },
+                {
+                  "ms": 2,
                   "documents": 0
                 },
                 {
@@ -908,23 +1869,19 @@
                   "documents": 0
                 },
                 {
-                  "ms": 1,
+                  "ms": 2,
                   "documents": 0
                 },
                 {
-                  "ms": 1,
+                  "ms": 2,
                   "documents": 0
                 },
                 {
-                  "ms": 1,
+                  "ms": 2,
                   "documents": 0
                 },
                 {
-                  "ms": 1,
-                  "documents": 0
-                },
-                {
-                  "ms": 1,
+                  "ms": 2,
                   "documents": 0
                 },
                 {
@@ -939,18 +1896,22 @@
               "summary": {
                 "n": 10,
                 "min": 1,
-                "p50": 1,
-                "p95": 1.549999999999999,
-                "p99": 1.9100000000000001,
+                "p50": 2,
+                "p95": 2,
+                "p99": 2,
                 "max": 2,
-                "mean": 1.1,
-                "stddev": 0.31622776601683794,
+                "mean": 1.7,
+                "stddev": 0.48304589153964794,
                 "mad": 0
               }
             },
             "browser": {
               "samples": [
                 {
+                  "ms": 7,
+                  "documents": 1
+                },
+                {
                   "ms": 6,
                   "documents": 1
                 },
@@ -963,11 +1924,7 @@
                   "documents": 1
                 },
                 {
-                  "ms": 7,
-                  "documents": 1
-                },
-                {
-                  "ms": 7,
+                  "ms": 6,
                   "documents": 1
                 },
                 {
@@ -983,23 +1940,23 @@
                   "documents": 1
                 },
                 {
-                  "ms": 6,
+                  "ms": 7,
                   "documents": 1
                 },
                 {
-                  "ms": 6,
+                  "ms": 7,
                   "documents": 1
                 }
               ],
               "summary": {
                 "n": 10,
                 "min": 5,
-                "p50": 6,
+                "p50": 6.5,
                 "p95": 7,
                 "p99": 7,
                 "max": 7,
-                "mean": 6.3,
-                "stddev": 0.6749485577105528,
+                "mean": 6.4,
+                "stddev": 0.699205898780101,
                 "mad": 0.5
               }
             }
@@ -1010,19 +1967,11 @@
             "staged": {
               "samples": [
                 {
-                  "ms": 18,
-                  "documents": 0
-                },
-                {
-                  "ms": 18,
-                  "documents": 0
-                },
-                {
                   "ms": 16,
                   "documents": 0
                 },
                 {
-                  "ms": 18,
+                  "ms": 16,
                   "documents": 0
                 },
                 {
@@ -1030,15 +1979,23 @@
                   "documents": 0
                 },
                 {
+                  "ms": 14,
+                  "documents": 0
+                },
+                {
+                  "ms": 15,
+                  "documents": 0
+                },
+                {
+                  "ms": 15,
+                  "documents": 0
+                },
+                {
+                  "ms": 15,
+                  "documents": 0
+                },
+                {
                   "ms": 16,
-                  "documents": 0
-                },
-                {
-                  "ms": 17,
-                  "documents": 0
-                },
-                {
-                  "ms": 18,
                   "documents": 0
                 },
                 {
@@ -1053,68 +2010,68 @@
               "summary": {
                 "n": 10,
                 "min": 14,
-                "p50": 16.5,
-                "p95": 18,
-                "p99": 18,
-                "max": 18,
-                "mean": 16.7,
-                "stddev": 1.3374935098492586,
-                "mad": 1
+                "p50": 15.5,
+                "p95": 16,
+                "p99": 16,
+                "max": 16,
+                "mean": 15.3,
+                "stddev": 0.8232726023485647,
+                "mad": 0.5
               }
             },
             "browser": {
               "samples": [
                 {
-                  "ms": 7,
+                  "ms": 111,
                   "documents": 1
                 },
                 {
-                  "ms": 7,
+                  "ms": 114,
                   "documents": 1
                 },
                 {
-                  "ms": 7,
+                  "ms": 116,
                   "documents": 1
                 },
                 {
-                  "ms": 7,
+                  "ms": 117,
                   "documents": 1
                 },
                 {
-                  "ms": 7,
+                  "ms": 112,
                   "documents": 1
                 },
                 {
-                  "ms": 7,
+                  "ms": 110,
                   "documents": 1
                 },
                 {
-                  "ms": 7,
+                  "ms": 110,
                   "documents": 1
                 },
                 {
-                  "ms": 7,
+                  "ms": 112,
                   "documents": 1
                 },
                 {
-                  "ms": 7,
+                  "ms": 109,
                   "documents": 1
                 },
                 {
-                  "ms": 8,
+                  "ms": 114,
                   "documents": 1
                 }
               ],
               "summary": {
                 "n": 10,
-                "min": 7,
-                "p50": 7,
-                "p95": 7.549999999999999,
-                "p99": 7.91,
-                "max": 8,
-                "mean": 7.1,
-                "stddev": 0.31622776601683794,
-                "mad": 0
+                "min": 109,
+                "p50": 112,
+                "p95": 116.55,
+                "p99": 116.91,
+                "max": 117,
+                "mean": 112.5,
+                "stddev": 2.6770630673681683,
+                "mad": 2
               }
             }
           },
@@ -1128,7 +2085,7 @@
                   "documents": 0
                 },
                 {
-                  "ms": 16,
+                  "ms": 15,
                   "documents": 0
                 },
                 {
@@ -1144,11 +2101,11 @@
                   "documents": 0
                 },
                 {
-                  "ms": 18,
+                  "ms": 15,
                   "documents": 0
                 },
                 {
-                  "ms": 16,
+                  "ms": 15,
                   "documents": 0
                 },
                 {
@@ -1166,69 +2123,69 @@
               ],
               "summary": {
                 "n": 10,
-                "min": 16,
+                "min": 15,
                 "p50": 16,
-                "p95": 17.099999999999998,
-                "p99": 17.82,
-                "max": 18,
-                "mean": 16.2,
-                "stddev": 0.6324555320336759,
+                "p95": 16,
+                "p99": 16,
+                "max": 16,
+                "mean": 15.7,
+                "stddev": 0.483045891539648,
                 "mad": 0
               }
             },
             "browser": {
               "samples": [
                 {
-                  "ms": 6,
+                  "ms": 111,
                   "documents": 1
                 },
                 {
-                  "ms": 6,
+                  "ms": 114,
                   "documents": 1
                 },
                 {
-                  "ms": 6,
+                  "ms": 112,
                   "documents": 1
                 },
                 {
-                  "ms": 6,
+                  "ms": 113,
                   "documents": 1
                 },
                 {
-                  "ms": 6,
+                  "ms": 110,
                   "documents": 1
                 },
                 {
-                  "ms": 6,
+                  "ms": 112,
                   "documents": 1
                 },
                 {
-                  "ms": 6,
+                  "ms": 116,
                   "documents": 1
                 },
                 {
-                  "ms": 6,
+                  "ms": 108,
                   "documents": 1
                 },
                 {
-                  "ms": 6,
+                  "ms": 114,
                   "documents": 1
                 },
                 {
-                  "ms": 6,
+                  "ms": 111,
                   "documents": 1
                 }
               ],
               "summary": {
                 "n": 10,
-                "min": 6,
-                "p50": 6,
-                "p95": 6,
-                "p99": 6,
-                "max": 6,
-                "mean": 6,
-                "stddev": 0,
-                "mad": 0
+                "min": 108,
+                "p50": 112,
+                "p95": 115.1,
+                "p99": 115.82,
+                "max": 116,
+                "mean": 112.1,
+                "stddev": 2.2827858224351907,
+                "mad": 1.5
               }
             }
           }

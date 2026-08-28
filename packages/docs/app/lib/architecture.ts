@@ -4,7 +4,7 @@ import { escapeHtml } from './escape.ts'
 import { graph, type GraphEdge, type GraphNode } from './graph.ts'
 import { artifacts } from './versions.ts'
 import { demoWeight, entryFor } from './budgets.ts'
-import { deltaClients, deltaCost } from './measured.ts'
+import { deltaClients, deltaCost, download } from './measured.ts'
 import { measured as benchRow } from './bench.ts'
 
 /**
@@ -1092,7 +1092,7 @@ export function architecture(counts: ArchCounts): string {
       'The build produces sealed templates, a generated plan, a manifest and revved assets — and prints ' +
         'which pages became files. Nothing is bundled at any point, which is why the byte budget is measured ' +
         `on the real walk over HTTP: ${demoWeight().brotli.toLocaleString('en-US')} B brotli for the demo, ` +
-        'agreeing within 0.3% with the same walk over the bundle.',
+        `agreeing within ${download().drift} with the same walk over the build's own graph.`,
     )}
     ${build(counts.files)}
     ${three()}

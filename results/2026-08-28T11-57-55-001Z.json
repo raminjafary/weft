@@ -1,0 +1,2546 @@
+{
+  "environment": {
+    "when": "2026-08-28T11:57:55.001Z",
+    "node": "v24.18.0",
+    "v8": "13.6.233.17-node.50",
+    "platform": "darwin",
+    "release": "25.6.0",
+    "arch": "arm64",
+    "cpu": "Apple M4",
+    "cores": 10,
+    "memoryGb": 16,
+    "freeMemoryGb": 1.8,
+    "commit": "eec3402",
+    "loadAverage": [
+      2.87,
+      2.21,
+      2.04
+    ]
+  },
+  "methodology": {
+    "iterations": 200,
+    "warmup": 30,
+    "connection": "warm",
+    "transport": "stream",
+    "latencyMs": 0,
+    "bandwidthKbps": 0,
+    "lossPercent": 0,
+    "batches": 25,
+    "opsPerBatch": 200,
+    "browserIterations": 5,
+    "engines": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ]
+  },
+  "equivalence": [
+    {
+      "scenario": "shell",
+      "ok": true,
+      "checks": [
+        {
+          "name": "html bytes: segments vs string-ssr",
+          "ok": true
+        },
+        {
+          "name": "served bytes over http: segments vs string-ssr",
+          "ok": true
+        },
+        {
+          "name": "served bytes over http: segments vs blocking-ssr",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "scenario": "cart",
+      "ok": true,
+      "checks": [
+        {
+          "name": "html bytes: segments vs string-ssr",
+          "ok": true
+        },
+        {
+          "name": "delta applied to the base render reproduces the html bytes",
+          "ok": true
+        },
+        {
+          "name": "delta carries fewer entries than the full value set",
+          "ok": true,
+          "detail": "4 changed paths"
+        },
+        {
+          "name": "incremental render, cold memo: byte-identical to a full render",
+          "ok": true
+        },
+        {
+          "name": "incremental render, warm memo: byte-identical to a full render",
+          "ok": true
+        },
+        {
+          "name": "the warm render reused more rows than it rendered",
+          "ok": true,
+          "detail": "10 reused, 2 rendered"
+        },
+        {
+          "name": "served bytes over http: segments vs string-ssr",
+          "ok": true
+        },
+        {
+          "name": "served bytes over http: segments vs blocking-ssr",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "scenario": "feed",
+      "ok": true,
+      "checks": [
+        {
+          "name": "html bytes: segments vs string-ssr",
+          "ok": true
+        },
+        {
+          "name": "delta applied to the base render reproduces the html bytes",
+          "ok": true
+        },
+        {
+          "name": "delta carries fewer entries than the full value set",
+          "ok": true,
+          "detail": "12 changed paths"
+        },
+        {
+          "name": "incremental render, cold memo: byte-identical to a full render",
+          "ok": true
+        },
+        {
+          "name": "incremental render, warm memo: byte-identical to a full render",
+          "ok": true
+        },
+        {
+          "name": "the warm render reused more rows than it rendered",
+          "ok": true,
+          "detail": "44 reused, 6 rendered"
+        },
+        {
+          "name": "served bytes over http: segments vs string-ssr",
+          "ok": true
+        },
+        {
+          "name": "served bytes over http: segments vs blocking-ssr",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "scenario": "derived",
+      "ok": true,
+      "checks": [
+        {
+          "name": "html bytes: segments vs string-ssr",
+          "ok": true
+        },
+        {
+          "name": "served bytes over http: segments vs string-ssr",
+          "ok": true
+        },
+        {
+          "name": "served bytes over http: segments vs blocking-ssr",
+          "ok": true
+        }
+      ]
+    }
+  ],
+  "rows": [
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "shell",
+      "candidate": "first visit",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 2.199999988079071,
+        "p50": 4.699999988079071,
+        "p95": 6.539999997615814,
+        "p99": 6.907999999523163,
+        "max": 7,
+        "mean": 4.179999995231628,
+        "stddev": 1.9967473536722575,
+        "mad": 2.300000011920929
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34",
+        "templatesSent": 1,
+        "frameBytes": 988,
+        "storeMs": 0.4,
+        "openMs": 3.7,
+        "adoptMs": 0.3,
+        "interactiveMs": 15.5,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "shell",
+      "candidate": "repeat visit",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 0.5,
+        "p50": 0.6000000238418579,
+        "p95": 0.6799999952316285,
+        "p99": 0.6959999895095825,
+        "max": 0.699999988079071,
+        "mean": 0.5800000071525574,
+        "stddev": 0.08366600122858553,
+        "mad": 0.09999996423721313
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34",
+        "templatesSent": 0,
+        "frameBytes": 138,
+        "storeMs": 0,
+        "openMs": 0.4,
+        "adoptMs": 0,
+        "interactiveMs": 9.2,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "shell",
+      "candidate": "first visit",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 3,
+        "p50": 4,
+        "p95": 5.6,
+        "p99": 5.92,
+        "max": 6,
+        "mean": 4.2,
+        "stddev": 1.0954451150103321,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "153.0",
+        "templatesSent": 1,
+        "frameBytes": 988,
+        "storeMs": 0,
+        "openMs": 3,
+        "adoptMs": 0,
+        "interactiveMs": 20,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "shell",
+      "candidate": "repeat visit",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 1,
+        "p50": 1,
+        "p95": 2,
+        "p99": 2,
+        "max": 2,
+        "mean": 1.4,
+        "stddev": 0.5477225575051661,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "153.0",
+        "templatesSent": 0,
+        "frameBytes": 138,
+        "storeMs": 0,
+        "openMs": 1,
+        "adoptMs": 0,
+        "interactiveMs": 14,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "shell",
+      "candidate": "first visit",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 2,
+        "p50": 3,
+        "p95": 10.2,
+        "p99": 11.64,
+        "max": 12,
+        "mean": 4.4,
+        "stddev": 4.277849927241488,
+        "mad": 1
+      },
+      "extra": {
+        "engineVersion": "26.5",
+        "templatesSent": 1,
+        "frameBytes": 988,
+        "storeMs": 0,
+        "openMs": 2,
+        "adoptMs": 1,
+        "interactiveMs": 16,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "shell",
+      "candidate": "repeat visit",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 0,
+        "p50": 1,
+        "p95": 1,
+        "p99": 1,
+        "max": 1,
+        "mean": 0.8,
+        "stddev": 0.44721359549995804,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "26.5",
+        "templatesSent": 0,
+        "frameBytes": 138,
+        "storeMs": 0,
+        "openMs": 1,
+        "adoptMs": 0,
+        "interactiveMs": 9,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "shell",
+      "candidate": "string-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; residency is a property of the runtime"
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "shell",
+      "candidate": "blocking-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; residency is a property of the runtime"
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "cart",
+      "candidate": "first visit",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 2.399999976158142,
+        "p50": 2.5,
+        "p95": 4.360000002384186,
+        "p99": 4.712000010013581,
+        "max": 4.800000011920929,
+        "mean": 2.939999997615814,
+        "stddev": 1.0430723915181954,
+        "mad": 0.09999996423721313
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34",
+        "templatesSent": 2,
+        "frameBytes": 1156,
+        "storeMs": 0.4,
+        "openMs": 1.4,
+        "adoptMs": 0.4,
+        "interactiveMs": 13.9,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "cart",
+      "candidate": "repeat visit",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 0.6000000238418579,
+        "p50": 0.6000000238418579,
+        "p95": 0.699999988079071,
+        "p99": 0.699999988079071,
+        "max": 0.699999988079071,
+        "mean": 0.6400000095367432,
+        "stddev": 0.05477223616243152,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34",
+        "templatesSent": 0,
+        "frameBytes": 138,
+        "storeMs": 0,
+        "openMs": 0.4,
+        "adoptMs": 0.2,
+        "interactiveMs": 8,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "cart",
+      "candidate": "first visit",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 4,
+        "p50": 5,
+        "p95": 7.3999999999999995,
+        "p99": 7.88,
+        "max": 8,
+        "mean": 5.2,
+        "stddev": 1.6431676725154984,
+        "mad": 1
+      },
+      "extra": {
+        "engineVersion": "153.0",
+        "templatesSent": 2,
+        "frameBytes": 1156,
+        "storeMs": 0,
+        "openMs": 3,
+        "adoptMs": 0,
+        "interactiveMs": 22,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "cart",
+      "candidate": "repeat visit",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 1,
+        "p50": 1,
+        "p95": 2.8,
+        "p99": 2.96,
+        "max": 3,
+        "mean": 1.6,
+        "stddev": 0.8944271909999159,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "153.0",
+        "templatesSent": 0,
+        "frameBytes": 138,
+        "storeMs": 0,
+        "openMs": 1,
+        "adoptMs": 0,
+        "interactiveMs": 16,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "cart",
+      "candidate": "first visit",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 2,
+        "p50": 3,
+        "p95": 4,
+        "p99": 4,
+        "max": 4,
+        "mean": 3.2,
+        "stddev": 0.8366600265340756,
+        "mad": 1
+      },
+      "extra": {
+        "engineVersion": "26.5",
+        "templatesSent": 2,
+        "frameBytes": 1156,
+        "storeMs": 0,
+        "openMs": 2,
+        "adoptMs": 1,
+        "interactiveMs": 12,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "cart",
+      "candidate": "repeat visit",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 0,
+        "p50": 1,
+        "p95": 2,
+        "p99": 2,
+        "max": 2,
+        "mean": 1.2,
+        "stddev": 0.8366600265340756,
+        "mad": 1
+      },
+      "extra": {
+        "engineVersion": "26.5",
+        "templatesSent": 0,
+        "frameBytes": 138,
+        "storeMs": 0,
+        "openMs": 0,
+        "adoptMs": 1,
+        "interactiveMs": 9,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "cart",
+      "candidate": "string-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; residency is a property of the runtime"
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "cart",
+      "candidate": "blocking-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; residency is a property of the runtime"
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "feed",
+      "candidate": "first visit",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 2.600000023841858,
+        "p50": 2.699999988079071,
+        "p95": 5.420000028610229,
+        "p99": 5.964000024795532,
+        "max": 6.100000023841858,
+        "mean": 3.3600000143051147,
+        "stddev": 1.5323185098848173,
+        "mad": 5.960464477539063e-8
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34",
+        "templatesSent": 2,
+        "frameBytes": 1156,
+        "storeMs": 0.3,
+        "openMs": 1.4,
+        "adoptMs": 0.5,
+        "interactiveMs": 15.6,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "feed",
+      "candidate": "repeat visit",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 0.5999999642372131,
+        "p50": 0.6000000238418579,
+        "p95": 0.6799999952316285,
+        "p99": 0.6959999895095825,
+        "max": 0.699999988079071,
+        "mean": 0.6200000047683716,
+        "stddev": 0.044721350220400614,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34",
+        "templatesSent": 0,
+        "frameBytes": 138,
+        "storeMs": 0,
+        "openMs": 0.3,
+        "adoptMs": 0.2,
+        "interactiveMs": 8.5,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "feed",
+      "candidate": "first visit",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 3,
+        "p50": 5,
+        "p95": 6.6,
+        "p99": 6.92,
+        "max": 7,
+        "mean": 4.8,
+        "stddev": 1.4832396974191326,
+        "mad": 1
+      },
+      "extra": {
+        "engineVersion": "153.0",
+        "templatesSent": 2,
+        "frameBytes": 1156,
+        "storeMs": 0,
+        "openMs": 3,
+        "adoptMs": 1,
+        "interactiveMs": 21,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "feed",
+      "candidate": "repeat visit",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 2,
+        "p50": 3,
+        "p95": 3,
+        "p99": 3,
+        "max": 3,
+        "mean": 2.6,
+        "stddev": 0.5477225575051661,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "153.0",
+        "templatesSent": 0,
+        "frameBytes": 138,
+        "storeMs": 0,
+        "openMs": 2,
+        "adoptMs": 1,
+        "interactiveMs": 12,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "feed",
+      "candidate": "first visit",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 3,
+        "p50": 3,
+        "p95": 3.8,
+        "p99": 3.96,
+        "max": 4,
+        "mean": 3.2,
+        "stddev": 0.4472135954999579,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "26.5",
+        "templatesSent": 2,
+        "frameBytes": 1156,
+        "storeMs": 1,
+        "openMs": 2,
+        "adoptMs": 1,
+        "interactiveMs": 16,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "feed",
+      "candidate": "repeat visit",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 1,
+        "p50": 1,
+        "p95": 1,
+        "p99": 1,
+        "max": 1,
+        "mean": 1,
+        "stddev": 0,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "26.5",
+        "templatesSent": 0,
+        "frameBytes": 138,
+        "storeMs": 0,
+        "openMs": 0,
+        "adoptMs": 1,
+        "interactiveMs": 10,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "feed",
+      "candidate": "string-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; residency is a property of the runtime"
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "feed",
+      "candidate": "blocking-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; residency is a property of the runtime"
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "derived",
+      "candidate": "first visit",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 2.299999952316284,
+        "p50": 2.5,
+        "p95": 6.4200000047683705,
+        "p99": 6.884000000953675,
+        "max": 7,
+        "mean": 3.6799999952316282,
+        "stddev": 1.9929877164469818,
+        "mad": 0.20000004768371582
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34",
+        "templatesSent": 1,
+        "frameBytes": 1287,
+        "storeMs": 0.3,
+        "openMs": 1.4,
+        "adoptMs": 0.3,
+        "interactiveMs": 15.3,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "derived",
+      "candidate": "repeat visit",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 0.3999999761581421,
+        "p50": 0.5,
+        "p95": 0.5800000190734863,
+        "p99": 0.5960000228881835,
+        "max": 0.6000000238418579,
+        "mean": 0.5,
+        "stddev": 0.07071069497739416,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34",
+        "templatesSent": 0,
+        "frameBytes": 141,
+        "storeMs": 0,
+        "openMs": 0.3,
+        "adoptMs": 0.1,
+        "interactiveMs": 7.6,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "derived",
+      "candidate": "first visit",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 4,
+        "p50": 6,
+        "p95": 8,
+        "p99": 8,
+        "max": 8,
+        "mean": 6,
+        "stddev": 2,
+        "mad": 2
+      },
+      "extra": {
+        "engineVersion": "153.0",
+        "templatesSent": 1,
+        "frameBytes": 1287,
+        "storeMs": 0,
+        "openMs": 4,
+        "adoptMs": 0,
+        "interactiveMs": 23,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "derived",
+      "candidate": "repeat visit",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 1,
+        "p50": 2,
+        "p95": 2,
+        "p99": 2,
+        "max": 2,
+        "mean": 1.8,
+        "stddev": 0.44721359549995804,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "153.0",
+        "templatesSent": 0,
+        "frameBytes": 141,
+        "storeMs": 0,
+        "openMs": 2,
+        "adoptMs": 0,
+        "interactiveMs": 15,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "derived",
+      "candidate": "first visit",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 3,
+        "p50": 3,
+        "p95": 3,
+        "p99": 3,
+        "max": 3,
+        "mean": 3,
+        "stddev": 0,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "26.5",
+        "templatesSent": 1,
+        "frameBytes": 1287,
+        "storeMs": 0,
+        "openMs": 2,
+        "adoptMs": 1,
+        "interactiveMs": 12,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "derived",
+      "candidate": "repeat visit",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 5,
+        "min": 1,
+        "p50": 1,
+        "p95": 1,
+        "p99": 1,
+        "max": 1,
+        "mean": 1,
+        "stddev": 0,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "26.5",
+        "templatesSent": 0,
+        "frameBytes": 141,
+        "storeMs": 0,
+        "openMs": 1,
+        "adoptMs": 0,
+        "interactiveMs": 8,
+        "storage": "indexeddb"
+      }
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "derived",
+      "candidate": "string-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; residency is a property of the runtime"
+    },
+    {
+      "axis": "repeat-visit-startup",
+      "scenario": "derived",
+      "candidate": "blocking-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; residency is a property of the runtime"
+    },
+    {
+      "axis": "server-throughput",
+      "scenario": "shell",
+      "candidate": "segments",
+      "unit": "renders/sec",
+      "status": "measured",
+      "summary": {
+        "n": 25,
+        "min": 753886.2837929527,
+        "p50": 1036941.0239792612,
+        "p95": 1186899.5685604885,
+        "p99": 1203500.0619656376,
+        "max": 1207241.0317081856,
+        "mean": 1024331.0378150743,
+        "stddev": 130141.79901278846,
+        "mad": 114416.42645480053
+      },
+      "extra": {
+        "nsPerRender": 964,
+        "bytesPerRender": 707,
+        "renders": 5200
+      }
+    },
+    {
+      "axis": "server-throughput",
+      "scenario": "shell",
+      "candidate": "string-ssr",
+      "unit": "renders/sec",
+      "status": "measured",
+      "summary": {
+        "n": 25,
+        "min": 247831.47459727386,
+        "p50": 511345.4777884308,
+        "p95": 565908.5555858029,
+        "p99": 571627.5675495252,
+        "max": 572928.0058667827,
+        "mean": 503321.932452511,
+        "stddev": 62858.640509774596,
+        "mad": 23056.659820119676
+      },
+      "extra": {
+        "nsPerRender": 1956,
+        "bytesPerRender": 707,
+        "renders": 5200
+      }
+    },
+    {
+      "axis": "server-throughput",
+      "scenario": "shell",
+      "candidate": "blocking-ssr",
+      "unit": "renders/sec",
+      "status": "unavailable",
+      "reason": "identical to the segments candidate; the difference is response ordering, not render cost"
+    },
+    {
+      "axis": "server-throughput",
+      "scenario": "cart",
+      "candidate": "segments",
+      "unit": "renders/sec",
+      "status": "measured",
+      "summary": {
+        "n": 25,
+        "min": 113631.00490147338,
+        "p50": 199816.76802372225,
+        "p95": 209552.07873733755,
+        "p99": 209867.4317723715,
+        "max": 209955.457949596,
+        "mean": 188998.2206189265,
+        "stddev": 23174.46705542141,
+        "mad": 9771.91418743835
+      },
+      "extra": {
+        "nsPerRender": 5005,
+        "bytesPerRender": 1582,
+        "renders": 5200
+      }
+    },
+    {
+      "axis": "server-throughput",
+      "scenario": "cart",
+      "candidate": "string-ssr",
+      "unit": "renders/sec",
+      "status": "measured",
+      "summary": {
+        "n": 25,
+        "min": 68406.28407488026,
+        "p50": 163337.44126998127,
+        "p95": 165148.5144672893,
+        "p99": 165593.2899852424,
+        "max": 165700.08285004142,
+        "mean": 158115.33288560584,
+        "stddev": 19065.859623091084,
+        "mad": 972.8784861165041
+      },
+      "extra": {
+        "nsPerRender": 6122,
+        "bytesPerRender": 1582,
+        "renders": 5200
+      }
+    },
+    {
+      "axis": "server-throughput",
+      "scenario": "cart",
+      "candidate": "blocking-ssr",
+      "unit": "renders/sec",
+      "status": "unavailable",
+      "reason": "identical to the segments candidate; the difference is response ordering, not render cost"
+    },
+    {
+      "axis": "server-throughput",
+      "scenario": "feed",
+      "candidate": "segments",
+      "unit": "renders/sec",
+      "status": "measured",
+      "summary": {
+        "n": 25,
+        "min": 45523.94878373666,
+        "p50": 52573.92748530756,
+        "p95": 54130.35715198549,
+        "p99": 54263.176790994126,
+        "max": 54287.593411983384,
+        "mean": 52327.17148381409,
+        "stddev": 1776.7152641254786,
+        "mad": 680.121220312838
+      },
+      "extra": {
+        "nsPerRender": 19021,
+        "bytesPerRender": 6287,
+        "renders": 5200
+      }
+    },
+    {
+      "axis": "server-throughput",
+      "scenario": "feed",
+      "candidate": "string-ssr",
+      "unit": "renders/sec",
+      "status": "measured",
+      "summary": {
+        "n": 25,
+        "min": 39961.3733365329,
+        "p50": 41917.73644223212,
+        "p95": 42338.43987101246,
+        "p99": 42370.200124787785,
+        "max": 42375.493912866245,
+        "mean": 41854.10480646515,
+        "stddev": 514.109854795928,
+        "mad": 264.44221856517834
+      },
+      "extra": {
+        "nsPerRender": 23856,
+        "bytesPerRender": 6287,
+        "renders": 5200
+      }
+    },
+    {
+      "axis": "server-throughput",
+      "scenario": "feed",
+      "candidate": "blocking-ssr",
+      "unit": "renders/sec",
+      "status": "unavailable",
+      "reason": "identical to the segments candidate; the difference is response ordering, not render cost"
+    },
+    {
+      "axis": "server-throughput",
+      "scenario": "derived",
+      "candidate": "segments",
+      "unit": "renders/sec",
+      "status": "measured",
+      "summary": {
+        "n": 25,
+        "min": 1310040.807771162,
+        "p50": 1693723.9060660722,
+        "p95": 1800588.467255134,
+        "p99": 1826390.7237330321,
+        "max": 1834155.6464481575,
+        "mean": 1688978.123251487,
+        "stddev": 113308.61590687322,
+        "mad": 49195.483912141295
+      },
+      "extra": {
+        "nsPerRender": 590,
+        "bytesPerRender": 113,
+        "renders": 5200
+      }
+    },
+    {
+      "axis": "server-throughput",
+      "scenario": "derived",
+      "candidate": "string-ssr",
+      "unit": "renders/sec",
+      "status": "measured",
+      "summary": {
+        "n": 25,
+        "min": 1171584.3921527278,
+        "p50": 1409284.3653992503,
+        "p95": 1431807.3939555667,
+        "p99": 1436217.274883666,
+        "max": 1437556.1545372866,
+        "mean": 1382559.3316916078,
+        "stddev": 63480.41061297812,
+        "mad": 19287.063172178343
+      },
+      "extra": {
+        "nsPerRender": 710,
+        "bytesPerRender": 113,
+        "renders": 5200
+      }
+    },
+    {
+      "axis": "server-throughput",
+      "scenario": "derived",
+      "candidate": "blocking-ssr",
+      "unit": "renders/sec",
+      "status": "unavailable",
+      "reason": "identical to the segments candidate; the difference is response ordering, not render cost"
+    },
+    {
+      "axis": "update-bytes",
+      "scenario": "shell",
+      "candidate": "segments",
+      "unit": "bytes",
+      "status": "unavailable",
+      "reason": "scenario has no updatable region"
+    },
+    {
+      "axis": "update-bytes",
+      "scenario": "shell",
+      "candidate": "string-ssr",
+      "unit": "bytes",
+      "status": "unavailable",
+      "reason": "scenario has no updatable region"
+    },
+    {
+      "axis": "update-bytes",
+      "scenario": "shell",
+      "candidate": "blocking-ssr",
+      "unit": "bytes",
+      "status": "unavailable",
+      "reason": "identical to the segments candidate"
+    },
+    {
+      "axis": "update-bytes",
+      "scenario": "cart",
+      "candidate": "segments:html",
+      "unit": "bytes",
+      "status": "measured",
+      "summary": {
+        "n": 1,
+        "min": 1582,
+        "p50": 1582,
+        "p95": 1582,
+        "p99": 1582,
+        "max": 1582,
+        "mean": 1582,
+        "stddev": 0,
+        "mad": 0
+      },
+      "extra": {
+        "gzip": 373,
+        "brotli": 315
+      }
+    },
+    {
+      "axis": "update-bytes",
+      "scenario": "cart",
+      "candidate": "segments:delta",
+      "unit": "bytes",
+      "status": "measured",
+      "summary": {
+        "n": 1,
+        "min": 215,
+        "p50": 215,
+        "p95": 215,
+        "p99": 215,
+        "max": 215,
+        "mean": 215,
+        "stddev": 0,
+        "mad": 0
+      },
+      "extra": {
+        "gzip": 172,
+        "brotli": 150
+      }
+    },
+    {
+      "axis": "update-bytes",
+      "scenario": "cart",
+      "candidate": "string-ssr:html",
+      "unit": "bytes",
+      "status": "measured",
+      "summary": {
+        "n": 1,
+        "min": 1582,
+        "p50": 1582,
+        "p95": 1582,
+        "p99": 1582,
+        "max": 1582,
+        "mean": 1582,
+        "stddev": 0,
+        "mad": 0
+      },
+      "extra": {
+        "gzip": 373,
+        "brotli": 315
+      }
+    },
+    {
+      "axis": "update-bytes",
+      "scenario": "cart",
+      "candidate": "string-ssr:delta",
+      "unit": "bytes",
+      "status": "unavailable",
+      "reason": "no addressable base render to diff against, and no resident template to write into"
+    },
+    {
+      "axis": "update-bytes",
+      "scenario": "cart",
+      "candidate": "blocking-ssr",
+      "unit": "bytes",
+      "status": "unavailable",
+      "reason": "identical to the segments candidate"
+    },
+    {
+      "axis": "update-bytes",
+      "scenario": "feed",
+      "candidate": "segments:html",
+      "unit": "bytes",
+      "status": "measured",
+      "summary": {
+        "n": 1,
+        "min": 6289,
+        "p50": 6289,
+        "p95": 6289,
+        "p99": 6289,
+        "max": 6289,
+        "mean": 6289,
+        "stddev": 0,
+        "mad": 0
+      },
+      "extra": {
+        "gzip": 732,
+        "brotli": 605
+      }
+    },
+    {
+      "axis": "update-bytes",
+      "scenario": "feed",
+      "candidate": "segments:delta",
+      "unit": "bytes",
+      "status": "measured",
+      "summary": {
+        "n": 1,
+        "min": 371,
+        "p50": 371,
+        "p95": 371,
+        "p99": 371,
+        "max": 371,
+        "mean": 371,
+        "stddev": 0,
+        "mad": 0
+      },
+      "extra": {
+        "gzip": 215,
+        "brotli": 190
+      }
+    },
+    {
+      "axis": "update-bytes",
+      "scenario": "feed",
+      "candidate": "string-ssr:html",
+      "unit": "bytes",
+      "status": "measured",
+      "summary": {
+        "n": 1,
+        "min": 6289,
+        "p50": 6289,
+        "p95": 6289,
+        "p99": 6289,
+        "max": 6289,
+        "mean": 6289,
+        "stddev": 0,
+        "mad": 0
+      },
+      "extra": {
+        "gzip": 732,
+        "brotli": 605
+      }
+    },
+    {
+      "axis": "update-bytes",
+      "scenario": "feed",
+      "candidate": "string-ssr:delta",
+      "unit": "bytes",
+      "status": "unavailable",
+      "reason": "no addressable base render to diff against, and no resident template to write into"
+    },
+    {
+      "axis": "update-bytes",
+      "scenario": "feed",
+      "candidate": "blocking-ssr",
+      "unit": "bytes",
+      "status": "unavailable",
+      "reason": "identical to the segments candidate"
+    },
+    {
+      "axis": "update-bytes",
+      "scenario": "derived",
+      "candidate": "segments",
+      "unit": "bytes",
+      "status": "unavailable",
+      "reason": "scenario has no updatable region"
+    },
+    {
+      "axis": "update-bytes",
+      "scenario": "derived",
+      "candidate": "string-ssr",
+      "unit": "bytes",
+      "status": "unavailable",
+      "reason": "scenario has no updatable region"
+    },
+    {
+      "axis": "update-bytes",
+      "scenario": "derived",
+      "candidate": "blocking-ssr",
+      "unit": "bytes",
+      "status": "unavailable",
+      "reason": "identical to the segments candidate"
+    },
+    {
+      "axis": "client-work",
+      "scenario": "shell",
+      "candidate": "segments",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "the client runtime failed its own conformance checks on chromium: a patch addresses holes rather than the region",
+      "engine": "chromium"
+    },
+    {
+      "axis": "client-work",
+      "scenario": "shell",
+      "candidate": "segments",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "the client runtime failed its own conformance checks on firefox: a patch addresses holes rather than the region",
+      "engine": "firefox"
+    },
+    {
+      "axis": "client-work",
+      "scenario": "shell",
+      "candidate": "segments",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "the client runtime failed its own conformance checks on webkit: a patch addresses holes rather than the region",
+      "engine": "webkit"
+    },
+    {
+      "axis": "client-work",
+      "scenario": "shell",
+      "candidate": "string-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "client-work",
+      "scenario": "shell",
+      "candidate": "blocking-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "client-work",
+      "scenario": "cart",
+      "candidate": "html form, parsed",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.01899999976158142,
+        "p50": 0.020999999642372133,
+        "p95": 0.021000000238418578,
+        "p99": 0.021000000238418578,
+        "max": 0.021000000238418578,
+        "mean": 0.02050000001986822,
+        "stddev": 0.000674199942834164,
+        "mad": 5.960464448395708e-10
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "cart",
+      "candidate": "delta form, applied surgically",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0006,
+        "p50": 0.0006150000005960465,
+        "p95": 0.0006740000042319297,
+        "p99": 0.0007268000037074089,
+        "max": 0.0007400000035762787,
+        "mean": 0.0006241666674613953,
+        "stddev": 0.00003704011025594821,
+        "mad": 0.0000050000011920928785
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "cart",
+      "candidate": "patch form, applied structurally",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0064,
+        "p50": 0.0065,
+        "p95": 0.00689299999922514,
+        "p99": 0.007042600000798703,
+        "max": 0.007080000001192093,
+        "mean": 0.00658416666686535,
+        "stddev": 0.00019085731636591074,
+        "mad": 0.00009000000059604602
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "cart",
+      "candidate": "html form, parsed",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.01,
+        "p50": 0.015,
+        "p95": 0.02,
+        "p99": 0.02,
+        "max": 0.02,
+        "mean": 0.015,
+        "stddev": 0.005222329678670936,
+        "mad": 0.005
+      },
+      "extra": {
+        "engineVersion": "153.0"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "cart",
+      "candidate": "delta form, applied surgically",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0009,
+        "p50": 0.001,
+        "p95": 0.001145,
+        "p99": 0.001189,
+        "max": 0.0012,
+        "mean": 0.0010333333333333334,
+        "stddev": 0.00008876253645985945,
+        "mad": 0.00010000000000000005
+      },
+      "extra": {
+        "engineVersion": "153.0"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "cart",
+      "candidate": "patch form, applied structurally",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0066,
+        "p50": 0.0067,
+        "p95": 0.007639999999999999,
+        "p99": 0.008168000000000002,
+        "max": 0.0083,
+        "mean": 0.0068583333333333335,
+        "stddev": 0.00047950416309375504,
+        "mad": 0.00010000000000000026
+      },
+      "extra": {
+        "engineVersion": "153.0"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "cart",
+      "candidate": "html form, parsed",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.03,
+        "p50": 0.03,
+        "p95": 0.04,
+        "p99": 0.04,
+        "max": 0.04,
+        "mean": 0.03416666666666666,
+        "stddev": 0.005149286505444373,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "26.5"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "cart",
+      "candidate": "delta form, applied surgically",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0005,
+        "p50": 0.0005,
+        "p95": 0.0007,
+        "p99": 0.0007,
+        "max": 0.0007,
+        "mean": 0.0005333333333333335,
+        "stddev": 0.00007784989441615229,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "26.5"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "cart",
+      "candidate": "patch form, applied structurally",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0075,
+        "p50": 0.00795,
+        "p95": 0.008445,
+        "p99": 0.008489,
+        "max": 0.0085,
+        "mean": 0.007925,
+        "stddev": 0.0003441062203870935,
+        "mad": 0.00035000000000000005
+      },
+      "extra": {
+        "engineVersion": "26.5"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "cart",
+      "candidate": "string-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "client-work",
+      "scenario": "cart",
+      "candidate": "blocking-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "client-work",
+      "scenario": "feed",
+      "candidate": "html form, parsed",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.07599999964237213,
+        "p50": 0.07650000005960464,
+        "p95": 0.11349999999999999,
+        "p99": 0.12670000000000003,
+        "max": 0.13,
+        "mean": 0.08374999995032946,
+        "stddev": 0.016231983037470744,
+        "mad": 0.0005000004172325129
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "feed",
+      "candidate": "delta form, applied surgically",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0017899999976158142,
+        "p50": 0.0018450000017881394,
+        "p95": 0.0019359999978542327,
+        "p99": 0.0019711999957561493,
+        "max": 0.0019799999952316285,
+        "mean": 0.0018516666675607366,
+        "stddev": 0.00004987863943534017,
+        "mad": 0.000024999999999999957
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "feed",
+      "candidate": "patch form, applied structurally",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0194,
+        "p50": 0.020390000000596046,
+        "p95": 0.020868999999165534,
+        "p99": 0.020877799996018413,
+        "max": 0.02087999999523163,
+        "mean": 0.020194999999304613,
+        "stddev": 0.0005141188407448319,
+        "mad": 0.0004799999982118622
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "feed",
+      "candidate": "html form, parsed",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.05,
+        "p50": 0.06,
+        "p95": 0.0645,
+        "p99": 0.06890000000000002,
+        "max": 0.07,
+        "mean": 0.05833333333333335,
+        "stddev": 0.005773502691896258,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "153.0"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "feed",
+      "candidate": "delta form, applied surgically",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0029,
+        "p50": 0.0029,
+        "p95": 0.003145,
+        "p99": 0.003189,
+        "max": 0.0032,
+        "mean": 0.0029666666666666665,
+        "stddev": 0.0000984731927834663,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "153.0"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "feed",
+      "candidate": "patch form, applied structurally",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0192,
+        "p50": 0.019549999999999998,
+        "p95": 0.02463,
+        "p99": 0.025246,
+        "max": 0.0254,
+        "mean": 0.020900000000000002,
+        "stddev": 0.0022389120734694506,
+        "mad": 0.0003499999999999996
+      },
+      "extra": {
+        "engineVersion": "153.0"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "feed",
+      "candidate": "html form, parsed",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.14,
+        "p50": 0.14,
+        "p95": 0.15,
+        "p99": 0.15,
+        "max": 0.15,
+        "mean": 0.14416666666666664,
+        "stddev": 0.005149286505444363,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "26.5"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "feed",
+      "candidate": "delta form, applied surgically",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0014,
+        "p50": 0.0020499999999999997,
+        "p95": 0.003535,
+        "p99": 0.003667,
+        "max": 0.0037,
+        "mean": 0.0022249999999999995,
+        "stddev": 0.00087710785073341,
+        "mad": 0.0006499999999999998
+      },
+      "extra": {
+        "engineVersion": "26.5"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "feed",
+      "candidate": "patch form, applied structurally",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0227,
+        "p50": 0.024050000000000002,
+        "p95": 0.02549,
+        "p99": 0.025578,
+        "max": 0.0256,
+        "mean": 0.02415,
+        "stddev": 0.0007856670587931805,
+        "mad": 0.00030000000000000165
+      },
+      "extra": {
+        "engineVersion": "26.5"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "feed",
+      "candidate": "string-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "client-work",
+      "scenario": "feed",
+      "candidate": "blocking-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "client-work",
+      "scenario": "derived",
+      "candidate": "html form, parsed",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0019999998807907105,
+        "p50": 0.0030000001192092896,
+        "p95": 0.003449999958276748,
+        "p99": 0.003889999800920487,
+        "max": 0.003999999761581421,
+        "mean": 0.002833333363135656,
+        "stddev": 0.0005773502973455336,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "derived",
+      "candidate": "delta form, applied surgically",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.00012999999523162842,
+        "p50": 0.0001300000011920929,
+        "p95": 0.00019699999988079066,
+        "p99": 0.0002234000009298325,
+        "max": 0.0002300000011920929,
+        "mean": 0.00014749999990065893,
+        "stddev": 0.000029886147877896517,
+        "mad": 5.960464489595391e-12
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "derived",
+      "candidate": "patch form, applied structurally",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0003,
+        "p50": 0.0003,
+        "p95": 0.0003544999983906746,
+        "p99": 0.00035889999681711196,
+        "max": 0.0003599999964237213,
+        "mean": 0.0003091666663686434,
+        "stddev": 0.00002151461723631877,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "derived",
+      "candidate": "html form, parsed",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0,
+        "p50": 0,
+        "p95": 0.01,
+        "p99": 0.01,
+        "max": 0.01,
+        "mean": 0.0033333333333333335,
+        "stddev": 0.004923659639173309,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "153.0"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "derived",
+      "candidate": "delta form, applied surgically",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0002,
+        "p50": 0.0002,
+        "p95": 0.0003,
+        "p99": 0.0003,
+        "max": 0.0003,
+        "mean": 0.00022500000000000002,
+        "stddev": 0.000045226701686664526,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "153.0"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "derived",
+      "candidate": "patch form, applied structurally",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0003,
+        "p50": 0.0004,
+        "p95": 0.0005,
+        "p99": 0.0005,
+        "max": 0.0005,
+        "mean": 0.00040833333333333346,
+        "stddev": 0.00005149286505444373,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "153.0"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "derived",
+      "candidate": "html form, parsed",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0,
+        "p50": 0,
+        "p95": 0.01,
+        "p99": 0.01,
+        "max": 0.01,
+        "mean": 0.004166666666666667,
+        "stddev": 0.0051492865054443724,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "26.5"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "derived",
+      "candidate": "delta form, applied surgically",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0001,
+        "p50": 0.0001,
+        "p95": 0.00024499999999999994,
+        "p99": 0.00028900000000000003,
+        "max": 0.0003,
+        "mean": 0.0001416666666666667,
+        "stddev": 0.00006685579234215214,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "26.5"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "derived",
+      "candidate": "patch form, applied structurally",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0001,
+        "p50": 0.0002,
+        "p95": 0.0003,
+        "p99": 0.0003,
+        "max": 0.0003,
+        "mean": 0.00021666666666666668,
+        "stddev": 0.000057735026918962565,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "26.5"
+      }
+    },
+    {
+      "axis": "client-work",
+      "scenario": "derived",
+      "candidate": "string-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "client-work",
+      "scenario": "derived",
+      "candidate": "blocking-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "shell",
+      "candidate": "segments",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "the client runtime failed its own conformance checks on chromium: a patch addresses holes rather than the region",
+      "engine": "chromium"
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "shell",
+      "candidate": "segments",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "the client runtime failed its own conformance checks on firefox: a patch addresses holes rather than the region",
+      "engine": "firefox"
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "shell",
+      "candidate": "segments",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "the client runtime failed its own conformance checks on webkit: a patch addresses holes rather than the region",
+      "engine": "webkit"
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "shell",
+      "candidate": "string-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "shell",
+      "candidate": "blocking-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "cart",
+      "candidate": "adopt a server-rendered region",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.01,
+        "p50": 0.012000000178813934,
+        "p95": 0.017150000303983684,
+        "p99": 0.020230000251531603,
+        "max": 0.021000000238418578,
+        "mean": 0.012833333412806194,
+        "stddev": 0.002790677202806944,
+        "mad": 0.000999999940395355
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34"
+      }
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "cart",
+      "candidate": "adopt a server-rendered region",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.02,
+        "p50": 0.02,
+        "p95": 0.03449999999999999,
+        "p99": 0.038900000000000004,
+        "max": 0.04,
+        "mean": 0.024999999999999998,
+        "stddev": 0.006741998624632421,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "153.0"
+      }
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "cart",
+      "candidate": "adopt a server-rendered region",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.01,
+        "p50": 0.01,
+        "p95": 0.02,
+        "p99": 0.02,
+        "max": 0.02,
+        "mean": 0.012499999999999999,
+        "stddev": 0.004522670168666454,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "26.5"
+      }
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "cart",
+      "candidate": "string-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "cart",
+      "candidate": "blocking-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "feed",
+      "candidate": "adopt a server-rendered region",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.03600000023841858,
+        "p50": 0.04549999982118606,
+        "p95": 0.05535000014305115,
+        "p99": 0.0566699999332428,
+        "max": 0.056999999880790714,
+        "mean": 0.04508333325386047,
+        "stddev": 0.007012434854628814,
+        "mad": 0.005999999940395354
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34"
+      }
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "feed",
+      "candidate": "adopt a server-rendered region",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.09,
+        "p50": 0.1,
+        "p95": 0.16699999999999998,
+        "p99": 0.19340000000000004,
+        "max": 0.2,
+        "mean": 0.11166666666666665,
+        "stddev": 0.030698929011029726,
+        "mad": 0.0049999999999999975
+      },
+      "extra": {
+        "engineVersion": "153.0"
+      }
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "feed",
+      "candidate": "adopt a server-rendered region",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.04,
+        "p50": 0.05,
+        "p95": 0.05899999999999999,
+        "p99": 0.06780000000000001,
+        "max": 0.07,
+        "mean": 0.047499999999999994,
+        "stddev": 0.008660254037844388,
+        "mad": 0.005000000000000001
+      },
+      "extra": {
+        "engineVersion": "26.5"
+      }
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "feed",
+      "candidate": "string-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "feed",
+      "candidate": "blocking-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "derived",
+      "candidate": "adopt a server-rendered region",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0009999996423721313,
+        "p50": 0.0025000002980232238,
+        "p95": 0.004899999976158141,
+        "p99": 0.005780000185966493,
+        "max": 0.006000000238418579,
+        "mean": 0.002666666706403097,
+        "stddev": 0.0013706888837585417,
+        "mad": 0.0005000004172325133
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34"
+      }
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "derived",
+      "candidate": "adopt a server-rendered region",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0,
+        "p50": 0,
+        "p95": 0.01,
+        "p99": 0.01,
+        "max": 0.01,
+        "mean": 0.0033333333333333335,
+        "stddev": 0.004923659639173309,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "153.0"
+      }
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "derived",
+      "candidate": "adopt a server-rendered region",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0,
+        "p50": 0,
+        "p95": 0.01,
+        "p99": 0.01,
+        "max": 0.01,
+        "mean": 0.0025,
+        "stddev": 0.004522670168666454,
+        "mad": 0
+      },
+      "extra": {
+        "engineVersion": "26.5"
+      }
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "derived",
+      "candidate": "string-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "tti-server-rendered",
+      "scenario": "derived",
+      "candidate": "blocking-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "isolated-dom-update",
+      "scenario": "shell",
+      "candidate": "segments",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "the client runtime failed its own conformance checks on chromium: a patch addresses holes rather than the region",
+      "engine": "chromium"
+    },
+    {
+      "axis": "isolated-dom-update",
+      "scenario": "shell",
+      "candidate": "segments",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "the client runtime failed its own conformance checks on firefox: a patch addresses holes rather than the region",
+      "engine": "firefox"
+    },
+    {
+      "axis": "isolated-dom-update",
+      "scenario": "shell",
+      "candidate": "segments",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "the client runtime failed its own conformance checks on webkit: a patch addresses holes rather than the region",
+      "engine": "webkit"
+    },
+    {
+      "axis": "isolated-dom-update",
+      "scenario": "shell",
+      "candidate": "string-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "isolated-dom-update",
+      "scenario": "shell",
+      "candidate": "blocking-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "isolated-dom-update",
+      "scenario": "cart",
+      "candidate": "string-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "isolated-dom-update",
+      "scenario": "cart",
+      "candidate": "blocking-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "isolated-dom-update",
+      "scenario": "feed",
+      "candidate": "string-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "isolated-dom-update",
+      "scenario": "feed",
+      "candidate": "blocking-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "isolated-dom-update",
+      "scenario": "derived",
+      "candidate": "one signal write to one node",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0005010000002384186,
+        "p50": 0.0005200000000000001,
+        "p95": 0.0005550499997735023,
+        "p99": 0.0005678099996685982,
+        "max": 0.0005709999996423721,
+        "mean": 0.0005256666666269302,
+        "stddev": 0.0000188213288282189,
+        "mad": 0.000007999999821186091
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34"
+      }
+    },
+    {
+      "axis": "isolated-dom-update",
+      "scenario": "derived",
+      "candidate": "one signal write to one node, through a derived value",
+      "engine": "chromium",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0005019999998807907,
+        "p50": 0.0005169999998807908,
+        "p95": 0.0005264999998807907,
+        "p99": 0.0005308999998807907,
+        "max": 0.0005319999998807907,
+        "mean": 0.0005156666665275892,
+        "stddev": 0.00000823885842624934,
+        "mad": 0.000004999999999999905
+      },
+      "extra": {
+        "engineVersion": "151.0.7922.34"
+      }
+    },
+    {
+      "axis": "isolated-dom-update",
+      "scenario": "derived",
+      "candidate": "one signal write to one node",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0014,
+        "p50": 0.00141,
+        "p95": 0.0015095,
+        "p99": 0.0015579,
+        "max": 0.00157,
+        "mean": 0.0014291666666666665,
+        "stddev": 0.00004756972553924174,
+        "mad": 0.000005000000000000013
+      },
+      "extra": {
+        "engineVersion": "153.0"
+      }
+    },
+    {
+      "axis": "isolated-dom-update",
+      "scenario": "derived",
+      "candidate": "one signal write to one node, through a derived value",
+      "engine": "firefox",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.00139,
+        "p50": 0.00141,
+        "p95": 0.001493,
+        "p99": 0.0015546000000000002,
+        "max": 0.00157,
+        "mean": 0.0014225,
+        "stddev": 0.000047887178014389387,
+        "mad": 0.000010000000000000026
+      },
+      "extra": {
+        "engineVersion": "153.0"
+      }
+    },
+    {
+      "axis": "isolated-dom-update",
+      "scenario": "derived",
+      "candidate": "one signal write to one node",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.0013,
+        "p50": 0.001325,
+        "p95": 0.001379,
+        "p99": 0.0013878,
+        "max": 0.00139,
+        "mean": 0.001335,
+        "stddev": 0.00002746899078134206,
+        "mad": 0.00001500000000000004
+      },
+      "extra": {
+        "engineVersion": "26.5"
+      }
+    },
+    {
+      "axis": "isolated-dom-update",
+      "scenario": "derived",
+      "candidate": "one signal write to one node, through a derived value",
+      "engine": "webkit",
+      "unit": "ms",
+      "status": "measured",
+      "summary": {
+        "n": 12,
+        "min": 0.00131,
+        "p50": 0.00134,
+        "p95": 0.0013645,
+        "p99": 0.0013689,
+        "max": 0.00137,
+        "mean": 0.0013375000000000001,
+        "stddev": 0.000018153386861559884,
+        "mad": 0.00001500000000000004
+      },
+      "extra": {
+        "engineVersion": "26.5"
+      }
+    },
+    {
+      "axis": "isolated-dom-update",
+      "scenario": "derived",
+      "candidate": "string-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    },
+    {
+      "axis": "isolated-dom-update",
+      "scenario": "derived",
+      "candidate": "blocking-ssr",
+      "unit": "ms",
+      "status": "unavailable",
+      "reason": "measured once under the segments candidate; this axis is a property of the runtime"
+    }
+  ],
+  "warnings": [
+    "webkit stands for Safari, every iOS webview by policy, and WebKitGTK under Tauri on Linux, but it is not WKWebView on a real device: no app-bound-domain rules, no host-app request interception, and no OS-level suspension: do not publish a webkit number as an iOS number",
+    "transport is stream: these numbers do not cover webviews whose host app intercepts the request. Run --transport buffered as a separate, first-class mode"
+  ]
+}
