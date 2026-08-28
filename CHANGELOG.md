@@ -4,7 +4,15 @@ Every commit in this repository appears here, not only `feat` and `fix`. The sec
 generated from Conventional Commit types by `scripts/release/`, and a package changelog holds
 the commits scoped to that package.
 
-## [0.2.2](https://github.com/raminjafary/weft/compare/v0.2.1...HEAD) (2026-08-28)
+## [0.2.3](https://github.com/raminjafary/weft/compare/v0.2.2...HEAD) (2026-08-28)
+
+### 🐛 Bug Fixes
+
+* **weft:** weft --help exited 2 ([5928ede](https://github.com/raminjafary/weft/commit/5928ede93e8aaca838de4ebf37829bcc256876bf))
+* **kernel:** a page that had just loaded was never told about a write ([b3f727f](https://github.com/raminjafary/weft/commit/b3f727f0f6f17c7b218b7a1364089bead041026f))
+* **weft:** the header, the page and the footer sat on three different left edges ([30e57c5](https://github.com/raminjafary/weft/commit/30e57c555f0381f9946daf45547fd5280ec5ca7d))
+
+## [0.2.2](https://github.com/raminjafary/weft/compare/v0.2.1...v0.2.2) (2026-08-28)
 
 ### 🐛 Bug Fixes
 

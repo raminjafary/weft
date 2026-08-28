@@ -1,6 +1,6 @@
 {
   "name": "@weftjs/plan",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "The plan layer: a declaration of placement, validated against what the compiler inferred.",
   "keywords": [
     "weft",

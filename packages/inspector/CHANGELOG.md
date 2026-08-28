@@ -4,7 +4,18 @@ Every commit in this repository appears here, not only `feat` and `fix`. The sec
 generated from Conventional Commit types by `scripts/release/`, and a package changelog holds
 the commits scoped to that package.
 
-## [0.1.4](https://github.com/raminjafary/weft/compare/v0.2.1...HEAD) (2026-08-28)
+## [0.1.5](https://github.com/raminjafary/weft/compare/v0.2.2...HEAD) (2026-08-28)
+
+### ⬆️ Workspace Dependencies
+
+* bumped for `@weftjs/adapters@0.1.5`
+* bumped for `@weftjs/bench@0.3.2`
+* bumped for `@weftjs/compiler@0.1.5`
+* bumped for `@weftjs/core@0.2.3`
+* bumped for `@weftjs/kernel@0.2.3`
+* bumped for `@weftjs/plan@0.1.5`
+
+## [0.1.4](https://github.com/raminjafary/weft/compare/v0.2.1...v0.2.2) (2026-08-28)
 
 ### ⬆️ Workspace Dependencies
 
