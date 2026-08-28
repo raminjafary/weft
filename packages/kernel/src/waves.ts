@@ -1,18 +1,6 @@
 /**
- * Render is a DAG, not a tree walk.
- *
- * Every server renderer in production walks depth-first from root to leaf on one thread,
- * so a page with forty independent sections evaluates them one after another. The
- * conflation at the heart of that is treating existence dependency as data dependency: a
- * child usually cannot start because its parent decides whether it exists, not because it
- * needs the parent's result.
- *
- * `needs` here is data dependency only. Everything else is dispatched immediately, and the
- * critical path — not the sum — is the floor for a complete page.
- *
- * This is safe here for one specific reason: render is provably read-only. Envelope writes
- * are confined to phase A and effects are tracked, so two fragments evaluated concurrently
- * cannot observe each other's side effects, because they cannot have any.
+ * Render is a DAG, not a tree walk. `needs` is data dependency only; the critical path, not the
+ * sum, is the floor. Safe because render is provably read-only. See `spec/kernel/locus.md`.
  */
 export interface DagNode {
   name: string
@@ -23,11 +11,7 @@ export interface DagNode {
   /** Measured or estimated cost, used for the critical path. */
   ms?: number
   executor?: string
-  /**
-   * A slot the page is complete without. It is still scheduled and still costs CPU, but it
-   * cannot be the end of the critical path — otherwise one slow recommendations panel would
-   * be reported as the floor for a page that is perfectly usable without it.
-   */
+  /** A slot the page is complete without. Still scheduled, but cannot be the end of the critical path. */
   optional?: boolean
 }
 
@@ -89,10 +73,7 @@ export interface CriticalPath {
   sequentialMs: number
 }
 
-/**
- * Ties break on depth, so an unmeasured plan still names its longest chain rather than
- * reporting no critical path at all. `weft why` has to be useful before anything is measured.
- */
+/** Ties break on depth, so an unmeasured plan still names its longest chain. */
 function deeper(a: { ms: number; path: string[] }, b: { ms: number; path: string[] }): boolean {
   return a.ms > b.ms || (a.ms === b.ms && a.path.length > b.path.length)
 }
@@ -107,7 +88,7 @@ export function criticalPath(nodes: readonly DagNode[]): CriticalPath {
     if (cached) return cached
     const node = byName.get(name)
     if (!node) throw new PlanGraphError('E_UNKNOWN_SLOT', `${name} is not in this plan`)
-    // Marked before recursing so a cycle is caught here as well as in schedule().
+    // Marked before recursing so a cycle is caught here too.
     best.set(name, { ms: 0, path: [name] })
     let deepest: { ms: number; path: string[] } = { ms: 0, path: [] }
     for (const need of node.needs ?? []) {
@@ -134,19 +115,11 @@ export interface DispatchOptions {
   maxConcurrency: number
   /** Called for each node when its turn comes. Rejections are the caller's to police. */
   run(node: DagNode): Promise<void>
-  /**
-   * The scheduler's say over what runs first inside a wave. Without one the wave keeps the
-   * order `schedule()` produced, which is priority and then name — a deterministic default
-   * rather than a policy, and the reason the port exists is that a deployment may have one.
-   */
+  /** The scheduler's say over what runs first inside a wave. Without one, priority then name. */
   order?(ready: readonly DagNode[]): readonly DagNode[]
 }
 
-/**
- * Waves with a concurrency ceiling. Forty concurrent queries from one page request will
- * melt a database, so the cap is not optional and the build warns when a plan's widest
- * wave exceeds it.
- */
+/** Waves with a concurrency ceiling — forty concurrent queries from one page will melt a database. */
 export async function dispatch(nodes: readonly DagNode[], options: DispatchOptions): Promise<void> {
   const byName = new Map(nodes.map((n) => [n.name, n]))
   const { waves } = schedule(nodes)

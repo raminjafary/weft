@@ -1,19 +1,9 @@
 import type { EnvelopeContext } from './context.ts'
 
 /**
- * Ports replace, plugins extend. Conflating the two is how plugin systems become
- * unmaintainable: a port has exactly one active implementation and answers "who does this
- * job"; a plugin adds behaviour at a defined point and answers "what else happens here".
- *
- * Two rules do most of the work. Reads are declared and enforced, because one careless
- * plugin reading undeclared request state silently makes every fragment uncacheable — which
- * is precisely how caching dies in real codebases. And a plugin may add a cache axis but
- * may never write a key: the moment a key can be hand-set it can drift from what the code
- * reads.
- *
- * What is in this module is what a request pays for. The ordering graph is in
- * `plugin-graph.ts` because it is build-time work, and the read enforcement is in
- * `plugin-guard.ts` because the design specifies it as a dev-time check.
+ * Ports replace, plugins extend. Reads are declared and enforced; a plugin may add a cache axis but
+ * never write a key. What is here is what a request pays for — ordering is `plugin-graph.ts`'s,
+ * build time. See `spec/plan/plan.md`.
  */
 export type PluginResidency = 'server' | 'client' | 'both' | 'build'
 
@@ -35,20 +25,12 @@ export interface Plugin {
   name: string
   /** `filter` runs sequentially in phase A and may end the request; `enricher` runs in parallel waves. */
   role: 'filter' | 'enricher'
-  /**
-   * Where this plugin's work happens. Checked rather than decorative: `client` and `build` may not
-   * carry an `onRequest`, because a handler on a plugin that does not run on the server is a
-   * handler nothing will ever call — see `E_PLUGIN_RESIDENCY`.
-   */
+  /** Where this plugin's work happens. Checked: `client`/`build` may not carry an `onRequest` — `E_PLUGIN_RESIDENCY`. */
   residency?: PluginResidency
   /**
-   * The path prefix this plugin applies to. Absent means every route.
-   *
-   * Fastify-style encapsulation, resolved at build time rather than checked per request: a scope is
-   * a *different graph*, so two plugins that would be ambiguous together are not ambiguous when they
-   * live under `/admin` and `/shop` — and each scope's ordering, cycles and ambiguity are checked
-   * within it. `resolveScoped` produces the schedule per prefix and a route carries the one that
-   * applies to it, so the request path never pays for a scope it is not in.
+   * The path prefix this plugin applies to. Absent means every route. Resolved at build time by
+   * `resolveScoped`: a scope is a different graph, so two ambiguous plugins are not ambiguous
+   * under different prefixes.
    */
   scope?: string
   before?: readonly string[]

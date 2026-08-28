@@ -2,18 +2,9 @@ import type { Lifecycle } from './request.ts'
 import { serializeCookie, type SetCookie } from './ports.ts'
 
 /**
- * The response envelope, and the two phases HTTP forces on it.
- *
- * Status and headers precede the body, so the moment the first body byte is flushed the
- * envelope is sealed. Every framework picks a side of that trade-off and writes it in the
- * docs. Here the lifecycle splits instead: phase A owns the envelope and is cheap by
- * nature — session, locale, flag bucket, auth — and phase B streams with a context that
- * has no envelope methods on it at all, so the mistake cannot be written.
- *
- * What is irreducibly lost after the seal is stated rather than worked around: a real
- * status code, an HttpOnly cookie, `Cache-Control`, `Vary`, and a redirect a crawler will
- * follow. Anything needing those belongs in phase A, and the kernel's job is to force it
- * there rather than let it be discovered in production.
+ * The response envelope, and the two phases HTTP forces on it: phase A owns it, phase B streams
+ * with a context that has no envelope methods on it at all, so the mistake cannot be written. See
+ * `spec/kernel/lifecycle.md`.
  */
 export class EnvelopeError extends Error {
   code: string
@@ -28,11 +19,7 @@ export class EnvelopeError extends Error {
 /** What can wait for the next response when this one's envelope is already sealed. */
 export type DeferrableKind = 'cookie' | 'header'
 
-/**
- * An effect that missed its window. Only idempotent, refreshable writes qualify — token
- * rotation, a preference cookie, a last-seen timestamp. Recording consent does not, and
- * `required()` is the only door for it.
- */
+/** An effect that missed its window. Only idempotent, refreshable writes qualify. `required()` is the only door for consent. */
 export interface DeferredEffect {
   kind: DeferrableKind
   cookie?: SetCookie
@@ -40,21 +27,11 @@ export interface DeferredEffect {
   reason: string
 }
 
-/**
- * The response head, and the fact that it seals.
- *
- * Everything here is possible in phase A and impossible afterwards: a status, a cookie, a redirect,
- * `Vary`. The machine's job is to force that work before the first byte rather than let it be
- * discovered in production.
- */
+/** The response head, and the fact that it seals: a status, a cookie, a redirect, `Vary` — possible in phase A, impossible after. */
 export interface Envelope {
   status(code: number): void
   redirect(location: string, code?: number): void
-  /**
-   * Ends the request in phase A with no body. `status()` only sets a code — a route is
-   * entitled to serve a 404 page — so refusing has to be a separate act, or a guard and an
-   * error page would be indistinguishable to the kernel.
-   */
+  /** Ends the request in phase A with no body. A separate act from `status()`, or a guard and an error page would be indistinguishable. */
   refuse(code: number): void
   header(name: string, value: string): void
   /** Sets a default without overwriting what phase A already decided. */
@@ -64,12 +41,7 @@ export interface Envelope {
   vary(header: string): void
   /** Phase A only. A write that must land on this response or the request is wrong. */
   required(write: () => void): void
-  /**
-   * Legal in phase B. Queued for the next request on this connection, which for an
-   * interactive app is milliseconds away and is a real HTTP response, so HttpOnly and
-   * Secure work normally. If there is no next request the effect is dropped — which is
-   * exactly why only idempotent effects qualify.
-   */
+  /** Legal in phase B. Queued for the next request on this connection, or dropped if there is none — why only idempotent effects qualify. */
   deferrable(effect: DeferredEffect): void
   seal(): ResponseInit
   readonly sealed: boolean
@@ -171,11 +143,7 @@ export function createEnvelope(life: Lifecycle): Envelope {
   }
 }
 
-/**
- * Where a deferred effect waits. Keyed by connection, because that is the scope in which
- * "the next request" is a meaningful phrase — and it is bounded, because an effect nobody
- * ever comes back for must not accumulate.
- */
+/** Where a deferred effect waits. Keyed by connection; bounded, so an effect nobody comes back for does not accumulate. */
 export interface DeferredMailbox {
   owe(connection: string, effects: readonly DeferredEffect[]): void
   claim(connection: string): DeferredEffect[]
@@ -196,7 +164,7 @@ export function createMailbox(maxConnections = 1024): DeferredMailbox {
         existing.push(...effects)
       } else {
         if (pending.size >= maxConnections) {
-          // Oldest first. A dropped deferred effect is a documented outcome, not a leak.
+          // Oldest first — a documented outcome, not a leak.
           const oldest = pending.keys().next().value
           if (oldest !== undefined) pending.delete(oldest)
         }
