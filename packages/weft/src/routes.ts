@@ -1,4 +1,6 @@
+import { readFile } from 'node:fs/promises'
 import { pathToFileURL } from 'node:url'
+import { loaderReads } from '@weftjs/compiler'
 import {
   baseRenderId,
   clientOwned,
@@ -681,6 +683,7 @@ function wrapSlot(
   name: string,
   pattern: string,
   params: Record<string, string>,
+  declared: readonly string[],
   fragment: CompiledFragment | undefined,
   captured: WeakMap<object, Map<string, Values>>,
   expose: readonly string[],
@@ -714,6 +717,22 @@ function wrapSlot(
      * loader that ignores its params pays a cache entry per param rather than a wrong page.
      */
     id: `${slot.id}@${pattern}:${name}${paramsOf(params)}`,
+    /**
+     * What the fragment reads, and what the route's own declaration reads.
+     *
+     * The paragraph above folds params into the identity because the loader that reads them is a
+     * file the compiler never saw. That is a patch shaped like the bounded case: a route's params
+     * are a set, so an entry per value is a cost you can reason about. A query string is not a set,
+     * and folding one into the identity would be an unbounded key — so what goes in is the *reads*,
+     * which the compiler now takes from the declaration file. `route:rows` in the effect set is a
+     * key component resolved from the request, which is what a read has always been.
+     *
+     * Per route rather than per slot: a read in one slot's loader taints every slot on the route.
+     * That costs an entry that could have been shared, and the opposite error costs a wrong page.
+     */
+    effects: declared.length
+      ? unionEffects([slot.effects, { reads: [...declared], writes: [], envelope: [], residency: 'either' }])
+      : slot.effects,
     render: async (ctx) => {
       /**
        * Where a profile's numbers come from.
@@ -854,9 +873,27 @@ interface OneOptions extends GenerateOptions {
   maxConcurrency: number
 }
 
+/**
+ * The reads a route's declaration file performs, resolved once when the route is generated.
+ *
+ * The compiler infers a *fragment's* reads, and that was the whole of what a cache key contained.
+ * A route's loader lives in a `.data.ts` the compiler never read, so `ctx.query('rows')` there
+ * tainted nothing — the key could not contain it, and whichever value rendered first answered for
+ * every other one until the entry expired. Route params had been patched around by folding them
+ * into a slot's identity; a query string has no bounded set to fold.
+ *
+ * Read here rather than during a request because a key must be resolvable before the render, and
+ * because the answer is a property of the file rather than of the request.
+ */
+async function reads(file: string | undefined): Promise<readonly string[]> {
+  if (!file) return []
+  return loaderReads(file, await readFile(file, 'utf8'))
+}
+
 async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise<GeneratedRoute> {
   const { compiled, markup, facts, nav, discovered } = options
   const module_ = await loadModule(route.data)
+  const declared = await reads(route.data)
   const layout = layoutFor(compiled, module_.layout, route.pattern)
   const nested = nestedFor(compiled, discovered, route.pattern)
   /**
@@ -1229,7 +1266,18 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
    */
   const documentId = layers.map((layer) => layer.entry.id).join('>')
   const documentVersion = layers.map((layer) => layer.entry.version).join('+')
-  const documentEffects = unionEffects(layers.map((layer) => layer.entry.effects))
+  /**
+   * The document reads what its layers read, and what the route's own declaration reads.
+   *
+   * `head`, `layoutValues` and a guard are all in the `.data.ts` and all of them may read the
+   * request — a title that names the query, a heading that names the param. Leaving them out
+   * advertised a page as shareable on the strength of its layout alone, which is the same mistake
+   * one level up from the slots below.
+   */
+  const documentEffects = unionEffects([
+    ...layers.map((layer) => layer.entry.effects),
+    { reads: [...declared], writes: [], envelope: [], residency: 'either' },
+  ])
 
   const value: RouteResolver = async (params, url) => {
     const resolved = await resolver(params)
@@ -1266,6 +1314,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
             slot.name,
             route.pattern,
             params,
+            declared,
             (declarations[slot.name] as (typeof declarations)[string]).fragment,
             captured,
             expose,

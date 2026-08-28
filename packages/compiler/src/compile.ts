@@ -14,7 +14,7 @@ import {
 } from '@weftjs/ir'
 import { name, node, nodes, type Node } from './ast.ts'
 import { CompileError, locate, type Loc } from './errors.ts'
-import { inferEffects } from './effects.ts'
+import { inferEffects, inferLoaderReads } from './effects.ts'
 import { lower, returnedJsx, type ComponentRef, type ImportRef, type Lowered, type Scope } from './lower.ts'
 import type { TypeOracle } from './kinds.ts'
 
@@ -339,6 +339,27 @@ async function sealTree(
   const entry = assertValidTemplate(await seal(draft))
   if (!all.some((t) => t.version === entry.version)) all.push(entry)
   return { entry, all }
+}
+
+/**
+ * The reads a route's declaration file performs, for the keys of the slots it declares.
+ *
+ * Exported from here rather than from `effects.ts` because this is the module the framework's
+ * barrel re-exports, and because parsing is this file's job: the caller has a path and a string and
+ * should not have to know which parser is underneath.
+ *
+ * A file that will not parse is not a reason to fail a build that is otherwise fine — the route
+ * module is `import`ed as well, and Node will report the syntax error with a better message than
+ * this could. What it must not do is return an empty set, which would read as "this loader reads
+ * nothing" and put the wrong key back. So it throws, and the caller decides.
+ */
+export function loaderReads(file: string, source: string): string[] {
+  const parsed = parseSync(file, source, { sourceType: 'module', preserveParens: false })
+  if (parsed.errors.length) {
+    const first = parsed.errors[0]
+    throw new CompileError('E_PARSE', first?.message ?? 'parse failed', locate(file, source, 0))
+  }
+  return inferLoaderReads({ file, source, program: node(parsed.program) })
 }
 
 /** One module from its text. The entry point a test uses; a build uses `compileFiles`. */

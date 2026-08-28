@@ -195,3 +195,153 @@ function walk(root: Node, visit: (current: Node) => void): void {
     }
   }
 }
+
+/**
+ * The reads a route's own loader performs, which its slots' cache keys have to contain.
+ *
+ * Deliberately not `inferEffects`, and the difference is the whole reason this exists. A fragment's
+ * context is a closed surface: anything on it the table below does not name is a compile error,
+ * because a fragment that read something the compiler could not see would make its key a lie. A
+ * loader's context is wider on purpose — `ctx.data(...)`, `ctx.revalidate(...)` — so running the
+ * fragment walk over a `.data.ts` would refuse every application that has one.
+ *
+ * What the two share is the table. A read that taints in a fragment taints in a loader, for the
+ * same reason and into the same key. This collects exactly those and steps over everything else.
+ *
+ * The bug it closes: a route's loader lives in a file the compiler never read, so `ctx.query('rows')`
+ * tainted nothing, the key could not contain it, and whichever value rendered first answered for
+ * every other one until the entry expired. Route params had already been patched around this by
+ * being folded into a slot's identity; a query string had not, and there is no bound on one to fold.
+ *
+ * Per file rather than per slot, and that is the conservative direction rather than a shortcut. A
+ * read in one slot's loader taints every slot on the route, which costs a cache entry that could
+ * have been shared. The opposite error costs a wrong page.
+ */
+export function inferLoaderReads(input: { file: string; source: string; program: Node }): string[] {
+  /**
+   * Which identifiers are a context, taken from every function in the file.
+   *
+   * A loader is written `(ctx) => …`, `(ctx, params) => …`, `(_ctx, params) => …`, and as a method
+   * shorthand — so the name is whatever that function called its first parameter rather than a word
+   * this can look for. Collected across the file and then matched, which over-collects only when
+   * something unrelated shares the name, and over-collecting taints an extra read: another cache
+   * entry, never a wrong one.
+   */
+  const contexts = new Set<string>()
+  /**
+   * Named local helpers, by the parameter names they take and the arguments they are called with.
+   *
+   * `const slow = (ctx, key, fallback) => Number(ctx.query(key) ?? fallback)` is how a loader with
+   * three sliders is actually written, and the read inside it names a parameter rather than a
+   * string. Refusing that would be refusing the idiom rather than the ambiguity: the *call sites*
+   * name it, every one of them, a few lines further down. So one level of indirection is resolved —
+   * a parameter's name is looked up in the calls to the function that takes it — and anything
+   * beyond one level is refused, because a chain of two is a key nobody can follow either.
+   */
+  const takes = new Map<string, string[]>()
+  const calls = new Map<string, Node[][]>()
+
+  walk(input.program, (current) => {
+    if (
+      current.type === 'ArrowFunctionExpression' ||
+      current.type === 'FunctionExpression' ||
+      current.type === 'FunctionDeclaration'
+    ) {
+      const params = nodes(current.params).map((p) => {
+        const target = p.type === 'AssignmentPattern' ? node(p.left) : p
+        return target.type === 'Identifier' ? name(target) : ''
+      })
+      if (params[0]) contexts.add(params[0] as string)
+      const own = current.type === 'FunctionDeclaration' ? name(node(current.id)) : ''
+      if (own) takes.set(own, params)
+      return
+    }
+    if (current.type === 'VariableDeclarator') {
+      const init = node(current.init)
+      const id = node(current.id)
+      if (
+        id.type === 'Identifier' &&
+        (init.type === 'ArrowFunctionExpression' || init.type === 'FunctionExpression')
+      ) {
+        takes.set(
+          name(id),
+          nodes(init.params).map((p) => {
+            const target = p.type === 'AssignmentPattern' ? node(p.left) : p
+            return target.type === 'Identifier' ? name(target) : ''
+          }),
+        )
+      }
+      return
+    }
+    if (current.type === 'CallExpression') {
+      const callee = node(current.callee)
+      if (callee.type === 'Identifier') {
+        const at = calls.get(name(callee)) ?? []
+        at.push(nodes(current.arguments))
+        calls.set(name(callee), at)
+      }
+    }
+  })
+  if (!contexts.size) return []
+
+  const reads = new Set<string>()
+  const refuse = (method: string, at: Node, why: string): never => {
+    throw new CompileError(
+      'E_DYNAMIC_TAINT',
+      `ctx.${method}() in a loader ${why}: the name becomes a cache key component, and a computed one is a key nobody can predict`,
+      locate(input.file, input.source, at.start ?? 0),
+    )
+  }
+
+  /** The literals a helper's parameter is ever called with, or null when one call did not name it. */
+  const throughCallSites = (parameter: string): string[] | null => {
+    const found: string[] = []
+    let named = false
+    for (const [helper, params] of takes) {
+      const at = params.indexOf(parameter)
+      if (at === -1) continue
+      const sites = calls.get(helper)
+      if (!sites?.length) continue
+      named = true
+      for (const site of sites) {
+        const argument = site[at]
+        if (argument?.type === 'Literal' && typeof argument.value === 'string') found.push(argument.value)
+        else return null
+      }
+    }
+    return named ? found : null
+  }
+
+  walk(input.program, (current) => {
+    if (current.type !== 'CallExpression') return
+    const callee = node(current.callee)
+    if (callee.type !== 'MemberExpression' || callee.computed) return
+    const object = node(callee.object)
+    if (object.type !== 'Identifier' || !contexts.has(name(object))) return
+    const method = name(node(callee.property))
+    const taintOf = READS[method]
+    if (!taintOf) return
+    const argument = nodes(current.arguments)[0]
+    try {
+      reads.add(taintOf(argument))
+      return
+    } catch {
+      // Not a literal. One level of indirection is resolved before this is refused.
+    }
+    if (argument?.type !== 'Identifier') refuse(method, current, 'needs a statically known argument')
+    const through = throughCallSites(name(argument))
+    if (!through) {
+      refuse(
+        method,
+        current,
+        `is passed ${name(argument)}, and the calls to the helper taking it do not name it with a string literal either`,
+      )
+    }
+    // Through `taintOf` rather than a `route:` prefix written here: the same indirection is legal
+    // for a cookie and a header, and each of those has its own prefix.
+    for (const key of through as string[]) {
+      reads.add(taintOf({ type: 'Literal', value: key } as unknown as Node))
+    }
+  })
+  return [...reads].sort()
+}

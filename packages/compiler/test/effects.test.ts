@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { cacheClassOf, explain, flagAxes, keyComponents, requiresTtl, varyOn } from '@weftjs/ir'
-import { compileSource } from '../src/compile.ts'
+import { compileSource, loaderReads } from '../src/compile.ts'
 import { CompileError } from '../src/errors.ts'
 
 const PRELUDE = "import { fragment } from '@weftjs/core'\nimport { newCart } from './flags.ts'\n"
@@ -177,4 +177,126 @@ test('effects are part of the content address, so a new read moves the version',
     't.tsx',
   )
   assert.notEqual(plain.fragments[0]?.entry.version, reading.fragments[0]?.entry.version)
+})
+
+/**
+ * A route's loader, which is where an application actually reads the request.
+ *
+ * The compiler inferred a *fragment's* reads and that was the whole of what a cache key contained.
+ * A route's loader lives in a `.data.ts` the compiler never read, so `ctx.query('rows')` there
+ * tainted nothing — the key could not contain it, and whichever value rendered first answered for
+ * every other one until the entry expired. The demo served `?rows=200` the twenty-row render for
+ * thirty seconds and then five minutes of stale-while-revalidate, and nothing in the framework
+ * said a word: `weft build` reported the fragment's reads and `weft verify --probe` was silent.
+ */
+const DATA = "import { defineRoute } from '@weftjs/core'\n"
+
+test('a read in a route loader is a key component', () => {
+  assert.deepEqual(
+    loaderReads(
+      'x.data.ts',
+      DATA +
+        `export default defineRoute({
+           slots: { body: { load: (ctx) => ({ rows: Number(ctx.query('rows') ?? 120) }) } },
+         })`,
+    ),
+    ['route:rows'],
+  )
+})
+
+test('every read the file performs, whichever function performed it', () => {
+  assert.deepEqual(
+    loaderReads(
+      'x.data.ts',
+      DATA +
+        `export default defineRoute({
+           head: (ctx) => ({ title: ctx.param('slug') }),
+           slots: {
+             body: { load: (c) => ({ n: c.query('page'), who: c.cookie('currency') }) },
+             side: { html: (_ctx) => String(_ctx.locale()) },
+           },
+         })`,
+    ),
+    ['cookie:currency', 'locale', 'route:page', 'route:slug'],
+  )
+})
+
+/**
+ * The idiom the first attempt refused, and the reason one level of indirection is resolved.
+ *
+ * `const num = (ctx, key, fallback) => Number(ctx.query(key) ?? fallback)` is how a loader with
+ * three sliders is written, and the read inside it names a parameter rather than a string. The
+ * *call sites* name it, every one of them, a few lines down — so refusing this would be refusing
+ * the idiom rather than the ambiguity. The demo's dashboard is exactly this shape.
+ */
+test('a read whose name arrives as a helper parameter is resolved through the call sites', () => {
+  assert.deepEqual(
+    loaderReads(
+      'x.data.ts',
+      DATA +
+        `const num = (ctx, key, fallback) => Number(ctx.query(key) ?? fallback)
+         export default defineRoute({
+           slots: { body: { load: (ctx) => ({ slow: num(ctx, 'slow', 600), cpu: num(ctx, 'budget', 200) }) } },
+         })`,
+    ),
+    ['route:budget', 'route:slow'],
+  )
+})
+
+/**
+ * And two levels are refused, because a chain of two is a key nobody can follow either.
+ *
+ * The refusal is the point. Returning an empty set here would read as "this loader reads nothing"
+ * and put back exactly the wrong key this whole path exists to stop.
+ */
+test('a name the call sites do not give either is refused rather than guessed', () => {
+  assert.throws(
+    () =>
+      loaderReads(
+        'x.data.ts',
+        DATA +
+          `const num = (ctx, key) => ctx.query(key)
+           const pick = (ctx, k) => num(ctx, k)
+           export default defineRoute({
+             slots: { body: { load: (ctx) => ({ n: pick(ctx, 'rows') }) } },
+           })`,
+      ),
+    (error: unknown) => {
+      assert.ok(error instanceof CompileError)
+      assert.equal(error.code, 'E_DYNAMIC_TAINT', error.message)
+      return true
+    },
+  )
+})
+
+/**
+ * A loader's context is wider than a fragment's, and running the fragment walk here would refuse
+ * every application that has one. `ctx.data(...)` is not a read this collects; it is also not an
+ * error, because it is not this analysis's business.
+ */
+test('a loader may call things a fragment may not, and they are stepped over', () => {
+  assert.deepEqual(
+    loaderReads(
+      'x.data.ts',
+      DATA +
+        `export default defineRoute({
+           slots: {
+             body: {
+               load: async (ctx) => {
+                 const items = await ctx.data({ name: 'feed.rows', tags: ['feed'] }, async () => [])
+                 return { items, rows: ctx.query('rows'), at: ctx.now() }
+               },
+             },
+           },
+         })`,
+    ),
+    ['route:rows', 'time'],
+  )
+})
+
+test('a declaration that reads nothing taints nothing', () => {
+  assert.deepEqual(
+    loaderReads('x.data.ts', DATA + `export default defineRoute({ slots: { body: { html: () => 'hi' } } })`),
+    [],
+  )
 })
