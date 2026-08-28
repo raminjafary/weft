@@ -1012,9 +1012,15 @@ h2.hint {
  * itself being animated, and they all resume at once on the frame the snapshot is discarded — which
  * is the frame the sweep visibly stalled on. Paused rather than stopped, so they pick up where they
  * were rather than restarting together and drawing attention to themselves.
+ *
+ * `!important` for the same reason the reduced-motion rule above needs it, and it is not optional:
+ * every one of these carries its timing in an inline `style="animation:…"`, because each figure's
+ * delay is derived from where its own mark stands. The `animation` shorthand resets
+ * `animation-play-state` to `running`, and an inline declaration outranks any selector — so
+ * without this the rule matched all 202 elements on `/guide` and paused none of them.
  */
 :root.theming [data-wf] {
-  animation-play-state: paused;
+  animation-play-state: paused !important;
 }
 
 :root.theming :is(.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit)::after {

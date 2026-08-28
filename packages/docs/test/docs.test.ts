@@ -1051,3 +1051,34 @@ test('the declaration reader renders a type a reader could paste', () => {
     'every option has a type, on one line',
   )
 })
+
+/**
+ * A figure's animation is written on the element, so a rule that turns it off has to say so.
+ *
+ * Every animated figure carries its timing inline — `style="animation:wf-step 6s linear 3.14s"` —
+ * because each mark's delay is derived from where that mark stands, and a value computed per
+ * element cannot live in a stylesheet. The `animation` shorthand resets `animation-play-state` to
+ * `running`, and an inline declaration outranks every selector, so a stylesheet rule that means to
+ * stop these has exactly one way to do it.
+ *
+ * This is not hypothetical: the theme sweep's pause was written without `!important` and matched
+ * all 202 animated elements on `/guide` while pausing none of them, which is the whole of what it
+ * existed to do. Nothing failed — the rule was simply ignored, for as long as it took someone to
+ * notice the sweep had gone back to stalling.
+ */
+test('a rule that stops the figures says important, because their timing is inline', () => {
+  const sheet = readFileSync(join(ROOT, 'app/styles.css'), 'utf8')
+  const inline = [...sheet.matchAll(/\[data-wf\][^{]*\{([^}]*)\}/g)]
+  assert.ok(inline.length >= 2, `only ${inline.length} rules key on [data-wf]`)
+  for (const rule of inline) {
+    for (const declaration of (rule[1] ?? '').split(';')) {
+      const property = declaration.split(':')[0]?.trim()
+      if (!property) continue
+      assert.match(
+        declaration,
+        /!important/,
+        `styles.css sets ${property} on [data-wf] without !important, which an inline animation outranks`,
+      )
+    }
+  }
+})
