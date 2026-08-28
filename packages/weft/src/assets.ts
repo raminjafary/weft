@@ -259,7 +259,12 @@ export async function revAssets(dir: string, revved: boolean): Promise<RevvedAss
     // `fonts/inter.woff2` still sees `inter.woff2` in the network panel and in a stack trace.
     const href = revved ? `${ASSET_ROOT}/${digestOf(body)}/${name}` : `${ASSET_ROOT}/${name}`
     files.set(href, { body, type: typeOf(file), immutable: revved })
-    byPath.set(file, href)
+    // Absolute, because that is what this map says it holds and what `rewriteUrls` looks up: it
+    // resolves a stylesheet's relative `url()` against the sheet's own directory, which is always
+    // absolute. A caller that passed a relative root — every embedder of `build()` except the CLI,
+    // which resolves it at the door — filled this with relative keys, and every lookup missed. The
+    // symptom was `E_NO_ASSET` naming a file that was sitting exactly where it said it was not.
+    byPath.set(resolve(file), href)
     byName.set(name, href)
     manifest[name] = href
   }

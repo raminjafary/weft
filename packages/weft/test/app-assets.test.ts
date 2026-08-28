@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -146,4 +146,35 @@ test('asset() answers for app/assets, and refuses a path that is not in it', asy
 
   assert.match(table.asset('fonts/inter.woff2'), /^\/_weft\/a\/[0-9a-f]{10}\/fonts\/inter\.woff2$/)
   assert.throws(() => table.asset('fonts/nothing.woff2'), /E_NO_ASSET/)
+})
+
+/**
+ * A relative root is a root, and the rewrite has to find the file anyway.
+ *
+ * `byPath` says it holds absolute paths, and `rewriteUrls` depends on that: it resolves a
+ * stylesheet's `url()` against the sheet's own directory, which `resolve` always makes absolute.
+ * The keys were whatever the caller passed in, so an embedder that handed `build()` a relative
+ * root — the benchmark harness, a test, anything that is not the CLI, which resolves at the door —
+ * filled the map with relative keys and every lookup missed.
+ *
+ * The failure was worth the test on its own: `E_NO_ASSET`, naming the absolute path of a file that
+ * was sitting exactly there. An error that describes a correct state as impossible sends whoever
+ * reads it to look at their disk rather than at the lookup.
+ */
+test('a relative root still finds its assets, because the map is keyed absolutely', async () => {
+  // Through realpath, because a temporary directory on macOS is reached by a symlink and `resolve`
+  // does not follow one — the assertion would be about /var against /private/var, not about keys.
+  const root = await realpath(await fixture())
+  const here = process.cwd()
+  try {
+    process.chdir(root)
+    const revved = await revAssets(join('app', 'assets'), true)
+    const logo = revved.byPath.get(join(root, 'app', 'assets', 'logo.svg'))
+    assert.ok(logo, `byPath is keyed relatively: ${[...revved.byPath.keys()].join(', ')}`)
+
+    const out = rewriteUrls(`a { background: url(./assets/logo.svg) }`, join(root, 'app'), revved.byPath)
+    assert.ok(out.includes(logo), `url() was not rewritten from a relative root:\n${out}`)
+  } finally {
+    process.chdir(here)
+  }
 })
