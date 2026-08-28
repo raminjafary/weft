@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { heldFrame } from '@weftjs/kernel'
 import { createApp, serveApp, type Serving } from '../src/server.ts'
 import {
   createBinaryDecoder,
@@ -258,5 +259,70 @@ test('a client that re-announces on every message is closed with the reason', as
   assert.notEqual(code, 0, 'the socket was still open, so the stream wedged silently')
   if (reason) {
     assert.match(reason, /E_REPEATED_PREAMBLE/, 'a close that carries a reason names the rule broken')
+  }
+})
+
+/**
+ * A page that has only just loaded is told about a write, which is the feature the scaffold's own
+ * counter page advertises: "open this page in two tabs and press the button in one".
+ *
+ * Push invalidation matches a dropped key against what each connection holds, and a connection was
+ * recorded as holding a region only by `serveSlot` — which runs on a REFRESH. So a client that had
+ * opened, adopted its live region and declared it with `HELD` held nothing as far as the registry
+ * was concerned: the first intent from anywhere else reached every tab that had already refreshed
+ * and none that had merely arrived. Two tabs, press in one, and the other sat there.
+ *
+ * The second channel here does exactly what a fresh page does and no more — RESIDENT, then HELD —
+ * and never asks for anything. What it must receive is a STALE, unprompted.
+ */
+test('a channel that has only declared what it holds is told when that is invalidated', async () => {
+  const { serving, intents } = await app()
+  const id = intents['feed.tick'] as string
+
+  const watcher = await channel(serving.url, '/app/feed', 'stale-watcher')
+  const firing = await channel(serving.url, '/app/feed', 'stale-firing')
+  try {
+    // The watcher declares what it is showing, the way a page does on load, and stops there.
+    watcher.send([hello()])
+    watcher.send([heldFrame([{ slot: 'body', tpl: 'x'.repeat(32), base: 'y'.repeat(16) }], { only: true })])
+    await new Promise((r) => setTimeout(r, 300))
+    assert.equal(
+      watcher.arrived.filter((f) => f.kind === 'REFRESH' || f.kind === 'DELTA').length,
+      0,
+      'it has asked for nothing, which is the whole point',
+    )
+
+    // Somebody else writes the tag its region is held under.
+    firing.send([hello()])
+    firing.send([frame('INTENT', { i: id, epoch: 'o-stale' })])
+    assert.ok(await firing.waitFor('ACK'), 'the intent ran')
+
+    const stale = await watcher.waitFor('STALE')
+    assert.ok(stale, 'a page that had only declared what it holds was never told the write happened')
+    assert.equal(str(stale as never, 's'), 'body', 'and it names the region that went stale')
+  } finally {
+    watcher.close()
+    firing.close()
+  }
+})
+
+/** And the connection that fired it is not told: it is about to be handed the new values. */
+test('the channel that fired the intent is not sent a stale frame about its own write', async () => {
+  const { serving, intents } = await app()
+  const id = intents['feed.tick'] as string
+  const ch = await channel(serving.url, '/app/feed', 'stale-self')
+  try {
+    ch.send([hello()])
+    ch.send([heldFrame([{ slot: 'body', tpl: 'x'.repeat(32), base: 'y'.repeat(16) }], { only: true })])
+    ch.send([frame('INTENT', { i: id, epoch: 'o-self' })])
+    assert.ok(await ch.waitFor('ACK'), 'the intent ran')
+    await new Promise((r) => setTimeout(r, 500))
+    assert.equal(
+      ch.arrived.filter((f) => f.kind === 'STALE').length,
+      0,
+      'being told your own write went stale is a refresh nobody asked for',
+    )
+  } finally {
+    ch.close()
   }
 })

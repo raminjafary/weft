@@ -229,6 +229,23 @@ export interface HubOptions {
    * the server has. `createExtender` in `discover.ts` is what fills it.
    */
   onOpen?(channel: Channel): Promise<readonly Frame[]> | readonly Frame[]
+  /**
+   * The invalidation key a slot this client is *showing* would be held under, without rendering it.
+   *
+   * Push invalidation matches a dropped key against what each connection holds, and until this
+   * existed a connection was only recorded as holding something by `serveSlot` — which runs on a
+   * REFRESH. So a page that had just loaded, adopted its live region and declared it with `HELD`
+   * was invisible: the first intent from another tab reached every connection that had already
+   * refreshed and none that had merely arrived. Two tabs on a page, press the button in one, and
+   * the other sat there — which is exactly what having no push invalidation looks like, and is what
+   * the scaffold's own counter page tells you to try.
+   *
+   * It cannot be derived here. `HELD` carries the slot, the template version and the base — what
+   * the client is showing — and the key is a property of the route the connection is on, which the
+   * front door knows and the hub does not. So it is asked for, once per declared slot, and a
+   * deployment that answers nothing keeps the old behaviour.
+   */
+  keyFor?(slot: string, channel: Channel): Promise<string | undefined> | string | undefined
   server?: ServerCapabilities
   maxEpochs?: number
   /**
@@ -499,6 +516,18 @@ export function createHub(options: HubOptions): ChannelHub {
           stale.release(record.channel.id)
         }
         for (const h of parseHeld(f as Frame)) record.held.set(h.slot, h)
+        /**
+         * And recorded as holding it, so an invalidation can find this connection.
+         *
+         * Declaring what you are showing is the whole of what makes you a candidate for a STALE
+         * frame — waiting for the first refresh to register it means the first write after a page
+         * load never reaches the page. Done after the loop because `only: true` clears the registry
+         * above, and re-registering inside the loop would depend on which order those two ran in.
+         */
+        for (const slot of record.held.keys()) {
+          const key = await options.keyFor?.(slot, record.channel)
+          if (key) stale.hold(record.channel.id, slot, key)
+        }
         return []
       }
 

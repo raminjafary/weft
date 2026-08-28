@@ -1018,6 +1018,18 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
       const url = new URL(connection?.path ?? config.channelPath, 'http://weft.local')
       return envelopeContext(createReads(requestFacts(new Request(url, { headers })), ports), envelope)
     },
+    /**
+     * The key a slot this connection is showing would be held under, so a `HELD` is enough to make
+     * it a candidate for an invalidation.
+     *
+     * The same value `liveSource` returns as `key` and the same one `keysByTag` indexes — asked for
+     * without running the loader, because the question is which entry this page is showing rather
+     * than what it should show next. Nothing to render, so nothing to pay.
+     *
+     * Without it a connection was recorded as holding a region only once it had refreshed, and a
+     * page that had just loaded was invisible to `cart.add` in another tab.
+     */
+    keyFor: (slot, channel) => here(channel)?.value.live[slot]?.key,
     templates: (version) => compiled.templates.find((t) => t.version === version),
     warm: { at: stager, plan: discovery.warm },
     // The two things a connection is told without asking, in one place: the part of the plan it has
