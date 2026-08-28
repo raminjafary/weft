@@ -112,8 +112,9 @@ export const BUDGETS: ByteBudget[] = [
     id: 'kernel-stage',
     label: 'Server kernel plus a route staged over the channel',
     entry: kernelSrc('entry-stage.ts'),
-    limit: 14 * 1024,
-    limitNote: 'no design figure; its own entry, because it went 108 B past the transport watermark',
+    limit: 15 * 1024,
+    limitNote:
+      'no design figure; its own entry, because it went 108 B past the transport watermark, and moved to 15 KB when the epoch came back on a refused stage and the connection that ran an intent started being refreshed for what it holds',
   },
   {
     id: 'kernel-journal',

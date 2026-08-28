@@ -277,7 +277,7 @@ A test fails the moment an entry crosses its ceiling.
 | Content route — adopt and bind            | **2,251**  | 5,120   |
 | App route — adopt, bind, patch, epochs    | **3,190**  | 12,288  |
 | Server kernel — the document request path | **8,273**  | 8,320   |
-| Front door — the code, bundled            | **14,343** | 15,360  |
+| Front door — the code, bundled            | **14,385** | 15,360  |
 
 Fifteen entries in all, each with its own stated ceiling rather than a share of one — see
 [`DESIGN.md`](DESIGN.md#byte-budgets-which-are-gates-rather-than-reports) for the full table, the

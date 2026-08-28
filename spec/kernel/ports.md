@@ -29,9 +29,9 @@ run.
 | Entry                                      | brotli   | Ceiling                                 |
 | ------------------------------------------ | -------- | --------------------------------------- |
 | `entry-request.ts` — document path         | 8,273 B  | 8,320 B, from the design's "under 8 KB" |
-| `entry-channel.ts` — plus refresh, epochs  | 11,039 B | 12,288 B, no design figure, a watermark |
+| `entry-channel.ts` — plus refresh, epochs  | 11,075 B | 12,288 B, no design figure, a watermark |
 | `entry-intent.ts` — plus intent dispatch   | 9,802 B  | 10,240 B, no design figure, a watermark |
-| `entry-transport.ts` — plus a live channel | 13,963 B | 14,336 B, no design figure, a watermark |
+| `entry-transport.ts` — plus a live channel | 14,016 B | 14,336 B, no design figure, a watermark |
 
 152 bytes of headroom on the claim, now that the route matcher is in the figure. The whole
 barrel (`index.ts`, including build-time validation and serialisation) is 11,601 B and is

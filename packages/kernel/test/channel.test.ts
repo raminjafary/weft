@@ -336,3 +336,115 @@ test('a journal entry expires, so a client away for a week is not told about las
     'past the window it is not stale news, it is no news: the client asks and is told what is there now',
   )
 })
+
+/**
+ * The connection that ran the intent, and the note it was not sent.
+ *
+ * A write invalidates keys; every connection holding one is told with a `STALE`, and the one that
+ * ran the intent is deliberately left out — a note about an old value is the wrong thing to send
+ * somebody you are about to send the new one to. That reasoning has a hole in it, and the hole was
+ * the common case: the new values only came back for slots the intent listed in `refresh`. An
+ * intent that declared `writes` and called `revalidate` — which is the whole of what the design
+ * asks an author for — refreshed every other tab and left the tab whose reader pressed the button
+ * showing the number they had just changed.
+ *
+ * So the exclusion is kept and the promise behind it is made true: the connection is refreshed for
+ * what it is *holding* that the write dropped, which is the same question `staleFor` asks about
+ * everybody else.
+ */
+test('the connection that ran an intent is refreshed for what it holds, not left out of both', async () => {
+  const ir = await priceList()
+  const store = memoryStore()
+  const source = ({ slot }: { slot: string }) =>
+    slot === 'prices' ? { ir, values: { first: '10.00', second: '20.00' }, key: 'prices:v1' } : null
+
+  const hub = createHub({
+    store,
+    source,
+    keyFor: (slot) => (slot === 'prices' ? 'prices:v1' : undefined),
+    intentContext: () => ({}) as never,
+    intents: {
+      // Declares its writes and nothing else, which is the shape the design asks for and the shape
+      // that used to come back with nothing at all.
+      run: () =>
+        Promise.resolve({
+          ok: true as const,
+          id: 'i1',
+          name: 'prices.set',
+          dropped: ['prices:v1'],
+          invalidated: ['prices'],
+          refresh: [],
+        }),
+    },
+  })
+
+  const held = sink()
+  hub.open(held, 'writer')
+  await hub.receive('writer', [
+    residentFrame({ warp: WARP_VERSION, ir: TEMPLATE_IR_VERSION, forms: ['html'] }),
+    // What a page says it is showing. This is what makes it a candidate for an invalidation, and
+    // it is the same declaration that now makes it a candidate for the answer.
+    heldFrame([{ slot: 'prices', tpl: ir.version, base: 'r_0' }]),
+  ])
+
+  const out = await hub.receive('writer', [frame('INTENT', { i: 'i1' })])
+  const ack = out.find((f) => f.kind === 'ACK') as Frame
+  assert.equal(str(ack, 'ok'), 'true', 'the intent ran')
+  const painted = out.filter((f) => f.kind === 'HTML' || f.kind === 'DELTA' || f.kind === 'PATCH')
+  assert.equal(
+    painted.length,
+    1,
+    `the tab that ran the intent got no new values: ${out.map((f) => f.kind).join(', ')}`,
+  )
+  assert.equal(str(painted[0] as Frame, 's'), 'prices', 'and it is the slot the write dropped')
+  assert.equal(
+    out.some((f) => f.kind === 'STALE'),
+    false,
+    'and not a note about the value it is being handed',
+  )
+})
+
+/**
+ * And only what it holds, because the registry is the whole of what decides.
+ *
+ * A write that drops a key nobody on this connection is showing is not a reason to render anything
+ * for it. Without this the rule would read "an intent refreshes something", which is a different
+ * and much worse rule than "an intent hands back what this reader was looking at".
+ */
+test('a write that drops nothing this connection holds refreshes nothing for it', async () => {
+  const ir = await priceList()
+  const store = memoryStore()
+  const source = ({ slot }: { slot: string }) =>
+    slot === 'prices' ? { ir, values: { first: '1', second: '2' }, key: 'prices:v1' } : null
+
+  const hub = createHub({
+    store,
+    source,
+    keyFor: (slot) => (slot === 'prices' ? 'prices:v1' : undefined),
+    intentContext: () => ({}) as never,
+    intents: {
+      run: () =>
+        Promise.resolve({
+          ok: true as const,
+          id: 'i2',
+          name: 'elsewhere.set',
+          dropped: ['somewhere-else:v1'],
+          invalidated: ['elsewhere'],
+          refresh: [],
+        }),
+    },
+  })
+
+  const held = sink()
+  hub.open(held, 'writer')
+  await hub.receive('writer', [
+    residentFrame({ warp: WARP_VERSION, ir: TEMPLATE_IR_VERSION, forms: ['html'] }),
+    heldFrame([{ slot: 'prices', tpl: ir.version, base: 'r_0' }]),
+  ])
+  const out = await hub.receive('writer', [frame('INTENT', { i: 'i2' })])
+  assert.equal(
+    out.filter((f) => f.kind === 'HTML' || f.kind === 'DELTA' || f.kind === 'PATCH').length,
+    0,
+    'a key nobody here is showing is not a reason to render',
+  )
+})

@@ -153,8 +153,12 @@ const LINE_CEILINGS: Record<string, number> = {
   // business carrying it. 2,100 was set before the contract carried a region's reads, which is
   // what makes a composed page cacheable rather than uniformly private; it went one line over.
   // Render intents: the transport plus the catalogue. The gates it applies are the intent path's, so
-  // the growth here is the catalogue and the dispatch and not a second authority tier.
-  'entry-render.ts': 2800,
+  // the growth here is the catalogue and the dispatch and not a second authority tier. Moved
+  // 2,800 → 2,850 for the three lines that ask the stale registry what one connection is holding:
+  // the connection that ran an intent is excluded from the `STALE` on the grounds that it is being
+  // handed the new values, and until those three lines that was only true when the author listed
+  // the slots in `refresh` as well as declaring the writes.
+  'entry-render.ts': 2850,
   'entry-region.ts': 2200,
   // The transport plus composition: what a gateway that serves both a channel and composed
   // documents imports. Neither of the two entries above covers it, and charging it to either would

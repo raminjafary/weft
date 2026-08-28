@@ -548,6 +548,22 @@ function payloadOf(element: HTMLElement): unknown {
  * only upgrades it — which is the whole progressive-enhancement story, and it is one branch
  * rather than two code paths.
  */
+/**
+ * The intent a form's action names.
+ *
+ * The name rather than the id it travels as: an action is markup somebody wrote, and the whole
+ * point of the id is that it is not in the document. `intentIds` is the map, and it arrives in the
+ * boot module's prelude rather than in the page.
+ */
+function intentNamed(action: string): string {
+  try {
+    const path = new URL(action, window.location.href).pathname
+    return decodeURIComponent(path.split('/_weft/i/')[1] ?? '')
+  } catch {
+    return ''
+  }
+}
+
 /** Elements already bound. A region replaced as markup is wired again, and only the new nodes are. */
 const wired = new WeakSet<Element>()
 
@@ -786,9 +802,35 @@ function upgradeIntentForms(): void {
       const form = event.target as HTMLFormElement | null
       if (!form?.action.includes('/_weft/i/')) return
       if (!swappable(document)) {
-        // An adopted page keeps its own paths — the wiring the compiler emitted sends this over
-        // the channel. Record the position for the plain post that is about to happen.
-        rememberScroll()
+        /**
+         * A page that cannot be swapped whole, and the one place its intent should go.
+         *
+         * `swappable` is false for a page holding a live region or a signal, and that is a fact
+         * about the *answer* — a document swap would replace the nodes those are bound to. It was
+         * being read as a fact about the *request*: the submit fell through to the browser, which
+         * posted the form and reloaded the document, throwing away the very regions the check
+         * exists to protect. The comment here said the page's own wiring would send this over the
+         * channel instead, and that is only true of an element carrying `data-weft-intent`. A form
+         * that names the intent in its `action` — which is what the no-JavaScript path requires it
+         * to do — carried no such attribute and was never wired, so on a live page every intent was
+         * a full page load.
+         *
+         * The channel is exactly what a live page has. Dispatched there, the write refreshes the
+         * regions it declares and nothing else on the page moves, which is the mechanism. The
+         * fallback stays underneath for a form naming an intent this client has no id for, and for
+         * a dispatch that cannot be sent at all.
+         */
+        const id = intentIds[intentNamed(form.action)]
+        if (!id) {
+          // Nothing to dispatch with. Record the position for the plain post that is about to happen.
+          rememberScroll()
+          return
+        }
+        event.preventDefault()
+        void fire(id, payloadOf(form)).catch(() => {
+          rememberScroll()
+          form.submit()
+        })
         return
       }
       event.preventDefault()

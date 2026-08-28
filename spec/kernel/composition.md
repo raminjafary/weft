@@ -332,7 +332,7 @@ region, what it composes, and both numbers.
 
 `entry-region.ts` — the document request path plus resolution and the check — is **11,517 B brotli**
 against a stated 12,288 B ceiling. `entry-region-channel.ts` — the transport plus composition, which
-is what a gateway serving both actually imports — is **17,025 B** against 17,408. Both are their own
+is what a gateway serving both actually imports — is **17,119 B** against 17,408. Both are their own
 entries on the rule route staging established: a deployment that composes nothing never imports
 either, and its request path is the size it was.
 

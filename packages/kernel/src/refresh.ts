@@ -403,6 +403,17 @@ export interface StaleRegistry {
   release(connection: string): void
   /** Frames to push, grouped by connection. */
   staleFor(keys: readonly string[], reason: string): Map<string, Frame[]>
+  /**
+   * The slots one connection holds under any of these keys.
+   *
+   * The same question `staleFor` answers, asked about one connection — and it exists because of the
+   * connection `staleFor` is always asked to skip. A `STALE` is a note about a value that has gone
+   * old, and the connection that ran the intent is excluded from it on the grounds that it is being
+   * handed the new values instead. That is true only of the slots the intent named in `refresh`, so
+   * an intent that declared its writes and nothing else left exactly one client stale: the one
+   * whose reader had just pressed the button.
+   */
+  holding(connection: string, keys: readonly string[]): string[]
   readonly connections: number
 }
 
@@ -424,6 +435,12 @@ export function createStaleRegistry(): StaleRegistry {
     },
     release(connection) {
       byConnection.delete(connection)
+    },
+    holding(connection, keys) {
+      const slots = byConnection.get(connection)
+      if (!slots) return []
+      const dropped = new Set(keys)
+      return [...slots].filter(([, key]) => dropped.has(key)).map(([slot]) => slot)
     },
     staleFor(keys, reason) {
       const dropped = new Set(keys)

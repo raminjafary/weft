@@ -238,7 +238,7 @@ successful privilege escalation is silence.
 | -------------------- | -------------------------------------------------------- | -------- | ------- |
 | `entry-intent.ts`    | Intent dispatch, with the three authority branches in it | 9,802 B  | 10,240  |
 | `entry-authority.ts` | The above, plus the capability model and signed intents  | 11,722 B | 12,288  |
-| `entry-render.ts`    | The transport, plus the catalogue: render intents        | 14,509 B | 14,592  |
+| `entry-render.ts`    | The transport, plus the catalogue: render intents        | 14,576 B | 14,592  |
 
 242 bytes of the growth is in the intent path: the branch that refuses an unverifiable signature and
 the two places a token is read off a request. The model and the token machinery — 1,670 bytes — are

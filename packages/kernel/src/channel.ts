@@ -624,12 +624,26 @@ export function createHub(options: HubOptions): ChannelHub {
         except: record.channel.id,
       })
     }
-    if (outcome.refresh.length) {
+    /**
+     * What this connection is refreshed for: what the intent named, and what it is holding that the
+     * write dropped.
+     *
+     * The second half is the other side of the `except` above. Excluding this connection from the
+     * `STALE` is right — a note about an old value is the wrong thing to send someone you are about
+     * to send the new one to — but that promise was only kept for slots the author also listed in
+     * `refresh`. An intent that declared its writes and called `revalidate`, which is the whole of
+     * what the design asks for, left every *other* tab correct and the tab whose reader pressed the
+     * button showing the old number. The registry already knows which slots this connection holds
+     * and under which keys; those are the ones it can be handed rather than told about.
+     */
+    const held = stale.holding(record.channel.id, outcome.dropped)
+    const refreshing = [...new Set([...outcome.refresh, ...held])]
+    if (refreshing.length) {
       out.push(
         ...(await refresh(
           record,
           frame('REFRESH', {
-            s: outcome.refresh.join(','),
+            s: refreshing.join(','),
             ...(epoch ? { epoch, commit: 'true' } : {}),
           }),
         )),

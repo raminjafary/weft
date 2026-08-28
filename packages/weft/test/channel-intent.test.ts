@@ -326,3 +326,42 @@ test('the channel that fired the intent is not sent a stale frame about its own 
     ch.close()
   }
 })
+
+/**
+ * The submit a live page used to hand back to the browser.
+ *
+ * `swappable(document)` is false for a page holding a live region or a signal, because a document
+ * swap would replace the nodes those are bound to. That is a fact about the *answer*, and the form
+ * upgrade read it as a fact about the *request*: it returned, the browser posted the form, and the
+ * document reloaded — throwing away the regions the check exists to protect, on the page whose
+ * whole point is that it does not have to.
+ *
+ * The comment that justified it said the page's own wiring would send the intent over the channel.
+ * That is true of an element carrying `data-weft-intent` and false of a form that names the intent
+ * in its `action`, which is what the no-JavaScript path requires it to do — so a `live: true` page
+ * with a form was a full page load per press, with a channel open beside it.
+ *
+ * Asserted on the source for the reason the test above is: `boot.ts` is a browser bundle with a
+ * byte budget, and exporting its internals to reach them from here would be bytes on every page.
+ */
+test('a form on a live page dispatches over the channel rather than reloading the document', () => {
+  const upgrade = boot.slice(
+    boot.indexOf('function upgradeIntentForms'),
+    boot.indexOf('function upgradeIntentForms') + 2600,
+  )
+  const bail = upgrade.indexOf('if (!swappable(document))')
+  assert.notEqual(bail, -1, 'the unswappable branch is still the one that decides this')
+  const branch = upgrade.slice(bail, upgrade.indexOf('event.preventDefault()', bail) + 400)
+  assert.match(
+    branch,
+    /intentIds\[intentNamed\(form\.action\)\]/,
+    'the action names an intent, and it is looked up',
+  )
+  assert.match(branch, /void fire\(id, payloadOf\(form\)\)/, 'and dispatched over the channel')
+  /**
+   * And the plain post is still underneath, for a form naming an intent this client has no id for.
+   * Removing the fallback would turn an unknown name from a working page load into nothing at all.
+   */
+  assert.match(branch, /if \(!id\) \{/, 'a form this client cannot dispatch still posts')
+  assert.match(branch, /form\.submit\(\)/, 'and a dispatch that cannot be sent falls back to it too')
+})

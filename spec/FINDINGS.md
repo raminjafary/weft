@@ -299,7 +299,7 @@ it. Bundled with Rolldown, minified, brotli:
 | Entry                                           | brotli   | Ceiling  |
 | ----------------------------------------------- | -------- | -------- |
 | Document request path (`entry-request.ts`)      | 8,273 B  | 8,320 B  |
-| Plus the Warp channel path (`entry-channel.ts`) | 11,039 B | 12,288 B |
+| Plus the Warp channel path (`entry-channel.ts`) | 11,075 B | 12,288 B |
 | The whole barrel (`index.ts`)                   | 10,686 B | —        |
 
 The claim holds, with **590 bytes of headroom**, and only for the entry the claim is about.
