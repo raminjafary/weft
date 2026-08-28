@@ -165,6 +165,39 @@ test('a shared store carries the same tags on any number of instances', () => {
   )
 })
 
+test('a document held longer than its slots’ invalidation is named, because nothing else notices', () => {
+  const r = route([slot('feed').cache('public', { ttl: '60s', tags: ['prices'] })], { feed: facts([]) })
+  const held = { ...r.plan, cache: { class: 'public' as const, ttlMs: 3_600_000 } }
+  const { warnings } = validatePlan(held, { facts: r.facts })
+  const found = warnings.find((w) => w.code === 'W_DOCUMENT_OUTLIVES_INVALIDATION')
+  assert.ok(found, `expected the warning, got ${warnings.map((w) => w.code).join(', ') || 'none'}`)
+  assert.match(found.message, /'prices'/)
+  // Both ways out, because which one is right is the deployment's call and not the checker's.
+  assert.match(found.message, /Add the tag to this route's cache, or give the document no ttl/)
+})
+
+test('the same document carrying the tag is fine, because then the write reaches it', () => {
+  const r = route([slot('feed').cache('public', { ttl: '60s', tags: ['prices'] })], { feed: facts([]) })
+  const held = { ...r.plan, cache: { class: 'public' as const, ttlMs: 3_600_000, tags: ['prices'] } }
+  assert.deepEqual(
+    validatePlan(held, { facts: r.facts }).warnings.filter(
+      (w) => w.code === 'W_DOCUMENT_OUTLIVES_INVALIDATION',
+    ),
+    [],
+  )
+})
+
+test('a document with no ttl lets its slots decide, so there is nothing to warn about', () => {
+  const r = route([slot('feed').cache('public', { ttl: '60s', tags: ['prices'] })], { feed: facts([]) })
+  const held = { ...r.plan, cache: { class: 'public' as const } }
+  assert.deepEqual(
+    validatePlan(held, { facts: r.facts }).warnings.filter(
+      (w) => w.code === 'W_DOCUMENT_OUTLIVES_INVALIDATION',
+    ),
+    [],
+  )
+})
+
 test('preferring a form the template cannot serve is refused', () => {
   const r = route([slot('feed').form({ prefer: 'delta' })], {
     feed: facts([], { forms: ['html', 'bundle', 'split', 'patch'] }),

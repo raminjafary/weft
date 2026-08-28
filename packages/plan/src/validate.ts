@@ -93,6 +93,8 @@ export function validatePlan(plan: Plan, context: ValidateContext): Diagnostics 
   const warnings: Issue[] = []
   const known = new Set(plan.slots.map((s) => s.name))
 
+  checkDocumentOutlivesInvalidation(plan, warnings)
+
   for (const spec of plan.slots) {
     const facts = context.facts[spec.fragment ?? spec.name]
     for (const need of spec.needs) {
@@ -688,6 +690,51 @@ function checkCache(
       message: `declares strong consistency against '${context.store.name}', which is eventual`,
     })
   }
+}
+
+/**
+ * A document held longer than the invalidation that is supposed to reach it.
+ *
+ * There are two caches on a route and only one of them is usually thought about. A slot's
+ * `cache.tags` decide when *its* stored bytes are dropped; the document's own policy decides how
+ * long the whole assembled response is held. Invalidate a tag and the slot entry goes — and a
+ * reader is still handed the stored document, whose body was rendered once and will not be
+ * rendered again until the ttl runs out.
+ *
+ * The failure is quiet in the worst way: the write succeeded, the invalidation reported the tags it
+ * dropped, every layer did its job, and the number on the page did not move. It cost an afternoon
+ * on this repository's own documentation site, where the vote count on the intents page was frozen
+ * at zero while every mechanism under it worked perfectly.
+ *
+ * A warning rather than an error, because there is a version of this that is deliberate: a `live`
+ * slot is refreshed over the channel, so a connected reader *is* told, and a document that lags for
+ * an hour behind them may be exactly the trade a deployment wants at the edge. What is not
+ * defensible is arriving at it by accident, which is what naming it prevents.
+ *
+ * The fix is one of two things and the message says both: carry the tags on the document policy so
+ * the write reaches it, or stop giving the document a ttl and let the slot decide.
+ */
+function checkDocumentOutlivesInvalidation(plan: Plan, warnings: Issue[]): void {
+  const held = plan.cache
+  if (!held?.ttlMs) return
+  const carried = new Set(held.tags ?? [])
+  const unreachable = new Set<string>()
+  for (const spec of plan.slots) {
+    for (const tag of spec.cache?.tags ?? []) if (!carried.has(tag)) unreachable.add(tag)
+  }
+  if (!unreachable.size) return
+  const tags = [...unreachable].sort()
+  warnings.push({
+    code: 'W_DOCUMENT_OUTLIVES_INVALIDATION',
+    slot: 'document',
+    message:
+      `caches the whole document for ${Math.round(held.ttlMs / 1000)}s, and its slots declare ` +
+      `${tags.map((t) => `'${t}'`).join(', ')} — which the document policy does not carry. ` +
+      `Invalidating ${tags.length === 1 ? 'it' : 'them'} drops the slot entries and leaves the ` +
+      `stored document in place, so a reader is served a body rendered before the write. Add ` +
+      `${tags.length === 1 ? 'the tag' : 'the tags'} to this route's cache, or give the document ` +
+      `no ttl and let the slots decide`,
+  })
 }
 
 function checkForms(spec: SlotSpec, facts: SlotFacts, errors: Issue[]): void {

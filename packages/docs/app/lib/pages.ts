@@ -266,12 +266,15 @@ export const PAGES: readonly Page[] = [
         values: () => ({ page: 'intents', count: votes('intents') }),
         note:
           'Phase A dispatch is what makes a real status, an <code>HttpOnly</code> cookie and a 303 available — the ' +
-          'three things a <code>fetch</code> handler cannot give you. The count is real and it is this process’s. ' +
-          'It will usually not move when you press the button, and that is the declaration above it rather than a ' +
-          'bug: the intent declares <code>writes: []</code>, so a vote invalidates nothing, and this route declares ' +
-          '<code>public, 1h</code> and is built to a file. The number is therefore whatever it was when this page ' +
-          'was last rendered. Declaring a tag here and revalidating it is what would make it move — and would cost ' +
-          'this page its place in L0.',
+          'three things a <code>fetch</code> handler cannot give you. The count is real, it is this process’s, and ' +
+          'it moves when you press the button — which took three declarations agreeing. The intent names ' +
+          '<code>docs.votes</code> in <code>writes</code>, so <code>ctx.revalidate</code> may fire it. The body is ' +
+          'a <code>live</code> region tagged with the same name, so the write drops it. And <em>the route carries ' +
+          'that tag too</em>: a document held for an hour under no tag is a second cache the invalidation cannot ' +
+          'reach, and while it was missing every layer here worked perfectly and the number stayed at zero. ' +
+          '<code>W_DOCUMENT_OUTLIVES_INVALIDATION</code> exists so the next person is told instead of guessing. ' +
+          'The cost is named too: this page is <code>L0_LIVE</code> rather than a file, which is the trade a page ' +
+          'about writing has a reason to make and the other twenty-one guide pages do not.',
       },
     ],
   },

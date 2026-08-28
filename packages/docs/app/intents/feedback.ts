@@ -22,17 +22,29 @@ export function votes(page: string): number {
 
 export const helpful = defineIntent<{ page: string }>({
   name: 'docs.helpful',
-  // The complete set of tags this may invalidate. Empty, and empty is a claim: nothing on this
-  // site is cached on the strength of a vote, so `ctx.revalidate` from here would be
-  // `E_UNDECLARED_WRITE` naming the tag and the field to add it to.
-  writes: [],
+  /**
+   * The complete set of tags this may invalidate, and it is a set rather than empty now.
+   *
+   * It was empty, with a note explaining that the number on the page therefore never moved: the
+   * route is built to a file, so the count it rendered was whatever it had been at build time and
+   * pressing the button changed a counter nobody could see. That is a correct description of a
+   * page demonstrating intents, and a poor demonstration — the example on the intents page could
+   * not show the one thing the page is about.
+   *
+   * Declaring the tag is what connects the write to the region. `revalidate` may only name a tag
+   * that appears here, so this list is the thing that makes the line below legal.
+   */
+  writes: ['docs.votes'],
   input: (raw) => {
     const body = raw as { page?: unknown }
     const page = String(body.page ?? '')
     if (!/^[a-z0-9-]{1,40}$/.test(page)) throw new Error('page must be a guide slug')
     return { page }
   },
-  run(_ctx, input) {
+  async run(ctx, input) {
     tally.set(input.page, votes(input.page) + 1)
+    // The tally is in memory and the rendered count is in a cache entry: without this they are two
+    // different numbers and only the first one moved.
+    await ctx.revalidate('docs.votes')
   },
 })

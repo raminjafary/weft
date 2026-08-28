@@ -30,7 +30,16 @@ export default defineRoute({
       section: groupOf(params.page ?? ''),
     }),
   cache: { class: 'public', ttl: '1h' },
-  params: { page: PAGES.map((page) => page.slug) },
+  /**
+   * Every guide slug except `intents`, which has a route of its own.
+   *
+   * A static segment beats a parameter when a request is matched, so `/guide/intents` would reach
+   * the dedicated route either way — but this list is also what `weft build` walks to decide what
+   * to write out, and leaving the slug in wrote a *file* for it. A file is served before routing,
+   * so the live page would have been shadowed by a frozen copy of itself and the count would have
+   * gone back to never moving, with nothing anywhere saying why.
+   */
+  params: { page: PAGES.map((page) => page.slug).filter((slug) => slug !== 'intents') },
   slots: {
     contents: { fragment: 'docs/contents', load: (_ctx, params) => ({ groups: guideContents(params.page) }) },
     body: {
