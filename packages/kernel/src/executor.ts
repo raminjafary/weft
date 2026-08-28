@@ -1,11 +1,8 @@
 import type { ExecutorPort, RenderJob, RenderOutcome, TelemetryPort } from './ports.ts'
 
 /**
- * Where a render executes, and what happens when it costs more than it was allowed.
- *
- * The executor boundary is also the fault and budget boundary, which is most of why
- * per-slot executors exist at all. A slot that blows its budget is killed and degrades;
- * nothing else on the page notices.
+ * Where a render executes, and what happens when it costs more than it was allowed. The executor
+ * boundary is also the fault and budget boundary. See `spec/kernel/locus.md`.
  */
 export type ExceedPolicy = 'stale' | 'client' | 'fallback' | 'placeholder' | 'fail'
 
@@ -16,14 +13,8 @@ export interface SlotBudget {
 }
 
 /**
- * How far a render can be interrupted, which is what decides whether a CPU budget is a limit
- * or a report. JavaScript is single-threaded, so on the request thread a budget can be checked
- * between awaits and nowhere else: a tight synchronous loop goes straight through it.
- *
- * This was a boolean until a real worker pool existed, and a boolean could not tell the truth.
- * `deferred` reported itself preemptible — accurately, at await points — and declared
- * `kind: 'pool'`, so a reader had two reasons to believe it enforced a budget it cannot
- * enforce against a synchronous loop. Three states, because there are three behaviours.
+ * How far a render can be interrupted, which decides whether a CPU budget is a limit or a report.
+ * Three states because a boolean could not tell the truth about `deferred`. See `spec/kernel/locus.md`.
  */
 export type Preemption =
   /** Same task, no yield. A budget is a report. */
@@ -69,16 +60,14 @@ export function inlineExecutor(telemetry?: TelemetryPort): KernelExecutor {
 }
 
 /**
- * A stand-in for a genuinely separate crash domain: the job runs on a fresh macrotask, so
- * a synchronous render still blocks, but an abort at an await point actually takes effect
- * and the outcome is reported as preemptible. It is not a worker thread, and it does not
- * claim to be one.
+ * A stand-in for a genuinely separate crash domain: the job runs on a fresh macrotask. Not a
+ * worker thread, and does not claim to be one.
  */
 export function deferredExecutor(telemetry?: TelemetryPort): KernelExecutor {
   return {
     name: 'deferred',
-    // Not `pool`, which it claimed until a real pool existed. It is a macrotask boundary on the
-    // request thread, and the honest kind for that is the one it shares a thread with.
+    // Not `pool`, which it claimed until a real pool existed: a macrotask boundary on the
+    // request thread shares its kind with the thread it is on.
     kind: 'inline',
     preemption: 'at-await',
     async run(job) {
@@ -107,13 +96,8 @@ export function clientExecutor(): KernelExecutor {
 }
 
 /**
- * What actually happened, for the two executors that run on the request thread. A breach message
- * that does not say whether the work was stopped is a breach message that reads like a limit was
- * enforced.
- *
- * `always` is deliberately absent: an executor that can stop a render is not running it here, so
- * it writes its own message, and carrying a string this function cannot reach would be bytes in
- * the request path for a branch that is not in it.
+ * What actually happened, for the two executors that run on the request thread. `always` is
+ * absent: an executor that can stop a render writes its own message.
  */
 const OVERRUN: Record<'never' | 'at-await', string> = {
   never: 'on an executor that cannot be interrupted, so it ran to completion anyway',
@@ -135,8 +119,7 @@ async function runWithBudget(
   try {
     const bytes = await job.run(controller.signal)
     const ms = performance.now() - started
-    // A budget can be exceeded without the abort ever being observed, which is the whole
-    // point of the inline caveat: report the breach either way.
+    // A budget can be exceeded without the abort ever being observed: report the breach either way.
     const over = job.cpuBudgetMs !== undefined && ms > job.cpuBudgetMs
     telemetry?.measure('slot.render', ms, { slot: job.slot, over: over ? 1 : 0 })
     if (over) {
@@ -188,10 +171,7 @@ export class SlotError extends Error {
   }
 }
 
-/**
- * What a breached budget actually produces. Every outcome here is visible: graceful
- * degradation that nobody can see is a quality regression that looks like nothing at all.
- */
+/** What a breached budget actually produces. Every outcome here is visible. */
 export function degrade(input: DegradeInput, failure: { code: string; message: string }): Uint8Array {
   switch (input.policy) {
     case 'stale':
