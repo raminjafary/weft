@@ -1,6 +1,6 @@
 {
   "name": "@weftjs/kernel",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "The request kernel: two-phase envelope, streaming, cache, intents, channels, ports.",
   "keywords": [
     "weft",

@@ -1,6 +1,6 @@
 {
   "name": "@weftjs/compiler",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "TSX to Template IR, with effect inference and escape elision.",
   "keywords": [
     "weft",

@@ -1,6 +1,6 @@
 {
   "name": "@weftjs/inspector",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "description": "The framework inspecting itself: a station per mechanism, each one a page you can drive.",
   "license": "MIT",

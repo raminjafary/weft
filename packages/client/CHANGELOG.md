@@ -4,6 +4,13 @@ Every commit in this repository appears here, not only `feat` and `fix`. The sec
 generated from Conventional Commit types by `scripts/release/`, and a package changelog holds
 the commits scoped to that package.
 
+## [0.1.1](https://github.com/raminjafary/weft/compare/v0.2.3...HEAD) (2026-08-28)
+
+### 🐛 Bug Fixes
+
+* the theme reverted for the length of a round trip on every navigation ([10c7704](https://github.com/raminjafary/weft/commit/10c770476d71e876d49712a60907101a0a232ef9))
+* staging waited two seconds for an answer that had already arrived ([8207214](https://github.com/raminjafary/weft/commit/82072145de5ae36a7b26a784d050df04498efc93))
+
 ## 0.1.0 (2026-08-28)
 
 ### ✨ Features

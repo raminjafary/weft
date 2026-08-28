@@ -4,7 +4,18 @@ Every commit in this repository appears here, not only `feat` and `fix`. The sec
 generated from Conventional Commit types by `scripts/release/`, and a package changelog holds
 the commits scoped to that package.
 
-## [0.3.3](https://github.com/raminjafary/weft/compare/v0.2.2...HEAD) (2026-08-28)
+## [0.3.4](https://github.com/raminjafary/weft/compare/v0.2.3...HEAD) (2026-08-28)
+
+### 🐛 Bug Fixes
+
+* the playground handed a long paste to the platform's error page ([a6a8569](https://github.com/raminjafary/weft/commit/a6a85690bcef85ab1eb73b9b7fa8a9950b7f21b6))
+* **compiler:** a route's loader reads the request, and the cache key did not know ([bac726d](https://github.com/raminjafary/weft/commit/bac726ddb0016d0428564e588ef09c49703074ec))
+
+### 📝 Documentation
+
+* **repo:** shorter sentences in the three paragraphs that open the site and the README ([153d7b4](https://github.com/raminjafary/weft/commit/153d7b4a8460ba1f90e09bb18a91a3a8397e9291))
+
+## [0.3.3](https://github.com/raminjafary/weft/compare/v0.2.2...v0.2.3) (2026-08-28)
 
 ### ⬆️ Workspace Dependencies
 

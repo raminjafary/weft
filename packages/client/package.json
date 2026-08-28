@@ -1,6 +1,6 @@
 {
   "name": "@weftjs/client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The client runtime: signals, adoption, deltas, epochs, residency, a frame router.",
   "keywords": [
     "weft",

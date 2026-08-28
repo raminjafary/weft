@@ -4,7 +4,17 @@ Every commit in this repository appears here, not only `feat` and `fix`. The sec
 generated from Conventional Commit types by `scripts/release/`, and a package changelog holds
 the commits scoped to that package.
 
-## [0.2.3](https://github.com/raminjafary/weft/compare/v0.2.2...HEAD) (2026-08-28)
+## [0.2.4](https://github.com/raminjafary/weft/compare/v0.2.3...HEAD) (2026-08-28)
+
+### 🐛 Bug Fixes
+
+* **client:** the theme reverted for the length of a round trip on every navigation ([10c7704](https://github.com/raminjafary/weft/commit/10c770476d71e876d49712a60907101a0a232ef9))
+* a 404 at a digest URL was told to keep it for a year ([d7164a7](https://github.com/raminjafary/weft/commit/d7164a7670b3c302c334b21da6e3aaa6031bdc7d))
+* **compiler:** a route's loader reads the request, and the cache key did not know ([bac726d](https://github.com/raminjafary/weft/commit/bac726ddb0016d0428564e588ef09c49703074ec))
+* **kernel:** the tab you pressed the button in was the only one not told ([fd7b41b](https://github.com/raminjafary/weft/commit/fd7b41b2ae4e0b0e525f9c8d31b3f17e83cd22c4))
+* **client:** staging waited two seconds for an answer that had already arrived ([8207214](https://github.com/raminjafary/weft/commit/82072145de5ae36a7b26a784d050df04498efc93))
+
+## [0.2.3](https://github.com/raminjafary/weft/compare/v0.2.2...v0.2.3) (2026-08-28)
 
 ### 🐛 Bug Fixes
 
