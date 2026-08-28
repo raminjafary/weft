@@ -331,6 +331,45 @@ export interface AssetPort {
   chunksFor(route: string): string[]
 }
 
+// ── fanout ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Invalidation that crosses a process boundary.
+ *
+ * `hub.notify` walks the connections *this* process is holding, which is the whole of push
+ * invalidation and is correct on exactly one shape of deployment: one instance. On two, a write
+ * handled by one of them drops its own copy and tells its own readers, and the readers on the other
+ * are neither told nor purged — so the invalidation appears to work, at a hit rate equal to one over
+ * the number of instances running. That is not a cache being eventually consistent; it is half the
+ * readers being told a thing happened and half not, with nothing in the system able to say which.
+ *
+ * Unbound, `hub.invalidate` stays local and says so. It is a port rather than a Redis client for the
+ * reason every other port here is one: the answer differs per deployment — Redis and Valkey speak
+ * pub/sub, NATS is a subject, a single-process deployment needs nothing at all — and the hub should
+ * not know which it got.
+ *
+ * The contract that matters is that `publish` must not deliver back to the publisher. A hub that
+ * heard its own message would notify its own connections twice and, worse, would have no way to
+ * tell that from a second write. Implementations that cannot suppress their own delivery must
+ * filter it, which is what `origin` is for.
+ */
+export interface FanoutPort {
+  readonly name: string
+  /** An identity for this instance, so a message this process published is not acted on twice. */
+  readonly origin: string
+  /** Tell the other instances that these keys are known wrong. */
+  publish(keys: readonly string[], reason: string): Promise<void>
+  /**
+   * Start delivering what other instances publish. Called once, when the hub is built.
+   *
+   * A failure to subscribe is thrown rather than swallowed: a deployment that believes it has
+   * cross-instance invalidation and does not is strictly worse off than one that knows it has none,
+   * because the first will bind a shared store and trust it.
+   */
+  subscribe(deliver: (keys: readonly string[], reason: string) => void): Promise<void>
+  close?(): Promise<void>
+}
+
 // ── telemetry ────────────────────────────────────────────────────────────────────────
 
 export interface TelemetryPort {

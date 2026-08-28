@@ -4,6 +4,7 @@ import {
   type DagNode,
   PlanGraphError,
   schedule,
+  type Scope,
   W_CPU_BUDGET_ADVISORY,
 } from '@weftjs/kernel'
 import {
@@ -63,7 +64,16 @@ export interface ValidateContext {
   facts: Record<string, SlotFacts>
   /** Executor names the deployment actually binds. `inline` and `client` always exist. */
   executors?: readonly string[]
-  store?: { consistency: Consistency; name: string }
+  store?: { consistency: Consistency; name: string; scope?: Scope }
+  /**
+   * How many instances of this deployment run at once.
+   *
+   * A property of the platform rather than of the plan, on the same rule `subrequestCeiling`
+   * follows. The default is 1, so nothing here fires for a deployment that has not said otherwise —
+   * which is right, because one process is the only shape in which a process-scoped store and push
+   * invalidation are both telling the truth.
+   */
+  instances?: number
   /**
    * How many subrequests one request may make where this is deployed, so a fan-out that is about
    * to hit a platform ceiling is a warning at build time rather than a 500 under load.
@@ -641,6 +651,33 @@ function checkCache(
       code: 'W_TTL_ON_STATIC',
       slot: spec.name,
       message: 'reads nothing, so it resolves at build time and the ttl has nothing to expire',
+    })
+  }
+
+  /**
+   * Cache tags against a store only this process can read, on a deployment that is not one process.
+   *
+   * The same bug as the one above and from the other end. There the tag cannot cross a region
+   * boundary; here it cannot cross an *instance* boundary, and the reason is a property the store
+   * already declares: `scope: 'process'` means no other process can read these bytes, so invalidating
+   * a tag drops this instance's copy and leaves every other instance serving what it already had.
+   * A reader on one of them is not told, and asks a store that was never purged — so the invalidation
+   * appears to work, on one instance out of however many are running.
+   *
+   * An error rather than a warning, because unlike a remote region there is no other side that might
+   * be handling it: a process-scoped store on N instances is N private caches and nothing reconciles
+   * them. `instances` defaults to 1, so this fires only for a deployment that has said it runs more
+   * than one — which is the deployment that has the problem.
+   */
+  if ((context.instances ?? 1) > 1 && context.store?.scope === 'process' && spec.cache?.tags?.length) {
+    errors.push({
+      code: 'E_TAGS_PROCESS_SCOPED',
+      slot: spec.name,
+      message:
+        `declares the tag${spec.cache.tags.length === 1 ? '' : 's'} ${spec.cache.tags.join(', ')} ` +
+        `against '${context.store.name}', which is process-scoped, on a deployment running ` +
+        `${context.instances ?? 1} instances. Each one holds its own copy and an invalidation reaches ` +
+        `only the instance that ran it. Bind a store whose scope is 'shared'`,
     })
   }
 

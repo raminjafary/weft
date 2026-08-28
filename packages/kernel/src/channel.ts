@@ -39,7 +39,7 @@ import {
 } from './refresh.ts'
 
 /**
- * The channel: one client, one Warp frame stream, and none of the three bindings.
+ * The channel: one client, one Warp frame stream, and none of the four bindings.
  *
  * Everything phases 5 and 6 promise — a base render named by the client, a form chosen for
  * it, a delta memoized by its transition, epochs staged and committed atomically, push
@@ -49,13 +49,23 @@ import {
  *
  * What is here is binding-agnostic on purpose. A streamed response with discrete POSTs up,
  * an SSE stream, and a WebSocket differ in how bytes move and in nothing else, so they are
- * three `ChannelSink` implementations in `@weftjs/adapters` and one state machine here. The
+ * `ChannelSink` implementations in `@weftjs/adapters` and one state machine here. The
  * differences that are real are named where they bite: SSE cannot carry binary, so it uses
  * text framing and pays base64 on bodies, and the streamed binding has no upstream at all,
  * so an upstream frame arriving with no live downstream is `E_NO_DOWNSTREAM` rather than a
  * silent drop.
+ *
+ * `turn` is the fourth, and it is the one that is not a connection. The other three hold a
+ * downstream open and answer *down it*; a turn carries frames up in a request body and the
+ * answer back in that request's own response, so it is a function from bytes to bytes with
+ * no held state between calls. That is what makes it the only binding a platform without a
+ * process can run — a serverless function terminates no upgrade and outlives no request —
+ * and the reason it costs nothing there is that the protocol was already client-authoritative:
+ * `RESIDENT` says what the client holds, `HELD` with `only` says what it is showing, and a
+ * channel rebuilt from those two frames is the same channel. What a turn cannot do is speak
+ * first, because there is nothing to speak down. See `spec/kernel/channel.md`.
  */
-export type ChannelBinding = 'stream' | 'sse' | 'socket'
+export type ChannelBinding = 'stream' | 'sse' | 'socket' | 'turn'
 
 /**
  * The transport underneath a channel, whichever of the three bindings it is.
@@ -191,6 +201,25 @@ export interface HubOptions {
    * `createStager` in `stage.ts` answers `at`; `createExtender` in `discover.ts` answers `plan`.
    */
   warm?: Record<string, WarmHandler>
+  /**
+   * Everyone this process cannot reach, told after the ones it can.
+   *
+   * `notify` walks the connections *this* hub is holding, which is the whole of push invalidation
+   * on one instance and half of it on any other — and none of it for a client that holds no
+   * connection at all. Both gaps are filled from outside: a `FanoutPort` tells the instances
+   * holding a connection now, a `StaleJournal` writes down what a client with no connection will
+   * ask for later, and a deployment may bind either, both, or neither.
+   *
+   * One hook rather than the two ports, because the hub does not need to know which it got, and a
+   * hub that named them would carry a branch per capability for every deployment that binds none.
+   * The other direction needs nothing here at all: whoever binds a fanout subscribes to it and
+   * calls `hub.notify`, which is already public and is exactly what a delivered message means.
+   *
+   * Its failure is recorded and swallowed. The keys are already dropped and this process's readers
+   * already told, so a broker being down must not turn a partial success into an exception that
+   * reads as the whole invalidation having failed.
+   */
+  onInvalidated?(keys: readonly string[], reason: string): Promise<void> | void
   /**
    * Frames appended to the handshake answer, after `WARP`.
    *
@@ -399,6 +428,19 @@ export function createHub(options: HubOptions): ChannelHub {
     async invalidate(tags, reason = 'invalidated') {
       const keys = await options.store.invalidate(tags)
       const notified = await hub.notify(keys, reason)
+      /**
+       * Published after the local notify, and its failure does not undo it.
+       *
+       * The keys are already dropped and this process's readers already told, so a broker that is
+       * down must not turn a partial success into an exception that reads as the whole invalidation
+       * having failed. It is recorded and the local half stands — which is exactly the state a
+       * deployment with no fanout bound is in permanently.
+       */
+      try {
+        await options.onInvalidated?.(keys, reason)
+      } catch (error) {
+        options.telemetry?.measure('channel.elsewhere.failed', 1, { detail: String(error) })
+      }
       options.telemetry?.measure('channel.stale', notified, { tags: tags.join(',') })
       return { keys, notified }
     },

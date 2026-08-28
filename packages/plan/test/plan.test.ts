@@ -122,6 +122,49 @@ test('a strong policy against an eventual store is a build error, not a surprise
   assert.match(errors[0]?.message ?? '', /workers-kv/)
 })
 
+test('cache tags against a process-scoped store on more than one instance is a build error', () => {
+  const r = route([slot('feed').cache('public', { ttl: '60s', tags: ['prices'] })], {
+    feed: facts([]),
+  })
+  const { errors } = validatePlan(r.plan, {
+    facts: r.facts,
+    store: { consistency: 'strong', name: 'memory', scope: 'process' },
+    instances: 4,
+  })
+  assert.equal(errors[0]?.code, 'E_TAGS_PROCESS_SCOPED')
+  // The number is in the message because it is the half the reader has to act on: the same plan
+  // against the same store is correct at one instance and wrong at four.
+  assert.match(errors[0]?.message ?? '', /4 instances/)
+  assert.match(errors[0]?.message ?? '', /memory/)
+})
+
+test('the same plan and the same store on one instance is fine, because there it is true', () => {
+  const r = route([slot('feed').cache('public', { ttl: '60s', tags: ['prices'] })], {
+    feed: facts([]),
+  })
+  assert.deepEqual(
+    validatePlan(r.plan, {
+      facts: r.facts,
+      store: { consistency: 'strong', name: 'memory', scope: 'process' },
+    }).errors,
+    [],
+  )
+})
+
+test('a shared store carries the same tags on any number of instances', () => {
+  const r = route([slot('feed').cache('public', { ttl: '60s', tags: ['prices'] })], {
+    feed: facts([]),
+  })
+  assert.deepEqual(
+    validatePlan(r.plan, {
+      facts: r.facts,
+      store: { consistency: 'eventual', name: 'redis', scope: 'shared' },
+      instances: 12,
+    }).errors,
+    [],
+  )
+})
+
 test('preferring a form the template cannot serve is refused', () => {
   const r = route([slot('feed').form({ prefer: 'delta' })], {
     feed: facts([], { forms: ['html', 'bundle', 'split', 'patch'] }),

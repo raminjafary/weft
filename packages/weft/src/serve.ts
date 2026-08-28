@@ -201,6 +201,15 @@ export interface Connection {
   /** The channel connection's own cookie header, verbatim. */
   cookie: string
   /**
+   * The most recent invalidation this client says it has been told about.
+   *
+   * Only a turn sends it, and only a turn needs it: the journal is a record rather than a queue, so
+   * without a high-water mark it answers the same way to every turn inside its window and one write
+   * becomes one refresh per turn. Zero means it has been told nothing, which is what a client that
+   * has just loaded the page is.
+   */
+  since?: number
+  /**
    * Routes this connection has been *told about*, by pattern.
    *
    * Held so a description can be scored. A client asks to stage a route it has not been to only
@@ -821,6 +830,42 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
    * is the declaration; one with a name is a single value changing. The client tells them apart the
    * same way.
    */
+  /**
+   * What was invalidated while this client had no connection to be told on.
+   *
+   * Only a turn can be in that position — the held bindings are connected by definition, and an
+   * invalidation reaches them the moment it happens — so on every other binding this is one null
+   * check and no store traffic at all. On a turn it runs per request, which is the same thing as
+   * "per connection" for a binding whose connection is one request long.
+   *
+   * The keys are the route's own. A live slot's key is decided at build time and carried on the
+   * route, so the client's page maps to the exact keys an invalidation would have dropped — no
+   * re-rendering to find out what a slot is keyed by, and no approximating a slot by its tags.
+   *
+   * `at` travels because the client has to be able to tell one invalidation from the same one seen
+   * twice. The journal is a record rather than a queue: it answers the same way to every turn
+   * inside its window, so without the instant on the frame a client turning ten times in a minute
+   * would refresh ten times for one write.
+   */
+  const journaled = async (channel: { id: string; binding: string }): Promise<Frame[]> => {
+    if (!config.journal || channel.binding !== 'turn') return []
+    const from = here(channel)
+    if (!from) return []
+    const live = Object.entries(from.value.live)
+    if (!live.length) return []
+    const found = await config.journal.lookup(live.map(([, slot]) => slot.key))
+    if (!found.size) return []
+    const since = at.get(channel.id)?.since ?? 0
+    const out: Frame[] = []
+    for (const [name, slot] of live) {
+      const entry = found.get(slot.key)
+      // Filtered here rather than discarded there. A frame the client would ignore is a frame not
+      // worth encoding, and the server is the side that knows both numbers.
+      if (entry && entry.at > since) out.push(frame('STALE', { s: name, reason: entry.reason, at: entry.at }))
+    }
+    return out
+  }
+
   const declareExposed = async (channel: { id: string }): Promise<Frame[]> => {
     const from = here(channel)
     if (!from) return []
@@ -870,6 +915,30 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
 
   const hub = createHub({
     store,
+    /**
+     * The two places an invalidation goes that this process cannot reach on its own.
+     *
+     * Composed here rather than named in the hub: the hub's job is the readers it is holding, and
+     * which of these a deployment binds is a deployment's question. Neither may throw — both are
+     * best-effort side channels and the local notify has already happened — and neither may be the
+     * reason the other did not run, so they are settled rather than awaited in turn.
+     */
+    ...(config.fanout || config.journal
+      ? {
+          onInvalidated: async (keys: readonly string[], reason: string) => {
+            const done = await Promise.allSettled([
+              config.journal?.record(keys, reason),
+              config.fanout?.publish(keys, reason),
+            ])
+            for (const [i, settled] of done.entries()) {
+              if (settled.status === 'rejected')
+                config.telemetry?.measure(`channel.${i ? 'fanout' : 'journal'}.failed`, 1, {
+                  detail: String(settled.reason),
+                })
+            }
+          },
+        }
+      : {}),
     /**
      * The second rung of the surgical ladder, bound because the front door is the deployment that
      * cannot know which shape its application's regions have. A page with a `raw()` value or an
@@ -924,6 +993,7 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     onOpen: async (channel) => [
       ...((await discovery.open(channel)) ?? []),
       ...(await declareExposed(channel)),
+      ...(await journaled(channel)),
     ],
   })
 
@@ -1255,6 +1325,20 @@ export async function appHandler(app: App): Promise<Handler> {
     const keys = keysFor(tags)
     if (keys.length) await hub.notify(keys, 'a form post wrote it')
     return response
+  }
+
+  /**
+   * The other direction: what another instance dropped, applied to the readers held here.
+   *
+   * `notify` and not `invalidate`, deliberately. The keys are already gone from the shared store —
+   * that is what the publishing instance did — and re-invalidating the tags here would drop them
+   * again, publish again, and produce a message per instance per write. This half is only the
+   * telling.
+   */
+  if (config.fanout) {
+    void config.fanout.subscribe((keys, reason) => {
+      void hub.notify(keys, reason).catch(() => undefined)
+    })
   }
 
   const channel = channelHandlers({ hub, path: config.channelPath })
@@ -1642,9 +1726,13 @@ export async function appHandler(app: App): Promise<Handler> {
     const path = url.searchParams.get('at')
     if (!id) return
     const existing = at.get(id)
+    const said = Number(url.searchParams.get('since') ?? '')
     at.set(id, {
       path: path ?? existing?.path ?? '/',
       cookie: cookie ?? existing?.cookie ?? '',
+      // Never allowed to go backwards. The value is the client's, and a client that sent a lower
+      // one — a stale tab, a replayed request — would be told about the same write a second time.
+      since: Math.max(Number.isFinite(said) ? said : 0, existing?.since ?? 0),
     })
   }
 
@@ -1711,6 +1799,9 @@ export function bootPrelude(app: App): string {
   return (
     `window.__weftIntents = ${JSON.stringify(intents.names)};\n` +
     `window.__weftChannel = ${JSON.stringify(config.channelPath)};\n` +
+    // Only when false, on the same rule as `__weftSigned`: a deployment that holds connections
+    // carries no bytes for the fact, because holding them is what every other host does.
+    (config.channelHold ? '' : `window.__weftHold = false;\n`) +
     (authority.signed.length ? `window.__weftSigned = ${JSON.stringify(authority.signed)};\n` : '') +
     `window.__weftScroll = ${JSON.stringify(config.scroll)};\n` +
     (assets.app ? `window.__weftClient = ${JSON.stringify(assets.app)};\n` : '')

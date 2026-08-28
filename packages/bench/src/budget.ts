@@ -116,6 +116,14 @@ export const BUDGETS: ByteBudget[] = [
     limitNote: 'no design figure; its own entry, because it went 108 B past the transport watermark',
   },
   {
+    id: 'kernel-journal',
+    label: 'Server kernel plus somewhere an invalidation waits for a client that is not connected',
+    entry: kernelSrc('entry-journal.ts'),
+    limit: 15 * 1024,
+    limitNote:
+      'no design figure; its own entry, because a deployment whose every binding holds a connection has nothing to write down — and because the hub takes a hook rather than the port, so nothing else would have measured it',
+  },
+  {
     id: 'kernel-authority',
     label: 'Server kernel plus a capability model and signed intents',
     entry: kernelSrc('entry-authority.ts'),

@@ -20,6 +20,7 @@ import {
   envelopeContext,
   lifecycle,
   requestFacts,
+  heldFrame,
   type SlotRender,
 } from '@weftjs/kernel'
 import { cookieSession } from '../src/session.ts'
@@ -72,7 +73,7 @@ async function priceList(): Promise<TemplateIR> {
 
 interface Harness {
   hub: ChannelHub
-  url(id: string, binding?: 'stream' | 'sse' | 'socket'): string
+  url(id: string, binding?: 'stream' | 'sse' | 'socket' | 'turn'): string
   close(): Promise<void>
   /** What every channel will be served on its next refresh. One list, many watchers. */
   set(values: Values): void
@@ -238,6 +239,91 @@ async function settle(check: () => boolean, label: string, ms = 2000, down?: Dow
 
 const hello = () =>
   residentFrame({ warp: WARP_VERSION, ir: '2.0.0', forms: ['html', 'delta', 'patch'], transport: 'stream' })
+
+/**
+ * One turn, taken whole: frames up in the body, frames down in the same response.
+ *
+ * Deliberately not built on `Down`. The other three bindings need a reader because the answer
+ * arrives on a connection opened earlier; a turn has no earlier connection, and a helper that
+ * pretended otherwise would hide the property being tested.
+ */
+async function takeTurn(url: string, frames: Frame[]): Promise<AnyFrame[]> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/warp' },
+    body: upFrames(frames),
+  })
+  // Read once. A refusal and an answer arrive in the same body, so consuming it for the assertion
+  // message is consuming it for the frames as well.
+  const bytes = new Uint8Array(await response.arrayBuffer())
+  assert.equal(response.status, 200, new TextDecoder().decode(bytes))
+  assert.equal(response.headers.get('content-type'), 'application/warp')
+  const decoder = createBinaryDecoder({ expect: 'down' })
+  const out = decoder.push(bytes)
+  decoder.end()
+  return out
+}
+
+const turnHello = () =>
+  residentFrame({ warp: WARP_VERSION, ir: '2.0.0', forms: ['html', 'delta', 'patch'], transport: 'turn' })
+
+test('the turn binding answers in its own response and holds nothing between calls', async () => {
+  const h = await harness()
+
+  const first = await takeTurn(h.url('t1', 'turn'), [turnHello(), frame('REFRESH', { s: 'prices' })])
+  const warp = first[0] as Frame
+  assert.equal(warp.kind, 'WARP')
+  // A bounded stream rather than a degraded one: every form is still on the table.
+  assert.equal(str(warp, 'strategy'), 'stream')
+
+  const html = first[1] as Frame
+  assert.equal(html.kind, 'HTML')
+  assert.match(new TextDecoder().decode(html.body), /10\.00/)
+
+  // The whole of what a turn is: the channel was opened, used, and dropped inside one request.
+  // A binding that left a record behind would be a leak per turn on a host that runs a process
+  // and a record nothing can ever close on one that does not.
+  assert.equal(h.hub.channels, 0, 'a turn holds no channel open between calls')
+
+  await h.close()
+})
+
+test('a turn rebuilds the channel from what the client declares, so the second one still deltas', async () => {
+  const h = await harness()
+
+  const first = await takeTurn(h.url('t2', 'turn'), [turnHello(), frame('REFRESH', { s: 'prices' })])
+  const html = first.find((f) => f.kind === 'HTML') as Frame
+  const base = str(html, 'base') as string
+
+  // Nothing on the server remembers this client between the two turns — the record is gone. What
+  // makes a delta possible anyway is that the protocol never asked it to: HELD says what is on
+  // screen, and it travels in the same body as the REFRESH it is answering.
+  h.set({ first: '10.00', second: '21.50' })
+  const second = await takeTurn(h.url('t2', 'turn'), [
+    turnHello(),
+    heldFrame([{ slot: 'prices', tpl: h.ir.version, base }], { only: true }),
+    frame('REFRESH', { s: 'prices' }),
+  ])
+
+  const delta = second.find((f) => f.kind === 'DELTA') as Frame | undefined
+  assert.ok(delta, `expected a DELTA, got ${second.map((f) => f.kind).join(', ')}`)
+  assert.equal(str(delta, 'base'), base, 'the delta names the base the client said it holds')
+  assert.deepEqual(JSON.parse(new TextDecoder().decode(delta.body)), { second: '21.50' })
+
+  assert.equal(h.hub.channels, 0)
+  await h.close()
+})
+
+test('a turn names what it gives up, rather than leaving a client to discover it', async () => {
+  const h = await harness()
+  const [warp] = await takeTurn(h.url('t3', 'turn'), [turnHello()])
+  const said = str(warp as Frame, 'downgrade') ?? ''
+  assert.match(said, /cannot speak first/, 'the negotiation says push is unavailable on this binding')
+  // Named, not degraded: the forms are all still on the table, which is the difference between a
+  // turn and the `buffered` transport it would otherwise be mistaken for.
+  assert.match(str(warp as Frame, 'forms') as string, /delta/)
+  await h.close()
+})
 
 test('the streamed binding: negotiate, render, then a delta over one open connection', async () => {
   const h = await harness()

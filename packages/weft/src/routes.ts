@@ -1132,7 +1132,18 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
   const composes = plan.slots.some((slot) => slot.region)
   const resolver = lowerPlan(
     plan,
-    { facts, executors: Object.keys(options.config.executors) },
+    {
+      facts,
+      executors: Object.keys(options.config.executors),
+      // The store's own declarations, so the rules that check a plan against them have something
+      // to check against. Passing only `facts` left `E_CONSISTENCY_MISMATCH` unable to fire.
+      store: {
+        name: options.store.name,
+        consistency: options.store.consistency,
+        scope: options.store.scope,
+      },
+      instances: options.config.instances,
+    },
     {
       ...bindings,
       // Only when the route composes one. A plan with no region needs no ports here, and passing

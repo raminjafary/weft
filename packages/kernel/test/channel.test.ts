@@ -10,6 +10,7 @@ import {
 } from '@weftjs/ir'
 import { WARP_VERSION, frame, negotiate, residentFrame, str, type Frame } from '@weftjs/warp'
 import { createHub, serverCapabilities, type ChannelSink } from '../src/channel.ts'
+import { storeJournal } from '../src/journal.ts'
 import { baseKey, DEFAULT_REFRESH_TTL, heldFrame, parseHeld, recordBase, selectForm } from '../src/refresh.ts'
 
 function hole(index: number, binding: string, extra: Partial<Hole> = {}): Hole {
@@ -27,7 +28,7 @@ async function priceList(): Promise<TemplateIR> {
     ),
   )
 }
-import { memoryStore } from '@weftjs/adapters'
+import { memoryBus, memoryFanout, memoryStore } from '@weftjs/adapters'
 
 /**
  * The channel without a socket. The bindings are tested over real ones in
@@ -217,4 +218,121 @@ test('a peer that keeps up is never closed for it', async () => {
   for (let i = 0; i < 10; i++) await channel.send([frame('STALE', { s: 'x' })])
   assert.equal(closed, false)
   assert.equal(hub.channels, 1)
+})
+
+/**
+ * Two instances, one store, one bus — the arrangement every deployment above one process is, and
+ * the one the hub could not describe before there was a port for it.
+ *
+ * The property under test is not that a message moves. It is that a reader who is looking at a
+ * region on instance B is told when the write that invalidated it was handled by instance A, which
+ * is the half that was silently missing: `hub.notify` walks the connections *this* process holds,
+ * so before this the answer was correct for the readers on the writing instance and absent for
+ * everyone else, at a rate nothing in the system could report.
+ */
+test('an invalidation handled by one instance reaches a reader held by another', async () => {
+  const ir = await priceList()
+  const store = memoryStore()
+  const bus = memoryBus()
+  const source = ({ slot }: { slot: string }) =>
+    slot === 'prices' ? { ir, values: { first: '10.00', second: '20.00' }, key: 'prices:v1' } : null
+
+  // The composition a deployment does, written out: the hub is told where an invalidation goes
+  // that it cannot reach, and whoever binds the port turns a delivered message into a `notify`.
+  const toward = memoryFanout({ bus, origin: 'a' })
+  const back = memoryFanout({ bus, origin: 'b' })
+  const writer = createHub({ store, source, onInvalidated: (keys, why) => toward.publish(keys, why) })
+  const reader = createHub({ store, source, onInvalidated: (keys, why) => back.publish(keys, why) })
+  await back.subscribe((keys, why) => {
+    void reader.notify(keys, why)
+  })
+
+  const held = sink()
+  reader.open(held, 'r1')
+  await reader.receive('r1', [
+    residentFrame({ warp: WARP_VERSION, ir: TEMPLATE_IR_VERSION, forms: ['html'] }),
+    frame('REFRESH', { s: 'prices' }),
+  ])
+  const before = held.frames.length
+
+  await store.set('prices:v1', new TextEncoder().encode('x'), { class: 'shared', tags: ['prices'] })
+  const result = await writer.invalidate(['prices'], 'price change')
+  assert.deepEqual(result.keys, ['prices:v1'])
+  // Nobody on the writing instance is looking at it, which is exactly the case that used to be
+  // indistinguishable from nobody looking at it anywhere.
+  assert.equal(result.notified, 0)
+
+  for (let i = 0; i < 50 && held.frames.length === before; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 2))
+  }
+  const stale = held.frames.at(-1) as Frame
+  assert.equal(stale.kind, 'STALE', `expected STALE, got ${held.frames.map((f) => f.kind).join(', ')}`)
+  assert.equal(str(stale, 's'), 'prices')
+  assert.equal(str(stale, 'reason'), 'price change')
+})
+
+test('a hub does not hear its own publish, or it would tell its readers twice per write', async () => {
+  const ir = await priceList()
+  const store = memoryStore()
+  const bus = memoryBus()
+  const source = ({ slot }: { slot: string }) =>
+    slot === 'prices' ? { ir, values: { first: '10.00', second: '20.00' }, key: 'prices:v1' } : null
+
+  const only = memoryFanout({ bus, origin: 'only' })
+  const hub = createHub({ store, source, onInvalidated: (keys, why) => only.publish(keys, why) })
+  await only.subscribe((keys, why) => {
+    void hub.notify(keys, why)
+  })
+  const held = sink()
+  hub.open(held, 'r1')
+  await hub.receive('r1', [
+    residentFrame({ warp: WARP_VERSION, ir: TEMPLATE_IR_VERSION, forms: ['html'] }),
+    frame('REFRESH', { s: 'prices' }),
+  ])
+
+  await store.set('prices:v1', new TextEncoder().encode('x'), { class: 'shared', tags: ['prices'] })
+  const result = await hub.invalidate(['prices'], 'price change')
+  assert.equal(result.notified, 1, 'the local reader is told once, by the local notify')
+
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  const stales = held.frames.filter((f) => f.kind === 'STALE')
+  assert.equal(stales.length, 1, 'and not a second time by hearing its own message come back')
+})
+
+/**
+ * What a client with no connection is told when it comes back.
+ *
+ * The turn binding holds nothing between requests, so an invalidation that happens in the gap has
+ * nowhere to be pushed. The journal is where it waits — and the property that matters is that it is
+ * a *record* and not a queue: reading it does not consume it, so two clients on the same page are
+ * both told, and one client asking twice is told twice. Deciding what to do about that second one
+ * is the client's, which is what `at` on the frame is for.
+ */
+test('an invalidation with nobody connected is written down, and read by whoever asks next', async () => {
+  const store = memoryStore()
+  const journal = storeJournal(store)
+
+  assert.equal((await journal.lookup(['render:/prices'])).size, 0, 'nothing has happened yet')
+
+  await journal.record(['render:/prices'], 'a price changed')
+  const found = await journal.lookup(['render:/prices', 'render:/other'])
+  assert.equal(found.size, 1, 'only the key that was dropped')
+  assert.equal(found.get('render:/prices')?.reason, 'a price changed')
+  assert.equal(typeof found.get('render:/prices')?.at, 'number')
+
+  // Read again: still there. A queue would have handed it to the first reader and left the second
+  // with nothing, which is the wrong shape for a record two tabs may both need.
+  assert.equal((await journal.lookup(['render:/prices'])).size, 1)
+})
+
+test('a journal entry expires, so a client away for a week is not told about last Tuesday', async () => {
+  const store = memoryStore()
+  const journal = storeJournal(store, { windowMs: 1 })
+  await journal.record(['render:/prices'], 'a price changed')
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.equal(
+    (await journal.lookup(['render:/prices'])).size,
+    0,
+    'past the window it is not stale news, it is no news: the client asks and is told what is there now',
+  )
 })

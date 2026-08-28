@@ -9,6 +9,8 @@ import type {
   LimitPort,
   RegionBinding,
   Registry,
+  FanoutPort,
+  StaleJournal,
   StorePort,
   TelemetryPort,
 } from '@weftjs/kernel'
@@ -117,7 +119,47 @@ export interface WeftConfig {
    * rather than let through, because a limit nothing counts reads as a protection that is not there.
    */
   limits?: LimitPort | { counted: CountedAgainst }
-  channel?: { path?: string }
+  /**
+   * The channel's mount point, and whether this deployment can hold a downstream open.
+   *
+   * `hold: false` is the honest description of a serverless function: it terminates no upgrade and
+   * outlives no request, so a socket cannot be taken and a streamed GET cannot be relied on to be
+   * the same instance the next POST reaches. Said here, the client takes turns from the first
+   * request instead of discovering it on a failed intent. Left alone it is `true`, which is what
+   * every host that runs a process is.
+   */
+  channel?: { path?: string; hold?: boolean }
+  /**
+   * How many instances of this deployment run at once. One unless it says otherwise.
+   *
+   * Not a number anything can measure from inside a process — an instance cannot see its siblings —
+   * so it is declared, and declaring it is what lets the build check the guarantees that depend on
+   * it. The one that bites: a process-scoped store holds N private caches on N instances, and an
+   * invalidation reaches the one that ran it. Left at 1, nothing changes for anybody.
+   */
+  instances?: number
+  /**
+   * How an invalidation reaches the instances this one is not.
+   *
+   * Needed exactly when `instances` is more than one, and inert when it is one. Unbound,
+   * `hub.invalidate` tells the readers this process is holding and no others — which is the whole
+   * of push invalidation on a single-process deployment and half of it on any other.
+   */
+  fanout?: FanoutPort
+  /**
+   * Where an invalidation waits for a client that is not connected.
+   *
+   * Worth binding exactly when this deployment serves turns and something writes: a turn holds no
+   * connection between requests, so an invalidation that happens in the gap has nowhere to be
+   * pushed and is answered on the next turn instead. `storeJournal(store)` is the one to bind, and
+   * a deployment whose store is process-scoped is told so by `E_TAGS_PROCESS_SCOPED` rather than
+   * by a reader who is never told anything.
+   *
+   * Unbound is not a degraded journal, it is no journal: a site with no writes has nothing to
+   * record, and paying a store lookup per live slot per turn to discover that every time is a cost
+   * with no answer on the other end of it.
+   */
+  journal?: StaleJournal
   /**
    * Who may run an intent, and which intents need a token this deployment minted.
    *
@@ -178,6 +220,14 @@ export interface ResolvedConfig extends Required<Pick<WeftConfig, 'srcDir' | 'ou
   session: { cookie: string }
   executors: Record<string, KernelExecutor>
   channelPath: string
+  /** False on a deployment with no process to hold a connection. See `WeftConfig.channel`. */
+  channelHold: boolean
+  /** How many instances run at once. See `WeftConfig.instances`. */
+  instances: number
+  /** Cross-instance invalidation. See `WeftConfig.fanout`. */
+  fanout?: FanoutPort
+  /** Where an invalidation waits for a turn. See `WeftConfig.journal`. */
+  journal?: StaleJournal
   /** Where a route change lands when the framework answers a link. See `WeftConfig.navigation`. */
   scroll: 'top' | 'preserve'
   maxConcurrency: number
@@ -238,6 +288,10 @@ export async function loadConfig(root: string, overrides: WeftConfig = {}): Prom
     session: { cookie: config.session?.cookie ?? 'sid' },
     executors: config.executors ?? {},
     channelPath: config.channel?.path ?? '/_weft/channel',
+    channelHold: config.channel?.hold ?? true,
+    instances: config.instances ?? 1,
+    ...(config.fanout ? { fanout: config.fanout } : {}),
+    ...(config.journal ? { journal: config.journal } : {}),
     scroll: config.navigation?.scroll === 'preserve' ? 'preserve' : 'top',
     maxConcurrency: config.maxConcurrency ?? 6,
     documents: {

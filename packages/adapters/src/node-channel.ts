@@ -14,10 +14,10 @@ import type { ChannelBinding, ChannelHub, ChannelSink } from '@weftjs/kernel'
 import { acceptWebSocket, type WebSocketConnection } from './node-websocket.ts'
 
 /**
- * The three bindings the design names, over a real socket.
+ * The four bindings the design names, over a real socket — and the one that needs no socket.
  *
- * They differ in exactly two things — how a frame becomes bytes, and whether the same
- * connection can carry frames back — and nothing else. So each is a `ChannelSink` and the
+ * The first three differ in exactly two things — how a frame becomes bytes, and whether the
+ * same connection can carry frames back — and nothing else. So each is a `ChannelSink` and the
  * state machine above them does not know which one it is talking to.
  *
  * | Binding  | Down                        | Up               | Framing |
@@ -25,12 +25,19 @@ import { acceptWebSocket, type WebSocketConnection } from './node-websocket.ts'
  * | `stream` | one long-lived GET response | discrete POSTs   | binary  |
  * | `sse`    | `text/event-stream`         | discrete POSTs   | text    |
  * | `socket` | WebSocket                   | the same socket  | binary  |
+ * | `turn`   | the POST's own response     | the same POST    | binary  |
  *
- * The two costs worth stating rather than discovering. SSE cannot carry binary at all, so it
+ * The costs worth stating rather than discovering. SSE cannot carry binary at all, so it
  * uses the text framing and pays base64 on every non-text body — which is why it is not the
- * default. And the two half-duplex bindings answer an upstream POST down the *other*
+ * default. The two half-duplex bindings answer an upstream POST down the *other*
  * connection, so a POST arriving after the downstream has dropped is `E_NO_DOWNSTREAM`: the
  * frames were understood and there was nowhere to put the answer.
+ *
+ * `turn` is the one that cannot have that failure, because there is no other connection to have
+ * dropped: the answer goes back in the response to the request that asked. Which is also the whole
+ * of what it gives up — a binding with no held downstream cannot be spoken to first, so `STALE`
+ * arrives on the next turn or not at all. Everything the client asks for it gets, on any host that
+ * can serve an HTTP POST and outlive nothing.
  */
 export function streamSink(res: ServerResponse): ChannelSink {
   let open = true
@@ -142,6 +149,41 @@ export function socketSink(connection: WebSocketConnection): ChannelSink {
   }
 }
 
+/**
+ * A sink that holds frames instead of writing them, for a binding whose downstream is a response
+ * body that has not been written yet.
+ *
+ * Everything a turn has to answer with arrives through the sink rather than through `receive`'s
+ * return value, and the difference is not cosmetic: `onOpen` frames, and anything a `notify`
+ * triggered by this turn's own intent produces, are sent on the channel without passing through
+ * the frames `receive` collected. Taking the buffer rather than the return value is what makes a
+ * turn carry the same set a socket would have seen.
+ *
+ * No `saturated`, and its absence is honest here rather than a gap. Saturation means the peer is
+ * not reading as fast as the server is writing, and the peer of a turn is not reading at all yet —
+ * it is waiting for a response. What bounds this is the size of one answer, which is the same
+ * bound the document path already lives under.
+ */
+export function turnSink(): ChannelSink & { taken(): readonly Frame[] } {
+  const held: Frame[] = []
+  let open = true
+  return {
+    binding: 'turn',
+    get open() {
+      return open
+    },
+    send(frames) {
+      held.push(...frames)
+    },
+    close() {
+      open = false
+    },
+    taken() {
+      return held
+    },
+  }
+}
+
 /** What the channel routes need: the hub, and how a connection is identified. */
 export interface ChannelRouteOptions {
   hub: ChannelHub
@@ -162,7 +204,7 @@ function channelId(url: URL): string | null {
 }
 
 /**
- * The three bindings as a pair of handlers rather than a server, so an application can mount them
+ * The bindings as a pair of handlers rather than a server, so an application can mount them
  * beside its own routes on one port. `mountChannel` is this plus a `createServer` call — a
  * deployment that already has a server should not have to run a second one to have a channel.
  */
@@ -173,13 +215,14 @@ export interface ChannelHandlers {
   upgrade(req: IncomingMessage, socket: Duplex, head: Buffer): boolean
 }
 
-/** The three endpoints a channel needs over Node's HTTP server: upgrade, stream, and post-up. */
+/** The endpoints a channel needs over Node's HTTP server: upgrade, stream, post-up, and turn. */
 export function channelHandlers(options: ChannelRouteOptions): ChannelHandlers {
   const path = options.path ?? '/channel'
   return {
     http(req, res) {
       const url = requestUrl(req)
-      if (url.pathname !== path && url.pathname !== `${path}/sse`) return false
+      if (url.pathname !== path && url.pathname !== `${path}/sse` && url.pathname !== `${path}/turn`)
+        return false
       void handle(req, res, path, options)
       return true
     },
@@ -192,7 +235,7 @@ export function channelHandlers(options: ChannelRouteOptions): ChannelHandlers {
 }
 
 /**
- * Mounts all three bindings on one path, which is the arrangement that makes the honest
+ * Mounts every binding on one path, which is the arrangement that makes the honest
  * comparison possible: the same hub, the same slot source, the same store, and the only
  * variable is how the bytes moved.
  */
@@ -220,7 +263,7 @@ export async function mountChannel(options: ChannelRouteOptions): Promise<{
     url: `${origin}${path}`,
     channelUrl(id, binding = 'stream') {
       const scheme = binding === 'socket' ? 'ws' : 'http'
-      const suffix = binding === 'sse' ? '/sse' : ''
+      const suffix = binding === 'sse' ? '/sse' : binding === 'turn' ? '/turn' : ''
       return `${scheme}://127.0.0.1:${address.port}${path}${suffix}?${CHANNEL_QUERY}=${encodeURIComponent(id)}`
     },
     close: () =>
@@ -238,10 +281,22 @@ async function handle(
   options: ChannelRouteOptions,
 ): Promise<void> {
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`)
-  const route = url.pathname === path ? 'frames' : url.pathname === `${path}/sse` ? 'sse' : null
+  const route =
+    url.pathname === path
+      ? 'frames'
+      : url.pathname === `${path}/sse`
+        ? 'sse'
+        : url.pathname === `${path}/turn`
+          ? 'turn'
+          : null
   const id = channelId(url)
   if (!route || !id) {
     res.writeHead(404).end()
+    return
+  }
+
+  if (route === 'turn') {
+    await turn(req, res, id, options)
     return
   }
 
@@ -279,6 +334,65 @@ async function handle(
     res.writeHead(202, { 'content-type': 'text/plain' }).end(String(sent.length))
   } catch (error) {
     res.writeHead(409, { 'content-type': 'text/plain' }).end(message(error))
+  }
+}
+
+/**
+ * One turn: frames up in the request body, frames down in its own response.
+ *
+ * The channel is opened and closed inside this function, and that is the binding rather than a
+ * shortcut. A turn has no connection to belong to, so a record that outlived it would be a record
+ * nothing will ever close — on a platform that runs no process there is no drop to notice, and on
+ * one that does it is a leak per turn. What makes that affordable is that the protocol never asked
+ * the server to remember: `RESIDENT` declares what the client holds and `HELD` with `only` declares
+ * what it is showing, both in this body, both ahead of whatever they are answering, because
+ * `receive` handles frames in the order they arrive. The channel is rebuilt, used, and dropped.
+ *
+ * 200 rather than the 202 the other half-duplex bindings answer with, and the distinction is the
+ * whole point: 202 says the answer went down the other connection, and here there is no other
+ * connection for it to have gone down. This response is the answer.
+ */
+async function turn(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  options: ChannelRouteOptions,
+): Promise<void> {
+  if (req.method !== 'POST') {
+    res.writeHead(405).end()
+    return
+  }
+
+  const body = await readBody(req)
+  let frames: AnyFrame[]
+  try {
+    const text = (req.headers['content-type'] ?? '').includes('text/')
+    const decoder = text ? createTextDecoder({ expect: 'up' }) : createBinaryDecoder({ expect: 'up' })
+    frames = decoder.push(body)
+    decoder.end()
+  } catch (error) {
+    res.writeHead(400, { 'content-type': 'text/plain' }).end(message(error))
+    return
+  }
+
+  const sink = turnSink()
+  options.hub.open(sink, id)
+  try {
+    await options.hub.receive(id, frames)
+    // Taken before the close, because closing is what tells the hub this channel is gone and a
+    // buffer read after it would be reading a channel that no longer exists.
+    const answer = encodeStream([...sink.taken()])
+    res
+      .writeHead(200, {
+        'content-type': 'application/warp',
+        'cache-control': 'no-store',
+      })
+      .end(Buffer.from(answer))
+  } catch (error) {
+    res.writeHead(409, { 'content-type': 'text/plain' }).end(message(error))
+  } finally {
+    options.hub.close(id, 'turn complete')
+    options.onClose?.(id, 'turn')
   }
 }
 

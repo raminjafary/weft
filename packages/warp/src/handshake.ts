@@ -9,8 +9,14 @@ export type WireForm = 'html' | 'bundle' | 'split' | 'patch' | 'delta' | 'remote
  * serving the document through WKURLSchemeHandler or Android's shouldInterceptRequest
  * supplies the bytes itself, and those paths buffer, so "the initial response is the
  * first frames" stops being true and there is no HTTP layer underneath at all.
+ *
+ * `turn` is the client saying it has no held downstream at all: every frame it will ever receive
+ * is the answer to a request it made. Frames still arrive as a length-prefixed stream and every
+ * form is still available — a turn is a bounded stream, not a degraded one — so what it changes is
+ * not how bytes are read but what the server may assume it can do, which is why the negotiation
+ * names it as a downgrade rather than leaving the client to discover that nothing is ever pushed.
  */
-export type Transport = 'stream' | 'buffered' | 'socket'
+export type Transport = 'stream' | 'buffered' | 'socket' | 'turn'
 
 /** What a client announces: its versions, the forms it accepts, and the templates it holds. */
 export interface ClientHello {
@@ -135,6 +141,11 @@ export function negotiate(hello: ClientHello, server: ServerCapabilities): Negot
   if (transport === 'buffered') {
     downgrades.push(
       'document response is buffered by the host app, so holes cannot arrive out of order: slots collapse into the document and later frames need the socket binding',
+    )
+  }
+  if (transport === 'turn') {
+    downgrades.push(
+      'no held downstream, so the server cannot speak first: an invalidation is carried on the next turn rather than pushed when it happens',
     )
   }
   if (base.fill === 'script') {

@@ -125,10 +125,21 @@ const LINE_CEILINGS: Record<string, number> = {
   // a second dispatch site in the authority entry, or a port declared somewhere ports are not. The
   // byte figure moved 9,457 → 9,643 with 597 left, which is the number that actually gates.
   'entry-intent.ts': 2200,
-  'entry-transport.ts': 2600,
+  // Five lines, for the hook that tells whatever this process cannot reach. `notify` walks the
+  // connections *this* hub holds, which is all of push invalidation on one instance, half of it on
+  // more than one, and none of it for a client that holds no connection — and both gaps are filled
+  // from outside, by a fanout and by a journal. The hub carries one optional call and no knowledge
+  // of which it got; naming them here would have been a branch per capability in the path every
+  // deployment pays for. Moved 2,600 → 2,650 rather than by the five, so the next addition argues
+  // with a number instead of repeating this.
+  'entry-transport.ts': 2650,
   // A route staged over the channel: the transport plus `stage.ts`, and its own entry for the same
   // reason the transport has one — it went past a watermark set before it existed.
-  'entry-stage.ts': 2700,
+  'entry-stage.ts': 2750,
+  // The journal: the transport plus somewhere an invalidation waits for a client that is not
+  // connected. Its own entry twice over — a capability pays for itself, and the hub does not import
+  // it, so nothing else here would ever have counted it.
+  'entry-journal.ts': 2700,
   // Authority: the intent path plus a capability model and signed intents. The tier the design
   // calls separable, so it gets a ceiling it can be reviewed against rather than a share of the
   // intent path's. 2,500 was set before delegation, which is 43 lines of narrowing rules and their

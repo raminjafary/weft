@@ -153,6 +153,12 @@ declare global {
     /** Set by the served prelude: the framework knows these, the file cannot derive them. */
     __weftIntents?: Record<string, string>
     __weftChannel?: string
+    /**
+     * False when this deployment cannot hold a downstream open — a serverless function, which
+     * terminates no upgrade and outlives no request. Absent everywhere else, so a page on a host
+     * that runs a process carries nothing for it.
+     */
+    __weftHold?: boolean
     __weftClient?: string
     /** What a route change does to the scroll position: the config's `navigation.scroll`. */
     __weftScroll?: 'top' | 'preserve'
@@ -1031,6 +1037,20 @@ function encodeUp(frames: readonly ChannelFrame[]): Uint8Array<ArrayBuffer> {
   return new Uint8Array(encodeStream(encoded))
 }
 
+/**
+ * What this client is, as a header. Shared rather than written twice: a turn declares it on every
+ * request and the held bindings once, and a difference between the two would be a form negotiated
+ * on one binding and not the other.
+ */
+function residentHeader(transport: string): Record<string, string> {
+  return {
+    warp: WARP_VERSION,
+    ir: document.documentElement.dataset.weftIr ?? '2.4.0',
+    forms: 'html,delta,patch',
+    transport,
+  }
+}
+
 /** Where the client last told the server it is. A refresh re-registers this before it asks. */
 let location_ = ''
 
@@ -1147,6 +1167,10 @@ async function open(): Promise<Wire> {
      * neither carries neither.
      */
     onFrame: (frame, applied) => {
+      // The high-water mark, read off the frame the channel already routed. Here rather than in
+      // the channel client because a page on a socket is never told twice and should not carry
+      // the arithmetic that exists for the binding that is.
+      if (frame.kind === 'STALE') since = Math.max(since, Number(frame.header.at ?? 0))
       routeNav(frame, applied)
       routePlan(frame)
       routeExposed(frame)
@@ -1200,8 +1224,54 @@ async function open(): Promise<Wire> {
    * middlebox, a platform that terminates upgrades — and the only way to find that out is to try.
    * So the socket is attempted, and its failure is one log line and a working page.
    */
+  /**
+   * A deployment that cannot hold a downstream never gets one attempted. Trying anyway is not
+   * harmless: the upgrade fails, the streamed GET then *appears* to work, and the POSTs that follow
+   * land on whichever instance the platform picked — which is how a channel that is merely
+   * unavailable ends up looking like one that is broken.
+   */
+  const holds = window.__weftHold !== false
   const socketUrl = `${base.replace(/^http/, 'ws')}?c=${id}&at=${encodeURIComponent(location_)}`
-  const socket = await connect(socketUrl)
+  const socket = holds ? await connect(socketUrl) : null
+  /** Set when the half-duplex path has proved it cannot answer, and once set it does not go back. */
+  let turning = !holds
+  /**
+   * The most recent invalidation this client has been told about, sent back as `since`.
+   *
+   * A pushed `STALE` happens once. A journal read does not — it is a record rather than a queue, so
+   * it answers the same way to every turn inside its window — and without this one write would
+   * become one refresh per turn.
+   */
+  let since = 0
+
+  const query = (): string => `c=${id}&at=${encodeURIComponent(location_)}${since ? `&since=${since}` : ''}`
+
+  /**
+   * One turn: what the client holds, what it is showing, and what it wants, in one request.
+   *
+   * The two declarations are not overhead added for this binding — they are what the protocol
+   * already uses to say what a client is looking at, and a turn cannot assume the server still
+   * remembers. Sending them every time is the whole of what the binding costs.
+   */
+  const takeTurn = async (frames: readonly ChannelFrame[]): Promise<void> => {
+    const declared: ChannelFrame[] = [
+      { kind: 'RESIDENT', header: residentHeader('turn') },
+      { kind: 'HELD', header: client.held({ only: true }) },
+      ...frames,
+    ]
+    const response = await fetch(`${base}/turn?${query()}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/warp' },
+      body: encodeUp(declared),
+    })
+    if (!response.ok) {
+      log('down', `turn refused ${response.status}: ${(await response.text()).trim().slice(0, 160)}`)
+      return
+    }
+    // Its own decoder: every turn is its own stream and carries its own preamble, where the three
+    // held bindings are one stream for the channel's whole life.
+    await arrived(new Uint8Array(await response.arrayBuffer()), createBinaryDecoder({ expect: 'down' }))
+  }
 
   const post = async (frames: readonly ChannelFrame[]): Promise<void> => {
     for (const f of frames) log('up', describe(f))
@@ -1209,17 +1279,30 @@ async function open(): Promise<Wire> {
       socket.send(encodeUp(frames) as Uint8Array<ArrayBuffer>)
       return
     }
-    const response = await fetch(`${base}?c=${id}&at=${encodeURIComponent(location_)}`, {
+    if (turning) {
+      await takeTurn(frames)
+      return
+    }
+    const response = await fetch(`${base}?${query()}`, {
       method: 'POST',
       headers: { 'content-type': 'application/warp' },
       body: encodeUp(frames),
     })
     if (response.status === 202) return
     log('down', `POST refused ${response.status}: ${(await response.text()).trim().slice(0, 160)}`)
-    // 409 is this connection being gone — a reload, from the server's side. Reopen on the next use.
+    /**
+     * 409 is the downstream this POST was to be answered on being gone.
+     *
+     * On a host that runs a process that means a reload, and reopening is right. On one that does
+     * not it means the POST reached an instance that never held the downstream, and reopening
+     * would produce it again — so the second one switches bindings and the refused frames are
+     * taken as a turn rather than lost.
+     */
     if (response.status === 409) {
-      opening = null
-      state.connected = false
+      if (turning) return
+      turning = true
+      log('down', 'no downstream to answer on: this channel is taking turns from here')
+      await takeTurn(frames)
     }
   }
 
@@ -1231,9 +1314,7 @@ async function open(): Promise<Wire> {
     leaving.abort()
     socket?.close()
   })
-  const down = socket
-    ? null
-    : await fetch(`${base}?c=${id}&at=${encodeURIComponent(location_)}`, { signal: leaving.signal })
+  const down = socket || turning ? null : await fetch(`${base}?${query()}`, { signal: leaving.signal })
   state.connected = true
 
   /**
@@ -1244,8 +1325,8 @@ async function open(): Promise<Wire> {
    * split across two chunks. One `arrived` means the routing below cannot come to depend on which
    * transport is underneath it.
    */
-  const arrived = async (value: Uint8Array): Promise<void> => {
-    const frames = decoder.push(value).filter((f) => f.kind !== 'UNKNOWN') as ChannelFrame[]
+  const arrived = async (value: Uint8Array, dec = decoder): Promise<void> => {
+    const frames = dec.push(value).filter((f) => f.kind !== 'UNKNOWN') as ChannelFrame[]
     for (const f of frames) log('down', describe(f))
     const applied = await client.apply(frames)
     state.writes += applied.writes
@@ -1282,7 +1363,10 @@ async function open(): Promise<Wire> {
     if (applied.stale.length) await post([{ kind: 'REFRESH', header: { s: applied.stale.join(',') } }])
   }
 
-  if (socket) {
+  if (turning) {
+    // Nothing to read: a turn's frames arrive in the response to the request that asked for them,
+    // and `takeTurn` has already handed them to `arrived`.
+  } else if (socket) {
     socket.addEventListener('message', (event: MessageEvent) => {
       void (async () => {
         const data = event.data as ArrayBuffer | Blob | string
@@ -1314,18 +1398,15 @@ async function open(): Promise<Wire> {
     })().catch((error: unknown) => log('down', `reader stopped: ${String(error)}`))
   }
 
-  await post([
-    {
-      kind: 'RESIDENT',
-      header: {
-        warp: WARP_VERSION,
-        ir: document.documentElement.dataset.weftIr ?? '2.4.0',
-        forms: 'html,delta,patch',
-        transport: socket ? 'socket' : 'stream',
-      },
-    },
-  ])
-  if (regionsHeld.length) await post([{ kind: 'HELD', header: client.held() }])
+  /**
+   * The opening handshake, on the bindings that have an opening. A turn has none: each one carries
+   * `RESIDENT` and `HELD` itself, because the channel it speaks to was built for that request and
+   * will not survive it.
+   */
+  if (!turning) {
+    await post([{ kind: 'RESIDENT', header: residentHeader(socket ? 'socket' : 'stream') }])
+    if (regionsHeld.length) await post([{ kind: 'HELD', header: client.held() }])
+  }
 
   return { send: post, client }
 }
