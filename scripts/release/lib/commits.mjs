@@ -7,6 +7,43 @@ const FIELD = '\u001f'
 
 const HEADER = /^(?<type>[a-z]+)(?:\((?<scope>[^)]*)\))?(?<breaking>!)?:\s*(?<subject>.+)$/
 
+/** Every directory in `SCOPE_DIRECTORIES`, longest first, so `packages/create-weft` beats nothing. */
+const DIRECTORIES = [...new Set(Object.values(SCOPE_DIRECTORIES))].sort((a, b) => b.length - a.length)
+
+/**
+ * Which packages a commit changed files in, asked of git rather than of its subject line.
+ *
+ * A scope is what the author wrote and the files are what they did, and the two can disagree: a fix
+ * to the client's framing that also hardens the decoder it talks to is one change with one subject,
+ * and `fix(weft)` is an honest way to write it. But the plan bumped packages from scopes alone, so
+ * the decoder half was committed, tagged, and never published — the release said nothing, because
+ * from its point of view nothing in `packages/warp` had happened.
+ *
+ * So both are asked and the answer is the union. A scope may still name a package this commit did
+ * not touch, which is deliberate: an author saying `fix(kernel)` about a change made elsewhere is
+ * making a claim about who is affected, and that claim is not this function's to overrule.
+ */
+function touched(sha) {
+  const { output } = run('git', ['show', '--pretty=format:', '--name-only', sha])
+  const changed = output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const found = new Set()
+  for (const file of changed) {
+    const directory = DIRECTORIES.find((dir) => file === dir || file.startsWith(`${dir}/`))
+    if (!directory) continue
+    // Only what the package publishes. A commit that touches `test/` alone changes nothing anybody
+    // installs — every manifest here ships `dist` — so bumping for it would be version churn with a
+    // changelog entry attached, and the whole point of asking git is to catch a *shipped* change
+    // nobody named.
+    const within = file.slice(directory.length + 1)
+    if (/^(test|tests)\//.test(within)) continue
+    found.add(directory)
+  }
+  return [...found]
+}
+
 /**
  * Every commit in a range, parsed.
  *
@@ -45,7 +82,7 @@ function parse(raw) {
       ...raw,
       type: 'foundations',
       scopes: [],
-      packages: [],
+      packages: touched(raw.sha),
       breaking: false,
       breakingNotes,
       subject: raw.subject,
@@ -66,7 +103,7 @@ function parse(raw) {
     type,
     subject,
     scopes,
-    packages: scopes.map((s) => SCOPE_DIRECTORIES[s]).filter(Boolean),
+    packages: [...new Set([...scopes.map((s) => SCOPE_DIRECTORIES[s]).filter(Boolean), ...touched(raw.sha)])],
     breaking: breaking === '!' || breakingNotes.length > 0,
     breakingNotes,
   }
