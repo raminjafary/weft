@@ -2880,3 +2880,27 @@ table.rows .num {
     font-size: 34px;
   }
 }
+
+/**
+ * The tutorial's rail numbers its steps, and the number leads.
+ *
+ * Every other rail on this site puts its count at the right edge, where a count belongs: it is a
+ * size, and sizes line up on the right. This one is an ordinal — where you are in nineteen — and
+ * an ordinal leads, so the column reads as a sequence rather than as a list with sizes beside it.
+ */
+.rail.steps .count {
+  order: -1;
+  width: 1.4em;
+  padding-inline: 10px 0;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.rail.steps .contents a {
+  padding-inline-start: 4px;
+}
+
+/* Its own number is not repeated beside the step you are on; the heading above says it. */
+.rail.steps .contents li:has(a[aria-current='page']) .count {
+  color: var(--accent-ink);
+}

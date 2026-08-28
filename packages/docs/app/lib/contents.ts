@@ -200,9 +200,10 @@ export function apiContents(current?: string): ContentsGroup[] {
 /**
  * The tutorial's rail: the steps under their parts, with the ones behind you marked.
  *
- * `count` carries the tick rather than the step number, because a step you have read is the one
- * fact a reader wants from this column at a glance — the number is already in the title. The parts
- * are the group labels, so the column answers "where am I in this" and not only "how far".
+ * `count` carries the step's number, or a tick where you have already read it — and it leads the
+ * title rather than trailing it, which is the one place on this site where that is true. Nineteen
+ * titles of very different lengths need something to align against, and "where am I" is answered
+ * by the number and the part rather than by the title, which no longer carries a number of its own.
  */
 export function tutorialContents(current?: string): ContentsGroup[] {
   const at = STEPS.findIndex((step) => step.slug === current)
@@ -211,7 +212,7 @@ export function tutorialContents(current?: string): ContentsGroup[] {
     items: STEPS.filter((step) => step.part === part.id).map((step) => ({
       label: step.title,
       href: `/tutorial/${step.slug}`,
-      count: at >= 0 && STEPS.indexOf(step) < at ? '✓' : '',
+      count: at >= 0 && STEPS.indexOf(step) < at ? '✓' : String(STEPS.indexOf(step) + 1),
       current: step.slug === current ? HERE : ELSEWHERE,
     })),
   })).filter((group) => group.items.length > 0)

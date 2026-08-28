@@ -41,7 +41,7 @@ export default fragment(
     outline,
   }: Props) => (
     <div class={shellClass}>
-      <aside class="rail" aria-label="Tutorial steps">
+      <aside class="rail steps" aria-label="Tutorial steps">
         <slot name="contents">{contents}</slot>
       </aside>
       <article>
