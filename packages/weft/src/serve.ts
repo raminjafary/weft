@@ -55,8 +55,10 @@ import {
 } from '@weftjs/kernel'
 import { verifyRegions, type VerifyReport } from '@weftjs/plan'
 import {
+  addressedByDigest,
   browserModule,
   buildAssets,
+  MISS,
   moduleGraph,
   modulePreloads,
   cacheControlFor,
@@ -1539,7 +1541,11 @@ export async function appHandler(app: App): Promise<Handler> {
       // The URL always ends in `.js`; the file behind it may be `.ts`. See `servedModuleName`.
       const source = join(tree.dir, moduleFileName(name, tree))
       if (!(await exists(source))) {
-        res.writeHead(404, { 'content-type': 'text/plain' }).end(`no such module: ${name}\n`)
+        // Not stored by anybody: this URL names a digest, and a digest that has no file today may
+        // have one after a rollback. See `MISS`.
+        res
+          .writeHead(404, { 'content-type': 'text/plain', 'cache-control': MISS })
+          .end(`no such module: ${name}\n`)
         return
       }
       /**
@@ -1581,6 +1587,22 @@ export async function appHandler(app: App): Promise<Handler> {
       }
       res.writeHead(200, headers)
       res.end(payload)
+      return
+    }
+
+    /**
+     * A miss under a content-addressed root, answered before it becomes a page.
+     *
+     * Anything else that reaches here is a URL for the router, and a 404 from the router is a
+     * document with a document's policy — `must-revalidate`, which is right for a page. It is wrong
+     * here for the reason `MISS` gives: the answer at this URL can change from 404 to 200 without
+     * the URL changing, which is what a rollback is. Answered as text rather than as the 404 page
+     * because nothing asking for a stylesheet or a module wants a document back.
+     */
+    if (addressedByDigest(path)) {
+      res
+        .writeHead(404, { 'content-type': 'text/plain', 'cache-control': MISS })
+        .end(`no such asset: ${path}\n`)
       return
     }
 

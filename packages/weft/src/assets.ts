@@ -100,6 +100,32 @@ export interface AssetTable {
 const ASSET_ROOT = '/_weft/a'
 const STYLE_ROOT = '/_weft/s'
 const MODULE_ROOT = '/_weft/m'
+
+/**
+ * The three roots, exported for the one question that has to be asked about a URL nothing matched.
+ *
+ * A path under one of these is content-addressed, which is what earns it a year. The corollary is
+ * the part that had no code: a *miss* under one of them must be stored by nobody. A digest is not a
+ * promise that the file exists — it is a promise about what the file contains if it does — and a
+ * build that removes a module, or a rollback to one that has it again, is a URL whose answer
+ * changes from 404 to 200. A 404 held for a year at that URL is a client that cannot load the
+ * runtime until the cache expires, and the deploy most likely to produce it is a rollback.
+ */
+export const IMMUTABLE_ROOTS = [ASSET_ROOT, STYLE_ROOT, MODULE_ROOT] as const
+
+/** Whether a path is under a root whose URLs name their own contents. */
+export function addressedByDigest(path: string): boolean {
+  return IMMUTABLE_ROOTS.some((root) => path === root || path.startsWith(`${root}/`))
+}
+
+/**
+ * What a miss under one of those roots answers with.
+ *
+ * `no-store` rather than `no-cache`: there is nothing here to revalidate, and the whole risk is a
+ * copy being kept. It is also the one header on this page that has to survive a platform's own
+ * caching rules, which are written per path and cannot see a status.
+ */
+export const MISS = 'no-store'
 /**
  * A year, and a shared cache may answer with it too.
  *
