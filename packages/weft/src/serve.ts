@@ -94,17 +94,11 @@ import { generateRoutes, type GeneratedRoute } from './routes.ts'
 import { createSpeculation } from './speculate.ts'
 
 /**
- * The application, served.
+ * The application, served: a kernel with a ports record, a router, a channel hub with a slot source,
+ * an intent dispatch on two bindings, module serving, asset revving and a stylesheet. None of it is
+ * application-specific, which is why none of it belongs in an application.
  *
- * Everything in this file is what an application would otherwise have had to write for itself: a
- * kernel with a ports record, a router, a channel hub with a slot source, an intent dispatch on
- * two bindings, module serving, asset revving and a stylesheet. None of it is
- * application-specific, which is exactly the reason none of it should ever have been in an
- * application.
- *
- * There is no bundler. Client modules are TypeScript served with their types stripped, so what
- * runs in the browser is the file on disk — before a build and after one. Both paths are the same
- * code, which is the only arrangement in which the second one can be trusted.
+ * See `spec/kernel/lifecycle.md` for the front door and `spec/kernel/static.md` for the modules.
  */
 /**
  * `dev` serves from source at stable URLs that must never cache. `build` compiles and revs.
@@ -119,41 +113,28 @@ export interface App {
   compiled: CompiledApp
   intents: IntentManifest
   /**
-   * The catalogue: fragments a client may ask for by opaque id, generated from `app/renderables/`.
-   *
-   * Empty for an application with no such directory, which is most of them — and empty means the
-   * registry answers no renderable at all, so a client naming one is `E_NO_SUCH_RENDERABLE` rather
-   * than reaching something that happened to be compiled.
+   * Fragments a client may ask for by opaque id, from `app/renderables/`. Empty means the registry
+   * answers none, so a client naming one is `E_NO_SUCH_RENDERABLE`.
    */
   catalogue: Catalogue
   routes: GeneratedRoute[]
   store: StorePort
   hub: ChannelHub
   /**
-   * What each open channel is: which page, and whose session.
-   *
-   * A channel has no request, so the client says where it is when it opens one and a refresh
-   * re-runs that route. The cookie header comes from the channel's own connection, because an
-   * intent that ran without the session the page has is an intent writing somebody else's cart.
+   * What each open channel is: which page, and whose session. A channel has no request, so the
+   * client says where it is when it opens one.
    */
   at: Map<string, Connection>
   assets: AssetTable
   /**
-   * L0. Documents the build resolved and proved invariant, by the path each one answers.
-   *
-   * Populated by `weft start` and empty everywhere else: `weft dev` serving a file it rendered
-   * before your last edit is a dev server that lies to you, and the build is where a document
-   * becomes a file in the first place.
+   * L0. Documents the build resolved and proved invariant, by the path each one answers. Populated
+   * by `weft start` and empty everywhere else.
    */
   documents: Map<string, ServedDocument>
   diagnostics: string[]
   /**
-   * What this deployment resolved about its own regions, or null for one that composes none.
-   *
-   * Run at startup rather than at build time because none of it is knowable at build time: a
-   * registry is a deployment's and can be written to without anybody rebuilding. What is here is the
-   * half that needs no network — a name nothing resolves, a tier nobody bound, a plan and a registry
-   * that disagree about whether a boundary is crossed. The half that needs one is `weft verify`.
+   * What this deployment resolved about its own regions, or null for one that composes none. The
+   * half that needs no network; the half that needs one is `weft verify`.
    */
   regions: VerifyReport | null
   /**
@@ -163,37 +144,23 @@ export interface App {
   warnings: string[]
   mode: Mode
   /**
-   * What this process is recording, and what the last recording decided.
-   *
-   * Both null unless `profile` is on. The recorder is what every slot render reports to; the
-   * decisions are what the plan was generated *from*, so `weft why` can attribute a delivery to a
-   * measurement rather than to a declaration nobody wrote.
+   * What this process is recording, and what the last recording decided. Both null unless `profile`
+   * is on. See `spec/plan/profile.md`.
    */
   recorder: Recorder | null
   decided: Decisions | null
-  /**
-   * What this deployment bound, built once and shared by every path that needs ports.
-   *
-   * Four of these used to be constructed per request — a session, a flag source, an executor
-   * table and a store reference, rebuilt for the kernel, for the intent dispatch and for the
-   * channel. Three copies of the same decisions is three places to change one of them.
-   */
+  /** What this deployment bound, built once and shared by every path that needs ports. */
   ports: Ports
   /** The live-slot keys a set of write tags reaches, for a notify that has to name keys. */
   keysFor(tags: readonly string[]): string[]
   /**
-   * Re-derive every connection's exposed shell values and tell whoever's changed.
-   *
-   * On the app rather than inside the hub because both intent bindings have to call it, and the
-   * channel's dispatch is the only one the hub can see. A form post that left every open page's
-   * exposed values stale would be push invalidation working on one binding out of two.
+   * Re-derive every connection's exposed shell values and tell whoever's changed. On the app because
+   * both intent bindings have to call it, and the hub can only see the channel's.
    */
   republishExposed(except?: string): Promise<void>
   /**
-   * Who may run an intent here, and which intents need a token this deployment minted.
-   *
-   * Resolved once and shared by both bindings on purpose: a capability enforced over the channel
-   * and not over the POST path would be a capability with a documented way around it.
+   * Who may run an intent here, and which intents need a token this deployment minted. Resolved once
+   * and shared by both bindings: a capability enforced on one is a capability with a way around it.
    */
   authority: Authority
 }
@@ -205,21 +172,14 @@ export interface Connection {
   /** The channel connection's own cookie header, verbatim. */
   cookie: string
   /**
-   * The most recent invalidation this client says it has been told about.
-   *
-   * Only a turn sends it, and only a turn needs it: the journal is a record rather than a queue, so
-   * without a high-water mark it answers the same way to every turn inside its window and one write
-   * becomes one refresh per turn. Zero means it has been told nothing, which is what a client that
-   * has just loaded the page is.
+   * The most recent invalidation this client says it has been told about. Only a turn sends it: the
+   * journal is a record rather than a queue, so without a high-water mark one write becomes one
+   * refresh per turn. See `spec/kernel/transport.md`.
    */
   since?: number
   /**
-   * Routes this connection has been *told about*, by pattern.
-   *
-   * Held so a description can be scored. A client asks to stage a route it has not been to only
-   * because it was described one — a client with no description does not know the shell matches — so
-   * a `WARM at=` for a pattern in this set is a description that paid, and one for a pattern outside
-   * it is a hover on a link the page had anyway.
+   * Routes this connection has been *told about*, by pattern. Held so a description can be scored —
+   * see `spec/plan/profile.md`.
    */
   described?: Set<string>
 }
@@ -232,13 +192,8 @@ export interface Serving {
 }
 
 /**
- * An application that answers requests, with nothing yet listening.
- *
- * `weft start` puts this on a TCP port. A host that owns the socket — a serverless function, a
- * process manager that hands a listener down, a test that drives the handler directly — takes the
- * two callbacks instead. The split exists because binding a port is the one thing in a deployment
- * that is genuinely the platform's decision, and a framework that can only be reached by opening
- * one has decided it for every platform that does not work that way.
+ * An application that answers requests, with nothing yet listening. `weft start` puts it on a TCP
+ * port; a host that owns the socket takes the two callbacks. See `spec/kernel/lifecycle.md`.
  */
 export interface Handler {
   app: App
@@ -252,11 +207,7 @@ export interface Handler {
 
 const utf8 = new TextEncoder()
 
-/**
- * Which frame kinds change what the reader sees. The same set `region-channel.ts` uses, and the same
- * reason: everything else is what a client needs in order to apply one of these, so it travels
- * immediately even inside an epoch.
- */
+/** Which frame kinds change what the reader sees. The same set `region-channel.ts` uses. */
 const PAINTS = new Set<Frame['kind']>(['HTML', 'DELTA', 'DATA', 'PATCH'])
 
 async function exists(path: string): Promise<boolean> {
@@ -269,12 +220,8 @@ async function exists(path: string): Promise<boolean> {
 }
 
 /**
- * Where a package's servable source lives.
- *
- * `import.meta.resolve` answers with the built entry, which is right for a deployment and wrong
- * inside this repository before anything has been built. Falling back to `src` rather than
- * failing means `weft dev` works on a fresh clone, and the bytes served are still that package's
- * own — just the ones with types still in them.
+ * Where a package's servable source lives. Falls back to `src` so `weft dev` works on a fresh clone,
+ * before anything in this repository has been built.
  */
 async function packageTree(specifier: string): Promise<ModuleTree> {
   const resolved = fileURLToPath(import.meta.resolve(specifier))
@@ -337,24 +284,8 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   }
 
   /**
-   * Every port this deployment binds, in one place.
-   *
-   * Thirteen are declared and this binds ten of them. The three that are not here are bound per
-   * request because they are per request: the transport is a `ServerResponse`, and the registry
-   * and the executor table belong to the intent dispatch and the config respectively.
-   *
-   * `assets` takes the table lazily. The hrefs carry a digest of the bundle's contents and the
-   * bundle is not assembled until the generator has said which stylesheets each page links, so at
-   * this point there is no table yet — one late binding rather than a 103 pointing at a URL that
-   * will not exist.
-   */
-  /**
-   * The limiter, from whichever half the config supplied.
-   *
-   * A config that supplies `counted` is supplying the only decision a framework cannot make, and
-   * the counting is then the framework's — over the store above, which is the store everything else
-   * on this deployment already shares. A config that supplies a whole port owns both, which is what
-   * a gateway or a platform limiter is.
+   * The limiter, from whichever half the config supplied: `counted` alone leaves the counting to the
+   * framework, over the store everything else here shares; a whole port owns both.
    */
   const limits =
     config.limits && 'check' in config.limits
@@ -364,23 +295,9 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
         : undefined
 
   const configPort = config.config ?? envConfig()
-  /**
-   * The registry, bound once and for both of its jobs.
-   *
-   * `ports.registry` used to be the one declared port nothing here bound, on the grounds that the
-   * intent dispatch had its own and regions had no front door. Regions have one now, and a region
-   * name has to resolve through a port rather than through a table compiled into the page that
-   * composes it — otherwise rolling a region is a redeploy of every shell that names it, which is
-   * the property the port exists to provide.
-   */
-  /**
-   * The catalogue, resolved late for the same reason the asset table is.
-   *
-   * The registry answers renderables, the catalogue's region-served entries are composed through the
-   * ports, and the ports carry the registry. One late binding rather than three constructors that
-   * each want the other two — and it is a `let` in one file rather than an indirection anyone else
-   * has to know about.
-   */
+  // The catalogue, resolved late for the same reason the asset table is: the registry answers
+  // renderables, and the catalogue's entries compose through the ports that carry the registry.
+  // One late binding rather than three constructors that each want the other two.
   let catalogue: Catalogue = { entries: [], byId: new Map(), names: {} }
   const registry = regionRegistry(intents.registry, {
     regions: config.regions,
@@ -411,13 +328,8 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   // deployment bound, and a page about the ports is a page about *these* ports.
   setPorts(ports)
 
-  /**
-   * The last recording, and what it decided.
-   *
-   * Read before the plan is generated because it is an input to it: delivery comes from the
-   * profile where there is one and from the declaration where there is not. A profile from a
-   * different format version is ignored rather than half-read.
-   */
+  // Read before the plan is generated because it is an input to it: delivery comes from the profile
+  // where there is one and from the declaration where there is not.
   const recorded = config.profile ? await readProfile(root, config.outDir) : null
   const decided = recorded ? decide(recorded) : null
   const recorder = config.profile ? createRecorder() : null
@@ -438,35 +350,22 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     runtime: () => table().boot,
     preload: () => preloads,
     /**
-     * The path a pattern answers with these params filled in, as an absolute canonical link.
-     *
-     * Built from the pattern rather than from the request, because the canonical URL of a page is
-     * the one the route defines — a request carrying a tracking parameter or an alternate casing
-     * still belongs to the same page, and saying so is the entire point of the tag.
+     * The path a pattern answers with these params filled in, as an absolute canonical link. Built
+     * from the pattern rather than from the request — see `spec/kernel/static.md`.
      */
     canonical: (pattern, params) => {
       if (!config.origin) return ''
       const path = pattern.replace(/:([A-Za-z0-9_]+)/g, (_, name: string) => params[name] ?? `:${name}`)
       const href = `${config.origin.replace(/\/+$/, '')}${path}`
       const safe = href.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
-      // Both tags, because both are the same claim: this page's identity is the URL its route
-      // defines. What a *share card* says about it is the application's, and stays in its layout.
+      // Both tags: the same claim. What a share card says is the application's, in its layout.
       return `<link rel="canonical" href="${safe}"><meta property="og:url" content="${safe}">`
     },
     brand: basename(root) || 'weft',
   })
 
-  // The cascade, per page: the framework's stylesheet, the application's, anything the config
-  // added, and then the `.css` beside every fragment this page renders. One bundle, so a page
-  // links the styles of the components on it without paying a request per component.
-  /**
-   * `app/assets/`, walked before a single stylesheet is read.
-   *
-   * The order is forced: a sheet's `url()` is rewritten to a revved href, so the hrefs have to
-   * exist before the sheets are concatenated into one bundle per page — after that there is no
-   * telling which line came from which file, and a relative URL means nothing without the file it
-   * was written in.
-   */
+  // `app/assets/` is walked before a single stylesheet is read: a sheet's `url()` is rewritten to a
+  // revved href, and after concatenation there is no telling which line came from which file.
   const appAssets = await revAssets(join(root, config.srcDir, 'assets'), mode !== 'dev')
   const styled = (text: string, file: string): string => rewriteUrls(text, dirname(file), appAssets.byPath)
 
@@ -480,13 +379,8 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     const path = join(root, file)
     shared.push(`/* ${file} */\n${styled(await readFile(path, 'utf8'), path)}`)
   }
-  /**
-   * A scoped sheet, narrowed once and reused by every page that links it.
-   *
-   * The rewrite is pure — one file, one attribute — so it is memoised by path rather than repeated
-   * per route. On this site that is the difference between narrowing the contents rail's sheet once
-   * and narrowing it twenty-three times.
-   */
+  // A scoped sheet, narrowed once and reused: the rewrite is pure, so it is memoised by path rather
+  // than repeated per route.
   const narrowed = new Map<string, string>()
   const sheet = async (file: string): Promise<string> => {
     const held = narrowed.get(file)
@@ -514,33 +408,23 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     runtime: await packageTree('@weftjs/client'),
     warp: await packageTree('@weftjs/warp'),
     ...(discovered.client ? { app: { dir: dirname(discovered.client), ext: '.ts' as const } } : {}),
-    // Dev must never cache: a stylesheet you just edited, served as immutable, is a framework
-    // that lies to you for a year.
+    // Dev must never cache: a stylesheet you just edited, served as immutable, lies for a year.
     revved: mode !== 'dev',
   })
   setAssets(assets)
 
   /**
-   * The preload list, computed once because it cannot change without a rebuild.
-   *
-   * Walking the import graph reads files, and `shellValues` is synchronous and on the render path —
-   * so it is walked here, when the table it depends on has just been built, and every page after
-   * that renders a string. It is also the honest place: a graph that could differ per request would
-   * be a graph the byte budget could not have measured.
+   * The preload list, computed once because it cannot change without a rebuild — and a graph that
+   * could differ per request is a graph the byte budget could not have measured.
    */
   const preloads = modulePreloads(await moduleGraph(assets, assets.app), assets.boot)
 
   /**
-   * One region of one route, composed for a channel.
+   * One region of one route, composed for a channel. Built per call, because a `Composer`
+   * accumulates the outcomes `composer.hops` counts.
    *
-   * Built per call rather than held, because a `Composer` accumulates the outcomes it produced — it
-   * is what `composer.hops` counts — and one shared across every connection would be a page's hop
-   * count growing forever.
-   *
-   * The same function answers a refresh and a stage, and the only difference is the request handed
-   * in. That is deliberate: a region refreshed over the channel and the same region staged as part
-   * of a route have to reach the same deployment with the same budget and the same contract, and a
-   * second composition site is where those two would drift.
+   * The same function answers a refresh and a stage — a second composition site is where the two
+   * would drift. See `spec/kernel/composition.md`.
    */
   const composeRegion = (route: GeneratedRoute): ChannelRegions =>
     channelRegions({
@@ -550,12 +434,9 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     })
 
   /**
-   * The catalogue, built now that there is something to compose a region-served entry with.
-   *
-   * A renderable named by a region goes through the same composer a slot does — the same registry
-   * resolution, the same arrival check, the same declared degradation — because "which deployment
-   * renders this" is one question and it should not have two answers. What the entry supplies that a
-   * slot does not is the params, which reach the region as an ordinary render request.
+   * The catalogue, built now that there is something to compose a region-served entry with. A
+   * renderable named by a region goes through the same composer a slot does: one question, one
+   * answer. What the entry adds is the params.
    */
   catalogue = await loadCatalogue({
     root,
@@ -580,9 +461,8 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   })
 
   const at = new Map<string, Connection>()
-  // Which live slots carry which tag. A connection is recorded as holding the key its slot
-  // source returned, so an invalidation can only reach it if something names that key — and the
-  // store's tag index cannot, because a live slot's key is the framework's, not an entry it wrote.
+  // Which live slots carry which tag. A live slot's key is the framework's rather than an entry the
+  // store wrote, so the store's tag index cannot reach it and this can.
   const keysByTag = new Map<string, Set<string>>()
   for (const route of routes) {
     for (const live of Object.values(route.live)) {
@@ -598,20 +478,9 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   ]
 
   /**
-   * Authority, resolved before anything can dispatch.
-   *
-   * `resolveAuthority` refuses here rather than at request time for the one failure a request
-   * cannot explain: a capability an intent requires and no role grants. Everything else it finds
-   * is a diagnostic, because the dispatch already refuses by name and a warning at startup is
-   * where somebody can act on it.
-   */
-  /**
-   * The region checks that need no network, run before the first request.
-   *
-   * A composed page that cannot resolve one of its regions fails at request time with a named
-   * error, which is correct and late: the name is wrong in a config file, and the person who can
-   * fix it is looking at a terminal. So the resolvable half is checked here and printed, and
-   * `weft verify` is the same function with a probe and an exit code — a gate rather than a notice.
+   * The region checks that need no network, run before the first request: the name is wrong in a
+   * config file and the person who can fix it is looking at a terminal. `weft verify` is the same
+   * function with a probe and an exit code.
    */
   const composing = routes.map((route) => route.plan).filter((plan) => plan.slots.some((s) => s.region))
   const regionReport = composing.length
@@ -627,13 +496,8 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     ...(limits ? { limits } : {}),
   })
 
-  /**
-   * One route table, built once.
-   *
-   * Every path that has to turn a URL into a route — a document request, a refresh over the
-   * channel, a route being staged, a plan being extended — was building its own. Four matchers
-   * over one set of patterns is four chances for them to disagree about which route a URL is.
-   */
+  // One route table, built once. Four matchers over one set of patterns is four chances for them to
+  // disagree about which route a URL is.
   const router = createRouter(routes.map((route) => ({ pattern: route.pattern, value: route })))
   const routeAt = (path: string): ReturnType<typeof router.match> =>
     router.match(new URL(path, 'http://weft.local'))
@@ -644,13 +508,9 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   const transitions = (): Record<string, string[]> => (recorded ? likelyNext(recorded) : {})
 
   /**
-   * A route staged over the channel, which is `WARM at=` doing what the frame table always said.
-   *
-   * Two decisions live here because only this side can make them. Whether the target shares this
-   * client's shell — a different document has different holes, so its regions cannot be swapped
-   * into the ones on screen, and the honest answer then is a document request. And what each
-   * region's next state is, which goes through the *same loaders* a document request would run:
-   * a staged route that computed its values differently would be a page nobody could reproduce.
+   * A route staged over the channel. Two decisions only this side can make: whether the target
+   * shares this client's shell, and what each region's next state is — through the same loaders a
+   * document request would run. See `spec/client/navigation.md`.
    */
   const stager = createStager({
     store,
@@ -670,15 +530,8 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
       }
 
       const connection = at.get(channel.id)
-      /**
-       * A description that paid.
-       *
-       * Counted only when this connection was told about the target: a client asks to stage a route it
-       * has not been to because it was described one — it has no other way to know the shell matches —
-       * so a stage of a described pattern is the description being used. A stage of an undescribed one
-       * is a hover on a link the page had anyway, and counting it would make every description look
-       * successful.
-       */
+      // A description that paid. A stage of an undescribed pattern is a hover on a link the page
+      // had anyway, and counting it would make every description look successful.
       if (connection?.described?.has(target.value.pattern)) recorder?.followed(target.value.pattern)
       const ctx = channelContext(
         new URL(path, 'http://weft.local'),
@@ -696,19 +549,12 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
           prefer: 'delta',
         }
       }
-      /**
-       * The target's remote regions, composed as part of staging it.
-       *
-       * Without this a staged route arrived with its holes from other deployments empty, and the
-       * reader saw a page assemble itself after the commit — which is the one thing staging exists to
-       * prevent. Each region is told the epoch it is being staged into, so it knows the answer is not
-       * going to paint yet and can decide its own frame split accordingly.
-       */
+      // The target's remote regions, composed as part of staging it — otherwise the reader watches
+      // the page assemble itself after the commit. Each is told the epoch, so it can split frames.
       const compose = composeRegion(target.value)
       for (const [name, spec] of Object.entries(target.value.remote)) {
-        // The region's declared reads, resolved through this channel's own context — the same
-        // derivation a document request does, so a staged region renders against the values the page
-        // it is being staged for would have rendered against.
+        // The same derivation a document request does, so a staged region renders against the
+        // values the page it is being staged for would have.
         const reads = await readsFor(ctx, spec.contract)
         const frames = await compose({
           slot: name,
@@ -735,15 +581,9 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   })
 
   /**
-   * The part of the plan a client does not have, described rather than rendered.
-   *
-   * Every field here is something a client would otherwise have to make a request to learn, and
-   * the expensive one is the shell: a link whose target uses a different document cannot be swapped
-   * in as regions, and finding that out by asking costs a round trip *and* a server render of a
-   * page nobody clicked. Described, it costs a line in a frame the connection was already getting.
-   *
-   * Nothing here runs a loader. That is the difference between this and staging a route, and it is
-   * why a page can afford to know about thirty routes and stage two.
+   * The part of the plan a client does not have, described rather than rendered. Nothing here runs a
+   * loader, which is why a page can afford to know about thirty routes and stage two. See
+   * `spec/client/navigation.md`.
    */
   const describe = (route: GeneratedRoute, shell: string | undefined, from?: string): DiscoveredRoute => {
     const next = decided ? transitions()[route.pattern] : undefined
@@ -762,18 +602,9 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   }
 
   /**
-   * Whether staging this route from that page is worth the request.
-   *
-   * The last thing the profile measured and nobody read. `weft dev --profile` counts which route a
-   * reader arrived from, `RouteDecision.stage` records the sources they arrive from often enough for
-   * staging to pay, and until now that decision was printed by `weft profile` and then ignored —
-   * every hovered link was fetched regardless, which is the guess the profile layer exists instead
-   * of.
-   *
-   * Absent means unmeasured and unmeasured stages, the same rule delivery and discovery follow. And
-   * a route with *no* recorded sources is unmeasured rather than refused: a page nobody has arrived
-   * at yet has nothing to count, and inventing a `false` for it would turn a cold recording into a
-   * framework that has switched staging off.
+   * Whether staging this route from that page is worth the request. Absent means unmeasured, and
+   * unmeasured stages — the same rule delivery and discovery follow, so a cold recording cannot
+   * switch staging off. See `spec/plan/profile.md`.
    */
   const worthStaging = (pattern: string, from?: string): boolean | undefined => {
     if (!decided || !from || from === pattern) return undefined
@@ -782,13 +613,7 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     return sources.includes(from)
   }
 
-  /**
-   * Whether a route is worth describing, from what the last recording saw.
-   *
-   * Absent from the decision means unmeasured, and unmeasured keeps the behaviour it had — the same
-   * rule delivery follows, so a recording of last Tuesday cannot quietly turn discovery off for a
-   * route it never saw.
-   */
+  /** Whether a route is worth describing, from the last recording. Absent means unmeasured. */
   const worthDescribing = (pattern: string): boolean =>
     decided?.discover.find((d) => d.route === pattern)?.describe ?? true
 
@@ -804,16 +629,11 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     resolve: ({ prefix, channel }) => {
       const from = here(channel)
       const shell = from?.value.shell.version
-      /**
-       * No prefix is the handshake, and what it answers is deliberately narrow: this page, and
-       * where the profile says its readers go next. A connection opening is not a request to
-       * describe the application — a route table pushed at every page load is a cost every reader
-       * pays for a page most of them will not leave by a link.
-       */
+      // No prefix is the handshake, and it answers narrowly: this page, and where the profile says
+      // its readers go next. A route table pushed at every page load is a cost every reader pays.
       if (prefix === undefined) {
         if (!from) return null
-        // This page, always — it is where the connection is. Then where the profile says its readers
-        // go, minus any the recording says are described and never followed.
+        // This page, then where the profile says its readers go, minus the never-followed.
         const patterns = [
           from.value.pattern,
           ...(transitions()[from.value.pattern] ?? []).filter(worthDescribing),
@@ -832,8 +652,8 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
       }
       // `/checkout/*` and `/checkout` ask the same thing. The star is how the design spells it.
       const under = prefix.replace(/\/?\*$/, '')
-      // A prefix somebody *asked* about is described whatever the recording says. The measurement is
-      // about what this deployment volunteers, and a question is not a volunteer.
+      // A prefix somebody asked about is described whatever the recording says: a question is not
+      // a volunteer, and the measurement is about what this deployment volunteers.
       const found = routes.filter((route) => route.pattern.startsWith(under))
       if (!found.length) return null
       noteDescribed(
@@ -847,39 +667,16 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     },
   })
 
-  /**
-   * What each connection was last told the shell exposes.
-   *
-   * Held so a change can be sent as a change. Recomputing the exposed set after a mutation and
-   * sending all of it would work and would also send a `SIGNAL` for every name on every write, which
-   * turns the one channel between a shell and its regions into a firehose the regions have to filter.
-   */
+  // What each connection was last told the shell exposes, so a change can be sent as a change
+  // rather than as a `SIGNAL` per name per write.
   const exposedTo = new Map<string, Record<string, string>>()
 
   /**
-   * The shell's declaration, as the frame that carries it.
+   * What was invalidated while this client had no connection to be told on. Only a turn can be in
+   * that position, so on every other binding this is one null check and no store traffic.
    *
-   * One frame with a body rather than one per name: this is the whole set at once, it is sent once
-   * per connection, and a frame per name would be a frame per name. A `SIGNAL` with no `name` header
-   * is the declaration; one with a name is a single value changing. The client tells them apart the
-   * same way.
-   */
-  /**
-   * What was invalidated while this client had no connection to be told on.
-   *
-   * Only a turn can be in that position — the held bindings are connected by definition, and an
-   * invalidation reaches them the moment it happens — so on every other binding this is one null
-   * check and no store traffic at all. On a turn it runs per request, which is the same thing as
-   * "per connection" for a binding whose connection is one request long.
-   *
-   * The keys are the route's own. A live slot's key is decided at build time and carried on the
-   * route, so the client's page maps to the exact keys an invalidation would have dropped — no
-   * re-rendering to find out what a slot is keyed by, and no approximating a slot by its tags.
-   *
-   * `at` travels because the client has to be able to tell one invalidation from the same one seen
-   * twice. The journal is a record rather than a queue: it answers the same way to every turn
-   * inside its window, so without the instant on the frame a client turning ten times in a minute
-   * would refresh ten times for one write.
+   * The keys are the route's own, decided at build time. `at` travels because the journal is a
+   * record rather than a queue. See `spec/kernel/transport.md`.
    */
   const journaled = async (channel: { id: string; binding: string }): Promise<Frame[]> => {
     if (!config.journal || channel.binding !== 'turn') return []
@@ -893,8 +690,7 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     const out: Frame[] = []
     for (const [name, slot] of live) {
       const entry = found.get(slot.key)
-      // Filtered here rather than discarded there. A frame the client would ignore is a frame not
-      // worth encoding, and the server is the side that knows both numbers.
+      // Filtered here: the server is the side that knows both numbers.
       if (entry && entry.at > since) out.push(frame('STALE', { s: name, reason: entry.reason, at: entry.at }))
     }
     return out
@@ -910,12 +706,8 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   }
 
   /**
-   * Exposed values that changed, told to the connections showing them.
-   *
-   * A shell signal changes because something wrote what it is derived from, and the only thing here
-   * allowed to write is an intent — so this runs after one, for the same reason a `STALE` does. What
-   * it deliberately does not do is re-render anything: an exposed value is a shell value, the shell
-   * is cheap, and a region decides for itself what a new value means for its own markup.
+   * Exposed values that changed, told to the connections showing them. Nothing is re-rendered: a
+   * region decides for itself what a new value means for its own markup.
    */
   const republishExposed = async (except?: string): Promise<void> => {
     for (const [id, previous] of exposedTo) {
@@ -926,19 +718,15 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
       const changed = Object.entries(values).filter(([name, value]) => previous[name] !== value)
       if (!changed.length) continue
       exposedTo.set(id, values)
-      // Through the channel rather than the hub: the hub's own broadcast is `notify`, which is about
-      // cache keys, and a shell value is not one — nobody holds it as an entry.
+      // Through the channel rather than the hub: `notify` is about cache keys, and nobody holds a
+      // shell value as an entry.
       await hub.get(id)?.send(changed.map(([name, v]) => frame('SIGNAL', { name, v })))
     }
   }
 
   /**
-   * The render-intent dispatch, sharing every gate with the intent one.
-   *
-   * The same capability check, the same verifier, the same limiter — bound from the same place, so a
-   * capability enforced on a mutation and not on a render would be a capability with a documented way
-   * around it. What this adds over the intent dispatch is the catalogue, and the catalogue is the
-   * registry's.
+   * The render-intent dispatch, sharing every gate with the intent one — the same capability check,
+   * verifier and limiter, bound from the same place. What it adds is the catalogue.
    */
   const renders = createRenderDispatch({
     registry,
@@ -950,12 +738,8 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
   const hub = createHub({
     store,
     /**
-     * The two places an invalidation goes that this process cannot reach on its own.
-     *
-     * Composed here rather than named in the hub: the hub's job is the readers it is holding, and
-     * which of these a deployment binds is a deployment's question. Neither may throw — both are
-     * best-effort side channels and the local notify has already happened — and neither may be the
-     * reason the other did not run, so they are settled rather than awaited in turn.
+     * The two places an invalidation goes that this process cannot reach on its own. Neither may
+     * throw and neither may be the reason the other did not run, so they are settled.
      */
     ...(config.fanout || config.journal
       ? {
@@ -973,11 +757,8 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
           },
         }
       : {}),
-    /**
-     * The second rung of the surgical ladder, bound because the front door is the deployment that
-     * cannot know which shape its application's regions have. A page with a `raw()` value or an
-     * isolated instance would otherwise have every refresh come back as markup.
-     */
+    // The second rung of the surgical ladder, bound here because the front door cannot know which
+    // shape its application's regions have. See `spec/kernel/surgical.md`.
     patch: patchPayload,
     source: liveSource(routes, at, ports, composeRegion, {
       renders,
@@ -985,30 +766,22 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
       ports,
     }),
     /**
-     * The real dispatch, with the framework's own live keys folded into what it dropped.
-     *
-     * The hub turns `outcome.dropped` into STALE frames for every other connection, and it gets
-     * that list from the store. A live slot's key is not a store entry, so without this an
-     * intent would refresh the tab that fired it and silently leave every other tab showing
-     * stale values — which looks exactly like not having push invalidation at all.
+     * The real dispatch, with the framework's own live keys folded into what it dropped. A live
+     * slot's key is not a store entry, so the hub's list from the store would miss every other tab.
      */
     intents: {
       run: async (id, raw, ctx, credentials) => {
         const outcome = await dispatch.run(id, raw, ctx, credentials)
         if (!outcome.ok) return outcome
-        // A shell value a region reads may be derived from what this intent just wrote, and a region
-        // has no other way to hear about it: the exposed set is the only channel there is.
+        // The exposed set is the only channel a region has for hearing about this write.
         await republishExposed()
         const extra = keysFor(outcome.invalidated)
         return { ...outcome, dropped: [...new Set([...outcome.dropped, ...extra])] }
       },
     },
     /**
-     * The context an intent runs against, built from the channel's own connection.
-     *
-     * A channel is not a request, so this has to be supplied — and what it has to carry is the
-     * session, or an intent dispatched over the channel writes as nobody. The cookie header is
-     * the connection's, recorded when it opened.
+     * The context an intent runs against, built from the channel's own connection — which has to
+     * carry the session, or an intent dispatched over the channel writes as nobody.
      */
     intentContext: (channel) => {
       const life = lifecycle()
@@ -1021,21 +794,15 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
       return envelopeContext(createReads(requestFacts(new Request(url, { headers })), ports), envelope)
     },
     /**
-     * The key a slot this connection is showing would be held under, so a `HELD` is enough to make
-     * it a candidate for an invalidation.
-     *
-     * The same value `liveSource` returns as `key` and the same one `keysByTag` indexes — asked for
-     * without running the loader, because the question is which entry this page is showing rather
-     * than what it should show next. Nothing to render, so nothing to pay.
-     *
-     * Without it a connection was recorded as holding a region only once it had refreshed, and a
-     * page that had just loaded was invisible to `cart.add` in another tab.
+     * The key a slot this connection is showing would be held under, so a `HELD` is enough to make it
+     * a candidate for an invalidation. Asked without running the loader: the question is which entry
+     * this page is showing, not what it should show next.
      */
     keyFor: (slot, channel) => here(channel)?.value.live[slot]?.key,
     templates: (version) => compiled.templates.find((t) => t.version === version),
     warm: { at: stager, plan: discovery.warm },
-    // The two things a connection is told without asking, in one place: the part of the plan it has
-    // no way to know it is missing, and the shell values its regions are allowed to read.
+    // The two things a connection is told without asking: the part of the plan it cannot know it is
+    // missing, and the shell values its regions may read.
     onOpen: async (channel) => [
       ...((await discovery.open(channel)) ?? []),
       ...(await declareExposed(channel)),
@@ -1055,9 +822,8 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     at,
     assets,
     documents: mode === 'start' ? await loadDocuments(config) : new Map(),
-    // The compiler's, and only the compiler's: `weft build` prints this list under a heading that
-    // says what it is, and folding a different kind of warning into it would make that heading lie.
-    // Authority's warnings live on `authority.diagnostics` and are printed as their own.
+    // The compiler's, and only the compiler's — `weft build` prints it under a heading that says so.
+    // Authority's live on `authority.diagnostics`.
     diagnostics: compiled.diagnostics,
     regions: regionReport,
     warnings: [
@@ -1082,13 +848,9 @@ async function ownTree(): Promise<ModuleTree> {
 }
 
 /**
- * The channel's slot source, generated.
- *
- * A channel has no request, so the client says which page it is on when it opens one. That path
- * is matched against the same route table the document went through and the slot's own loader is
- * re-run — so a refresh over the channel and a fresh document request compute the same thing
- * from the same code. Without that the delta could not be trusted to describe the page it is
- * patching.
+ * The channel's slot source. The path the client said it was on is matched against the same route
+ * table the document went through and the slot's own loader re-run, so a refresh and a fresh
+ * document request compute the same thing from the same code.
  */
 function liveSource(
   routes: GeneratedRoute[],
@@ -1112,13 +874,9 @@ function liveSource(
     const ctx = channelContext(url, matched.params, connection.cookie, ports)
 
     /**
-     * A render intent: `REFRESH s=<slot> r=<id>`, which is the same question with a source named.
-     *
-     * Two checks live here rather than in the dispatch, because both are route knowledge and a
-     * channel has none. The slot has to be a hole on the page this connection is showing — a
-     * catalogue entry rendered into a slot that is not on the page is a frame the client refuses
-     * anyway, and refusing it here says why. And the id may be the entry's declared name, because
-     * markup a person wrote has to be able to name one; what travels on the wire is still the id.
+     * A render intent: `REFRESH s=<slot> r=<id>`. Two checks live here rather than in the dispatch,
+     * because both are route knowledge and a channel has none — the slot has to be a hole on this
+     * page, and the id may be the entry's declared name.
      */
     const named = asked ? str(asked, 'r') : undefined
     if (named) {
@@ -1141,8 +899,7 @@ function liveSource(
           ...(channel.held.get(slot) ? { held: [channel.held.get(slot)?.tpl as string] } : {}),
           ...(str(asked as Frame, 'epoch') ? { epoch: str(asked as Frame, 'epoch') as string } : {}),
         },
-        // The gates run against an envelope context, because a capability check resolves a subject
-        // and a verifier reads a token. The entry's own loader gets `ctx` above, which cannot write.
+        // The gates get an envelope context; the entry's own loader gets `ctx`, which cannot write.
         renderContextFor(url, matched.params, connection.cookie, catalogue.ports),
       )
       if (outcome.ok) return outcome.source as SlotRender | SlotFrames
@@ -1157,16 +914,11 @@ function liveSource(
       }
     }
     /**
-     * A region on another deployment, refreshed.
+     * A region on another deployment, refreshed. Asked before this route's own slots because the two
+     * name spaces are one and a hole is filled from exactly one of them.
      *
-     * Asked before this route's own slots, because the two name spaces are the same one: a hole is
-     * either filled from here or from somewhere else, never both — the plan layer refuses a remote
-     * region with a local binding — so whichever answers first is the only one that can.
-     *
-     * There is no `live` gate on this branch, and that is not an oversight. `live` says "this
-     * process may re-render the slot under a reader", which is a statement about a fragment this
-     * process holds. A region's freshness is the region's own business; refusing to ask it would be
-     * this deployment deciding something it has no view of.
+     * No `live` gate, deliberately: `live` is a statement about a fragment this process holds, and a
+     * region's freshness is the region's own business.
      */
     const spec = matched.value.remote[slot]
     if (spec) {
@@ -1185,12 +937,9 @@ function liveSource(
 }
 
 /**
- * The envelope context a render intent's *gates* run against.
- *
- * A channel has no request, so this builds one from what the connection said — the same inputs
- * `channelContext` uses. It is an envelope context and not a render one because a capability check
- * resolves a subject and a verifier reads a token, and both of those are things a request that can
- * still be refused does. Nothing in it reaches the entry's own loader.
+ * The envelope context a render intent's *gates* run against, built from what the connection said.
+ * An envelope one rather than a render one, because a capability check resolves a subject and a
+ * verifier reads a token — both things a request that can still be refused does.
  */
 function renderContextFor(
   url: URL,
@@ -1207,10 +956,8 @@ function renderContextFor(
 }
 
 /**
- * The read surface a channel refresh runs against.
- *
- * There is no envelope, because a refresh has no response to write to — so a deferred effect has
- * nowhere to go and is dropped rather than queued against a request that ended long ago.
+ * The read surface a channel refresh runs against. No envelope, because a refresh has no response to
+ * write to, so a deferred effect is dropped rather than queued against a request that ended.
  */
 function channelContext(
   url: URL,
@@ -1221,9 +968,8 @@ function channelContext(
   const headers = new Headers()
   if (cookie) headers.set('cookie', cookie)
   const reads = createReads(requestFacts(new Request(url, { headers }), params), ports)
-  // The same services a document render hands a loader: a slot refreshed over the channel runs
-  // the same code, and a context that differed between the two would make the delta describe a
-  // render nobody could reproduce.
+  // The same services a document render hands a loader: a context that differed between the two
+  // would make the delta describe a render nobody could reproduce.
   return { ...reads, ...services(ports), phase: 'render', defer: () => {} }
 }
 
@@ -1231,21 +977,12 @@ function channelContext(
 export async function appHandler(app: App): Promise<Handler> {
   const { assets, at, authority, config, documents, intents, keysFor, recorder, routes, store, hub } = app
   const table = createRouter<RouteResolver>(routes.map((route) => route.entry))
-  /**
-   * Routes that answer a conditional request, by pattern.
-   *
-   * A set rather than a lookup into the route record, because this is consulted on the hot path for
-   * every request and the answer is build-time knowledge: which routes declared that they would
-   * rather be complete than early.
-   */
+  // A set rather than a route lookup: consulted on the hot path, and the answer is build-time.
   const conditional = new Set(routes.filter((route) => route.etag).map((route) => route.pattern))
 
   /**
-   * `.speculate()`, after the response.
-   *
-   * A slot with a TTL has one request per period that pays for a render, and it is always
-   * somebody's. This moves that render off a reader's request and onto time the process has already
-   * finished charging — through the store's own after-response queue, which existed and was empty.
+   * `.speculate()`, after the response: the one render per period that a TTL costs, moved off a
+   * reader's request through the store's own after-response queue.
    */
   const speculation = createSpeculation({
     routes,
@@ -1255,26 +992,15 @@ export async function appHandler(app: App): Promise<Handler> {
       app.ports.telemetry?.measure('slot.speculated', ms, { route: pattern, slot }),
   })
 
-  // The stylesheet a page the framework itself renders — a 404, a refused intent — links. There is
-  // no bundle for a page that is not a route, so it borrows the first one's.
+  // No bundle for a page that is not a route, so a 404 borrows the first one's stylesheet.
   const firstCss = routes[0] ? assets.pageCss(routes[0].pattern) : ''
 
   /**
-   * The error page: `app/layouts/error.tsx` when the application wrote one, the framework's own
-   * when it did not.
+   * The error page: `app/layouts/error.tsx` when the application wrote one, the framework's own when
+   * it did not. A named layout rather than a special file, and deliberately not a route — a 404 has
+   * no path of its own.
    *
-   * A named layout rather than a special file, because that is what it is — a document, discovered
-   * exactly the way every other document under `app/layouts/` is. Writing the file *is* the
-   * registration, and `error` is the name the framework looks for.
-   *
-   * It is deliberately not a route. A 404 has no path of its own, and giving it one would make it a
-   * page an application could link to — which is then a page that has to decide what to say when
-   * nothing has gone wrong.
-   *
-   * The values below are the contract, and `src/assets/error.tsx` documents each one. A replacement
-   * gets the same set: the status, the framework's own name for what happened, a sentence, the path
-   * that was asked for, and the stack — which is empty outside `weft dev`, because a trace names
-   * files and often the shape of the data being handled.
+   * `src/assets/error.tsx` documents the values a replacement is handed.
    */
   const errorFragment = app.compiled.fragments['layout:error'] ?? app.compiled.fragments.error
   const errorDecoder = new TextDecoder()
@@ -1321,32 +1047,21 @@ export async function appHandler(app: App): Promise<Handler> {
     ports: app.ports,
     ...(app.authority.model ? { capabilities: app.authority.model.check } : {}),
     ...(app.authority.verifier ? { verify: app.authority.verifier } : {}),
-    // Both bindings or neither. A limit enforced over the channel and not over the POST path is a
-    // limit with a documented way around it, which is the same argument capabilities make.
+    // Both bindings or neither, on the same argument capabilities make.
     ...(app.ports.limits ? { limits: app.ports.limits } : {}),
     returnTo: (request) => request.headers.get('referer') ?? '/',
   })
 
   /**
-   * A write over plain HTTP still has to tell the open channels.
-   *
-   * The channel binding gets this for free: its dispatch lives inside the hub. A form post does
-   * not, and an invalidation that notified nobody is the same bug as having no push invalidation
-   * at all.
+   * A write over plain HTTP still has to tell the open channels. The channel binding gets this free
+   * — its dispatch lives inside the hub — and a form post does not.
    */
   const dispatchOverHttp = async (request: Request): Promise<Response> => {
     const response = await http.handle(request)
     /**
-     * A refused mutation, told to whoever asked.
-     *
-     * The dispatch answers with a named code and a reason, which is right, and until now the answer
-     * a *browser* got for it was that JSON rendered as a page — the reader's document gone, replaced
-     * by `{"ok":false,…}`. The no-JavaScript path is not finished at "the request was refused
-     * correctly"; failing legibly is part of working.
-     *
-     * The framework's own fetch says so with a header and keeps the JSON, because it turns the same
-     * refusal into a toast without leaving the page. A plain form post cannot send a header, which is
-     * exactly the caller that needs the page.
+     * A refused mutation, told to whoever asked. A plain form post gets the page, because the
+     * no-JavaScript path is not finished at "the request was refused correctly"; the framework's own
+     * fetch sends a header and keeps the JSON, which it turns into a toast.
      */
     if (response.status >= 400) {
       const wantsHtml = (request.headers.get('accept') ?? '').includes('text/html')
@@ -1364,8 +1079,7 @@ export async function appHandler(app: App): Promise<Handler> {
       )
     }
     const tags = [...new Set(intents.entries.flatMap((entry) => entry.writes))]
-    // Both bindings again: a form post that left every open page's exposed values stale would be the
-    // channel binding quietly being the only one that works.
+    // Both bindings again, for the reason above.
     await app.republishExposed()
     if (tags.length) await hub.invalidate(tags, 'a form post wrote it')
     const keys = keysFor(tags)
@@ -1374,12 +1088,9 @@ export async function appHandler(app: App): Promise<Handler> {
   }
 
   /**
-   * The other direction: what another instance dropped, applied to the readers held here.
-   *
-   * `notify` and not `invalidate`, deliberately. The keys are already gone from the shared store —
-   * that is what the publishing instance did — and re-invalidating the tags here would drop them
-   * again, publish again, and produce a message per instance per write. This half is only the
-   * telling.
+   * The other direction: what another instance dropped, applied to the readers held here. `notify`
+   * and not `invalidate` — the keys are already gone, and re-invalidating would produce a message
+   * per instance per write.
    */
   if (config.fanout) {
     void config.fanout.subscribe((keys, reason) => {
@@ -1388,35 +1099,24 @@ export async function appHandler(app: App): Promise<Handler> {
   }
 
   const channel = channelHandlers({ hub, path: config.channelPath })
-  // Null unless `devtools: true`, and a named refusal outside `weft dev`. Off, it is one null
-  // check per request and nothing else — no route, no template, no asset.
+  // Null unless `devtools: true`, and a named refusal outside `weft dev`. Off, it is one null check.
   const devtools = devtoolsFor(app)
 
   const prelude = bootPrelude(app)
 
-  /**
-   * Modules already transformed, by the URL they answer.
-   *
-   * Bounded by the number of modules the application has, which is a build-time constant — a page
-   * loads twenty-odd and there is no way for a request to invent a twenty-first.
-   */
+  // Modules already transformed, by URL. Bounded by a build-time constant: a request cannot invent
+  // a module the application does not have.
   const served = new Map<string, string>()
 
-  // The deployment's ports, plus the one that is a property of this response rather than of the
-  // deployment: 103 goes out on a socket, so the transport is per request and nothing else is.
+  // The deployment's ports, plus the one that is per response: 103 goes out on a socket.
   const kernelFor = (res: ServerResponse): Kernel =>
     createKernel({
       ports: { ...app.ports, transport: nodeTransport(res) },
       coalesce: leaseCoalescer(store, { pollMs: 5 }),
       routes: table,
       notFound: (request) =>
-        // Styled with whatever the first route links, because a 404 is not a route and has no
-        // bundle of its own. An application with no routes at all gets an unstyled one.
-        //
-        // The path is named and the route table is not. That list was written for the person
-        // building the application and shown to everyone who mistyped a URL — on a deployment it is
-        // a map of the site handed to whoever asks for a path that does not exist. `weft routes`
-        // prints it for the one audience it was for.
+        // The path is named and the route table is not: that list is a map of the site handed to
+        // whoever mistypes a URL. `weft routes` prints it for the audience it was written for.
         new Response(
           errorDocument({
             status: 404,
@@ -1440,21 +1140,8 @@ export async function appHandler(app: App): Promise<Handler> {
         res.end()
         return
       }
-      /**
-       * A stack trace in development, a sentence in production.
-       *
-       * The trace is the only useful thing here while you are building, and the one thing that must
-       * not go out otherwise: it names files, line numbers and often the shape of the data that was
-       * being handled. `mode` already knows which of the two this process is.
-       */
-      /**
-       * The trace in development, a sentence outside it.
-       *
-       * It is the only useful thing here while you are building, and the one thing that must not go
-       * out otherwise: a stack names files, line numbers and often the shape of the data that was
-       * being handled. In `weft dev` it is rendered into the page; anywhere else it is empty and the
-       * block that would have held it is not drawn.
-       */
+      // The trace in development, a sentence outside it: a stack names files, line numbers and often
+      // the shape of the data being handled.
       const stack = app.mode === 'dev' ? ((error as Error).stack ?? String(error)) : ''
       res.writeHead(500, { 'content-type': 'text/html; charset=utf-8' })
       res.end(
@@ -1474,19 +1161,14 @@ export async function appHandler(app: App): Promise<Handler> {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? config.host}`)
     const path = url.pathname
 
-    // A channel open carries the page it belongs to and, on its own connection, the session it
-    // belongs to. Both are needed later, when there is no request to ask.
+    // Both are needed later, when there is no request to ask.
     remember(url, req.headers.cookie)
     if (channel.http(req, res)) return
     if (devtools && (await devtools(req, res))) return
 
     /**
-     * L0, and the whole of what it costs at serve time.
-     *
-     * The document was rendered at build time and proved not to depend on the request, so
-     * everything below this line — key derivation, the plan, the wave scheduler, the store, the
-     * stream — is work with a known answer. A conditional request costs the digest comparison and
-     * nothing else. Only `weft start` populates the table, so this is a no-op in dev.
+     * L0, and the whole of what it costs at serve time: everything below this line is work with a
+     * known answer. Only `weft start` populates the table. See `spec/kernel/static.md`.
      */
     const document = req.method === 'GET' || req.method === 'HEAD' ? documents.get(path) : undefined
     if (document) {
@@ -1508,15 +1190,8 @@ export async function appHandler(app: App): Promise<Handler> {
         'content-type': file.type,
         'cache-control': cacheControlFor(file),
       }
-      /**
-       * A stable name is `no-cache`, which is a promise the client can only keep with a validator.
-       *
-       * A digest-bearing name needs none: its URL changes when its bytes do. A stable one carries
-       * the tag instead, so `weft dev` answers a reload with 304 and no body rather than resending
-       * a stylesheet the browser already has — which is what removed the unstyled frame on refresh.
-       * Hashing on the way out costs a digest over bytes already in memory, against the alternative
-       * of putting them all back on the wire.
-       */
+      // A stable name is `no-cache`, which the client can only keep with a validator: the tag is
+      // what makes a dev reload a 304 rather than the whole stylesheet again.
       if (!file.immutable) {
         const tag = await entityTag(new Uint8Array(body))
         headers.etag = tag
@@ -1548,19 +1223,8 @@ export async function appHandler(app: App): Promise<Handler> {
           .end(`no such module: ${name}\n`)
         return
       }
-      /**
-       * Transformed once, outside dev.
-       *
-       * Serving a module reads it, parses it to find its comments, strips them and rewrites its
-       * specifiers — a few milliseconds for a module the size of `boot.ts`, and it was happening on
-       * every request. `weft build` pays that cost once and a CDN serves files, so a deployment
-       * behind one never noticed; a deployment that runs `weft start` — which is every host that
-       * keeps a process, and the whole reason the turn binding exists — paid it per request forever.
-       *
-       * Safe because the answer cannot change: outside dev the source is not being edited, and the
-       * path already carries a digest of the bundle, so a URL that would produce different bytes is
-       * a different URL. In dev nothing is cached, which is the point of dev.
-       */
+      // Transformed once outside dev, because the answer cannot change: the source is not being
+      // edited and the path already carries a digest. See `spec/kernel/static.md`.
       const cached = app.mode === 'dev' ? undefined : served.get(path)
       const body =
         cached ??
@@ -1591,13 +1255,9 @@ export async function appHandler(app: App): Promise<Handler> {
     }
 
     /**
-     * A miss under a content-addressed root, answered before it becomes a page.
-     *
-     * Anything else that reaches here is a URL for the router, and a 404 from the router is a
-     * document with a document's policy — `must-revalidate`, which is right for a page. It is wrong
-     * here for the reason `MISS` gives: the answer at this URL can change from 404 to 200 without
-     * the URL changing, which is what a rollback is. Answered as text rather than as the 404 page
-     * because nothing asking for a stylesheet or a module wants a document back.
+     * A miss under a content-addressed root, answered before it becomes a page — a 404 from the
+     * router carries a document's policy, which is wrong here for the reason `MISS` gives. Text
+     * rather than the 404 page, because nothing asking for a module wants a document back.
      */
     if (addressedByDigest(path)) {
       res
@@ -1615,24 +1275,9 @@ export async function appHandler(app: App): Promise<Handler> {
     const incoming = new Request(url, { method: req.method ?? 'GET', headers, ...(body ? { body } : {}) })
 
     /**
-     * A token for a signed intent, minted for this reader and nothing else.
-     *
-     * Its own path rather than a field in a page, because a token in a render would be a token in
-     * whatever cache holds that render. `serveToken` says the whole of why. POST because a token
-     * has no business in a URL, a log, or a referer.
-     */
-    /**
-     * The one thing a region's deployment is allowed to tell this one.
-     *
-     * Push invalidation stops at a tier boundary structurally: this composite holds a contract and
-     * the keys are the region's own, so a `STALE` about them has nobody to send and the design's
-     * stated fallback is the client's own refresh interval. What was missing is not a protocol, it
-     * is an authority — who may say that a region this page composes has gone stale — and that is a
-     * deployment's decision, so it is a secret in `weft.config.ts` rather than a mechanism here.
-     *
-     * A caller names a **region**, never a slot, and this side works out which slots on which pages
-     * that region fills and which connections are showing them. Naming a slot would be a region
-     * reaching into a page it cannot see, which is the thing composition refuses everywhere else.
+     * The one thing a region's deployment is allowed to tell this one. A caller names a **region**,
+     * never a slot — naming a slot would be a region reaching into a page it cannot see. See
+     * `spec/kernel/composition.md`.
      */
     if (path === STALE_PATH) {
       if (req.method !== 'POST') {
@@ -1658,12 +1303,8 @@ export async function appHandler(app: App): Promise<Handler> {
     }
 
     /**
-     * The request, recorded before it is served.
-     *
-     * The route comes from the same matcher the kernel is about to use, and where the reader came
-     * from is the `Referer` matched against the same table — which is the only way to learn a
-     * transition without asking the client to report one. A staged navigation sends a referer too,
-     * so a page reached by a swap counts the same as a page reached by a load.
+     * The request, recorded before it is served. Where the reader came from is the `Referer` matched
+     * against the same table — the only way to learn a transition without asking the client.
      */
     const readable = req.method === 'GET' || req.method === 'HEAD'
     const matched = readable ? table.match(url) : null
@@ -1677,12 +1318,8 @@ export async function appHandler(app: App): Promise<Handler> {
     const response = await kernel.serve(incoming)
 
     /**
-     * Which slots the store answered for.
-     *
-     * A hit is the absence of a render, so it cannot be counted where renders are counted. The
-     * trace names both — the key each slot resolved to, and the keys that hit — so the difference
-     * is available for exactly as long as the request is, and a hit rate per slot is what says
-     * whether a slow region is slow for readers or only slow the first time.
+     * Which slots the store answered for. A hit is the absence of a render, so it cannot be counted
+     * where renders are; the trace names both keys and hits, for as long as the request lives.
      */
     if (recorder && kernel.trace?.matched) {
       const hit = new Set(kernel.trace.hits)
@@ -1695,21 +1332,13 @@ export async function appHandler(app: App): Promise<Handler> {
     for (const [key, value] of response.headers) {
       out[key] = key === 'set-cookie' ? response.headers.getSetCookie() : value
     }
-    // Which build answered. One header, on every document, because the alternative is a deploy
-    // log and a guess — and during a rollout the two versions are the whole question.
+    // Which build answered. See `spec/kernel/lifecycle.md`.
     if (app.ports.deployment) out['x-weft-revision'] = app.ports.deployment.revision
 
     /**
-     * A conditional answer, for a route that asked to be one.
-     *
-     * The digest has to be over the whole entity and the kernel's envelope is sealed before the
-     * first body byte, so the tag cannot come from in there — it comes from here, where the status
-     * line has not been written yet, and the price is that the body is held until it is complete.
-     * That is why the route declares it: `E_ETAG_STREAMS` refuses the combination that would make
-     * this a silent slowdown.
-     *
-     * `no-store` gets no tag. A validator is a promise about a copy the client keeps, and the
-     * response has just told it not to keep one.
+     * A conditional answer, for a route that asked to be one. The tag comes from here rather than
+     * the envelope, and the price is that the body is held until it is complete — which is why the
+     * route declares it. `no-store` gets no tag. See `spec/kernel/cache.md`.
      */
     if (matched && conditional.has(matched.pattern) && response.status === 200 && response.body) {
       const stored = !/no-store/.test(String(out['cache-control'] ?? ''))
@@ -1718,7 +1347,7 @@ export async function appHandler(app: App): Promise<Handler> {
         const tag = await entityTag(whole)
         out.etag = tag
         if (matchesTag(req.headers['if-none-match'], tag)) {
-          // No content-length on a 304: it describes a body that is deliberately absent.
+          // No content-length on a 304.
           res.writeHead(304, out)
           res.end()
           return
@@ -1737,15 +1366,9 @@ export async function appHandler(app: App): Promise<Handler> {
     }
 
     /**
-     * A body that fails mid-stream has to end the response.
-     *
-     * By the time a slot throws, the status line and the headers are long gone — so there is no
-     * status code left to say it with, and the only honest signal is a truncated body. What is
-     * *not* honest is leaving the socket open: the browser then waits forever on a request that
-     * has already failed, which is the one outcome indistinguishable from a hung server.
-     *
-     * `onExceed: 'fail'` is the policy that reaches this deliberately. It is supposed to fail the
-     * response; it is not supposed to hang it.
+     * A body that fails mid-stream has to end the response. The status line is long gone, so the
+     * only honest signal is a truncated body — and leaving the socket open is indistinguishable
+     * from a hung server. `onExceed: 'fail'` reaches this deliberately.
      */
     const out_ = Readable.fromWeb(response.body as never)
     out_.on('error', (error: Error) => {
@@ -1753,17 +1376,14 @@ export async function appHandler(app: App): Promise<Handler> {
       res.destroy()
     })
     out_.pipe(res)
-    // After the last byte, not before: the whole point is that this render is not on the reader's
-    // request. `finish` rather than `close`, because a socket that went away has nobody to warm for.
+    // After the last byte: the point is that this render is not on the reader's request. `finish`
+    // rather than `close`, because a socket that went away has nobody to warm for.
     res.once('finish', () => void warm(matched, url))
   }
 
   /**
-   * Queue what this request implies and run it.
-   *
-   * On Workers the platform drains this queue as `waitUntil` and this call is the no-op it should
-   * be. On Node nobody drains it, which is why `revalidateAfterResponse` had collected tasks for as
-   * long as it had existed and run none of them.
+   * Queue what this request implies and run it. On Workers the platform drains this as `waitUntil`
+   * and the call is a no-op; on Node nobody drains it, so this does.
    */
   async function warm(
     matched: { pattern: string; params: Record<string, string> } | null,
@@ -1771,23 +1391,18 @@ export async function appHandler(app: App): Promise<Handler> {
   ): Promise<void> {
     if (!matched || !speculation.patterns.length) return
     try {
-      // The request's own URL, because a key can be derived from the query string and a pattern
-      // has none — warming under the wrong key is worse than not warming.
+      // The request's own URL: a key can derive from the query string, and a pattern has none.
       await speculation.after(matched.pattern, matched.params, url)
       await speculation.drain()
     } catch (error) {
-      // A speculative render that fails has cost a reader nothing, so it is reported and dropped.
+      // A speculative render that fails has cost a reader nothing.
       process.stderr.write(`  speculation failed on ${matched.pattern}: ${(error as Error).message}\n`)
     }
   }
 
   /**
-   * The recording, written as it is collected.
-   *
-   * Every thirty seconds rather than on exit, because the interesting case for a profile is a
-   * process that was killed: a deployment that only ever wrote its numbers on a clean shutdown
-   * would have nothing to show for the afternoon it spent falling over. Unref'd, so it cannot be
-   * the reason a process stays alive.
+   * The recording, written every thirty seconds rather than on exit: the interesting case for a
+   * profile is a process that was killed. Unref'd, so it cannot keep one alive.
    */
   const flushing = recorder
     ? setInterval(() => {
@@ -1797,12 +1412,8 @@ export async function appHandler(app: App): Promise<Handler> {
   flushing?.unref()
 
   /**
-   * Which route a URL belongs to, or nothing.
-   *
-   * A referer is a URL and a route is a pattern, so `/app/ordinary/pantry` and
-   * `/app/ordinary/:category` are never equal — the same mistake the nav's current-page marking
-   * made once. Matching with the router means one notion of "this URL is that page", and a referer
-   * from another origin belongs to no pattern here and is dropped rather than counted as one.
+   * Which route a URL belongs to, or nothing. A referer is a URL and a route is a pattern, so they
+   * are never equal; matching with the router means one notion of "this URL is that page".
    */
   function patternOf(href: string): string | undefined {
     try {
@@ -1823,8 +1434,7 @@ export async function appHandler(app: App): Promise<Handler> {
     at.set(id, {
       path: path ?? existing?.path ?? '/',
       cookie: cookie ?? existing?.cookie ?? '',
-      // Never allowed to go backwards. The value is the client's, and a client that sent a lower
-      // one — a stale tab, a replayed request — would be told about the same write a second time.
+      // Never backwards: the value is the client's, and a stale tab would be told twice.
       since: Math.max(Number.isFinite(said) ? said : 0, existing?.since ?? 0),
     })
   }
@@ -1841,8 +1451,7 @@ export async function appHandler(app: App): Promise<Handler> {
     upgrade,
     close: async () => {
       if (flushing) clearInterval(flushing)
-      // Written on the way out as well as periodically: the last thirty seconds of a run are
-      // exactly the ones a `weft profile` after a load test wants to include.
+      // Also on the way out: the last thirty seconds of a load test are the ones worth including.
       if (recorder) await writeProfile(config.root, config.outDir, recorder.profile())
     },
   }
@@ -1854,9 +1463,7 @@ export async function serveHandler(handler: Handler): Promise<Serving> {
   const server: Server = createServer(handler.handle)
   server.on('upgrade', handler.upgrade)
 
-  // `localhost` rather than `127.0.0.1`: on macOS `localhost` resolves to ::1 first, and a server
-  // bound only to the IPv4 loopback is one the browser cannot reach at the address printed in
-  // every tutorial.
+  // `localhost` rather than `127.0.0.1` — see `spec/kernel/lifecycle.md`.
   await new Promise<void>((resolve) => server.listen(config.port, config.host, resolve))
   const address = server.address()
   if (typeof address === 'string' || address === null)
@@ -1878,22 +1485,16 @@ export async function serveHandler(handler: Handler): Promise<Serving> {
 }
 
 /**
- * What the client needs before it can do anything, and the only things it cannot derive.
- *
- * Exported because the boot module has two ways out of a deployment and they must not disagree:
- * `weft start` prepends this when it answers the request, and `weft build` bakes it into the file
- * it writes so the same module works when a CDN is the one answering. Every value in it is
- * build-time knowledge — the intent table, the channel's path, which intents are signed, the
- * scroll policy, where the application's own client module is — so there is nothing here a static
- * copy could get wrong.
+ * What the client needs before it can do anything, and the only things it cannot derive. Exported
+ * because the boot module has two ways out of a deployment and they must not disagree. See
+ * `spec/kernel/lifecycle.md`.
  */
 export function bootPrelude(app: App): string {
   const { assets, authority, config, intents } = app
   return (
     `window.__weftIntents = ${JSON.stringify(intents.names)};\n` +
     `window.__weftChannel = ${JSON.stringify(config.channelPath)};\n` +
-    // Only when false, on the same rule as `__weftSigned`: a deployment that holds connections
-    // carries no bytes for the fact, because holding them is what every other host does.
+    // Only when false, on the same rule as `__weftSigned`.
     (config.channelHold ? '' : `window.__weftHold = false;\n`) +
     (authority.signed.length ? `window.__weftSigned = ${JSON.stringify(authority.signed)};\n` : '') +
     `window.__weftScroll = ${JSON.stringify(config.scroll)};\n` +

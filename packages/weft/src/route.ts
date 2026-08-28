@@ -4,92 +4,47 @@ import type { LoaderContext } from './context.ts'
 import type { ExceedPolicy, PolicyClass, WireForm } from './types.ts'
 
 /**
- * What a route declares, and the whole of it.
+ * Where a slot's values come from. Its result is what the fragment renders with.
  *
- * Everything here is either placement — which the plan layer owns — or data, which the
- * application owns. There is deliberately no cache key: keys are derived from what the
- * compiler saw a fragment read, and a declaration that could state one could disagree
- * with the code. `weft build` turns this object into a `Plan` and a `RouteBindings`, which
- * is the pair the framework already had and the user had to write by hand.
+ * `weft build` turns a route module into a `Plan` and a `RouteBindings`. What a route may and may
+ * not declare — and why there is deliberately no cache key here — is `spec/plan/plan.md`.
  */
 export type RouteLoad = (
   ctx: LoaderContext,
   params: Record<string, string>,
 ) => Values | Promise<Values> | Record<string, unknown> | Promise<Record<string, unknown>>
 
-/** What a slot declares about being held. Checked against what its fragment reads. */
+/** What a slot declares about being held. Checked against what its fragment reads — `spec/kernel/cache.md`. */
 export interface CacheDeclaration {
-  /**
-   * `public` or `private`. Checked against the class this slot's reads derive, never trusted.
-   *
-   * Declaring `public` on a fragment the compiler saw read an identity is a build error naming the
-   * read, because the alternative is one reader's page in a shared cache.
-   */
+  /** `public` or `private`. Checked against the class this slot's reads derive, never trusted. */
   class: PolicyClass
-  /**
-   * How long an entry may be served. `'5m'`, `'1h'`, or milliseconds.
-   *
-   * Required rather than optional wherever a fragment read the clock: `ctx.now()` taints `time`,
-   * and a policy with no TTL over a read of the time is an entry nothing can ever invalidate.
-   */
+  /** How long an entry may be served. `'5m'`, `'1h'`, or milliseconds. Required wherever a fragment read the clock. */
   ttl?: string | number
-  /**
-   * Stale-while-revalidate: how long past the TTL an entry may still answer while it refreshes
-   * behind the request. Same spellings as `ttl`.
-   */
+  /** Stale-while-revalidate: how long past the TTL an entry may answer while it refreshes. Same spellings as `ttl`. */
   swr?: string | number
-  /**
-   * What invalidates this. An intent that declares one of these tags drops this entry when it runs.
-   *
-   * A tag is the only handle anything has on a cached slot, which is why an intent's `writes` is
-   * the complete set and an undeclared `revalidate` throws — an invalidation nobody could predict
-   * by reading the code is worse than a stale page.
-   */
+  /** What invalidates this. An intent that declares one of these tags drops this entry when it runs. */
   tags?: string[]
-  /**
-   * What the store this deployment bound can honestly claim. Defaults to `eventual`.
-   *
-   * Declared here so a slot that cannot tolerate a read-your-writes gap says so and is refused on a
-   * store that cannot promise it, rather than being intermittently wrong on one instance.
-   */
+  /** What the bound store can honestly claim. Defaults to `eventual`; a slot needing `strong` is refused on a store that cannot promise it. */
   consistency?: 'eventual' | 'strong'
 }
 
-/** What a slot may spend, in the spellings a person writes: `'120ms'`, `'8kb'`. */
+/** What a slot may spend, in the spellings a person writes: `'120ms'`, `'8kb'`. See `spec/kernel/budgets.md`. */
 export interface BudgetDeclaration {
   /** CPU this slot may spend before the exceed policy applies. `'120ms'`, or milliseconds. */
   cpu?: string | number
-  /**
-   * JavaScript this slot may add to the page. `'8kb'`, or bytes.
-   *
-   * A ceiling on what was *built*, so nothing at request time can change it — which is why
-   * `budgetFor` may override `cpu` and not this.
-   */
+  /** JavaScript this slot may add to the page. `'8kb'`, or bytes. A ceiling on what was *built*, which is why `budgetFor` cannot override it. */
   js?: string | number
   /** How much the ceiling above may grow before the build fails. A growth cap is a diff. */
   grow?: string | number
-  /**
-   * What happens when the slot does not fit: `stale`, `client`, `fallback`, `placeholder` or
-   * `fail`.
-   *
-   * The executor boundary is also the budget boundary, which is most of why per-slot executors
-   * exist at all: a slot that blows its budget is killed and degrades, and nothing else on the page
-   * notices.
-   */
+  /** What happens when the slot does not fit: `stale`, `client`, `fallback`, `placeholder` or `fail`. */
   onExceed?: ExceedPolicy
 }
 
 /**
- * A budget stated per request rather than per build.
- *
- * A budget is normally a plan declaration and should stay one: it is a promise about the shape of
- * a deployment, not a knob. The exception is a page whose subject *is* the budget — one that lets
- * you move it and watch what the exceed policy does.
+ * A budget stated per request rather than per build, for a page whose subject *is* the budget.
  *
  * The plan keeps the declared values, so `weft why` and the build report still show a real
- * declaration and the ceiling a deployment states is the one it states. What varies is an
- * override on the slot this request resolved to, and only `cpu` and `onExceed` can vary — a JS
- * ceiling is about what was built, and nothing at request time can change that.
+ * declaration. Only `cpu` and `onExceed` can vary — see `spec/kernel/budgets.md`.
  */
 export type BudgetFor = (request: { params: Record<string, string>; query: URLSearchParams }) => {
   cpu?: string | number
@@ -99,21 +54,11 @@ export type BudgetFor = (request: { params: Record<string, string>; query: URLSe
 /**
  * A slot that is a fragment living somewhere else.
  *
- * The front door's half of composition, and it declares the same three things the plan layer's
- * `region()` builder does: whether this region crosses a boundary, what the shell was built
- * expecting it to serve, and what the reader gets when it is having a bad afternoon. What it
- * deliberately does not declare is *where* — a shell naming the tier would make rolling that region
- * a redeploy of every shell that names it, so the deployment says where in `weft.config.ts` and the
- * route says only that there is a boundary.
+ * Declares that there is a boundary, never where the other side is: the deployment says where in
+ * `weft.config.ts`. See `spec/kernel/composition.md`.
  */
 export interface RegionDeclaration {
-  /**
-   * It crosses a deployment boundary, and what the shell expects to find on the other side.
-   *
-   * `true` declares the boundary and describes nothing, which is legal and expensive: an
-   * undescribed region reads `opaque`, so the document containing it is uncacheable and private.
-   * Unknown is not nothing.
-   */
+  /** It crosses a deployment boundary, and what the shell expects to find. `true` describes nothing, so the region reads `opaque`. */
   remote?: boolean | RegionContract
   /** A fragment rendered in this region's place when it fails, by name under `app/fragments/`. */
   fallback?: string
@@ -131,15 +76,12 @@ export interface RegionDeclaration {
 export interface SlotDeclaration {
   /**
    * Which fragment renders it, by name under `app/fragments/`. Omitted for the `body` slot,
-   * which is the route's own file, and for a slot with `html`, which uses the framework's
-   * one deliberately-unescaped fragment.
+   * which is the route's own file, and for a slot with `html`.
    */
   fragment?: string
   /**
-   * Where this slot's values come from. Its result is what the fragment renders with.
-   *
-   * Runs in phase B, after the envelope is sealed, so it cannot redirect and cannot set a header —
-   * that is `guard`'s job. A loader that throws degrades this slot and nothing else on the page.
+   * Where this slot's values come from. Runs in phase B, after the envelope is sealed, so it cannot
+   * redirect and cannot set a header — that is `guard`'s job.
    */
   load?: RouteLoad
   /** Markup rather than content — a control panel, a readout. Goes through `raw()`, and says so. */
@@ -149,29 +91,22 @@ export interface SlotDeclaration {
   /** Streamed with an optional priority. `false` buffers, which derives in-order delivery. */
   stream?: boolean | { prio?: number }
   /**
-   * Re-render through this slot's own memo, so only the holes whose values moved cost bytes.
-   *
-   * A different question from where the render happens: the executor answers *who* produces bytes
-   * from a template, and this answers *which of last time's bytes can be reused*. Worth it for a
-   * slot whose template is large and whose values mostly are not — a table, a long list.
+   * Re-render through this slot's own memo, so only the holes whose values moved cost bytes. Worth
+   * it for a slot whose template is large and whose values mostly are not. See `spec/kernel/surgical.md`.
    */
   incremental?: boolean
   /**
-   * Re-render this slot after a response rather than on a reader's request.
+   * Re-render this slot after a response rather than on a reader's request. `true` warms it in the
+   * last fifth of an entry's life; `'profile'` leaves the decision to a measurement.
    *
-   * A slot with a TTL has one request per period that pays for a render, and it is always
-   * somebody's. `true` warms it whenever its entry is in the last fifth of its life; `'profile'`
-   * leaves the decision to a measurement. It is speculation about a **clock** and not about a
-   * reader — guessing where somebody will go next is what a staged route already does, paid for by
-   * their own hover.
+   * Speculation about a clock, not about a reader — see `spec/kernel/locus.md`.
    */
   speculate?: boolean | 'profile'
   /**
    * Where this slot renders, by the name it is bound under in `weft.config.ts`.
    *
-   * `inline` and `client` are always available. Anything else has to be in `executors` there, or
-   * the build fails with `E_UNKNOWN_EXECUTOR` and the slot named — rather than the slot refusing at
-   * request time on the one deployment that forgot it.
+   * `inline` and `client` are always available; anything else has to be in `executors` there, or the
+   * build fails with `E_UNKNOWN_EXECUTOR` and the slot named.
    */
   executor?: string
   /** What this slot may spend, and what happens when it does not fit. See `BudgetDeclaration`. */
@@ -181,27 +116,23 @@ export interface SlotDeclaration {
   /** Rendered while the slot is degraded. Without one a degraded slot is empty, which is honest. */
   placeholder?: string
   /**
-   * Re-render this slot on a clock while a reader is on the page. `'30s'`, or milliseconds.
-   *
-   * Only does anything on a `live` slot, because the refresh travels over the channel — without
-   * one there is nothing to push the new bytes down.
+   * Re-render this slot on a clock while a reader is on the page. `'30s'`, or milliseconds. Only
+   * does anything on a `live` slot: the refresh travels over the channel.
    */
   refresh?: string | number
   /**
    * Which encoding this slot's updates would rather use, and what to fall back to.
    *
-   * A preference and not a choice: the negotiated form is decided per request from what the client
-   * announced and what the compiler proved equivalent, and every form of a fragment produces
-   * identical bytes. This tilts the decision for a slot whose author knows something the
-   * negotiation does not.
+   * A preference and not a choice — the form is negotiated per request, and every form of a
+   * fragment produces identical bytes. See `spec/kernel/surgical.md`.
    */
   form?: { prefer?: WireForm; fallback?: WireForm }
   /** Data this slot depends on, by slot name. A slot merely nested inside another does not declare it. */
   needs?: string[]
   /**
-   * Refreshable over the channel. The framework registers this slot with the hub under a key
-   * derived from the route and the tags, so an intent that writes one of those tags produces a
-   * STALE frame for exactly the connections showing it.
+   * Refreshable over the channel: the slot is registered with the hub under a key derived from the
+   * route and the tags, so an intent writing one of those tags produces a STALE frame for exactly
+   * the connections showing it.
    */
   live?: boolean
   /** This slot is a region: a fragment that may render on another deployment. */
@@ -225,26 +156,18 @@ export interface HeadDeclaration {
  * taken per request — and every field is validated against what the compiler inferred.
  */
 export interface RouteModule {
-  /**
-   * Which document wraps this page: `app/layouts/<name>.tsx`. Without one it is `app/layout.tsx`,
-   * and a page whose layout declares different slot holes fills different holes — the plan is
-   * generated per route, so nothing has to agree across them.
-   */
+  /** Which document wraps this page: `app/layouts/<name>.tsx`. Without one it is `app/layout.tsx`. */
   layout?: string
   /**
    * The title, the description and any other meta tag, as a value or a function of the params.
    *
-   * A function of the params and never of the request: a head that varied per request would vary
-   * the document, and the document's cache key is derived from what its fragments read.
+   * Never a function of the request: a head that varied per request would vary the document, whose
+   * cache key is derived from what its fragments read.
    */
   head?: HeadDeclaration | ((params: Record<string, string>) => HeadDeclaration)
   /**
-   * Extra values for the layout's own holes, beyond the six the framework always supplies.
-   *
-   * A layout is the application's file, so it may want values the framework has no opinion
-   * about — a heading, a status, a breadcrumb. Declaring them here is what makes the
-   * unfilled-hole check possible: a layout hole that neither the framework nor this object
-   * supplies fails the build with the hole named, rather than rendering an empty box.
+   * Extra values for the layout's own holes, beyond the six the framework always supplies. Declaring
+   * them here is what makes the unfilled-hole check possible: a hole nothing supplies fails the build.
    */
   layoutValues?: Record<string, unknown> | ((params: Record<string, string>) => Record<string, unknown>)
   /** The `body` slot's values. */
@@ -257,15 +180,7 @@ export interface RouteModule {
   stream?: boolean | { prio?: number }
   /** The `body` slot's incremental re-render. See `SlotDeclaration.incremental`. */
   incremental?: boolean
-  /**
-   * Re-render this page's body after a response rather than on a reader's request.
-   *
-   * A slot with a TTL has one request per period that pays for a render, and it is always
-   * somebody's. `true` warms it whenever its entry is in the last fifth of its life; `'profile'`
-   * leaves the decision to a measurement. It is speculation about a **clock** and not about a
-   * reader — guessing where somebody will go next is what a staged route already does, paid for by
-   * their own hover.
-   */
+  /** Re-render this page's body after a response rather than on a reader's request. See `SlotDeclaration.speculate`. */
   speculate?: boolean | 'profile'
   /** The `body` slot is refreshable over the channel. See `SlotDeclaration.live`. */
   live?: boolean
@@ -283,109 +198,70 @@ export interface RouteModule {
   form?: { prefer?: WireForm; fallback?: WireForm }
   /**
    * Runs in phase A, where the envelope is still open — so a redirect here is a real redirect
-   * rather than a mid-stream apology.
+   * rather than a mid-stream apology. See `spec/kernel/lifecycle.md`.
    */
   guard?: (ctx: EnvelopeContext) => boolean | Promise<boolean>
   /** Where a refusing guard sends the request. Without one it refuses with `status`. */
   redirect?: string
   /**
-   * What a refusing guard answers with when there is no `redirect`. Defaults to 403.
-   *
-   * Set in phase A, where the envelope is still open, which is the only reason a real status is
-   * available at all: after the first body byte the response has already promised a 200.
+   * What a refusing guard answers with when there is no `redirect`. Defaults to 403. A real status
+   * is available only because phase A runs before the first body byte promises a 200.
    */
   status?: number
   /** The layout's other slot holes, filled per route. `body` is this file and cannot be redeclared. */
   slots?: Record<string, SlotDeclaration>
   /**
-   * Ceiling on concurrent slot renders for this page, overriding the deployment's own.
-   *
-   * The deployment sets the general answer in `weft.config.ts`; this is for the one page whose
-   * fan-out is different from the rest of the application — forty queries from one page will melt a
-   * database whatever the other pages do.
+   * Ceiling on concurrent slot renders for this page, overriding the deployment's own. For the one
+   * page whose fan-out is different from the rest of the application.
    */
   maxConcurrency?: number
   /**
    * Delivery order, when it has to be a control rather than a consequence.
    *
-   * Normally this is derived: a plan whose slots all buffer expresses no interest in arrival
-   * order, and in-order costs no fill mechanism, so the cheaper answer is the derived one. A page
-   * whose *subject* is the difference between the two orders is the exception, and it states the
-   * order as a function of its own params — which is why the exception is a route parameter
-   * rather than a query string the router cannot see.
+   * Normally derived: a plan whose slots all buffer expresses no interest in arrival order. Stated
+   * as a function of the params, because a query string the router cannot see would not do.
    */
   order?: 'in-order' | 'out-of-order' | ((params: Record<string, string>) => 'in-order' | 'out-of-order')
   /**
    * Answer a conditional request for this page: a strong `ETag` over the bytes, and a 304 when the
    * reader already holds them.
    *
-   * Declared rather than derived, because it costs the one property this framework is built on. An
-   * entity tag is a digest of the entity and it has to be in the envelope — which is sealed before
-   * the first body byte — so the only way to have one is to hold the whole response back until it
-   * is complete. A page that streams cannot have an ETag, and a page that could have one is
-   * trading time-to-first-byte for a revalidation that costs no body bytes at all.
-   *
-   * That trade is worth taking on a page whose slots all buffer anyway. It is never worth taking
-   * silently, so declaring it on a route that streams is `E_ETAG_STREAMS` at build time rather than
-   * a quietly slower page.
+   * Declared rather than derived, because an entity tag has to be in the envelope and so costs
+   * streaming entirely. Declaring it on a route that streams is `E_ETAG_STREAMS` at build time —
+   * the trade is worth taking on a page that buffers anyway, and never worth taking silently. See
+   * `spec/kernel/cache.md`.
    */
   etag?: boolean
   /**
    * `false` when this page must not be resolved at build time, and why.
    *
-   * The L0 tier is derived twice over — structurally from what the compiler saw, and empirically by
-   * rendering the page under two requests that differ in everything the framework can vary. Between
-   * them they catch almost everything. What they cannot catch is a loader, an `html` thunk or a
-   * `head` function reading a query key the probe did not invent: `ctx.query('src')` returns
-   * undefined under both probes, the bytes match, and the page is frozen into a file that ignores
-   * the parameter it was written to read.
-   *
-   * So a route that knows it varies on something the probe cannot guess says so, and the build
-   * refuses it as `L0_DECLARED` with this text as the reason. It is an opt-*out* rather than an
-   * opt-in for the obvious reason: a page that forgot to declare it is a page whose author believed
-   * the derivation, and the derivation is right nearly always.
+   * An opt-*out*, because the L0 derivations are right nearly always. What they cannot catch is a
+   * loader reading a query key the probe did not invent — see `spec/kernel/static.md`.
    */
   static?: false
   /** Why this page is not a file. Required with `static: false`: a refusal with no reason is noise. */
   notStaticBecause?: string
   /**
    * The values each of this route's parameters can take, when they are a set the application knows.
+   * This is what makes a parameterised page a file.
    *
-   * This is what makes a parameterised page a file. L0 refuses a pattern with a parameter because
-   * there is no single URL a file could answer — but a route that says its `category` is one of two
-   * things has two URLs, and each one can be rendered, proved invariant and written out. Nothing
-   * infers the set: a list of categories is the application's knowledge, and a framework guessing at
-   * it would be a framework writing files for URLs nobody asked for.
-   *
-   * Every parameter in the pattern has to be here, or the route is refused with the missing ones
-   * named — a partial enumeration would silently write files for some URLs and leave the rest to the
-   * kernel, which is the one outcome nobody could debug.
+   * Nothing infers the set, and every parameter in the pattern has to be here or the route is
+   * refused with the missing ones named. See `spec/kernel/static.md`.
    */
   params?: Record<string, readonly string[]>
   /**
-   * Extra value names to send to the browser.
+   * Extra value names to send to the browser, beyond the ones a client-owned derived expression was
+   * seen to read. Everything not listed stays on the server.
    *
-   * The framework already works out which values a client-owned derived expression reads and
-   * sends exactly those — `qty * unitPrice` recomputed in the browser means `unitPrice` travels
-   * and nothing else does. This is for a value the browser needs for a reason the template cannot
-   * show, and everything not listed stays on the server, where a value with no reason to travel
-   * belongs.
-   *
-   * Not to be confused with `exposes` below, which is one letter away and a different mechanism:
-   * this decides which of a *slot's* values reach that slot's own client code, and that decides
-   * which of the *shell's* values reach a region's.
+   * Not `exposes` below: this decides which of a *slot's* values reach that slot's own client code.
    */
   expose?: string[]
   /**
-   * Shell values this page offers its regions, by name — the design's `expose({ locale, cartCount })`.
+   * Shell values this page offers its regions, by name.
    *
-   * Deliberately the only channel between a shell and the regions inside it, and deliberately
-   * declared rather than discovered: the value of a single channel is that it can be checked, so a
-   * region declaring `consumes: ['locale']` on a page that exposes nothing is a build error rather
-   * than a region reading a global that happens to exist on one page and not on another.
-   *
-   * A name here has to be a value the shell actually renders with, because that is what is sent —
-   * the value at render time in the document, and a `SIGNAL` frame afterwards whenever it changes.
+   * The only channel between a shell and the regions inside it, declared rather than discovered so
+   * that a region's `consumes` can be checked against it. A name here has to be a value the shell
+   * actually renders with. See `spec/kernel/composition.md`.
    */
   exposes?: string[]
 }

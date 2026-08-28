@@ -44,29 +44,16 @@ export interface WeftConfig {
   /** Extra stylesheets, in order, after the framework's own. Paths are relative to the project. */
   css?: string[]
   /**
-   * What the layout's nav links to. Without one the framework derives it from every route with no
-   * parameter, which is right for a small application and wrong the moment there are forty pages
-   * — at which point the answer is editorial and belongs to whoever is writing the application.
+   * What the layout's nav links to. Without one it is derived from every route with no parameter,
+   * which is right for a small application and editorial the moment there are forty pages.
    */
   nav?: { href: string; label: string }[]
   /**
-   * How long a shared cache may serve a prerendered document before asking again, in seconds.
+   * How long a shared cache may serve a prerendered document before asking again, in seconds, and
+   * `stale` the grace period after that. Defaults to 0, and to an hour of any non-zero `shared`.
    *
-   * L0 is the tier the build proved invariant, and until now nothing downstream could act on that.
-   * A document went out `public, max-age=0, must-revalidate`, which lets a CDN store it and forbids
-   * it from ever answering with it — so every navigation to a page that had been rendered at build
-   * time still cost an origin round trip, and a tier a shared cache cannot hold is not really a
-   * tier. That default is honest for a cache nobody purges, and wrong for every platform that
-   * purges on deploy, which is most of them.
-   *
-   * So it is a number the deployment states rather than one the framework assumes. Set it when a
-   * deploy clears the caches in front of this application; leave it at zero when it does not,
-   * because the failure it buys is a page from the previous build served with no way to tell.
-   * The browser is unaffected either way — `max-age=0` stays, so a reader still revalidates and
-   * still gets a 304 against the ETag.
-   *
-   * `stale` is the grace period after that, during which a shared cache answers from what it has
-   * and refreshes behind the request. Defaults to an hour of any non-zero `shared`.
+   * Stated rather than assumed, because only the deployment knows whether a deploy purges the
+   * caches in front of it. See `spec/kernel/static.md`.
    */
   documents?: { shared?: number; stale?: number }
   /** Where the store lives. Defaults to an in-process one, which is a single-process deployment. */
@@ -74,11 +61,8 @@ export interface WeftConfig {
   /** Flag axes. Only a declared axis can be read, so a typo is a build error rather than a branch. */
   flags?: Record<string, string[]>
   /**
-   * What the session cookie is called. Defaults to `sid`.
-   *
-   * The name and nothing else: whether there is a session at all, how long it lives and what it
-   * holds are the `SessionPort`'s, and the front door binds a cookie-backed one with no
-   * configuration. This is here because two applications behind one host cannot both be `sid`.
+   * What the session cookie is called. Defaults to `sid`. The name and nothing else — the rest is
+   * `SessionPort`'s. Here because two applications behind one host cannot both be `sid`.
    */
   session?: { cookie?: string }
   /**
@@ -87,141 +71,93 @@ export interface WeftConfig {
    */
   executors?: Record<string, KernelExecutor>
   /**
-   * Where spans and counters go. Unbound, they are computed and dropped.
-   *
-   * Dropped rather than never produced: the kernel measures a render whether or not anybody is
-   * listening, because a number that only exists when telemetry is bound is a number that changes
-   * the thing it measures.
+   * Where spans and counters go. Unbound, they are computed and dropped — the kernel measures a
+   * render whether or not anybody is listening, because a number that exists only when telemetry is
+   * bound is a number that changes the thing it measures.
    */
   telemetry?: TelemetryPort
   /**
-   * Where each region a route composes actually is.
+   * Where each region a route composes actually is: a route says `search`, and this says what
+   * `search` is right now. A roll is a write here rather than a rebuild of every page that composes
+   * it. Unbound for a region a route declares, `E_NO_SUCH_REGION` at startup.
    *
-   * The indirection the whole of composition rests on: a route says `search`, and this says what
-   * `search` is right now. Rolling a region to a new revision is a write here rather than a rebuild
-   * of every page that composes it — which is why it is a deployment's file and not a route's
-   * declaration, and why `weft verify` compares the two rather than assuming they agree.
-   *
-   * A region declared on a route with no binding here is `E_NO_SUCH_REGION` at startup, named by
-   * `weft verify` rather than found by a reader.
+   * See `spec/kernel/composition.md`.
    */
   regions?: readonly RegionBinding[]
   /**
-   * A registry that answers regions from somewhere live — a KV namespace, a control plane.
-   *
-   * `regions` above is the checked-in shape of the same port and is the right answer for most
-   * deployments. This is for the one where a roll is not a deploy: bound, it is asked first, and
-   * `regions` is what answers a name it does not resolve.
+   * A registry that answers regions from somewhere live — a KV namespace, a control plane. Asked
+   * first when bound; `regions` above answers a name it does not resolve.
    */
   registry?: Registry
   /**
-   * Three ports a deployment may bind and most never have to.
-   *
-   * The defaults are real rather than stubs: settings come from `WEFT_`-prefixed environment
-   * variables, the deployment names itself from whatever the host calls a revision, and data
-   * access is bounded by a deadline and counted. Binding one replaces one decision and leaves the
-   * other two alone, which is the whole claim a port makes.
+   * Where settings come from. Defaults to `WEFT_`-prefixed environment variables. One of three
+   * ports whose defaults are real rather than stubs — see `spec/kernel/ports.md`.
    */
   config?: ConfigPort
   /**
-   * What this build calls itself, and where it is running.
-   *
-   * Read by the trace, by `weft verify`, and by every region answering a probe — which is why the
-   * default reads the host's own idea of a revision rather than defaulting to a constant that would
-   * make two deployments indistinguishable.
+   * What this build calls itself, and where it is running. Read by the trace, by `weft verify` and
+   * by every region answering a probe, so the default reads the host's own idea of a revision.
    */
   deployment?: DeploymentPort
   /**
-   * Where a loader's data comes from, named rather than anonymous.
-   *
-   * The default is real: access is bounded by a deadline and counted, so a loader that hangs is a
-   * slot that degrades rather than a request that never ends. Binding this replaces the bound, not
-   * the fact that there is one.
+   * Where a loader's data comes from, named rather than anonymous. The default bounds access by a
+   * deadline and counts it, so a loader that hangs degrades a slot rather than never ending.
    */
   db?: DbPort
   /**
    * What a call is counted against, and — only if you want to own it — how the counting is done.
    *
-   * Two shapes, because there are two decisions and only one of them is usually yours. Supply
-   * `{ counted }` and the framework counts, in a fixed window, against the store this deployment
-   * already bound; `counted` is the part it will not guess at, since an address, a session and a
-   * subject are each wrong in some deployment. Supply a whole `LimitPort` — a gateway, a Redis
-   * script, a platform's own limiter — and nothing else changes.
-   *
-   * Unbound, an intent that declares a `limit` is `E_NO_RATE_LIMIT` and says so at startup. Refused
-   * rather than let through, because a limit nothing counts reads as a protection that is not there.
+   * `{ counted }` and the framework counts in a fixed window against the bound store; `counted` is
+   * the part it will not guess at. A whole `LimitPort` replaces the counting. Unbound, an intent
+   * declaring a `limit` is `E_NO_RATE_LIMIT` at startup. See `spec/kernel/authority.md`.
    */
   limits?: LimitPort | { counted: CountedAgainst }
   /**
    * The channel's mount point, and whether this deployment can hold a downstream open.
    *
-   * `hold: false` is the honest description of a serverless function: it terminates no upgrade and
-   * outlives no request, so a socket cannot be taken and a streamed GET cannot be relied on to be
-   * the same instance the next POST reaches. Said here, the client takes turns from the first
-   * request instead of discovering it on a failed intent. Left alone it is `true`, which is what
-   * every host that runs a process is.
+   * `hold: false` describes a serverless function, and said here the client takes turns from the
+   * first request rather than discovering it on a failed intent. See `spec/kernel/transport.md`.
    */
   channel?: { path?: string; hold?: boolean }
   /**
    * How many instances of this deployment run at once. One unless it says otherwise.
    *
-   * Not a number anything can measure from inside a process — an instance cannot see its siblings —
-   * so it is declared, and declaring it is what lets the build check the guarantees that depend on
-   * it. The one that bites: a process-scoped store holds N private caches on N instances, and an
-   * invalidation reaches the one that ran it. Left at 1, nothing changes for anybody.
+   * Declared because an instance cannot see its siblings, and declaring it is what lets the build
+   * check the guarantees that depend on it — a process-scoped store holds N private caches on N
+   * instances. See `spec/kernel/transport.md`.
    */
   instances?: number
   /**
-   * Where this application is served from, for the things that are absolute by specification.
-   *
-   * A sitemap's entries and a canonical link are both absolute URLs, and the origin is the one
-   * thing a build genuinely cannot derive: the same output is served from a preview URL, a staging
-   * host and a domain, and guessing would put the wrong one in a file crawlers read. Unset, no
-   * sitemap is written and no canonical is emitted — an absence rather than a guess.
+   * Where this application is served from, for the things that are absolute by specification —
+   * a sitemap's entries and a canonical link. Unset, neither is written: an absence rather than a
+   * guess, since the same output is served from a preview URL, a staging host and a domain.
    */
   site?: { origin?: string }
   /**
-   * How an invalidation reaches the instances this one is not.
-   *
-   * Needed exactly when `instances` is more than one, and inert when it is one. Unbound,
-   * `hub.invalidate` tells the readers this process is holding and no others — which is the whole
-   * of push invalidation on a single-process deployment and half of it on any other.
+   * How an invalidation reaches the instances this one is not. Needed exactly when `instances` is
+   * more than one, and inert when it is one.
    */
   fanout?: FanoutPort
   /**
-   * Where an invalidation waits for a client that is not connected.
+   * Where an invalidation waits for a client that is not connected. Bind `storeJournal(store)` when
+   * this deployment serves turns and something writes; a process-scoped store is refused with
+   * `E_TAGS_PROCESS_SCOPED`. Unbound is no journal rather than a degraded one.
    *
-   * Worth binding exactly when this deployment serves turns and something writes: a turn holds no
-   * connection between requests, so an invalidation that happens in the gap has nowhere to be
-   * pushed and is answered on the next turn instead. `storeJournal(store)` is the one to bind, and
-   * a deployment whose store is process-scoped is told so by `E_TAGS_PROCESS_SCOPED` rather than
-   * by a reader who is never told anything.
-   *
-   * Unbound is not a degraded journal, it is no journal: a site with no writes has nothing to
-   * record, and paying a store lookup per live slot per turn to discover that every time is a cost
-   * with no answer on the other end of it.
+   * See `spec/kernel/transport.md`.
    */
   journal?: StaleJournal
   /**
    * Who may run an intent, and which intents need a token this deployment minted.
    *
    * Unbound, an intent that declares a capability is `E_NO_CAPABILITY_CHECK` and one that declares
-   * `signed` is `E_NO_VERIFIER` — refused rather than waved through, because a declaration nothing
-   * enforces is worse than no declaration at all. See [`spec/kernel/authority.md`](../../../spec/kernel/authority.md).
+   * `signed` is `E_NO_VERIFIER` — a declaration nothing enforces is worse than no declaration at
+   * all. See [`spec/kernel/authority.md`](../../../spec/kernel/authority.md).
    */
   authority?: AuthorityConfig
   /**
-   * What a route change does, for the pages this application serves.
-   *
-   * `scroll` decides where the reader lands when the framework answers a link itself. `top` is the
-   * default because it is what a navigation has always done, and a swap that silently kept the
-   * position would be a framework quietly changing what a link means. `preserve` is for the
-   * applications where the position *is* the reader's place — a long list with a filter in the
-   * URL, a document with a chapter per route — and it can be asked for one link at a time with
-   * `data-weft-scroll="preserve"` in the markup, which wins over whatever is set here.
-   *
-   * Neither setting touches back and forward: those restore the position recorded on the entry
-   * being returned to, which is what a browser does and what a reader means by going back.
+   * Where the reader lands when the framework answers a link itself. `top` by default;
+   * `data-weft-scroll="preserve"` on a link wins over whatever is set here, and neither setting
+   * touches back and forward. See `spec/client/navigation.md`.
    */
   navigation?: { scroll?: 'top' | 'preserve' }
   /** Per-request ceiling on concurrent slot renders. Forty queries from one page will melt a database. */
@@ -229,21 +165,14 @@ export interface WeftConfig {
   /** Type information decides escape elision. Turning it off is correct and slower. */
   types?: boolean
   /**
-   * Record what every render costs, and generate the next plan from it.
-   *
-   * Off by default, because a recording is only worth having from traffic that resembles
-   * production and a laptop's is not that. On, the process writes `.weft/profile.json` as it
-   * serves, and the next `weft build` or `weft dev` reads it: a slow region on a page with a fast
-   * one starts streaming, a page whose regions are all fast stops paying for the out-of-order
-   * filler, and the framework knows which routes readers actually go to next.
+   * Record what every render costs into `.weft/profile.json`, and generate the next plan from it.
+   * Off by default: a recording is only worth having from traffic that resembles production. See
+   * `spec/plan/profile.md`.
    */
   profile?: boolean
   /**
-   * `weft routes` and `weft why` as pages, under `/_weft/devtools`, reading this process's own
-   * `App` object.
-   *
-   * `weft dev` only. Left on, `weft start` refuses by name rather than serving a deployment's
-   * route table, effect sets and cache-key reasons to anyone who asks for them.
+   * `weft routes` and `weft why` as pages under `/_weft/devtools`, reading this process's own `App`
+   * object. `weft dev` only — left on, `weft start` refuses by name. See `spec/plan/plan.md`.
    */
   devtools?: boolean
 }
@@ -281,30 +210,12 @@ export interface ResolvedConfig extends Required<Pick<WeftConfig, 'srcDir' | 'ou
   profile: boolean
   types: boolean
   store?: StorePort
-  /**
-   * Where spans and counters go. Unbound, they are computed and dropped.
-   *
-   * Dropped rather than never produced: the kernel measures a render whether or not anybody is
-   * listening, because a number that only exists when telemetry is bound is a number that changes
-   * the thing it measures.
-   */
+  /** Where spans and counters go. See `WeftConfig.telemetry`. */
   telemetry?: TelemetryPort
   config?: ConfigPort
-  /**
-   * What this build calls itself, and where it is running.
-   *
-   * Read by the trace, by `weft verify`, and by every region answering a probe — which is why the
-   * default reads the host's own idea of a revision rather than defaulting to a constant that would
-   * make two deployments indistinguishable.
-   */
+  /** What this build calls itself, and where it is running. See `WeftConfig.deployment`. */
   deployment?: DeploymentPort
-  /**
-   * Where a loader's data comes from, named rather than anonymous.
-   *
-   * The default is real: access is bounded by a deadline and counted, so a loader that hangs is a
-   * slot that degrades rather than a request that never ends. Binding this replaces the bound, not
-   * the fact that there is one.
-   */
+  /** Where a loader's data comes from. See `WeftConfig.db`. */
   db?: DbPort
   limits?: LimitPort | { counted: CountedAgainst }
   authority?: AuthorityConfig
@@ -326,21 +237,10 @@ async function exists(path: string): Promise<boolean> {
 }
 
 /**
- * Ports a browser will not connect to, whatever is listening on them.
+ * Ports a browser will not connect to, whatever is listening on them: the WHATWG fetch standard's
+ * bad-port list, copied rather than approximated because the standard names each port individually.
  *
- * The WHATWG fetch standard blocks these outright — the request is a network error before it is
- * sent, on `fetch`, on `WebSocket`, and on every other subresource. A framework whose channel is
- * built out of all three has a specific reason to care: a deployment on one of these serves its
- * documents perfectly and its channel never connects, and *nothing says so*. The page has no error
- * to report because a blocked request produces none, so the symptom is a live region that never
- * updates and a navigation that is always a document.
- *
- * This was not theoretical. The documentation site was configured on 4190 — sieve — so its own
- * channel could never have worked in a browser, and the number had been sitting in
- * `weft.config.ts` looking like any other port.
- *
- * Kept as the list rather than a range because it is a list: the standard names each port for the
- * protocol it belongs to, and it is stable enough that copying it is better than approximating it.
+ * See `spec/kernel/transport.md` for the failure this refuses, which this repository shipped.
  */
 const BLOCKED_PORTS = new Set([
   1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102, 103, 104,

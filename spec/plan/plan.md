@@ -159,6 +159,15 @@ without inventing an estimate for the improvement.
 Passed `resolved` keys, it prints them too, which is the same function answering the runtime
 question instead of the build one.
 
+### The same two reports, as pages
+
+`devtools: true` in `weft.config.ts` mounts `weft routes` and `weft why` under `/_weft/devtools`,
+reading this process's own `App` object rather than a build artefact — so what the pages show is
+what the running deployment resolved.
+
+It is a `weft dev` option. Left on, `weft start` refuses by name rather than serving a deployment's
+route table, effect sets and cache-key reasons to anyone who asks for them.
+
 ## Fixtures
 
 `packages/plan/fixtures/cart.ts` is one valid plan over the design's `/cart`, nine plans that

@@ -190,6 +190,10 @@ architectural. No constant factor of a LiveView deployment is measured or claime
 
 ## Incremental recompute
 
+A different question from where a render runs. The executor answers _who_ produces bytes from a
+template; `incremental` answers _which of last time's bytes can be reused_. It is worth declaring on
+a slot whose template is large and whose values mostly are not — a table, a long list.
+
 The design's three memoisation levels, all of them now real.
 
 **Level one, the fragment**, keyed by its effect signature. That is `StorePort` and it has

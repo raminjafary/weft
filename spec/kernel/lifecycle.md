@@ -107,6 +107,39 @@ Warp 1.1.0 adds two frames for the cases that reach the user rather than the CDN
 | `REDIRECT` | `0x20` | Acted on by the client, degrades to a meta refresh with no JavaScript. **A crawler will not follow it.** |
 | `COOKIE`   | `0x21` | Non-`HttpOnly` values only, because `HttpOnly` is precisely the property a body cannot grant             |
 
+## The front door, and what puts it on a port
+
+An application that answers requests is built without anything listening. `weft start` puts it on a
+TCP port; a host that owns the socket — a serverless function, a process manager that hands a
+listener down, a test that drives the handler directly — takes the two callbacks instead, one for a
+request and one for an upgrade. The split exists because binding a port is the one thing in a
+deployment that is genuinely the platform's decision, and a framework that can only be reached by
+opening one has decided it for every platform that does not work that way.
+
+The handler never throws. A failure below it becomes the error document, and an upgrade to a path
+that is not the channel ends the socket, which is what a 404 is on that side.
+
+When `weft start` does bind, it binds `localhost` rather than `127.0.0.1`: on macOS `localhost`
+resolves to `::1` first, and a server bound only to the IPv4 loopback is one the browser cannot
+reach at the address printed in every tutorial.
+
+Every document carries **`x-weft-revision`**, from `DeploymentPort`. One header on every response,
+because the alternative is a deploy log and a guess — and during a rollout, which of two versions
+answered is the whole question.
+
+### The prelude the boot module needs
+
+A handful of facts the client cannot derive are written into the page ahead of the boot module: the
+intent table, the channel's path, whether this deployment holds connections, which intents are
+signed, the scroll policy, and where the application's own client module is. Every one is build-time
+knowledge, so a static copy cannot get it wrong — which matters, because the boot module has two
+ways out of a deployment and they must not disagree. `weft start` prepends the prelude when it
+answers the request; `weft build` bakes it into the file it writes, so the same module works when a
+CDN is the one answering.
+
+Two of them are written only when false or non-empty. A deployment that holds connections carries no
+bytes for the fact, because holding them is what every other host does.
+
 ## What is irreducibly lost
 
 After the seal you cannot retroactively obtain a real status code, an `HttpOnly` or `Secure`

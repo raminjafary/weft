@@ -104,6 +104,18 @@ slot that blows its budget is killed and degrades, and nothing else on the page 
 | `'placeholder'` | Keep the skeleton. Honest, cheap, visibly incomplete                  |
 | `'fail'`        | Propagate. Only defensible for a slot the page is meaningless without |
 
+### A budget stated per request
+
+A budget is normally a plan declaration and should stay one: it is a promise about the shape of a
+deployment, not a knob. The exception is a page whose subject _is_ the budget — one that lets you
+move it and watch what the exceed policy does. `budgetFor(request)` is that exception, and it is
+bounded on purpose.
+
+The plan keeps the declared values, so `weft why` and the build report still show a real
+declaration and the ceiling a deployment states is the one it states. What varies is an override on
+the slot this request resolved to, and only `cpu` and `onExceed` can vary. A JS ceiling is about
+what was _built_, and nothing at request time can change what was built.
+
 ### A CPU budget is only enforceable on a preemptible executor
 
 JavaScript is single-threaded. You cannot interrupt a synchronous render on the request

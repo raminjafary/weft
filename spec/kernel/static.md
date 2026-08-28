@@ -172,6 +172,81 @@ alone: an absolute path names a URL rather than a file, a scheme belongs to some
 is already the bytes, and `#blur` points into the document being styled. A relative `url()` that
 resolves to nothing is `E_NO_ASSET` at build time rather than a 404 found by a reader.
 
+## The asset table, and the three cache policies
+
+Every URL the browser fetches is in one table, built after the generator has said which stylesheets
+each page links — an href carries a hash of the bundle's contents, so there is one late binding here
+rather than an unrevved URL. Three roots, named by what is behind them: `/_weft/a` for assets,
+`/_weft/s` for styles, `/_weft/m` for modules. A stylesheet is `a/<digest>.css` and an asset is
+`a/<digest>/<name>`; they share a root without colliding because one is a file and the other a
+directory segment, and a served file is matched by its whole path rather than by a prefix.
+
+**Modules are revved by directory, not by file.** A module graph's imports are relative specifiers,
+so hashing each file would mean rewriting every import to its neighbour's digest and re-hashing
+until it converged. Hashing the tree once and mounting it under that digest gets the same
+immutability with none of that: the imports inside are untouched, and the whole tree moves when any
+file in it does.
+
+**A served module URL always ends in `.js`.** The bytes are JavaScript by the time anybody receives
+them, so a `.ts` URL is only ever a liability: weft's own server knows `.ts` means JavaScript, and a
+static host consults the extension and nothing else — every one of them reads `.ts` as an MPEG
+transport stream, and `video/mp2t` fails strict MIME checking, so the browser refuses the module.
+This shipped. An application's own client module is `app/client.ts`, always source and never built,
+so it was served at a `.ts` URL for every weft application deployed to a host that serves files
+rather than proxying to weft. It took out the theme toggle, the search panel, the tab strips and the
+intent buttons on this project's own documentation site, with one console error naming a video
+codec.
+
+Then three headers, one per state a URL can be in:
+
+- **`public, max-age=31536000, s-maxage=31536000, immutable`** for a digest-bearing URL. The
+  `s-maxage` is not a second opinion about the year — it is the only line a CDN in front of a
+  deployment reads. Several treat a bare `max-age` on a generated response as the browser's business
+  and decline to hold anything themselves, which is how a build that revs every URL and calls it
+  immutable still served every module from the origin, once per reader: twenty-four asset requests
+  for one page of the documentation site, every one a miss with an age of zero. It is unconditional,
+  unlike the policy on a document, because the URL carries a digest of the bytes it answers with —
+  there is no deploy that changes what this URL means, so there is no purge for a cache to have
+  missed.
+- **`no-cache`** for a stable URL, which is what `weft dev` serves. `no-store` is the obvious reading
+  of "a stylesheet you just edited must not be served stale" and is stronger than that sentence
+  needs: it forbids the client from _holding_ the bytes, so every reload re-downloads the sheet and
+  the document begins parsing before it lands — one unstyled frame per refresh, worse when the page
+  is scrolled, because scroll is restored against the unstyled layout and then jumps. `no-cache`
+  keeps the promise and drops the cost: stored, and revalidated on every use.
+- **`no-store` for a _miss_ under a digest root.** A digest is not a promise that the file exists —
+  it is a promise about what the file contains if it does. A build that removes a module, or a
+  rollback to one that has it again, is a URL whose answer changes from 404 to 200, and a 404 held
+  for a year at that URL is a client that cannot load the runtime until the cache expires. The
+  deploy most likely to produce it is a rollback. `no-store` rather than `no-cache` because there is
+  nothing here to revalidate and the whole risk is a copy being kept, and because it is the one
+  header that has to survive a platform's own caching rules, which are written per path and cannot
+  see a status.
+
+Nothing may infer the first policy from a path. `public/` is served at the name its author wrote as
+well as at a revved one, and a favicon linked as `/mark.svg` served immutable is a year of the old
+icon for everyone who has already seen it.
+
+**Two replacements instead of a bundler.** A client module on its way to the browser has its types
+stripped and its bare specifiers rewritten to the paths those packages are mounted at, and that is
+the whole transform. The specifier table is exported and is the only statement of it anywhere,
+because `measureClientJs` needs the same pair to walk the graph a page downloads and while it held
+its own copy the two drifted — silently, when the scope moved from `@weft` to `@weftjs`. A stale
+copy in the rewriter is an unresolvable import in the browser; a stale copy in the measurement is a
+byte figure that stops following two thirds of the runtime and reports less than the truth. In a
+repository whose claims are measurements, the second failure is the worse one, because nothing about
+it looks broken. Relative specifiers are rewritten too: a `.ts` source importing `./hint.ts` has to
+name the neighbour's URL rather than the neighbour's filename.
+
+**The module trees are written into the build output.** They are mounted directories, read from a
+package's own `dist` when a request arrives, and they were never in the file table — which was
+invisible while a server answered every request and wrong the moment anything else did. A build
+output whose manifest lists `/_weft/m` URLs with no files behind them is a site that can be handed
+to a CDN and will serve every page, every stylesheet, and no JavaScript. The set written is every
+direct child of every mounted tree with that tree's extension — exactly what the server would
+answer, and deliberately not the reachable import graph, because a graph walk misses `import()` and
+the first thing to 404 would be whatever an application loads lazily.
+
 ## The gate
 
 Byte identity, asserted from one deployment against itself
