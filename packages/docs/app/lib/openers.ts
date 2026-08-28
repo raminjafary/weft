@@ -1,4 +1,17 @@
 import { plainTerms, verdictPair, type Refusal, type Verdict } from './figures.ts'
+import { figure as benchFigure } from './bench.ts'
+
+/**
+ * The three client figures this file quotes, read once from the recorded run.
+ *
+ * Chromium because the sentence names it. All three were typed here — 0.047, 0.076 and 0.0017 —
+ * and the first and last had drifted from what `results/` measures.
+ */
+const IN_CHROMIUM = {
+  adopt: benchFigure('tti-server-rendered', 'adopt a server-rendered region', { engine: 'chromium' }),
+  parse: benchFigure('client-work', 'html form, parsed', { engine: 'chromium' }),
+  apply: benchFigure('client-work', 'delta form, applied surgically', { engine: 'chromium' }),
+}
 import { hero } from './heroes.ts'
 import { staticPages } from './counts.ts'
 
@@ -204,8 +217,9 @@ const OPENERS: Record<string, Opener> = {
     },
     plain:
       'The browser does not re-render what the server sent. The runtime walks the DOM the parser already built, writes down where each value lives, and stops. After that, a change is one write to one node.',
-    caption:
-      'Adopting a 50-row region costs 0.047 ms in Chromium against 0.076 ms to parse the same markup — and a 12-path delta applies in 0.0017 ms.',
+    caption: `Adopting a 50-row region costs ${IN_CHROMIUM.adopt} in Chromium against ${
+      IN_CHROMIUM.parse
+    } to parse the same markup — and a 12-path delta applies in ${IN_CHROMIUM.apply}.`,
   },
   navigation: {
     ok: {

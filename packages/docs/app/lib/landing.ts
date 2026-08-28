@@ -1,7 +1,7 @@
 import { escapeHtml } from './escape.ts'
 import { highlight } from './highlight.ts'
 import { barChart, chartBlock, wireBars } from './figures.ts'
-import { candidate, run } from './bench.ts'
+import { candidate, figure, measured as benchRow, run } from './bench.ts'
 
 /**
  * The landing page's body.
@@ -270,7 +270,7 @@ function band(): string {
 const SIZE_ROWS: readonly { id: string; label: string; note: string; lit?: boolean }[] = [
   { id: 'segments', label: 'weft', note: 'sealed template, no framework markers', lit: true },
   { id: 'rr7-blocking', label: 'React Router 7 — blocking', note: 'no boundary, so no Suspense markers' },
-  { id: 'rr7-stream', label: 'React Router 7', note: 'Suspense markers and comment nodes: +18%' },
+  { id: 'rr7-stream', label: 'React Router 7', note: `Suspense markers and comment nodes: ${markerCost()}` },
 ]
 
 const LAST_ROWS: readonly { id: string; label: string; note: string; lit?: boolean }[] = [
@@ -372,24 +372,24 @@ function wire(): string {
     </div>
     ${wireBars(
       [
-        { form: 'html', what: 'the whole region, re-parsed', size: '6,289 B · 605 brotli', share: 1 },
+        { form: 'html', what: 'the whole region, re-parsed', size: wireSize('segments:html'), share: 1 },
         {
           form: 'patch',
           what: 'the holes that changed, as DOM writes',
-          size: '4.3–6.0× smaller',
+          size: 'between the two, structurally',
           share: 0.2,
         },
         {
           form: 'delta',
           what: 'values only, into DOM that exists',
-          size: '371 B · 187 brotli',
-          share: 0.059,
+          size: wireSize('segments:delta'),
+          share: deltaShare(),
           lit: true,
         },
       ],
-      `One row’s quantity and price change, on a twelve-row cart. A delta applied as designed is 20–93×
-       cheaper than the parse it replaces; a region whose values are not projectable takes the patch rung
-       instead of falling all the way to markup.`,
+      `One row’s quantity and price change, on a twelve-row cart. A delta applied as designed is
+       ${applyRange()} cheaper than the parse it replaces; a region whose values are not projectable takes
+       the patch rung instead of falling all the way to markup.`,
     )}
   </section>`
 }
@@ -459,15 +459,17 @@ function absences(): string {
       kicker: 'No virtual DOM',
       title: 'An update names the hole it changed',
       body: 'There is nothing to reconcile: a delta carries the values whose holes moved, applied straight into DOM that already exists.',
-      figure: '20–93×',
+      figure: applyRange(),
       fine: 'cheaper to apply than the parse it replaces',
     },
     {
       kicker: 'No component code in the browser',
       title: 'The runtime binds what the parser already built',
       body: 'Adoption walks the server-rendered DOM and records where each value lives. No component function executes, on first paint or after.',
-      figure: '0.047 ms',
-      fine: 'to adopt a 50-row region — against 0.076 ms to parse the same markup',
+      figure: figure('tti-server-rendered', 'adopt a server-rendered region', { engine: 'chromium' }),
+      fine: `to adopt a 50-row region — against ${figure('client-work', 'html form, parsed', {
+        engine: 'chromium',
+      })} to parse the same markup`,
     },
   ]
   return `<section class="deck">
@@ -517,4 +519,58 @@ export function landingBody(counts: Counts): string {
       </tbody></table></div>
     </section>
   </div>`
+}
+
+/**
+ * What another framework's stream markers cost in bytes, against ours on the same page.
+ *
+ * Both numbers are rows of the run this chart already draws, so the percentage was the one figure
+ * in the block that was not read from it — and it had drifted from 18% to 22%.
+ */
+function markerCost(): string {
+  const ours = candidate('segments')?.bytes
+  const theirs = candidate('rr7-stream')?.bytes
+  if (!ours || !theirs) return 'not measured'
+  return `+${Math.round((theirs / ours - 1) * 100)}%`
+}
+
+/**
+ * A wire form's size, from the run that measured it.
+ *
+ * `6,289 B · 605 brotli` and `371 B · 187 brotli` were typed, and the delta's compressed figure had
+ * drifted to 190 in the file sitting three directories away. Both halves are read now.
+ */
+function wireSize(id: string): string {
+  const found = benchRow('update-bytes', id)
+  if (!found) return 'not measured'
+  const raw = `${found.p50.toLocaleString('en-US')} B`
+  return found.brotli === undefined ? raw : `${raw} · ${found.brotli.toLocaleString('en-US')} brotli`
+}
+
+/** How much of the markup's bytes a delta is, for the bar's width. */
+function deltaShare(): number {
+  const html = benchRow('update-bytes', 'segments:html')
+  const delta = benchRow('update-bytes', 'segments:delta')
+  return html && delta && html.p50 ? delta.p50 / html.p50 : 0.059
+}
+
+/**
+ * How much cheaper a delta is to apply than the parse it replaces, across the engines measured.
+ *
+ * A range and not an average, because the three engines disagree by a factor of three and an
+ * average would hide the slowest one. It said `20–93×` for long enough to stop being either bound
+ * of what the current run measures.
+ */
+const ENGINES = ['chromium', 'firefox', 'webkit'] as const
+
+function applyRange(): string {
+  const ratios = ENGINES.map((engine) => {
+    const parse = benchRow('client-work', 'html form, parsed', engine)
+    const apply = benchRow('client-work', 'delta form, applied surgically', engine)
+    return parse && apply && apply.p50 ? parse.p50 / apply.p50 : undefined
+  }).filter((ratio): ratio is number => ratio !== undefined)
+  if (!ratios.length) return 'not measured'
+  const low = Math.round(Math.min(...ratios))
+  const high = Math.round(Math.max(...ratios))
+  return low === high ? `${low}×` : `${low}–${high}×`
 }

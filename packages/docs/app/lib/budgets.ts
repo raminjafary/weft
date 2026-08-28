@@ -140,6 +140,24 @@ export function siteWeight(): SiteWeight {
 }
 
 /**
+ * One entry by the id it declares, with what the gate last measured it at.
+ *
+ * `ceilingFor` answers a module page's question — what is the tightest thing this package is held
+ * to — and cannot answer a page that names three specific entries. The tutorial's last step does
+ * exactly that: it has the reader add a signal, a live region and a navigation, and then prints
+ * what each of those three cost. Those figures were typed by hand and were wrong by a factor of
+ * four, which is the argument for this function existing rather than for typing them more carefully.
+ */
+export function entryFor(
+  id: string,
+): { id: string; label: string; limit: number; brotli?: number } | undefined {
+  const found = budgets().find((entry) => entry.id === id)
+  if (!found) return undefined
+  const brotli = measured().get(id)
+  return { id: found.id, label: found.label, limit: found.limit, ...(brotli === undefined ? {} : { brotli }) }
+}
+
+/**
  * The tightest ceiling declared for a package, and how many entries it has.
  *
  * A package with entries has several — the client has nine, one per capability a page can import —

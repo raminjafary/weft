@@ -2,6 +2,8 @@ import { criticalPath, schedule, type DagNode } from '@weftjs/kernel'
 import { escapeHtml } from './escape.ts'
 import { graph, type GraphEdge, type GraphNode } from './graph.ts'
 import { artifacts } from './versions.ts'
+import { entryFor } from './budgets.ts'
+import { measured as benchRow } from './bench.ts'
 
 /**
  * The architecture, drawn — the top of `/guide`, before the directory of pages.
@@ -81,12 +83,39 @@ function version(what: string): string {
   return artifacts().find((each) => each.what === what)?.version ?? ''
 }
 
+/**
+ * A wire form's size, from the run that measured it.
+ *
+ * The same two figures the landing page draws, and they were typed in both places from one
+ * measurement — so the delta's compressed size had drifted to 190 here and stayed 187 there. The
+ * patch rung carried a ratio no run in `results/` measures at all, which is why it now says where
+ * it sits rather than by how much.
+ */
+function wireSize(candidate: string): string {
+  const found = benchRow('update-bytes', candidate)
+  if (!found) return 'not measured'
+  const raw = `${found.p50.toLocaleString('en-US')} B`
+  return found.brotli === undefined ? raw : `${raw} · ${found.brotli.toLocaleString('en-US')} brotli`
+}
+
+/**
+ * A measured size, or the word for not having one.
+ *
+ * Both of these were transcribed and both had drifted — the client's by 28 bytes and the kernel's
+ * by 155, the latter into disagreeing with the figure `/api/kernel` derives for the same thing.
+ * Reading them means the diagram is one commit behind the gate at worst, rather than however many
+ * commits it has been since somebody last retyped it.
+ */
+function bytes(measured: number | undefined): string {
+  return measured === undefined ? 'measured by pnpm bench budget' : `${measured.toLocaleString('en-US')} B`
+}
+
 /** The notes under each box: what the package is, and the one number that pins it down. */
 function packageNotes(): Map<string, string> {
   return new Map([
     ['ir', `${version('Template IR')} · no deps`],
     ['warp', `${version('Warp frames')} · no deps`],
-    ['client', '6,109 B brotli'],
+    ['client', `${bytes(entryFor('runtime')?.brotli)} brotli`],
     ['compiler', 'TSX → IR, on Oxc'],
     ['kernel', 'the request path'],
     ['plan', 'plan DSL, validation'],
@@ -366,7 +395,9 @@ function tiers(files: number): string {
       w: 520,
       h: 59,
       title: 'the kernel',
-      notes: ['envelope · keys · waves · the stream — 8,118 B on the document path'],
+      notes: [
+        `envelope · keys · waves · the stream — ${bytes(entryFor('kernel')?.brotli)} on the document path`,
+      ],
       at: 1.8,
     },
     {
@@ -456,7 +487,7 @@ function negotiation(): string {
       y: 10,
       w: 306,
       h: 74,
-      title: 'delta — 371 B · 187 brotli',
+      title: `delta — ${wireSize('segments:delta')}`,
       notes: ['one write per changed value, into DOM that', 'already exists'],
       accent: true,
       at: 2.7,
@@ -467,7 +498,7 @@ function negotiation(): string {
       y: 118,
       w: 306,
       h: 59,
-      title: 'patch — 4.3–6.0× smaller',
+      title: 'patch — between the two',
       notes: ['addressed the way adoption addresses the DOM'],
       at: 3,
     },
@@ -477,7 +508,7 @@ function negotiation(): string {
       y: 218,
       w: 306,
       h: 59,
-      title: 'html — 6,289 B · 605 brotli',
+      title: `html — ${wireSize('segments:html')}`,
       notes: ['the whole region, re-parsed'],
       at: 3.3,
     },

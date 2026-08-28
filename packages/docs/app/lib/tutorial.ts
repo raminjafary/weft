@@ -1,5 +1,7 @@
 import { escapeHtml, heading, note, prose, sketch, table } from './markup.ts'
 import { diff, stats, terminal } from './figures.ts'
+import { entryFor } from './budgets.ts'
+import { figure } from './bench.ts'
 
 /**
  * One page, built from nothing, one step at a time.
@@ -761,7 +763,10 @@ export default fragment(({ sku }: { sku: string }) => {
       stats([
         { value: '3', note: 'bindings attached — two events and one value', lit: true },
         { value: '0', note: 'components executed on the client' },
-        { value: '0.047 ms', note: 'to adopt a 50-row region in Chromium' },
+        {
+          value: figure('tti-server-rendered', 'adopt a server-rendered region', { engine: 'chromium' }),
+          note: 'to adopt a 50-row region in Chromium',
+        },
       ]) +
       prose(
         'The cost is the number of bindings, not the number of components — which is why a page of mostly ' +
@@ -841,23 +846,13 @@ export default fragment(({ sku }: { sku: string }) => {
       ) +
       heading('1 · Ask', 'ask') +
       sketch('sh', 'npx weft build\npnpm bench budget') +
-      terminal('budget', [
-        {
-          label: 'bench budget',
-          lines: [
-            '$ pnpm bench budget',
-            '  adopt        2,418 B / 2,560 B   brotli',
-            '  channel      1,904 B / 2,048 B   brotli',
-            '  navigate     1,336 B / 1,536 B   brotli',
-            '  ─────────────────────────────────────────',
-            '  this page    5,658 B             all three entries, because you used all three',
-          ],
-        },
-      ]) +
+      clientEntries() +
       prose(
-        'The last line is the one that matters and it is deliberately the largest: a page that adopts, ' +
-          'subscribes and navigates pays for all three, and reporting only the smallest entry would be a ' +
-          'number chosen to flatter the framework.',
+        'Those are the entries this page reached for, at what the gate last measured them and against the ' +
+          'ceiling it holds them to. They are read out of ' +
+          '<code>packages/bench/budgets.json</code> — the file <code>pnpm bench budget</code> writes — ' +
+          'rather than typed here, for the reason the whole of this tutorial has been making: a number ' +
+          'somebody transcribed is a number that is wrong the next time it moves.',
       ) +
       heading('2 · Spend less by declaring less', 'less') +
       table(
@@ -1306,6 +1301,42 @@ export function tutorialIndexBody(): string {
         'wrote, and reading it is how you find out that a declaration you did not make was decided for ' +
         'you — and which read decided it.',
     )
+  )
+}
+
+/**
+ * What the three capabilities this step added actually cost, from the recorded gate.
+ *
+ * One row per client entry the reader has now reached for, in the order the steps introduced them.
+ * An entry the gate has not measured in this checkout prints its ceiling and says so, which is more
+ * use than a page that fails to render because nobody ran the bench.
+ */
+const asBytes = (n: number) => `${n.toLocaleString('en-US')} B`
+
+function clientEntries(): string {
+  const rows = [
+    { id: 'app-route', step: 'the quantity signal' },
+    { id: 'channel-route', step: 'the live region' },
+    { id: 'nav-route', step: 'instant navigation' },
+    // The lede promises the honest number is the one bigger than all of them, and this is it: the
+    // whole client runtime, which is what a page reaching for every capability pays.
+    { id: 'runtime', step: 'everything, if a page used it all' },
+  ]
+    .map((row) => ({ ...row, entry: entryFor(row.id) }))
+    .filter((row): row is typeof row & { entry: NonNullable<ReturnType<typeof entryFor>> } =>
+      Boolean(row.entry),
+    )
+  if (!rows.length) return ''
+  return table(
+    ['Entry', 'What put it there', 'Measured', 'Ceiling'],
+    rows.map((row) => [
+      `<code>${escapeHtml(row.entry.id)}</code>`,
+      escapeHtml(row.step),
+      row.entry.brotli === undefined
+        ? '<span class="hint">not measured in this checkout</span>'
+        : `<strong>${asBytes(row.entry.brotli)}</strong> brotli`,
+      asBytes(row.entry.limit),
+    ]),
   )
 }
 
