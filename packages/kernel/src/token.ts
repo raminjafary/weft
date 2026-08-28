@@ -229,13 +229,12 @@ export function createIntentSigner(options: SignerOptions): IntentSigner {
         kid: options.kid,
         i: request.intent,
         // A parent for nobody in particular may be narrowed to somebody; a parent for somebody
-        // stays theirs, which `verify` has already established.
+        // stays theirs.
         ...((parent.claims.s ?? request.subject)
           ? { s: (parent.claims.s ?? request.subject) as string }
           : {}),
         ...(request.payload === undefined ? {} : { p: await digest(request.payload) }),
-        // Clamped rather than refused when no lifetime was asked for: a delegate that quietly
-        // outlived its parent would be the whole point of the mechanism, inverted.
+        // Clamped rather than refused: a delegate that outlived its parent would invert the point.
         x: Math.min(asked, parent.claims.x),
         n: nonce(),
         d: depth,
@@ -256,17 +255,11 @@ async function sign(key: CryptoKey, body: Uint8Array<ArrayBuffer>): Promise<Arra
 /** What a verifier needs: the public keys it will accept, and where spent nonces are remembered. */
 export interface VerifierOptions {
   /**
-   * How deep a delegation chain this verifier accepts. **Zero by default**, which is the same
-   * refusal the design had before delegation existed — with a name on it: a deployment that never
-   * asked for delegation refuses a delegated token as `E_DELEGATE_DEPTH` rather than accepting one
-   * because nobody thought about it.
+   * How deep a delegation chain this verifier accepts. **Zero by default** — a deployment that
+   * never asked for delegation refuses one as `E_DELEGATE_DEPTH` rather than accepting it by accident.
    */
   maxDepth?: number
-  /**
-   * The pinned public key bundle, by key id. Pinned means exactly that: an unknown `kid` is
-   * refused rather than resolved, because a verifier that would fetch a key named by the token it
-   * is checking is a verifier an attacker chooses the key for.
-   */
+  /** The pinned public key bundle, by key id. An unknown `kid` is refused rather than resolved. */
   keys: Record<string, CryptoKey>
   /** Where a spent nonce is recorded. A lease nobody releases is the record. */
   store: StorePort
@@ -293,10 +286,7 @@ export type VerifyOutcome =
 /** Checks a token and spends its nonce. Verification is not a read: it consumes the token. */
 export interface IntentVerifier {
   verify(request: VerifyRequest): Promise<VerifyOutcome>
-  /**
-   * How far a spent nonce is remembered: `process` is per isolate, `shared` is everywhere. A
-   * deployment reading this is a deployment that knows what its replay protection covers.
-   */
+  /** How far a spent nonce is remembered: `process` per isolate, `shared` everywhere. */
   readonly replayScope: 'process' | 'shared'
   readonly kids: readonly string[]
 }
@@ -309,16 +299,15 @@ export function createIntentVerifier(options: VerifierOptions): IntentVerifier {
   const skew = options.skewMs ?? 5_000
 
   return {
-    // The lease's scope and not the store's, because a nonce is a lease: a process-local cache that
-    // takes shared leases gives per-deployment single-use, and reading `scope` here would have
-    // reported the cache's reach instead of the guarantee's.
+    // The lease's scope, not the store's: a nonce is a lease, and `scope` would report the
+    // cache's reach instead of the guarantee's.
     replayScope: options.store.leaseScope ?? options.store.scope,
     kids: Object.keys(options.keys),
 
     async verify(request) {
       if (!request.token) {
-        // Not led by the opaque id: this refusal is the one a person reads, on a page the framework
-        // renders for a form post, and six hex characters tell them nothing they can act on.
+        // Not led by the opaque id: this refusal is the one a person reads, and six hex characters
+        // tell them nothing they can act on.
         return refused('E_INTENT_UNSIGNED', 'a signed token is required and none was sent')
       }
       const parts = request.token.split('.')
@@ -344,13 +333,8 @@ export function createIntentVerifier(options: VerifierOptions): IntentVerifier {
         return refused('E_TOKEN_KEY_UNKNOWN', `no pinned public key is named ${claims.kid}`)
       }
 
-      /**
-       * The signature first, and every claim after it.
-       *
-       * Checking the intent id or the subject before the signature would answer questions about
-       * claims nobody has authenticated — which tells a caller whose token was rejected exactly
-       * which field to change next.
-       */
+      // The signature first, and every claim after it: checking a claim before the signature would
+      // tell a rejected caller exactly which field to change next.
       let valid: boolean
       try {
         valid = await crypto.subtle.verify({ name: TOKEN_ALG }, key, signature, body)
@@ -382,21 +366,14 @@ export function createIntentVerifier(options: VerifierOptions): IntentVerifier {
         )
       }
 
-      /**
-       * Spent last, and only once everything else has passed.
-       *
-       * The lease is the record: taking it and never releasing it means the nonce is unusable for
-       * as long as the token could have been, and no nonce record outlives the token it describes.
-       * A store that hands the lease to somebody else is a store saying this token has already
-       * been used — which is the answer, not an error.
-       */
+      // Spent last, once everything else has passed. The lease is the record: taking it and never
+      // releasing it means no nonce record outlives the token it describes.
       const remaining = Math.max(1, claims.x - now + skew)
       let lease: unknown
       try {
         lease = await options.store.lease(`${NONCE_PREFIX}${claims.n}`, remaining)
       } catch (error) {
-        // A store that cannot answer cannot say the nonce is fresh, and a signed intent that
-        // proceeds on a maybe is a signed intent that can be replayed during an outage.
+        // A store that cannot answer cannot say the nonce is fresh.
         return refused('E_REPLAY_UNKNOWN', `the store could not record the nonce: ${reasonOf(error)}`)
       }
       if (!lease) return refused('E_INTENT_REPLAYED', 'this token has already been used')

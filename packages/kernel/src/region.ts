@@ -198,17 +198,8 @@ export function readRegion(region: string, bytes: Uint8Array, contract?: RegionC
     const why = REFUSED[f.kind]
     if (why) throw new RegionError('E_REGION_FRAME', region, `sent ${f.kind}: ${why}`)
 
-    /**
-     * A `SIGNAL` that names no slot is the composite's, and a region may not send one.
-     *
-     * Every other frame a region sends addresses a slot, so the check below is enough for it. A
-     * signal does not: it carries a name out of a namespace the shell also writes into, which is
-     * how a shell offers `locale` to the regions inside it. An unscoped one arriving from a region
-     * would let that region set a value its siblings read — the exact coupling the exposed set
-     * exists instead of, arriving through the back door.
-     *
-     * So a region's signals have to say whose they are, and then the escape check does the rest.
-     */
+    // A `SIGNAL` naming no slot is the composite's: it carries a name out of the exposed-value
+    // namespace, and an unscoped one from a region would let it set a value its siblings read.
     if (f.kind === 'SIGNAL' && !str(f, 's')) {
       throw new RegionError(
         'E_REGION_ESCAPE',
@@ -267,18 +258,7 @@ function join(parts: readonly Uint8Array[]): Uint8Array {
 
 /**
  * The other end of the check above: what a region says about itself before it says anything else.
- *
- * Written here rather than in the composer's package because both ends of a tier boundary run this
- * framework — the design's claim is that the internal protocol and the wire protocol are the same
- * protocol, and a region service that had to hand-roll its announcement would be the first place
- * that stopped being true.
- */
-/**
- * The frame has one more form than this function writes, and it is written somewhere else on
- * purpose: a `REGION` frame answering a **probe** carries the region's subtree in its body, and both
- * the writing and the reading of that live in `region-tree.ts`. A request path never sees one — a
- * page needs the hop count and the count is a header — so the entry that composes documents does not
- * carry the code for it, on the rule that gave composition its own entry in the first place.
+ * A `REGION` frame answering a probe carries the subtree instead — that form lives in `region-tree.ts`.
  */
 export function announceRegion(announcement: RegionAnnouncement): Frame {
   const header = {
@@ -306,17 +286,9 @@ export interface RegionRequest {
   route?: string
   params?: Record<string, string>
   /**
-   * The reads the region's contract declared, resolved for this request by the composite.
-   *
-   * Keyed by the read as the contract spells it — `cookie:currency`, `route:q`, `locale` — because
-   * that is the vocabulary both sides already share and it is the one that cannot be ambiguous: a
-   * bare `currency` could be a cookie or a header, and the two are different cache axes.
-   *
-   * A region is *given* its reads rather than taking them, and that is the whole reason a composed
-   * page can be cached. The composite resolved these before the render in order to derive the
-   * document's key, class and `Vary`; handing the same values across the boundary is what makes the
-   * region's answer a function of them. A region that went and read the request itself would be
-   * reading something this document's key does not describe.
+   * The reads the region's contract declared, resolved for this request by the composite. A region
+   * is *given* its reads rather than taking them — the whole reason a composed page can be cached.
+   * See `spec/kernel/composition.md`.
    */
   reads?: Record<string, string>
   /** Template versions the client already holds, so a region can answer with a delta. */
@@ -324,34 +296,20 @@ export interface RegionRequest {
   /** Set when the composite is staging rather than painting. A region does not decide this. */
   epoch?: string
   /**
-   * Set when the region is being asked *what it is* rather than for a page.
-   *
-   * `weft verify --probe` is the only thing that sends it, and it carries a number because the
-   * answer is recursive: a region that composes regions of its own has to ask them the same
-   * question, and two deployments composing each other would otherwise ask forever. Each tier
-   * spends one and refuses at zero, which bounds the walk from the side that started it rather
-   * than trusting every deployment in the chain to have a limit of its own.
+   * Set when the region is being asked *what it is* rather than for a page. `weft verify --probe`
+   * only. The depth bounds a recursive composition from the side that started it.
    */
   probe?: { depth: number }
   /**
-   * Shell signals this region declared it consumes, at their current values.
-   *
-   * The only channel between a shell and the regions inside it, and it is one-way by construction:
-   * a region is handed what it asked for and has no way to write back. What it may ask for is
-   * checked at build time against what the shell exposes, so a name here is a name the shell said
-   * it would supply.
+   * Shell signals this region declared it consumes, at their current values. One-way by
+   * construction: a region has no way to write back.
    */
   exposed?: Record<string, string>
 }
 
 /**
- * A region's declared reads, resolved through the same context a local fragment's would be.
- *
- * Through the context and not around it, which is the load-bearing detail: reading `cookie:currency`
- * here taints the composite exactly as a local fragment reading it would, so the document's key and
- * `Vary` describe the region's reads whether the region is in this process or across a socket. A
- * composite that resolved these off the raw request would produce a page whose key did not describe
- * what rendered it, which is the one failure the whole effect graph exists to prevent.
+ * A region's declared reads, resolved through the same context a local fragment's would be — so the
+ * document's key and `Vary` describe the region's reads whether it is local or across a socket.
  */
 export async function readsFor(
   ctx: Reads,
@@ -369,8 +327,8 @@ export async function readsFor(
     else if (read === 'locale') out[read] = ctx.locale()
     else if (read === 'device') out[read] = ctx.device()
     else if (read === 'identity') out[read] = (await ctx.user()) ?? ''
-    // `time` and `opaque` resolve to nothing on purpose: the clock is a TTL rather than a value,
-    // and `opaque` is the absence of a description. Neither is something to hand over.
+    // `time` and `opaque` resolve to nothing: the clock is a TTL, and `opaque` is the absence of
+    // a description.
     else if (read !== 'time' && read !== 'opaque') {
       throw new RegionError(
         'E_UNRESOLVABLE_READ',
@@ -383,24 +341,15 @@ export async function readsFor(
 }
 
 /**
- * What the shell declares about a region, which is everything about *failure* and nothing about
- * where it runs — that is the registry's.
- *
- * The design writes this as `optional()` and `fallback('static:search-placeholder')`, and both are
- * the `onExceed` vocabulary a slot already has rather than a second one: `optional` is
- * `placeholder` with no placeholder, and a declared degradation is `fallback` with bytes. Nothing
- * new to learn, and the same telemetry event when it fires.
+ * What the shell declares about a region: everything about *failure* and nothing about where it
+ * runs. `optional` and `fallback` are the same `onExceed` vocabulary a slot already has.
  */
 export interface RegionSpec {
   region: string
   onExceed?: ExceedPolicy
   fallback?: Uint8Array
   placeholder?: Uint8Array
-  /**
-   * Milliseconds. On `inline` this is a report, and on a binding or a service it is a deadline on
-   * *waiting* — the render goes on running where it lives, which the executor says in its own
-   * failure message rather than leaving to be assumed.
-   */
+  /** Milliseconds. On `inline` a report; on a binding or service a deadline on *waiting* — the render keeps running where it lives. */
   cpuBudgetMs?: number
   /** What this shell was built expecting. Checked against what the region says it serves. */
   contract?: RegionContract
@@ -423,19 +372,12 @@ export interface RegionOutcome {
 
 /** What composing needs: the registry, the executors, and the contract each region must satisfy. */
 export interface ComposeOptions {
-  /**
-   * Narrower than `Ports` on purpose: a composer needs a registry, somewhere to run, and somewhere
-   * to report — not a session or a store. It is what lets a *region* compose regions without
-   * assembling a deployment's whole port set to do it, which is the shape a nested tier has.
-   */
+  /** Narrower than `Ports`: a composer needs a registry, somewhere to run, somewhere to report —
+   * the shape a nested tier has. */
   ports: Pick<Ports, 'registry' | 'executors' | 'telemetry'>
   /**
-   * Regions this process renders itself, keyed by region name.
-   *
-   * The monolith, and the reason it stays the default: a local region is not a special case in
-   * this file, it is an entry in the registry whose executor is `inline`. The same page composed
-   * locally and over a socket goes through the same checks and produces the same markup, which is
-   * a property the tests assert rather than a claim this comment makes.
+   * Regions this process renders itself, keyed by region name — the monolith. A local region is
+   * not a special case here, it is a registry entry whose executor is `inline`.
    */
   local?: Record<string, (request: RegionRequest, signal: AbortSignal) => Promise<Uint8Array> | Uint8Array>
 }
@@ -450,11 +392,8 @@ export interface Composer {
 }
 
 /**
- * A composer over this deployment's ports.
- *
- * From the kernel's point of view a region is a local async function; the boundary is the executor
- * the registry named one level in. That nesting is the design's claim that a tier boundary is a
- * port implementation rather than a second render path.
+ * A composer over this deployment's ports: a region is a local async function, and the boundary is
+ * the executor the registry named one level in.
  */
 export function createComposer(options: ComposeOptions): Composer {
   const composed: RegionOutcome[] = []
@@ -521,8 +460,7 @@ export function createComposer(options: ComposeOptions): Composer {
         ...(binding.address
           ? { address: { ...binding.address, props: { ...(binding.address.props as object), ...request } } }
           : {}),
-        // Only `inline` ever calls this. Everything else needs an address, refuses without one by
-        // name, and would otherwise be handed a closure it cannot serialise.
+        // Only `inline` ever calls this: everything else needs an address, refuses without one.
         run: async (signal) => {
           if (!local) {
             throw new RegionError(
@@ -583,9 +521,8 @@ export function createComposer(options: ComposeOptions): Composer {
                   : {}),
               }
         } catch (error) {
-          // A protocol refusal degrades the region rather than failing the page, for the reason
-          // the whole tier boundary exists: a region behaving badly is a bad region, and a page
-          // that dies because one of five regions misbehaved has thrown away its isolation.
+          // A protocol refusal degrades the region rather than failing the page. See
+          // `spec/kernel/composition.md`.
           const e = error as RegionError
           result = failed({ code: e.code ?? 'E_REGION_UNREADABLE', message: e.message }, boundary)
         }
