@@ -3,37 +3,14 @@ import type { Channel, WarmHandler } from './channel.ts'
 import type { TelemetryPort } from './ports.ts'
 
 /**
- * Lazy plan extension: the part of the plan a client does not have yet, asked for and answered.
- *
- * React Router's Fog of War applies lazy discovery to routes and stops there. Here the plan is
- * already the unit of knowledge, so extending it lazily generalises: what arrives is not a route
- * table but everything a client would otherwise have to make a request to learn — which document
- * a route renders into, what its regions are called, which templates they need, what stylesheet it
- * links, and where readers of it go next.
- *
- * The point is what that lets a client skip. Today a link the reader has not clicked is staged by
- * asking the server to render it (`WARM at=`), and the answer may be `form=document` — a whole
- * round trip and a whole render to discover that the target uses a different shell and cannot be
- * swapped in as regions. With the plan extended, the client knows that before it asks: it fetches
- * the document instead, and pays neither.
- *
- * Two grains, one frame. `WARM plan=/checkout/*` asks about a subtree. A `PLAN` also arrives
- * **unasked**, once, when a channel opens — carrying the route this connection is on and where its
- * readers go next, which is how a page that arrived by an ordinary document request learns what the
- * profile recorded. Before this there was nowhere for that hint to travel: `NAV next=` only reaches
- * a client that already staged something over the channel, so the pages most likely to benefit —
- * first visits — were exactly the ones that never heard it.
+ * Lazy plan extension: the part of the plan a client does not have yet, asked for and answered —
+ * everything that would otherwise cost a request to learn. `WARM plan=` asks about a subtree; a
+ * `PLAN` also arrives unasked when a channel opens. See `spec/client/navigation.md`.
  */
 export interface DiscoveredRoute {
   /** The pattern, as the route table spells it: `/product/:sku`, `/checkout/*`. */
   pattern: string
-  /**
-   * Which document it renders into, by the shell template's version.
-   *
-   * The version rather than a name, because the client's question is only ever "is this the same
-   * document I am in" — and comparing versions is an answer it can act on without knowing what any
-   * shell is called.
-   */
+  /** Which document it renders into, by the shell template's version — "is this the same document I am in". */
   shell: string
   /** True when this route's shell is the one this connection's page uses. */
   shared: boolean
@@ -52,31 +29,18 @@ export interface PlanExtension {
   /** What was asked about, echoed. `''` for the unasked frame that follows a handshake. */
   prefix: string
   routes: readonly DiscoveredRoute[]
-  /**
-   * False when the answer was truncated. A client that believes it holds the whole subtree and
-   * does not would silently decide a route is not this application's, which is worse than a client
-   * that knows to ask again.
-   */
+  /** False when the answer was truncated, so the client asks again rather than deciding silently. */
   complete?: boolean
 }
 
 /** A prefix somebody asked about, and the connection asking. */
 export interface ExtendRequest {
-  /**
-   * The subtree asked about. Absent for the frame sent when a channel opens, which means "where
-   * this connection is, and where its readers go from there".
-   */
+  /** The subtree asked about. Absent for the frame sent when a channel opens. */
   prefix?: string
   channel: Channel
 }
 
-/**
- * What a hub is given: the handler for the `plan` grain of a `WARM`, and the frames a connection is
- * handed when it opens.
- *
- * Frames rather than records, which is the shape every hook the channel takes has — so the channel
- * needs none of this module at runtime, and a deployment that never extends a plan never imports it.
- */
+/** What a hub is given: the handler for the `plan` grain of a `WARM`, and the frames a connection is handed when it opens. */
 export interface PlanExtender {
   /** Answers `WARM plan=<prefix>`. */
   warm: WarmHandler
@@ -102,14 +66,12 @@ export function createExtender(options: DiscoveryOptions): PlanExtender {
   const answer = async (request: ExtendRequest): Promise<Frame[]> => {
     const extension = await options.resolve(request)
     if (!extension) {
-      // A prefix that matches no route is an answer, and an empty one: the client learns that this
-      // subtree is not this application's and stops asking. Only the unasked frame is silent,
-      // because a handshake that answered "nothing here" would say it on every connection.
+      // A prefix that matches no route is an answer, and an empty one. Only the unasked frame is
+      // silent — a handshake answering "nothing here" would say it on every connection.
       if (request.prefix === undefined) return []
       return [frame('PLAN', { p: request.prefix, n: 0, complete: true })]
     }
-    // Truncation is reported rather than hidden. A silent cap reads to the client as "that is the
-    // whole subtree", which is the one wrong thing it could conclude.
+    // Truncation is reported rather than hidden: a silent cap reads as "that is the whole subtree".
     const routes = extension.routes.slice(0, max)
     options.telemetry?.measure('channel.discover', routes.length, {
       prefix: extension.prefix || '(handshake)',
@@ -129,12 +91,7 @@ export function createExtender(options: DiscoveryOptions): PlanExtender {
   }
 }
 
-/**
- * One `PLAN` frame.
- *
- * The routes are a JSON body rather than headers because they are a list of records and a header
- * set is neither — and text, so the same frame is readable in the text framing a tool uses.
- */
+/** One `PLAN` frame. A JSON body, not headers: the routes are a list of records. */
 export function planFrame(extension: PlanExtension): Frame {
   const body = new TextEncoder().encode(JSON.stringify(extension.routes))
   return frame(

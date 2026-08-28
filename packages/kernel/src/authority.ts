@@ -3,36 +3,13 @@ import type { CapabilityCheck } from './intent.ts'
 import type { TelemetryPort } from './ports.ts'
 
 /**
- * Who may run an intent, implemented rather than declared.
- *
- * `CapabilityCheck` has been the seam since intents existed, and a seam with nothing behind it
- * refuses everything that declares a capability — which is honest and is not a capability model.
- * This is the model: a caller holds a set of grants, an intent names the capabilities it requires,
- * and the dispatch runs only when every one of them is held.
- *
- * Three decisions are the whole of it, and each one is the opposite of a default that would have
- * been easier.
- *
- * **Deny by default, and deny on failure.** A grant source that throws is a denial, not an
- * allow-through: an authority check that fails open turns an outage in the identity service into
- * an escalation for every caller at once. The refusal names the source rather than the caller.
- *
- * **Every capability, not any of them.** `capabilities: ['cart:write', 'order:create']` means both.
- * The alternative reading — hold any one of them — makes a longer declaration weaker than a
- * shorter one, which is not what anybody writing the list means by adding to it.
- *
- * **A grant that matches everything is refused at construction.** `*` would make the declaration
- * decorative, which is the same argument that makes an unchecked capability a refusal rather than
- * an allow. What an operator actually wants — a role that holds everything the application
- * declares — is expressible as the list, and the list is reviewable: the front door has the
- * complete declared set from the intent manifest, so it can check a role table against it and
- * refuse a grant naming a capability nothing declares.
+ * Who may run an intent, implemented rather than declared. A caller holds a set of grants, an
+ * intent names the capabilities it requires, and the dispatch runs only when every one is held —
+ * deny by default and on failure, every capability required rather than any, `*` refused at
+ * construction. See `spec/kernel/authority.md`.
  */
 
-/**
- * A capability a caller holds. Either exact (`cart:write`) or a namespace (`cart:*`), which covers
- * every capability under that colon and nothing above it.
- */
+/** A capability a caller holds. Either exact (`cart:write`) or a namespace (`cart:*`). */
 export type Grant = string
 
 /** What a caller holds, as the grant source answered. */
@@ -44,13 +21,7 @@ export interface Grants {
   via?: string
 }
 
-/**
- * Where a caller's grants come from.
- *
- * An `EnvelopeContext` rather than a request, because that is what the dispatch has and because
- * reading identity through it taints `identity` — so a deployment whose grants depend on who is
- * asking cannot accidentally have that read go unrecorded.
- */
+/** Where a caller's grants come from. An `EnvelopeContext`: reading identity through it taints `identity`. */
 export type GrantSource = (ctx: EnvelopeContext) => Promise<Grants> | Grants
 
 /** Whether the call is allowed, what it needed, what it held, and what was missing. */
@@ -69,18 +40,9 @@ export interface Decision {
 /** Where grants come from, and what every caller holds without asking. */
 export interface CapabilityOptions {
   grants: GrantSource
-  /**
-   * Grants every caller holds, session or not. The place a public capability goes: an intent that
-   * anybody may run still declares what it is, and the declaration is what a later change argues
-   * with.
-   */
+  /** Grants every caller holds, session or not. Where a public capability goes. */
   ambient?: readonly Grant[]
-  /**
-   * Every decision, allowed and denied both.
-   *
-   * Both, because a log of denials only is a log in which a successful privilege escalation looks
-   * exactly like silence.
-   */
+  /** Every decision, allowed and denied both — a log of denials only hides a successful escalation as silence. */
   audit?(decision: Decision): void
   telemetry?: TelemetryPort
 }
@@ -104,11 +66,8 @@ export function covers(grant: Grant, capability: string): boolean {
 }
 
 /**
- * The grants a set of role names amounts to.
- *
- * Exported because the closed-set check needs it: the front door compares what a role table can
- * ever grant against what the manifest declares, and a capability nothing can grant is a
- * deployment where an intent is permanently 403 with nothing saying so.
+ * The grants a set of role names amounts to. Exported because the closed-set check needs it — a
+ * capability nothing can grant is an intent permanently 403 with nothing saying why.
  */
 export function grantsOf(roles: readonly string[], table: Record<string, readonly Grant[]>): Grant[] {
   const out = new Set<Grant>()
@@ -166,8 +125,8 @@ export function createCapabilityModel(options: CapabilityOptions): CapabilityMod
     try {
       grants = await options.grants(ctx)
     } catch (error) {
-      // An identity service that is down is not a caller who is allowed. The refusal is about the
-      // source rather than about the subject, because there is no subject to name.
+      // An identity service that is down is not a caller who is allowed: the refusal is about the
+      // source, not the subject.
       return record({
         allowed: false,
         subject: null,
@@ -199,19 +158,13 @@ export function createCapabilityModel(options: CapabilityOptions): CapabilityMod
 }
 
 /**
- * Grants from the session's identity, through a role table.
- *
- * The shape a deployment usually wants and the smallest thing that is a real model: identity comes
- * from the session port, roles come from whatever the application knows, and the table says what a
- * role holds. Anonymous is a subject of `null` with the `anonymous` role, which is a row an
- * operator can see and edit rather than a branch in the framework.
+ * Grants from the session's identity, through a role table — the smallest thing that is a real
+ * model. Anonymous is a subject of `null` with the `anonymous` role, a row an operator can edit.
  */
 export interface RoleGrantOptions {
   /**
-   * What a subject's roles are. An unknown subject has none, which is a denial and not an error.
-   *
-   * Never called with a null subject: a caller with no session has the anonymous role, which is a
-   * row in the table an operator can see rather than a case every implementation has to remember.
+   * What a subject's roles are. An unknown subject has none — a denial, not an error. Never called
+   * with a null subject: that caller has the anonymous role.
    */
   roles(subject: string): Promise<readonly string[]> | readonly string[]
   /** What each role grants. A role nothing maps to grants nothing. */
