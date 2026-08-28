@@ -38,17 +38,9 @@ import {
 } from '@weftjs/warp'
 
 /**
- * The client, for every application.
- *
- * Three jobs and no application knowledge. Adopt whatever the server said is adoptable, which
- * is a table the framework generated from the same IR it rendered from. Fire intents the markup
- * names, staged into an epoch so an optimistic guess paints nothing until the server agrees.
- * And, on a page that has a live region, hold a channel open and hand arriving frames to the
- * runtime's own frame router.
- *
- * There is no framework-specific protocol in here. Frames are encoded by the real codec and
- * routed by the real client runtime; this file is wiring, and if it grew a second encoder it
- * would be a file that disagrees with the protocol the first time the protocol moves.
+ * The client, for every application. Three jobs: adopt whatever the server said is adoptable, fire
+ * intents staged into an epoch, and on a page with a live region hold a channel open. No
+ * framework-specific protocol here — frames are encoded by the real codec.
  */
 interface AdoptPayload {
   slot: string
@@ -61,14 +53,8 @@ interface AdoptPayload {
   values?: Record<string, unknown>
   intents?: Record<string, string>
   live?: boolean
-  /**
-   * The plan's declared refresh interval for this region, and the conditions it declared with it.
-   *
-   * The design calls a client-side interval the fallback for invalidation that cannot cross a tier
-   * boundary — a region on another deployment holds its own cache keys, so a `STALE` about them has
-   * nobody to tell. This is that fallback, and until it existed the plan recorded an interval and
-   * nothing asked on one.
-   */
+  /** The plan's declared refresh interval, and its conditions — the fallback for invalidation that
+   * cannot cross a tier boundary. See `spec/kernel/composition.md`. */
   refresh?: { everyMs: number; when?: readonly string[] }
 }
 
@@ -78,73 +64,39 @@ interface WeftState {
   connected: boolean
   /** How far boot got. A silent failure in an async boot looks exactly like a page with no script. */
   stage: string
-  /**
-   * When this page became interactive, on its own clock — so on a fresh document it is the whole
-   * cost of arriving, navigation included, and the number a staged navigation is compared against.
-   */
+  /** When this page became interactive, on its own clock: the number a staged navigation is compared against. */
   readyAt: number
   frames: { dir: 'up' | 'down'; text: string }[]
   /** Slots on this page the server will refresh over the channel. Empty means there is nothing to ask for. */
   live: string[]
   /**
-   * Ask the server for these slots again, optionally from a different URL.
-   *
-   * This is what a control on a page with a live region should do instead of navigating. A
-   * navigation throws the document away and builds another one; this sends one frame and gets
-   * back a delta — one DOM write per value that actually changed, and the scroll position, the
-   * focus and every other region left alone.
-   *
-   * `at` re-registers where the client is, because the server resolves a refresh by matching that
-   * path against the same route table the document went through. Without it a control could
-   * change what it asks for but not what the answer is computed from.
+   * Ask the server for these slots again, optionally from a different URL — one frame and one
+   * delta rather than a whole new document. `at` re-registers where the client is.
    */
   refresh(slots?: readonly string[], at?: string): Promise<number>
   /** Routes fetched and unpainted, by URL. Staging one cannot disturb the page they are staged from. */
   staged: string[]
-  /**
-   * Navigations from this page, by what the click cost. `staged` was answered here from a route
-   * that was already fetched; `cold` was handed back to the browser, which is what a link has
-   * always cost. There is deliberately no third case — see `go`.
-   */
+  /** Navigations from this page, by what the click cost. `staged` answered from a route already
+   * fetched; `cold` handed back to the browser. */
   nav: { staged: number; cold: number; lastMs: number }
-  /**
-   * Go somewhere, the way a click on a link would. False when it fell back to a real navigation.
-   *
-   * `scroll` defaults to the application's `navigation.scroll`, which defaults to `top`.
-   */
+  /** Go somewhere, the way a click on a link would. False when it fell back to a real navigation. */
   navigate(href: string, scroll?: 'top' | 'preserve'): Promise<boolean>
   /** Route patterns this page has been told about, from `PLAN` frames. */
   known: string[]
-  /**
-   * Ask the server about a subtree of the plan: `weft.discover('/checkout/*')`.
-   *
-   * Resolves with what is known afterwards. Cheap on purpose — what comes back describes routes
-   * rather than rendering them, so a page can know about a subtree it will mostly not visit.
-   */
+  /** Ask the server about a subtree of the plan: `weft.discover('/checkout/*')`. Cheap — describes routes rather than rendering them. */
   discover(prefix: string): Promise<string[]>
   /**
-   * A shell value this page offers the regions inside it: `weft.exposed('locale')`.
-   *
-   * The whole of the channel between a shell and a region's client code, and it is deliberately
-   * read-only. A region is a fragment rendered by another deployment, running in a page it did not
-   * assemble — it cannot reach the shell's variables, and it must not reach for a global, because a
-   * global that exists on one page and not another is the coupling a composed page cannot afford.
-   *
-   * What comes back is a `Readable`, so it is in the signal graph: read it inside a derived value
-   * and a new value from the server recomputes exactly the nodes that read it. A name the shell does
-   * not expose is `E_NOT_EXPOSED` rather than `undefined`, which is the difference between a bug you
-   * find and a value that is quietly empty.
+   * A shell value this page offers the regions inside it: `weft.exposed('locale')`. Read-only, and
+   * in the signal graph. `E_NOT_EXPOSED` rather than `undefined` for a name the shell does not
+   * expose. See `spec/kernel/composition.md`.
    */
   exposed(name: string): Readable<string>
   /** Every name this page's shell exposes, in the order the server declared them. */
   exposes: string[]
   /**
-   * Ask the server for a catalogue entry, by opaque id or by the name its author gave it, and put the
-   * answer in a slot on this page: `weft.render('card.product', 'body', { sku: 'OIL-2L' })`.
-   *
-   * Resolves with the DOM writes it caused. Everything about *whether* the call is allowed is the
-   * server's — the entry's capabilities, its signature, its limit, and whether the slot is a hole on
-   * this route — because a gate the client could reason about is a gate the client could skip.
+   * Ask the server for a catalogue entry, by opaque id or by name, and put the answer in a slot:
+   * `weft.render('card.product', 'body', { sku: 'OIL-2L' })`. Everything about whether the call is
+   * allowed is the server's.
    */
   render(id: string, slot: string, params?: unknown): Promise<number>
 }
@@ -155,11 +107,7 @@ declare global {
     /** Set by the served prelude: the framework knows these, the file cannot derive them. */
     __weftIntents?: Record<string, string>
     __weftChannel?: string
-    /**
-     * False when this deployment cannot hold a downstream open — a serverless function, which
-     * terminates no upgrade and outlives no request. Absent everywhere else, so a page on a host
-     * that runs a process carries nothing for it.
-     */
+    /** False when this deployment cannot hold a downstream open — a serverless function. See `spec/kernel/transport.md`. */
     __weftHold?: boolean
     __weftClient?: string
     /** What a route change does to the scroll position: the config's `navigation.scroll`. */
@@ -191,23 +139,13 @@ const state: WeftState = {
 }
 
 /**
- * What this page has been told about routes it has not been to.
- *
- * Filled by `PLAN` frames — one arrives unasked when the channel opens, carrying this route and
- * where the server's own profile says readers go next, and more arrive for any subtree the page
- * asks about. Every field in it is something that would otherwise cost a request to learn, and the
- * one that pays for itself immediately is the shell: a link into a different document cannot be
- * swapped in as regions, and finding that out by asking costs a round trip *and* a server render
- * of a page nobody clicked.
+ * What this page has been told about routes it has not been to. Filled by `PLAN` frames — one
+ * arrives unasked when the channel opens. See `spec/client/navigation.md`.
  */
 const known = createKnown()
 /**
- * The shell values this page offers its regions, and what the server has said they are.
- *
- * Empty until the channel opens, and that is not a gap: a region's *first* render already had the
- * values it consumes — the composite resolved them and handed them across the boundary, so the
- * markup that arrived is correct. This table is for the second value and every one after it, and a
- * shell value that changes needs a live channel by definition.
+ * The shell values this page offers its regions. Empty until the channel opens, and that is not a
+ * gap: a region's *first* render already had the values from the composite.
  */
 const exposure = createExposure()
 /** True once a region declares itself refreshable, which is what decides whether to connect. */
@@ -227,16 +165,8 @@ function log(dir: 'up' | 'down', text: string): void {
 }
 
 /**
- * A refused intent, said out loud.
- *
- * The framework dispatches intents, so telling you one was refused is the framework's job. Every
- * path used to swallow it: over the channel the ACK went to a log nobody had open, and a plain form
- * post navigated to raw JSON. Neither is an application's bug, because neither is an application's
- * dispatch — and an intent silently doing nothing is the failure mode the whole `ACK`-carries-the-
- * outcome design exists to avoid.
- *
- * An application that wants the feedback somewhere specific puts `[data-weft-toasts]` in its markup
- * and this fills that instead of appending its own.
+ * A refused intent, said out loud: telling you one was refused is the framework's dispatch, so it
+ * is the framework's job to say so. `[data-weft-toasts]` in the markup is where it goes instead.
  */
 const TOAST_MS = 8_000
 
@@ -248,8 +178,7 @@ function toast(code: string, detail: string, kind: 'bad' | 'ok' = 'bad'): void {
       made.className = 'weft-toasts'
       made.dataset.weftToasts = ''
       made.setAttribute('role', 'status')
-      // Polite: a refused mutation is worth announcing and is not worth interrupting a reader
-      // mid-sentence for.
+      // Polite: worth announcing, not worth interrupting a reader mid-sentence for.
       made.setAttribute('aria-live', 'polite')
       document.body.append(made)
       return made
@@ -275,13 +204,8 @@ function toast(code: string, detail: string, kind: 'bad' | 'ok' = 'bad'): void {
 }
 
 /**
- * What a refusal means, where the framework can say more than the dispatch did.
- *
- * Only two entries, and the shortness is the point: a dispatch's `detail` already names the missing
- * capability, the tag that was not declared, the field that failed `input()`. Restating any of that
- * here would be a second copy of a message to keep in step, and the copy in the browser would be the
- * one that goes stale. These two are the cases where what a person needs is a decision they cannot
- * see from the refusal — one is a config file, the other is a design constraint.
+ * What a refusal means, where the framework can say more than the dispatch did. Only two entries,
+ * deliberately: a dispatch's `detail` already names most of it, and a second copy would go stale.
  */
 const REFUSALS: Record<string, string> = {
   E_INTENT_UNSIGNED:
@@ -316,11 +240,8 @@ const writable = new Map<string, ReturnType<typeof signal<unknown>>>()
 const intentTargets = new Map<string, string>()
 
 /**
- * `adopt` binds nodes to signals; it does not invent them. A signal's current value is
- * application state rather than template structure, so the framework creates them from the
- * declarations the server shipped. Props a client-owned derived value reads arrive the same
- * way, and only those props: `qty * unitPrice` is recomputed in the browser, so the browser
- * is sent `unitPrice` and nothing else out of the value set.
+ * `adopt` binds nodes to signals; it does not invent them. The framework creates them from the
+ * declarations the server shipped. See `spec/client/adoption.md`.
  */
 async function adoptRegions(within?: Element): Promise<Region[]> {
   const entries = payloads<AdoptPayload>('adopt', within).flat()
@@ -343,8 +264,7 @@ async function adoptRegions(within?: Element): Promise<Region[]> {
       writable.set(declaration.id, source)
       signals[declaration.id] = source
     }
-    // A constant readable. A prop is not reactive, but a derived value that reads one still
-    // has to be able to read it: a derived value is only built when every reference is bound.
+    // A constant readable: a derived value is only built when every reference is bound.
     for (const [id, value] of Object.entries(entry.values ?? {})) {
       signals[id] = computed(() => value)
     }
@@ -362,10 +282,8 @@ async function adoptRegions(within?: Element): Promise<Region[]> {
       onIntent: (intent, event) => {
         const target = event.target as HTMLElement | null
         if (!target) return
-        // The local half of an optimistic write, when there is a signal to write: the control
-        // that fired updates it now, and the server's answer arrives in an epoch that paints
-        // over it or rolls it back. A region with no signal has nothing to guess with, and its
-        // truth comes back as a delta — which for a cart total is the only version worth having.
+        // The local half of an optimistic write: the control updates the signal now, and the
+        // server's answer arrives in an epoch that paints over it or rolls it back.
         const binding = intentTargets.get(intent)
         if (binding) {
           const next = Number((target as HTMLInputElement).value)
@@ -387,15 +305,9 @@ async function adoptRegions(within?: Element): Promise<Region[]> {
 }
 
 /**
- * A region's declared interval, asked under the conditions it declared.
- *
- * Conditions are checked at the moment of asking rather than by starting and stopping the timer.
- * A timer that is torn down on blur and rebuilt on focus is a timer whose next fire moves every
- * time somebody switches window; a timer that fires and *declines* keeps the cadence a deployment
- * declared, and the ask is the only part that costs anything.
- *
- * `visible` is the one that matters most and the one a poll must have: a tab in the background
- * asking every thirty seconds forever is the failure mode that makes people turn intervals off.
+ * A region's declared interval, asked under the conditions it declared. Conditions are checked at
+ * the moment of asking rather than by starting and stopping the timer, so the cadence a deployment
+ * declared never moves.
  */
 const scheduled = new Set<string>()
 
@@ -407,7 +319,7 @@ function schedule(slot: string, spec: { everyMs: number; when?: readonly string[
     if (!allowed(conditions)) return
     void refresh([slot])
   }, spec.everyMs)
-  // A page being unloaded is not a page that needs another answer.
+  // A page being unloaded needs no more answers.
   window.addEventListener('pagehide', () => window.clearInterval(timer), { once: true })
 }
 
@@ -415,8 +327,7 @@ function allowed(conditions: readonly string[]): boolean {
   for (const condition of conditions) {
     if (condition === 'visible' && document.visibilityState !== 'visible') return false
     if (condition === 'focused' && !document.hasFocus()) return false
-    // `idle` asks about the reader rather than the document, and the only honest reading available
-    // here is "nothing has been typed or pointed at recently".
+    // `idle` asks about the reader, not the document: nothing typed or pointed at recently.
     if (condition === 'idle' && performance.now() - lastActivity < 5_000) return false
     if (condition === 'always') continue
   }
@@ -437,35 +348,23 @@ for (const event of ['pointerdown', 'keydown', 'wheel'] as const) {
 // ── intents ──────────────────────────────────────────────────────────────────────────
 
 /**
- * The map from the name an author wrote in their markup to the opaque id that goes on the wire.
- *
- * The wire carries six hex characters, which is the design's rule and the reason renaming a
- * server export is not a client change. The map arrives in the boot module's own prelude rather
- * than in the page, so a document's bytes carry no server names at all — and the module is
- * immutable, so it is fetched once.
+ * The name an author wrote in their markup, to the opaque id that goes on the wire. Arrives in the
+ * boot prelude rather than in the page, so a document's bytes carry no server names.
  */
 let intentIds: Record<string, string> = {}
 
 function intentFrame(id: string, input: unknown, token?: string): ChannelFrame {
   return {
     kind: 'INTENT',
-    // `t` beside the payload rather than in it: a token binds the payload, so a token inside what
-    // it signs could never verify.
+    // `t` beside the payload rather than in it: a token inside what it signs could never verify.
     header: { i: id, e: `o-${Date.now().toString(36)}`, ...(token ? { t: token } : {}) },
     body: new TextEncoder().encode(JSON.stringify(input)),
   }
 }
 
 /**
- * The intents this deployment will not run without a signature, and what a control does about it.
- *
- * The token is fetched at the moment of the interaction and for exactly this payload, which is the
- * only place it can be: a token rendered into the page would be cached with the page. So a signed
- * intent costs one round trip before it dispatches, and that round trip is what makes the call a
- * receipt rather than a request — bound to this reader, this payload, and the next few minutes.
- *
- * A refusal sends nothing. Dispatching without the token would be a call the server is certain to
- * refuse, and an optimistic epoch staged against it would paint a guess that cannot be confirmed.
+ * The intents this deployment will not run without a signature. The token is fetched at the moment
+ * of the interaction — a token rendered into the page would be cached with it. See `spec/kernel/authority.md`.
  */
 function signedIntent(id: string): boolean {
   return (window.__weftSigned ?? []).includes(id)
@@ -483,8 +382,8 @@ async function mint(id: string, payload: unknown): Promise<string | null> {
       ? ((await response.json().catch(() => ({}))) as { code?: string; detail?: string })
       : {}
     log('up', `no token for ${id}: ${response?.status ?? 'no answer'} ${body.code ?? ''}`)
-    // The refusal that matters most is this one: minting runs the same capability check the dispatch
-    // would, so a caller who may not run the intent is told here rather than after a round trip.
+    // Minting runs the same capability check the dispatch would, so a caller who may not run the
+    // intent is told here rather than after a round trip.
     refused(body.code ?? 'E_NO_TOKEN', body.detail ?? 'no token could be minted for this intent')
     return null
   }
@@ -504,24 +403,16 @@ async function fire(id: string, payload: unknown): Promise<void> {
 }
 
 /**
- * What an intent is sent, when the markup has not spelled it out.
- *
- * An explicit `data-weft-payload` wins. Failing that: a form's fields, because a form already
- * says what it is submitting. Failing that, the control's own `name` and value plus the data
- * attributes of the nearest ancestor carrying any — which is how a row identifies itself. A
- * quantity box inside `<tr data-sku="RICE-5K">` sends `{ sku: 'RICE-5K', qty: '3' }`, and nothing
- * had to declare that mapping.
- *
- * `data-weft-*` attributes are the framework's own and are never sent.
+ * What an intent is sent, when the markup has not spelled it out: an explicit `data-weft-payload`,
+ * then a form's fields, then the control's own `name`/value plus ancestor data attributes — how a
+ * row identifies itself with no mapping declared. `data-weft-*` is never sent.
  */
 function payloadOf(element: HTMLElement): unknown {
   const raw = element.dataset.weftPayload
   if (raw) return JSON.parse(raw)
 
-  // Merged, in increasing precedence, because each source knows something the others do not: the
-  // row knows which record it is, the form knows what it is submitting, and the control knows what
-  // you just typed. Taking only the first source that exists is how a form whose control has no
-  // `name` sent an empty payload while a `data-sku` sat one element above it.
+  // Merged in increasing precedence: row, then form, then control. Taking only the first source
+  // is how a control with no `name` once sent an empty payload.
   const payload: Record<string, string> = {}
   for (let node: HTMLElement | null = element; node; node = node.parentElement) {
     for (const [key, value] of Object.entries(node.dataset)) {
@@ -540,21 +431,9 @@ function payloadOf(element: HTMLElement): unknown {
   return payload
 }
 
-/**
- * Every element that names an intent, wired once.
- *
- * A `<form>` that names one keeps working with no JavaScript at all: the framework routes
- * `POST` to the same dispatch over plain HTTP and answers with a 303 back to the page. This
- * only upgrades it — which is the whole progressive-enhancement story, and it is one branch
- * rather than two code paths.
- */
-/**
- * The intent a form's action names.
- *
- * The name rather than the id it travels as: an action is markup somebody wrote, and the whole
- * point of the id is that it is not in the document. `intentIds` is the map, and it arrives in the
- * boot module's prelude rather than in the page.
- */
+/** Every element that names an intent, wired once. A `<form>` naming one keeps working with no
+ * JavaScript at all; this only upgrades it. */
+/** The intent a form's action names: the name rather than the id, because the id is not in the document. */
 function intentNamed(action: string): string {
   try {
     const path = new URL(action, window.location.href).pathname
@@ -594,17 +473,9 @@ function wireIntents(): void {
 // ── controls ─────────────────────────────────────────────────────────────────────────
 
 /**
- * A control on a server-rendered page is a query parameter, and this is the whole of wiring one.
- *
- * `data-weft-control="rows"` says which parameter an input owns. `data-weft-apply` on a button
- * says "put every control's value in the URL and get the page to agree with it". Neither needs a
- * table mapping element ids to parameter names, which is what every application that did this by
- * hand ended up writing.
- *
- * How the page is made to agree depends on what the page is. With a live region it asks the server
- * for that region and patches it: one DOM write per value that changed, and the control you are
- * holding keeps its position and its focus. Without one there is nothing to ask for, so it
- * navigates — which is not a fallback, it is what such a page has always cost.
+ * A control on a server-rendered page is a query parameter. `data-weft-control="rows"` says which
+ * parameter an input owns; `data-weft-apply` says "get the page to agree with it" — a refresh on a
+ * live region, a navigation otherwise.
  */
 function urlFromControls(): URL {
   const url = new URL(window.location.href)
@@ -618,30 +489,15 @@ function urlFromControls(): URL {
 }
 
 /**
- * Where you were, across a navigation the framework caused.
- *
- * A browser restores scroll on back and forward and on nothing else, so a control that reloads
- * with new parameters and a form that posts and gets a 303 both land you at the top of a page you
- * were halfway down. Neither is a page you asked to leave: you pressed a button *on* it.
- *
- * So the position is recorded against the path at the moment the framework navigates, and put
- * back on the way in. It is `sessionStorage` because the value is this tab's and lives exactly as
- * long as the tab does, and every access is guarded because a browser with site data blocked
- * throws on the accessor itself rather than returning nothing.
- *
- * With JavaScript off the form still posts and the scroll still resets. That is the honest floor
- * of the no-JavaScript path rather than something to hide: there is nothing on the page to record
- * it with.
+ * Where you were, across a navigation the framework caused. The browser only restores scroll on
+ * back/forward, so the position is recorded against the path and put back on the way in, in
+ * `sessionStorage`. See `spec/client/navigation.md`.
  */
 const SCROLL_KEY = 'weft:scroll'
 
 /**
- * Where the reader is, recorded for a load that is about to happen somewhere else.
- *
- * The position lives against a path rather than against a history entry because the page that
- * will read it is a *new document*: nothing in this one survives to hand it over. Boot removes
- * the key it reads, so a value written here is used once and cannot be restored over a later
- * visit that arrived some other way.
+ * Where the reader is, recorded for a load that is about to happen somewhere else. Against a path
+ * rather than a history entry: the page that reads it is a new document.
  */
 function handOff(path: string, y: number): void {
   try {
@@ -656,9 +512,8 @@ let departingToTop = false
 
 function rememberScroll(): void {
   if (departingToTop) return
-  // Not the top. Recording a zero is indistinguishable from recording nothing, and it overwrites
-  // a position something else deliberately handed to the load that is about to happen — which is
-  // exactly what a back-triggered reload does, since the page it leaves is at the top.
+  // A zero is indistinguishable from nothing, and would overwrite a position something else
+  // deliberately handed to the load about to happen.
   if (scrollY < 4) return
   handOff(window.location.pathname, scrollY)
 }
@@ -676,22 +531,12 @@ function restoreScroll(): void {
   const y = Number(held)
   if (!Number.isFinite(y) || y <= 0) return
 
-  /**
-   * Synchronously, and not a frame later.
-   *
-   * This module is deferred, so the document is parsed by the time it runs and the page already
-   * has its height — which means this lands before the next paint. Doing it in a
-   * `requestAnimationFrame` instead cost exactly one painted frame at the top of the page, and one
-   * frame is precisely what a blink is.
-   *
-   * `instant` because a page whose CSS asks for smooth scrolling would otherwise animate the
-   * restore, which is the same blink with a longer duration.
-   */
+  // Synchronously, not a frame later: this module is deferred, so the document already has its
+  // height. `instant` because smooth-scrolling CSS would otherwise animate the restore.
   const land = (): void => window.scrollTo({ top: y, behavior: 'instant' as ScrollBehavior })
   land()
-  // A slot filled out of order, a late font or an image with no dimensions can all grow or shrink
-  // the document after this. Landing again once everything has loaded only helps the case where the
-  // first attempt fell short, so it is skipped entirely if the reader has since scrolled themselves.
+  // A late font or an image with no dimensions can grow the document after this. Skipped if the
+  // reader has since scrolled themselves.
   if (document.readyState !== 'complete') {
     window.addEventListener(
       'load',
@@ -704,13 +549,8 @@ function restoreScroll(): void {
 }
 
 /**
- * Whether this page can be brought up to date in place rather than reloaded.
- *
- * Adoption is what binds nodes to state, and the swap below replaces nodes — so what matters is
- * which *kind* of state a region declares. Wiring is fine: an intent listener is rebound against
- * the new nodes from the new payload, which is what a reload would have done anyway. Signals and a
- * live region are not: a signal holds a value nobody else has, and a live region holds the base
- * the next delta is computed against. Losing either silently is worse than a reload.
+ * Whether this page can be brought up to date in place rather than reloaded. Wiring is fine — a
+ * listener rebinds — but a signal or a live region holds state a reload would lose silently.
  */
 function swappable(root: ParentNode): boolean {
   for (const node of root.querySelectorAll('script[type="application/json"][data-weft="adopt"]')) {
@@ -725,48 +565,24 @@ function swappable(root: ParentNode): boolean {
 }
 
 /**
- * The same page, brought up to date, without leaving it.
- *
- * A control that reloads with new parameters and a form that posts and gets a 303 are both
- * navigations the *framework* caused, and a navigation repaints from the top: the scroll position
- * is lost, and putting it back afterwards is a visible jump no matter how early it happens,
- * because a streamed document has already painted by then.
- *
- * So it is not a navigation. The answer is fetched, its regions replace this page's regions, and
- * the address bar is corrected. Nothing above `<main>` moves, nothing scrolls, and there is no
- * frame in which the page is somewhere else.
- *
- * Every failure falls back to the real navigation: a bad status, a document whose regions do not
- * match this one's, anything adopted on either side. A fallback that reloads is worse than this
- * and better than being wrong.
+ * The same page, brought up to date, without leaving it: a control-triggered reload or a form's 303
+ * would otherwise repaint from the top and lose the scroll position. Every failure falls back to a
+ * real navigation.
  */
 async function swapFrom(html: string, url: string): Promise<boolean> {
   const next = parseDocument(html)
   if (!next) return false
   if (!swappable(document) || !swappable(next)) return false
-  /**
-   * Where the reader is, because this update is not supposed to move them anywhere.
-   *
-   * The holes are replaced one at a time, so for a moment the document is shorter than it was and
-   * the browser clamps the scroll to fit what is left — then the content comes back and the
-   * position does not. From the reader's side, pressing a button at the bottom of a page threw
-   * them to the top and back.
-   */
+  // Where the reader is: holes are replaced one at a time, so the document is momentarily shorter
+  // and the browser clamps the scroll, then the content comes back and the position does not.
   const y = Math.round(scrollY)
 
-  /**
-   * The layout's own `<slot>` elements, not the region wrappers inside them.
-   *
-   * A region's adopt payload is a sibling of its wrapper and both sit inside the layout hole, so
-   * cutting at the hole replaces the markup *and* the payload that describes it. Cutting one level
-   * in would have left the old payload beside new nodes — a description of a render that is no
-   * longer on the page, which is the kind of stale that looks like it works.
-   */
+  // The layout's `<slot>` elements, not the region wrappers inside them: cutting one level in
+  // would leave the old adopt payload beside new nodes.
   const holes = [...document.querySelectorAll('slot[name]')]
   if (!holes.length) return false
   const incoming = holes.map((hole) => next.querySelector(`slot[name="${hole.getAttribute('name') ?? ''}"]`))
-  // Same page, different content — not a different page. A hole this document has and the answer
-  // does not means the two are not the same shape, and swapping would leave one empty.
+  // A hole this document has and the answer does not means the two are not the same shape.
   if (incoming.some((node) => node === null)) return false
 
   holes.forEach((hole, index) => {
@@ -784,16 +600,9 @@ async function swapFrom(html: string, url: string): Promise<boolean> {
 }
 
 /**
- * A form that posts to an intent, upgraded when there is something to upgrade it with.
- *
- * With no JavaScript it posts, the kernel dispatches, and a 303 brings you back — which is the
- * whole progressive-enhancement story and the reason the markup is a form in the first place.
- * With JavaScript the same post is a `fetch`, the redirect it follows is the page it came from,
- * and that answer is swapped in place: same write, same server code, no navigation.
- *
- * Captured at the document rather than wired per form, because a region replaced by a delta
- * brings new forms with it and a listener re-attached per region is a listener that will be
- * missed once.
+ * A form that posts to an intent, upgraded when there is something to upgrade it with. With no
+ * JavaScript it posts and a 303 brings you back; with it the same post is a `fetch` swapped in
+ * place. Captured at the document, so a region replaced by a delta brings new forms already wired.
  */
 function upgradeIntentForms(): void {
   document.addEventListener(
@@ -802,27 +611,13 @@ function upgradeIntentForms(): void {
       const form = event.target as HTMLFormElement | null
       if (!form?.action.includes('/_weft/i/')) return
       if (!swappable(document)) {
-        /**
-         * A page that cannot be swapped whole, and the one place its intent should go.
-         *
-         * `swappable` is false for a page holding a live region or a signal, and that is a fact
-         * about the *answer* — a document swap would replace the nodes those are bound to. It was
-         * being read as a fact about the *request*: the submit fell through to the browser, which
-         * posted the form and reloaded the document, throwing away the very regions the check
-         * exists to protect. The comment here said the page's own wiring would send this over the
-         * channel instead, and that is only true of an element carrying `data-weft-intent`. A form
-         * that names the intent in its `action` — which is what the no-JavaScript path requires it
-         * to do — carried no such attribute and was never wired, so on a live page every intent was
-         * a full page load.
-         *
-         * The channel is exactly what a live page has. Dispatched there, the write refreshes the
-         * regions it declares and nothing else on the page moves, which is the mechanism. The
-         * fallback stays underneath for a form naming an intent this client has no id for, and for
-         * a dispatch that cannot be sent at all.
-         */
+        // `swappable` false means a document swap would replace bound nodes — a fact about the
+        // answer, not the request. A form naming an intent in its `action` carries no
+        // `data-weft-intent` and was never wired, so on a live page every intent was a full page
+        // load until this dispatched it over the channel instead.
         const id = intentIds[intentNamed(form.action)]
         if (!id) {
-          // Nothing to dispatch with. Record the position for the plain post that is about to happen.
+          // Nothing to dispatch with: record the position for the plain post about to happen.
           rememberScroll()
           return
         }
@@ -840,21 +635,14 @@ function upgradeIntentForms(): void {
           method: 'POST',
           body,
           headers: {
-            // `text/html` because a *successful* intent answers a browser with a 303 back to the
-            // page, and that redirect is what makes the swap possible. `x-weft-fetch` is how the
-            // refusal comes back machine-readable anyway: a plain form post cannot send it and gets
-            // a page instead — see `refusalPage` in `serve.ts`.
+            // `text/html`: a successful intent answers with a 303 back to the page. `x-weft-fetch`
+            // is how a refusal comes back machine-readable — see `refusalPage` in `serve.ts`.
             accept: 'text/html',
             'x-weft-fetch': '1',
             'content-type': 'application/x-www-form-urlencoded',
           },
         }).catch(() => null)
-        /**
-         * A refusal is answered here rather than navigated to.
-         *
-         * The answer is already in hand, so submitting the form again to see it would throw away
-         * the page and land the reader on the same refusal with the document gone.
-         */
+        // A refusal is answered here rather than navigated to: the answer is already in hand.
         if (response && !response.ok) {
           const failed = (await response.json().catch(() => null)) as {
             code?: string
@@ -885,7 +673,7 @@ async function apply(): Promise<void> {
     window.location.assign(target)
     return
   }
-  // The address bar has to agree with what the server was asked, or a reload shows something else.
+  // The address bar has to agree with what the server was asked.
   window.history.replaceState(null, '', url.toString())
   await refresh(undefined, url.pathname + url.search)
 }
@@ -896,8 +684,7 @@ function wireControls(): void {
     wired.add(node)
     node.addEventListener('click', () => void apply())
   }
-  // A range input whose value is invisible is a mystery until you let go of it. This needs no
-  // application knowledge, so it is not the application's to write.
+  // A range input whose value is invisible is a mystery until you let go of it.
   for (const node of document.querySelectorAll('input[type=range][data-weft-control]')) {
     const input = node as HTMLInputElement
     const label = input.closest('label')
@@ -917,16 +704,8 @@ function wireControls(): void {
 // ── what the runtime is doing ────────────────────────────────────────────────────────
 
 /**
- * The framework's own state, painted into whatever asks for it.
- *
- * `data-weft-stat="writes"` and friends are here because every page that wanted to show these
- * numbers was writing the same polling loop against `window.weft` — which is glue over the
- * framework's internals, in the application, kept in step by hand. The state belongs to the
- * runtime, so describing it does too.
- *
- * `state` is the connection, `writes` the DOM writes deltas have performed, `regions` how many
- * adopted regions this page holds, `stage` how far boot got, and `resident` what the template
- * store is holding — the last of which only the client can answer, because it is in IndexedDB.
+ * The framework's own state, painted into whatever asks for it — every page that wanted these
+ * numbers was writing the same polling loop against `window.weft` by hand.
  */
 async function describeResident(): Promise<string> {
   try {
@@ -979,8 +758,7 @@ function paintStats(): void {
   }
 }
 
-/** The poll is started once per page load, not once per swap: a second one paints the same nodes. */
-let polling = false
+let polling = false // Started once per page load, not once per swap.
 
 async function wireRuntimeReadouts(): Promise<void> {
   const stats = document.querySelectorAll('[data-weft-stat]')
@@ -988,8 +766,7 @@ async function wireRuntimeReadouts(): Promise<void> {
   const forget = document.querySelectorAll('[data-weft-forget]')
   if (stats.length) {
     paintStats()
-    // Polled rather than pushed: a delta arriving is not an event the application asked for, and
-    // a subscription nobody unsubscribes from outlives the element it was painting.
+    // Polled rather than pushed: a subscription nobody unsubscribes from outlives its element.
     if (!polling) {
       polling = true
       window.setInterval(paintStats, 500)
@@ -1013,12 +790,8 @@ interface Wire {
   send(frames: readonly ChannelFrame[]): Promise<void>
   client: ReturnType<typeof createChannelClient>
   /**
-   * What is underneath, asked rather than remembered.
-   *
-   * A binding is not fixed for the channel's life: a POST answered with 409 means the downstream
-   * this connection was to be answered on is gone, and the channel takes turns from there. What
-   * reads this is `rebind`, which has to know whether a request already re-declares this client —
-   * a turn does, and re-declaring on top of that asks the server for the plan twice.
+   * What is underneath, asked rather than remembered — a binding is not fixed for the channel's
+   * life: a 409 means it takes turns from there. See `spec/kernel/transport.md`.
    */
   readonly binding: 'socket' | 'stream' | 'turn'
 }
@@ -1042,19 +815,14 @@ async function send(frames: readonly ChannelFrame[]): Promise<void> {
 }
 
 /**
- * A refresh, and the one thing it has to say first: where the client is now.
- *
- * The server matched this channel to a page when it opened, and a refresh re-runs *that* route's
- * loader. So a control that changed the query has to re-register before it asks, or it gets the
- * old answer computed from the old URL. That is one extra POST on a path the server already
- * reads, rather than a frame the protocol would have to grow.
+ * A refresh, and the one thing it has to say first: where the client is now — a control that
+ * changed the query has to re-register before it asks, or gets the old answer.
  */
 async function refresh(slots?: readonly string[], at?: string): Promise<number> {
   const w = await wire()
   const names = slots?.length ? [...slots] : state.live
   if (!names.length) return 0
-  // Every POST carries the current location, so setting it is the whole of re-registering: the
-  // REFRESH frame's own request is what tells the server where the answer is computed from.
+  // Every POST carries the current location, so setting it is the whole of re-registering.
   if (at) location_ = at
   const before = state.writes
   await w.send([{ kind: 'REFRESH', header: { s: names.join(',') } }])
@@ -1064,16 +832,8 @@ async function refresh(slots?: readonly string[], at?: string): Promise<number> 
 }
 
 /**
- * A render intent: ask the server to put a catalogue entry in a slot on this page.
- *
- * `REFRESH` with a source named, which is what a render intent is — same answer, same forms, same
- * epoch semantics, and the same surgical ladder, so an entry whose template this client already holds
- * comes back as the changed values and nothing else. That last property is the whole reason this is a
- * frame and not a `fetch` that returns markup.
- *
- * `id` is the opaque id the build derived, or the entry's declared name for markup a person wrote —
- * the server accepts either and what travels is still the id. What this cannot do is decide the slot
- * is real: that is the server's, because the server knows the route.
+ * A render intent: ask the server to put a catalogue entry in a slot on this page. `REFRESH` with a
+ * source named — same forms, same epoch semantics, same surgical ladder.
  */
 async function render(id: string, slot: string, params: unknown = {}): Promise<number> {
   const w = await wire()
@@ -1094,24 +854,16 @@ function encodeUp(frames: readonly ChannelFrame[]): Uint8Array<ArrayBuffer> {
 }
 
 /**
- * The same frames without a preamble, for a binding where one has already been sent.
- *
- * A stream announces its version once. The half-duplex bindings are one stream per request, so
- * each carries its own; a socket is one stream for the channel's whole life, and the decoder on
- * the other end consumes a preamble exactly once. Repeating it per message is what turned every
- * frame after the first into a header claiming a 14 KB body that never arrived — silently, because
- * a decoder waiting for the rest of a frame has nothing to complain about yet.
+ * The same frames without a preamble, for a binding where one has already been sent. A socket is
+ * one stream for its whole life; repeating the preamble per message once corrupted every frame
+ * after the first.
  */
 function encodeUpContinued(frames: readonly ChannelFrame[]): Uint8Array<ArrayBuffer> {
   const parts = upFrames(frames).map(encodeBinaryFrame)
   return new Uint8Array(parts.reduce<Uint8Array>((acc, p) => concatBytes(acc, p), new Uint8Array(0)))
 }
 
-/**
- * What this client is, as a header. Shared rather than written twice: a turn declares it on every
- * request and the held bindings once, and a difference between the two would be a form negotiated
- * on one binding and not the other.
- */
+/** What this client is, as a header. Shared: a turn declares it every request, a held binding once. */
 function residentHeader(transport: string): Record<string, string> {
   return {
     warp: WARP_VERSION,
@@ -1125,12 +877,8 @@ function residentHeader(transport: string): Record<string, string> {
 let location_ = ''
 
 /**
- * The answer to a route this client asked to stage.
- *
- * Settled here rather than by the sending side because the answer arrives on the down connection:
- * the frames are applied by the reader loop, and the promise that asked for them is waiting in
- * `waiting`. A `document` answer resolves to nothing, which is the caller's signal to stage it the
- * way a page with no channel would.
+ * The answer to a route this client asked to stage. Settled here because the answer arrives on the
+ * down connection, applied by the reader loop; the asking side waits in `waiting`.
  */
 const routeNav = navFrames((nav) => {
   log('down', `NAV ${nav.at} ${nav.form}${nav.why ? ` — ${nav.why}` : ''}`)
@@ -1145,23 +893,15 @@ const routeNav = navFrames((nav) => {
 })
 
 /**
- * The shell's exposed values, arriving.
- *
- * One frame with a body when the channel opens — the whole set, which is what makes it a set nothing
- * on the wire can add to — and one small frame per name afterwards, when something an exposed value
- * is derived from has been written. Routed here rather than in the channel client for the reason
- * `NAV` and `PLAN` are: a page that composes no region should not carry the table.
+ * The shell's exposed values, arriving: one frame with a body when the channel opens, one small
+ * frame per name after a write. See `spec/kernel/composition.md`.
  */
 const routeExposed = exposedFrames(exposure, (line) => log('down', line))
 
 /**
- * A region refreshed as a patch: the rung between a delta and being replaced whole.
- *
- * The region's root element is what every address in the payload is relative to, and the front
- * door is the layer that knows where a slot's nodes are — `[data-weft-slot]`, the same attribute
- * adoption found them by. Nothing is re-adopted afterwards, and that is the point: the nodes the
- * bindings point at are the nodes that were written, so a patch leaves adoption intact where a
- * markup replacement invalidates it.
+ * A region refreshed as a patch: the rung between a delta and being replaced whole. Nothing is
+ * re-adopted afterwards — the nodes the bindings point at are the nodes that were written. See
+ * `spec/kernel/surgical.md`.
  */
 const routePatch = patchFrames(
   (slot) => {
@@ -1177,13 +917,8 @@ const routePatch = patchFrames(
 )
 
 /**
- * The plan, extended — and the two things a page does with it the moment it arrives.
- *
- * The stylesheet of a route the reader is likely to go to is preloaded, which is bytes fetched
- * against nothing and a commit that is a cache hit. And where the profile says readers of *this*
- * page go next is staged, at most two of them: that hint used to reach only a client that had
- * already staged something over the channel, which is to say never on a first visit — the visit it
- * would have helped most.
+ * The plan, extended: preload the stylesheet of a route the reader is likely to go to, and stage
+ * at most two of what the profile says readers of this page go next.
  */
 const routePlan = planFrames(known, (arrival) => {
   log('down', `PLAN ${arrival.prefix || '(this page)'} ${arrival.routes.length} route(s)`)
@@ -1192,20 +927,12 @@ const routePlan = planFrames(known, (arrival) => {
   for (const route of arrival.routes) {
     if (route.css && route.pattern !== here_?.pattern) preloadStylesheet(route.css)
   }
-  // Only for the frame about this page. A prefix the page asked about is a prefetch hint, not a
-  // list of things to fetch, and staging a route is a render on the server.
+  // Only for the frame about this page: a prefix asked about is a hint, not a fetch list.
   if (arrival.prefix && here_ && arrival.prefix !== here_.pattern) return
   for (const pattern of (here_?.next ?? []).slice(0, 2)) {
     if (pattern.includes(':') || pattern.includes('*')) continue
-    /**
-     * Acted on once per page, and this is the reason it needs saying.
-     *
-     * A `PLAN` is not a once-per-page event. Every re-declaration answers with one — which is every
-     * turn on a deployment that takes them, so an intent fired on a page would re-stage this hint,
-     * and a route committed or expired since would be fetched again. From the reader's side that is
-     * a page that quietly re-fetches its neighbours forever. The hint is a statement about where
-     * they might go, and hearing it a second time is not new information.
-     */
+    // Acted on once per page: a `PLAN` arrives on every re-declaration, which on a turn is every
+    // request, and hearing the same hint twice is not new information.
     const key = stagingKey(pattern, window.location.href)
     if (hinted.has(key)) continue
     hinted.add(key)
@@ -1217,20 +944,9 @@ const routePlan = planFrames(known, (arrival) => {
 const hinted = new Set<string>()
 
 /**
- * The plan, on a page that would otherwise never ask for it.
- *
- * A `PLAN` arrives unasked when a channel opens, and a channel only opened when a page had a live
- * region or something fired an intent. On every other page — which is most of them, and every page
- * of a site that is mostly reading — the client's route table stayed empty for the whole visit, and
- * everything that reads it was dead code in practice: whether a staged route can come back as
- * regions rather than as a whole document, which stylesheet to preload before it is needed, which
- * routes the recording says this page's readers take next, and which ones they measurably do not.
- * The visible half of that was a document fetch per hover with no knowledge behind it.
- *
- * After the page rather than during it, because it is speculation and one request's worth of it:
- * the timer outlasts the application's own client module, which boot imports on the line below the
- * one that calls this. And on the same gate the three staging signals are on — a reader who has
- * asked to save data is not spending a request to find out where they might go next.
+ * The plan, on a page that would otherwise never ask for it: a `PLAN` arrives unasked only when a
+ * channel opens, which on a mostly-reading site was most pages, never. After the page, since it is
+ * speculation, on the same gate the three staging signals are on.
  */
 const LEARN_MS = 200
 
@@ -1242,10 +958,8 @@ function learn(): void {
 }
 
 /**
- * Ask about a subtree of the plan: the design's `router.discover('/checkout/*')`.
- *
- * Asked once per prefix. The answer is a description rather than a render, so a page can afford to
- * know about a subtree it will mostly not visit — which is the difference between this and staging.
+ * Ask about a subtree of the plan: the design's `router.discover('/checkout/*')`. Once per prefix —
+ * a description rather than a render, unlike staging.
  */
 async function discover(prefix: string): Promise<string[]> {
   if (known.asked(prefix)) return known.patterns
@@ -1253,7 +967,7 @@ async function discover(prefix: string): Promise<string[]> {
   if (!window.__weftChannel) return known.patterns
   const w = await wire()
   await w.send([discoverFrame(prefix) as ChannelFrame])
-  // The answer arrives on the down connection and lands in `known` from there.
+  // The answer arrives on the down connection and lands in `known`.
   await new Promise((resolve) => setTimeout(resolve, 0))
   return known.patterns
 }
@@ -1269,17 +983,11 @@ async function open(): Promise<Wire> {
     epochs,
     regions: () => regionsHeld,
     onStale: (slot, reason) => log('down', `STALE ${slot} — ${reason}`),
-    /**
-     * Two handlers, composed rather than one switch.
-     *
-     * A frame kind belongs to the capability that introduced it, which is why neither of these
-     * lives in the channel: `NAV` is navigation's and `PLAN` is discovery's, and a page that does
-     * neither carries neither.
-     */
+    // Composed rather than one switch: a frame kind belongs to the capability that introduced it,
+    // so a page that does neither `NAV` nor `PLAN` carries neither.
     onFrame: (frame, applied) => {
       // The high-water mark, read off the frame the channel already routed. Here rather than in
-      // the channel client because a page on a socket is never told twice and should not carry
-      // the arithmetic that exists for the binding that is.
+      // the channel client: a page on a socket is never told twice.
       if (frame.kind === 'STALE') since = Math.max(since, Number(frame.header.at ?? 0))
       routeNav(frame, applied)
       routePlan(frame)
@@ -1291,23 +999,15 @@ async function open(): Promise<Wire> {
       if (!ack.ok) refused(ack.code ?? 'E_INTENT_FAILED', ack.detail ?? 'the intent was refused')
     },
     onRedirect: (to) => window.location.assign(to),
-    /**
-     * A region sent as markup rather than as a delta, and the two things that has to trigger.
-     *
-     * Replacing the nodes means every binding adopted inside them is pointing at nodes that are
-     * no longer in the document — so the region is adopted again from the payload the new markup
-     * carries. And any control or intent in it is new, so those are wired again. Without both, the
-     * first HTML fallback on a page silently turned everything inside that region into decoration.
-     */
+    // A region sent as markup: the old bindings point at nodes no longer in the document, so it
+    // is adopted again and its controls rewired. See `spec/client/adoption.md`.
     onHtml: (slot, html, showing) => {
       const target = document.querySelector(`[data-weft-slot="${slot}"]`)
       if (!target) return
       target.innerHTML = html
       void (async () => {
-        // The region this frame replaced keeps its entry with the base it is now showing; the
-        // regions *inside* it were adopted against nodes that no longer exist, so those are
-        // replaced by whatever the new markup declares. Dropping the outer entry — which an
-        // earlier version did — loses the base the next delta would be computed against.
+        // The outer entry keeps the base it is now showing; the regions inside it are replaced
+        // by whatever the new markup declares.
         const fresh = await adoptRegions(target)
         const replaced = new Set(fresh.map((region) => region.slot))
         regionsHeld = [...regionsHeld.filter((region) => !replaced.has(region.slot)), ...fresh]
@@ -1320,48 +1020,22 @@ async function open(): Promise<Wire> {
     },
   })
 
-  /**
-   * One socket if the browser and the server can have one, two fetches if they cannot.
-   *
-   * The runtime deliberately knows nothing about transports — `createChannelClient` takes frames
-   * rather than a URL, which is what lets one code path serve a socket, an SSE stream with POSTs up
-   * and a test. This is the layer that is allowed to choose, and it chooses a socket: two fetches
-   * cost a POST per uplink frame and a chunked response that no proxy is obliged to keep open,
-   * where a socket is one connection carrying both directions.
-   *
-   * The fallback is not a fallback for old browsers. It is the answer for the deployments where a
-   * socket does not survive the path between here and there — a proxy that buffers, a corporate
-   * middlebox, a platform that terminates upgrades — and the only way to find that out is to try.
-   * So the socket is attempted, and its failure is one log line and a working page.
-   */
-  /**
-   * A deployment that cannot hold a downstream never gets one attempted. Trying anyway is not
-   * harmless: the upgrade fails, the streamed GET then *appears* to work, and the POSTs that follow
-   * land on whichever instance the platform picked — which is how a channel that is merely
-   * unavailable ends up looking like one that is broken.
-   */
+  // One socket if the browser and server can have one, two fetches if they cannot. Not a fallback
+  // for old browsers — for a socket that does not survive the path, found only by trying. See
+  // `spec/kernel/transport.md`.
+  // A deployment that cannot hold a downstream never gets one attempted: trying anyway makes an
+  // unavailable channel look like a broken one.
   const holds = window.__weftHold !== false
   const socketUrl = `${base.replace(/^http/, 'ws')}?c=${id}&at=${encodeURIComponent(location_)}`
   const socket = holds ? await connect(socketUrl) : null
-  /** Set when the half-duplex path has proved it cannot answer, and once set it does not go back. */
-  let turning = !holds
-  /**
-   * The most recent invalidation this client has been told about, sent back as `since`.
-   *
-   * A pushed `STALE` happens once. A journal read does not — it is a record rather than a queue, so
-   * it answers the same way to every turn inside its window — and without this one write would
-   * become one refresh per turn.
-   */
-  let since = 0
+  let turning = !holds // Set once the half-duplex path proves it cannot answer, and never unset.
+  let since = 0 // The most recent invalidation told about, sent back — see `spec/kernel/transport.md`.
 
   const query = (): string => `c=${id}&at=${encodeURIComponent(location_)}${since ? `&since=${since}` : ''}`
 
   /**
-   * One turn: what the client holds, what it is showing, and what it wants, in one request.
-   *
-   * The two declarations are not overhead added for this binding — they are what the protocol
-   * already uses to say what a client is looking at, and a turn cannot assume the server still
-   * remembers. Sending them every time is the whole of what the binding costs.
+   * One turn: what the client holds, what it is showing, and what it wants, in one request — a
+   * turn cannot assume the server still remembers. See `spec/kernel/transport.md`.
    */
   const takeTurn = async (frames: readonly ChannelFrame[]): Promise<void> => {
     const declared: ChannelFrame[] = [
@@ -1378,8 +1052,7 @@ async function open(): Promise<Wire> {
       log('down', `turn refused ${response.status}: ${(await response.text()).trim().slice(0, 160)}`)
       return
     }
-    // Its own decoder: every turn is its own stream and carries its own preamble, where the three
-    // held bindings are one stream for the channel's whole life.
+    // Its own decoder: every turn is its own stream and carries its own preamble.
     await arrived(new Uint8Array(await response.arrayBuffer()), createBinaryDecoder({ expect: 'down' }))
   }
 
@@ -1404,14 +1077,8 @@ async function open(): Promise<Wire> {
     })
     if (response.status === 202) return
     log('down', `POST refused ${response.status}: ${(await response.text()).trim().slice(0, 160)}`)
-    /**
-     * 409 is the downstream this POST was to be answered on being gone.
-     *
-     * On a host that runs a process that means a reload, and reopening is right. On one that does
-     * not it means the POST reached an instance that never held the downstream, and reopening
-     * would produce it again — so the second one switches bindings and the refused frames are
-     * taken as a turn rather than lost.
-     */
+    // 409: the downstream this POST was to be answered on is gone. Switches to turns rather than
+    // reopening, which on the wrong instance would produce it again.
     if (response.status === 409) {
       if (turning) return
       turning = true
@@ -1421,8 +1088,8 @@ async function open(): Promise<Wire> {
   }
 
   const decoder = createBinaryDecoder({ expect: 'down' })
-  // Aborted on the way out: a chunked response the browser abandons mid-stream is reported as
-  // ERR_INCOMPLETE_CHUNKED_ENCODING, which looks like a server fault and is not one.
+  // Aborted on the way out: an abandoned chunked response reports as
+  // ERR_INCOMPLETE_CHUNKED_ENCODING otherwise, which looks like a server fault.
   const leaving = new AbortController()
   window.addEventListener('pagehide', () => {
     leaving.abort()
@@ -1432,25 +1099,16 @@ async function open(): Promise<Wire> {
   state.connected = true
 
   /**
-   * Bytes arriving, from whichever direction they came.
-   *
-   * A socket delivers messages and a stream delivers chunks, and the decoder does not care: it is
-   * length-prefixed either way, so a frame split across two messages is the same problem it was
-   * split across two chunks. One `arrived` means the routing below cannot come to depend on which
-   * transport is underneath it.
+   * Bytes arriving, from whichever direction they came. The decoder is length-prefixed either way,
+   * so the routing below cannot depend on which transport is underneath it.
    */
   const arrived = async (value: Uint8Array, dec = decoder): Promise<void> => {
     const frames = dec.push(value).filter((f) => f.kind !== 'UNKNOWN') as ChannelFrame[]
     for (const f of frames) log('down', describe(f))
     const applied = await client.apply(frames)
     state.writes += applied.writes
-    /**
-     * A staged route becomes staged when the last of its regions lands.
-     *
-     * Checked after the whole batch rather than per frame: the regions of one route arrive
-     * together almost always, and asking "are they all here" once per chunk is both cheaper and
-     * the only version that is correct when they do not.
-     */
+    // A staged route becomes staged when the last of its regions lands. Checked after the whole
+    // batch: cheaper, and correct when they do not all arrive together.
     for (const [epoch, nav] of pending) {
       if (epochs.staged(epoch).length < nav.slots.length) continue
       pending.delete(epoch)
@@ -1473,13 +1131,12 @@ async function open(): Promise<Wire> {
         },
       })
     }
-    // A STALE frame is an invitation rather than an instruction: the client decides when to ask.
+    // A STALE frame is an invitation rather than an instruction.
     if (applied.stale.length) await post([{ kind: 'REFRESH', header: { s: applied.stale.join(',') } }])
   }
 
   if (turning) {
-    // Nothing to read: a turn's frames arrive in the response to the request that asked for them,
-    // and `takeTurn` has already handed them to `arrived`.
+    // Nothing to read: `takeTurn` has already handed a turn's frames to `arrived`.
   } else if (socket) {
     socket.addEventListener('message', (event: MessageEvent) => {
       void (async () => {
@@ -1493,8 +1150,7 @@ async function open(): Promise<Wire> {
         await arrived(bytes)
       })().catch((error: unknown) => log('down', `frame dropped: ${String(error)}`))
     })
-    // A socket that closes is a channel that is gone: the next use reopens, which is also how the
-    // server's own resumption works — the same id, and it keeps what this client was known to hold.
+    // A socket that closes is a channel that is gone: the next use reopens, with the same id.
     socket.addEventListener('close', () => {
       opening = null
       state.connected = false
@@ -1513,18 +1169,9 @@ async function open(): Promise<Wire> {
   }
 
   /**
-   * The opening handshake, on the bindings that have an opening — and the one a turn has to take
-   * on purpose.
-   *
-   * A turn carries `RESIDENT` and `HELD` in every request, because the channel it speaks to was
-   * built for that request and will not survive it, so there is nothing an opening handshake would
-   * add. What that overlooked is the frames the server sends *unasked* when a channel opens: the
-   * part of the plan a client cannot know it is missing. On a held binding those arrive with the
-   * handshake; on a turn they arrive as a side effect of the first thing the page happens to send,
-   * which on a page that sends nothing is never — and a page that sends nothing is most of them.
-   *
-   * So the opening turn is taken here, with nothing in it but the two declarations. One request,
-   * and the answer is the plan.
+   * The opening handshake — and the one a turn has to take on purpose, or the frames the server
+   * sends unasked when a channel opens never arrive on a page that sends nothing. See
+   * `spec/kernel/transport.md`.
    */
   if (!turning) {
     await post([{ kind: 'RESIDENT', header: residentHeader(socket ? 'socket' : 'stream') }])
@@ -1543,14 +1190,8 @@ async function open(): Promise<Wire> {
 }
 
 /**
- * A socket, or nothing, and never a rejected promise.
- *
- * `WebSocket` reports failure as an event rather than a rejection, and it reports it *late* — an
- * upgrade that a proxy is going to refuse looks exactly like one that has not opened yet. So this
- * resolves on the first thing to happen, whichever it is, and a null answer is a page that uses two
- * fetches instead of one socket. There is no retry: a deployment where the upgrade does not survive
- * the path is a deployment where it will not survive the second attempt either, and paying for that
- * discovery once per page is enough.
+ * A socket, or nothing, and never a rejected promise: `WebSocket` reports failure as an event,
+ * late. No retry — a deployment where the upgrade fails will fail it again.
  */
 function connect(url: string): Promise<WebSocket | null> {
   if (typeof WebSocket === 'undefined') return Promise.resolve(null)
@@ -1576,31 +1217,12 @@ function connect(url: string): Promise<WebSocket | null> {
 // ── navigation ───────────────────────────────────────────────────────────────────────
 
 /**
- * A page you have not gone to yet, fetched and painting nothing.
- *
- * Every layer this needed already existed and none of them were pointed at a link. An epoch is
- * data resolved and unpainted; the resident store keeps templates across visits; and the swap is
- * the same one a control that changes the query has always done. What was missing was the notion
- * of a staged *route*: regions are keyed by slot on the page you are on, so tomorrow's prices
- * could be staged into today's page and a different page could not.
- *
- * `createStaging` is that notion one level up, keyed by URL. The document is fetched on hover,
- * parsed, and held; the click commits it, and the commit is a DOM swap rather than a request. So
- * what a navigation costs after the hover is what a swap costs, and the reader's scroll position,
- * their place in the tab order and the channel they are on all survive it.
- *
- * Every failure is a real navigation rather than a wrong one: a bad status, a redirect the server
- * decided on, a document that is not this application's, an answer that arrived too long ago.
+ * A page you have not gone to yet, fetched and painting nothing. `createStaging` keys an epoch by
+ * URL: fetched on hover, parsed, held; the click commits it as a DOM swap. See `spec/client/navigation.md`.
  */
 /**
- * A route held and unpainted, in one of the two forms it can arrive in.
- *
- * A **document** is the floor and the general case: fetched over HTTP by the same path a first
- * visit takes, so it renders every slot the route has whatever shell it uses. A **page of regions**
- * is the design's own version — `WARM at=`, answered by `NAV` — and it only exists when the target
- * shares this page's shell, because a different shell has different holes. What it buys is the
- * whole point of having a channel: two pages on one route share a template, so switching between
- * them arrives as the changed values rather than as a second copy of the markup.
+ * A route held and unpainted, in one of two forms: a **document**, fetched over HTTP, or a **page
+ * of regions** — `WARM at=`, answered by `NAV` — only when the target shares this page's shell.
  */
 interface StagedPage {
   document: Document
@@ -1609,7 +1231,7 @@ interface StagedPage {
 }
 
 interface StagedRegions {
-  /** The epoch its regions are held in. Painting is committing that epoch. */
+  /** The epoch its regions are held in. Painting commits it. */
   epoch: string
   url: string
   route: string
@@ -1622,27 +1244,14 @@ interface StagedRegions {
 
 type Held = { kind: 'document'; page: StagedPage } | { kind: 'regions'; regions: StagedRegions }
 
-/** Hover intent. Below this a pointer crossing a nav on its way elsewhere prefetches the lot. */
-const HOVER_MS = 65
+const HOVER_MS = 65 // Below this a pointer crossing a nav on its way elsewhere prefetches the lot.
 
-/**
- * Answers waiting on the down connection, by epoch.
- *
- * A staged route asked for over the channel is answered by frames the reader loop applies, not by
- * the promise that asked — so the asking side leaves a resolver here and the frame router settles
- * it. The grace is what makes a partial answer a fallback rather than a hang: the regions arrive
- * in one chunk almost always, and when they do not the route is staged over HTTP like any other.
- */
-/** The epoch store of the open channel, for releasing a staged route nobody committed. */
+/** Answers waiting on the down connection, by epoch — the frame router settles them, not the asker. */
 let staging: Epochs | null = null
 
 const waiting = new Map<string, (held: Held | null) => void>()
-/**
- * Routes whose `NAV` has arrived and whose regions have not, all of them, yet.
- *
- * A route is only staged when every region it named is held: a partial epoch committed would paint
- * some of the next page over some of this one, which is the one thing staging exists to prevent.
- */
+/** Routes whose `NAV` has arrived and whose regions have not all landed yet. A partial epoch is
+ * never committed. */
 const pending = new Map<string, StagedNav>()
 const WARM_GRACE_MS = 2_000
 
@@ -1661,35 +1270,20 @@ async function stageDocument(url: string, abort: AbortSignal): Promise<Held | nu
 }
 
 /**
- * The route, asked for over the channel first and over HTTP otherwise.
- *
- * The channel is tried only when one is already open — opening a socket to stage a route nobody
- * has clicked would be paying for speculation twice — and the server decides whether it can answer
- * as regions at all. `form: 'document'` comes back for a target with a different shell, and the
- * fallback below is then the same path a page with no channel takes.
+ * The route, asked for over the channel first and over HTTP otherwise. The channel is tried only
+ * when one is already open — opening one to stage a route nobody clicked pays for speculation
+ * twice.
  */
 const routes = createStaging<Held>({
-  /**
-   * A staged route that is dropped gives its epoch back.
-   *
-   * The staging model evicts the oldest when the ceiling is reached and expires an answer nobody
-   * committed, and a route staged as regions holds a staged epoch either way. Left behind, that
-   * epoch is the next page's values kept in memory for a page nobody is going to — and still
-   * committable by something that no longer knows what it contains.
-   */
+  /** A staged route that is dropped gives its epoch back, or it is memory held for a page nobody is going to. */
   release: (held: Held) => {
     if (held.kind === 'regions') staging?.discard(held.regions.epoch)
   },
   load: async (url, abort) => {
     const open_ = opening
     if (!open_ || !window.__weftChannel) return stageDocument(url, abort)
-    /**
-     * The whole point of knowing the plan: a route the server has already said uses a different
-     * document is fetched as a document, with no `WARM` and no render of it on the server.
-     *
-     * The decision is still the server's — this is the server's own answer, given earlier and for
-     * a whole subtree rather than one link at a time.
-     */
+    // A route the server already said uses a different document is fetched as a document, with
+    // no `WARM` — the server's own answer, given earlier for a whole subtree.
     const plan = known.route(url, window.location.href)
     if (plan && !plan.shared) {
       log('up', `no WARM for ${new URL(url).pathname}: a different shell, from the plan`)
@@ -1707,18 +1301,12 @@ const routes = createStaging<Held>({
     await w.send([warmFrame(new URL(url).pathname + new URL(url).search, epoch) as ChannelFrame])
     const held = await answered
     if (held) return held
-    // Either the server sent us to the document, or the regions did not all arrive. Both are the
-    // same fallback, and it is the path every page without a channel is already on.
+    // Either the server sent us to the document, or the regions did not all arrive — same fallback.
     return stageDocument(url, abort)
   },
 })
 
-/**
- * Routes whose answer is *held*, which is what the readouts say and what a click can use.
- *
- * `routes.open` includes the ones still in flight, and a fetch that has started is not an answer
- * that is ready: a click on one of those is handed back to the browser, not committed.
- */
+/** Routes whose answer is *held*. `routes.open` includes ones still in flight, which are not ready. */
 function syncStaged(): void {
   state.staged = routes.open.filter((url) => routes.state(url) === 'ready')
 }
@@ -1739,14 +1327,8 @@ function samePage(url: URL): boolean {
   return url.pathname === window.location.pathname && url.search === window.location.search
 }
 
-/**
- * Whether this page speculates about anything at all.
- *
- * The document's own switch and what the browser says about the network, in one place because
- * three things ask it: whether a link may be staged, whether the viewport may stage one, and
- * whether the channel is worth opening for the plan. A reader who has asked to save data has asked
- * once, and one of the three going on paying would make the setting a suggestion.
- */
+/** Whether this page speculates about anything at all — the document's switch and the network,
+ * asked by all three staging signals in one place. */
 function speculating(): boolean {
   if (document.documentElement.dataset.weftPrefetch === 'off') return false
   const connection = (navigator as { connection?: { saveData?: boolean; effectiveType?: string } }).connection
@@ -1755,26 +1337,16 @@ function speculating(): boolean {
 }
 
 /**
- * Whether a link is worth fetching before it is clicked.
- *
- * A prefetch is a render the server performs for a page that may never be asked for, so the
- * refusals are the ones where that cost is not the reader's to pay: `data-weft-prefetch="off"` on
- * the link or the document, a connection the browser has told us to save data on, and 2G. On any
- * of them the click still works — it waits for the answer instead of having it.
+ * Whether a link is worth fetching before it is clicked. A prefetch is a render the server
+ * performs for a page that may never be asked for, so `data-weft-prefetch="off"`, save-data and 2G
+ * all refuse it. The click still works either way.
  */
 function prefetchable(link: HTMLAnchorElement): boolean {
   if (!navigable(linkFacts(link), window.location.href)) return false
   if (link.dataset.weftPrefetch === 'off') return false
   if (!speculating()) return false
-  /**
-   * The one thing a recording decides about staging.
-   *
-   * `stage: false` on a described route means readers of *this* page were told about that one and
-   * did not follow it, so fetching it on hover is a request nobody uses. Absent means unmeasured and
-   * unmeasured stages — the same rule delivery and discovery follow. Checked here rather than at
-   * each of the three signals, because hover, viewport dwell and pointer-down all come through this
-   * gate and a decision applied to two of them would be a decision nobody could reason about.
-   */
+  // `stage: false` means readers of this page were told about that route and did not follow it.
+  // Checked here so all three staging signals share the decision. See `spec/plan/profile.md`.
   if (known.route(link.href, window.location.href)?.stage === false) return false
   return !samePage(new URL(link.href, window.location.href))
 }
@@ -1786,17 +1358,9 @@ function parseDocument(html: string): Document | null {
   } catch {
     return null
   }
-  /**
-   * An out-of-order answer arrives unfilled, and a parsed document runs no scripts.
-   *
-   * The regions of a streamed response are not inside their holes on the wire: each one is a
-   * `<template data-w="…">` after the shell, and the inline filler moves it to the anchor comment
-   * left in the hole. `DOMParser` executes nothing, so the holes of a document parsed this way are
-   * empty — and swapping them in would have emptied every region on the page, which is exactly
-   * what it did to the dashboard.
-   *
-   * So the same move is made here, against the inert document, before anything is read out of it.
-   */
+  // An out-of-order answer arrives unfilled: each region is a `<template data-w="…">` after the
+  // shell, normally moved by the inline filler script — which a parsed document never runs. So the
+  // same move is made here, against the inert document.
   for (const carrier of next.querySelectorAll('template[data-w]')) {
     const hole = next.querySelector(`slot[name="${carrier.getAttribute('data-w') ?? ''}"]`)
     if (hole) hole.replaceChildren((carrier as HTMLTemplateElement).content)
@@ -1810,13 +1374,9 @@ function styleHrefs(from: Document): string[] {
 }
 
 /**
- * The next page's stylesheet, fetched while it is staged and applied to nothing.
- *
- * `preload` rather than `stylesheet` is the whole point: a second page bundle appended as a
- * stylesheet would apply its rules to the page being looked at, which is the one thing staging
- * is not allowed to do. Preloaded, the bytes are in the cache and the commit is a cache hit.
+ * The next page's stylesheet, fetched while staged and applied to nothing: `preload` rather than
+ * `stylesheet`, or a second page's rules would apply to the one being looked at.
  */
-/** One stylesheet, fetched and applied to nothing. See `preloadStyles` for why `preload`. */
 function preloadStylesheet(href: string): void {
   const absolute = new URL(href, window.location.href).href
   for (const node of document.head.querySelectorAll('link')) {
@@ -1867,9 +1427,8 @@ async function applyStyles(next: Document): Promise<void> {
     )
     document.head.append(link)
   }
-  // Awaited, because painting the next page with the last one's stylesheet is precisely the
-  // flash this path exists to avoid. The bytes are already cached from the preload, so what is
-  // waited on is a task rather than a round trip.
+  // Awaited: painting the next page with the last one's stylesheet is the flash this avoids. The
+  // bytes are already cached, so this waits on a task rather than a round trip.
   await Promise.all(loading)
   for (const [href, node] of holding) if (!wanted.includes(href)) node.remove()
 }
@@ -1893,12 +1452,8 @@ function syncHead(next: Document): void {
 }
 
 /**
- * Put the reader back at a position, and again on the next frame if it did not take.
- *
- * The document has just been rewritten and its height is whatever layout has got to, so asking
- * for a position past the bottom of a document that is momentarily short clamps it to the top —
- * and the browser's own clamp lands *after* this runs, so checking once and finding nothing wrong
- * still ends up at the top a frame later.
+ * Put the reader back at a position, and again on the next frame if it did not take: the document
+ * has just been rewritten and the browser's own clamp lands after this runs.
  */
 function keepAt(y: number): void {
   const land = (): void => window.scrollTo({ top: y, behavior: 'instant' as ScrollBehavior })
@@ -1918,17 +1473,11 @@ function landAt(url: URL, y: number): void {
 }
 
 /**
- * Where the client is now, and what it is holding there.
- *
- * The server resolves a refresh by matching the path this client last registered against the
- * same route table the document went through, so a navigation that did not re-register would ask
- * for the new page and be answered from the old one. And the held map is keyed by slot, which is
- * a name that belongs to a page: `only` says this is the whole of what is held, so the page that
- * was left does not go on being refreshed and invalidated for.
+ * Where the client is now, and what it is holding there — a navigation that did not re-register
+ * would be answered from the old page. `only` says the left page stops being refreshed for.
  */
 async function rebind(url: URL): Promise<void> {
-  // Set before anything can be sent, and whether or not a channel exists yet: every POST carries
-  // it, so a channel opened later by the page that has just arrived registers the right path.
+  // Set before anything can be sent: a channel opened later registers the right path.
   location_ = url.pathname + url.search
   const held = opening
   if (!held) {
@@ -1937,16 +1486,9 @@ async function rebind(url: URL): Promise<void> {
     return
   }
   const w = await held
-  /**
-   * `RESIDENT` again, because the connection is somewhere else now.
-   *
-   * It is what re-declares this client, and the server answers a re-declaration with the frames it
-   * sends unasked when a channel opens — the plan for the route this connection is on, and where
-   * its readers go from there. Without it the plan a page navigated to was the plan of the page it
-   * came from: the `next` hints staged the wrong routes, and the stylesheet preloads were for a
-   * page nobody was on any more. A turn already re-declares on every request; this is the same
-   * thing on a binding that holds its connection open.
-   */
+  // `RESIDENT` again: a re-declaration gets the frames the server sends unasked on open — without
+  // it the plan and `next` hints stayed the previous page's. A turn already re-declares every
+  // request.
   await w.send([
     ...(w.binding === 'turn' ? [] : [{ kind: 'RESIDENT', header: residentHeader(w.binding) }]),
     { kind: 'HELD', header: w.client.held({ only: true }) },
@@ -1954,24 +1496,12 @@ async function rebind(url: URL): Promise<void> {
 }
 
 /**
- * The commit: a staged page becomes the page, in one turn and with no request in it.
- *
- * The body is replaced rather than the holes, because a layout's own values — the title, the
- * heading, whatever the route declared — are holes in the shell rather than slots in it, and a
- * page swapped hole by hole would have kept the last one's chrome.
- */
-/**
- * A route staged as regions, painted.
- *
- * The commit is the epoch: every region flips together, and the ones the server sent as deltas are
- * one DOM write per changed value. What has to happen around it is the same list a document swap
- * has, minus the document — the cascade in place before anything paints, the title, the address
- * bar, and the channel told where this client is now.
+ * A route staged as regions, painted. The commit is the epoch: every region flips together. What
+ * happens around it is the same list a document swap has, minus the document.
  */
 async function commitRegions(staged: StagedRegions, mode: 'push' | 'restore', y: number): Promise<number> {
   const url = new URL(staged.url, window.location.href)
-  // A hint is about the page it was given on, and this is a different page.
-  hinted.clear()
+  hinted.clear() // A hint is about the page it was given on.
   if (staged.css) await ensureStylesheet(staged.css)
   if (staged.title) document.title = staged.title
 
@@ -1994,7 +1524,7 @@ async function commitRegions(staged: StagedRegions, mode: 'push' | 'restore', y:
   landAt(url, y)
   announceNavigation(url, 'regions')
   await rebind(url)
-  // What the server's own numbers say this reader is likely to want next, once each.
+  // What the server's numbers say this reader is likely to want next, once each.
   for (const route of staged.next.slice(0, 2)) {
     const key = stagingKey(route, window.location.href)
     if (hinted.has(key)) continue
@@ -2025,7 +1555,6 @@ async function commitPage(page: StagedPage, mode: 'push' | 'restore', y: number)
   const next = page.document
   if (!next.body) return 0
   const url = new URL(page.url, window.location.href)
-  // A hint is about the page it was given on, and this is a different page.
   hinted.clear()
 
   await applyStyles(next)
@@ -2033,7 +1562,7 @@ async function commitPage(page: StagedPage, mode: 'push' | 'restore', y: number)
   syncAttributes(document.documentElement, next.documentElement)
 
   if (mode === 'push') {
-    // Recorded against the entry being left, which is the only entry that can hold it.
+    // Against the entry being left: the only entry that can hold it.
     const state_ = (window.history.state ?? {}) as Record<string, unknown>
     window.history.replaceState({ ...state_, weftY: Math.round(scrollY) }, '')
   }
@@ -2043,8 +1572,8 @@ async function commitPage(page: StagedPage, mode: 'push' | 'restore', y: number)
   if (mode === 'push') window.history.pushState({ weftY: 0 }, '', url.href)
   here = url
 
-  // Everything the last page bound is pointing at nodes that are no longer in the document, and
-  // a signal declared by a page nobody is on is state with no owner.
+  // The last page's bindings point at nodes no longer in the document; a signal with no page is
+  // state with no owner.
   writable.clear()
   intentTargets.clear()
   state.live = []
@@ -2059,55 +1588,35 @@ async function commitPage(page: StagedPage, mode: 'push' | 'restore', y: number)
   speculate()
   landAt(url, y)
   announceNavigation(url, 'document')
-  // After the announcement: rebinding is a POST, and what the click bought is a page that is on
-  // screen and interactive, not a round trip that happens to follow it.
+  // After the announcement: what the click bought is on screen and interactive, not a round trip.
   await rebind(url)
   return painted
 }
 
 /**
- * A click is answered here only when the answer is already in hand.
- *
- * The alternative — wait for the fetch the hover started, then swap — makes a slow page *worse*
- * than the browser would have made it. A document response streams: the shell paints, then each
- * region as it arrives. A `fetch` of the same document has to be read to the last byte before
- * there is anything to parse, so waiting on one means the reader sits on the page they asked to
- * leave, with no address-bar spinner to say why. The demo's dashboard makes it obvious, because
- * its slots are deliberately slow.
- *
- * So: staged, and this is instant. Not staged, and it is a real navigation, which is what a link
- * has always cost — and the request in flight is dropped rather than raced.
+ * A click is answered here only when the answer is already in hand. Waiting for the hover's fetch
+ * would be worse than the browser: a document response streams and a `fetch` does not, so the
+ * reader would sit with no spinner. Staged is instant; not staged is a real navigation.
  */
-/** Taken over lazily, only once the framework really navigates. See `SCROLL_PRELUDE` for why. */
+/** Taken over lazily, only once the framework really navigates. See `spec/client/navigation.md`. */
 function takeOverScroll(): void {
   try {
     if (window.history.scrollRestoration !== 'manual') window.history.scrollRestoration = 'manual'
   } catch {
-    // An engine without the property. It restores its own way, and the re-land still runs.
+    // An engine without the property restores its own way; the re-land still runs.
   }
 }
 
 /**
- * How a `go` ended, because two of the three are not "it did not work".
- *
- * `cold` means nothing was staged for this route and the browser should load it. `stale` means a
- * newer navigation started while this one was waiting, and the reader is no longer going here — so
- * it must not paint *and* must not fall back to loading the document, which is the distinction a
- * boolean could not carry.
+ * How a `go` ended: `cold` means nothing was staged; `stale` means a newer navigation overtook this
+ * one, and it must neither paint nor fall back to loading the document.
  */
 type Went = 'painted' | 'cold' | 'stale'
 
 /**
- * Which navigation is the current one.
- *
- * A staged route is claimed with no deadline, deliberately — waiting cannot cost more than not
- * waiting. What that leaves is a click on a slow route followed by clicks on others: the first
- * claim settles last, and without a ticket it painted last too, landing the reader on the page
- * they had already changed their mind about. The bug is not the waiting, it is that a navigation
- * had no way to notice it had been superseded while it waited.
- *
- * Bumped by `go` and not by staging. Hovering a link starts a fetch and changes nothing about
- * where the reader is going, so it must not cancel a click.
+ * Which navigation is the current one. A staged route is claimed with no deadline, so a click on a
+ * slow route followed by others could paint last — this ticket is what lets a navigation notice it
+ * was superseded. Bumped by `go`, not by staging.
  */
 let navSeq = 0
 
@@ -2119,48 +1628,19 @@ async function go(href: string, mode: 'push' | 'restore', y = 0): Promise<Went> 
   const started = performance.now()
 
   /**
-   * A route being staged right now is claimed, not thrown away.
-   *
-   * Hover intent starts the fetch at 65ms and the answer takes a couple of hundred more, so a
-   * reader clicking at a normal speed arrived here in the window between the two — and this
-   * discarded the request already in flight for the page they had just asked for, counted it cold,
-   * and let the browser load the same document over again. Every click not preceded by a
-   * deliberate pause was a full navigation, which is the opposite of what staging on hover is for.
-   *
-   * `claim` was written for exactly this and says so: "the staged answer if it is there, the one in
-   * flight if it is not". It counts the two apart, and `awaited` had never been reachable.
-   *
-   * There is no deadline on the wait, and that is the design rather than an omission. Waiting cannot
-   * cost more than not waiting: the fallback is `location.assign` of the same URL over the same
-   * network, so a slow stage and a slow navigation are the same slowness — except the fallback
-   * throws away the request that was already running and issues an identical one. And every
-   * terminal outcome already settles the claim, because `settled` resolves rather than rejects: an
-   * answer, a null for a load that failed, a null for one that was aborted. A stage over the
-   * channel bounds itself before it gets here, falling back to a document fetch after
-   * `WARM_GRACE_MS`. What is left is a request that never settles at all, and against that a timer
-   * here would only mean fetching the same page twice.
+   * A route being staged right now is claimed, not thrown away: a click at normal speed lands in
+   * the window between hover-fetch and answer, and discarding it meant every click was a full
+   * navigation. No deadline on the wait — waiting cannot cost more than not waiting, since the
+   * fallback re-fetches the same URL anyway.
    */
   const stageState = routes.state(key)
   if (stageState === 'none' || stageState === 'failed') {
     routes.discard(key)
     syncStaged()
-    /**
-     * Back and forward, which is the one navigation that cannot be handed to the browser.
-     *
-     * A cold *click* is given to the browser because a document response streams and a `fetch` of
-     * the same document does not: waiting on one leaves the reader on the page they asked to leave
-     * with nothing to show for it. A traversal has no such choice. The address bar has already
-     * moved, so the only way to hand it over is `location.reload()` — and that is not the same
-     * trade at all. It throws away every module this page has parsed, every region it has adopted
-     * and the channel it holds, to fetch a document it would have fetched anyway.
-     *
-     * And it was the common case rather than the edge: committing a staged route spends it, so the
-     * page a reader just came from is never staged, and every single Back was a full reload.
-     *
-     * So a traversal stages the route it is going to and waits for it. Same request, same bytes,
-     * and what survives is the runtime. A stage that fails still falls through to `cold`, and the
-     * reload is where that lands.
-     */
+    // Back and forward cannot be handed to the browser the way a cold click can: the address bar
+    // has already moved, and `location.reload()` throws away every module and region this page
+    // holds. So a traversal stages the route and waits for it — same bytes, and the runtime
+    // survives.
     if (mode !== 'restore') {
       state.nav = { ...state.nav, cold: state.nav.cold + 1 }
       return 'cold'
@@ -2175,13 +1655,8 @@ async function go(href: string, mode: 'push' | 'restore', y = 0): Promise<Went> 
   }
   const claimed = await routes.claim(key)
   syncStaged()
-  /**
-   * Checked here, between waiting and painting, which is the only place it can be.
-   *
-   * The claim above is where a navigation spends its time, so it is where a newer one overtakes
-   * it. Anything staged for this route stays staged — it was resolved correctly and the reader may
-   * still come back to it — and this call simply stops being a navigation.
-   */
+  // Checked between waiting and painting: the claim above is where a newer navigation overtakes
+  // this one. Anything staged stays staged.
   if (mine !== navSeq) return 'stale'
   if (!claimed.value) {
     state.nav = { ...state.nav, cold: state.nav.cold + 1 }
@@ -2199,29 +1674,15 @@ async function go(href: string, mode: 'push' | 'restore', y = 0): Promise<Went> 
 }
 
 /**
- * `weft:navigated`, on the document, after a route change has painted.
+ * `weft:navigated`, on the document, after a route change has painted — the one thing an
+ * application's `client.ts` cannot work out for itself, since a staged navigation replaces regions
+ * with no reload.
  *
- * The one thing an application's own `client.ts` cannot work out for itself. It is imported once,
- * at boot, and a staged navigation replaces the regions of the page without reloading anything — so
- * code that wired something up to markup that has just been swapped has no way to know it needs to
- * do it again. Every application that ships a client module and a router hits this; a framework
- * that swaps the DOM owes it an event.
- *
- * `detail` says where and how, because the two answers differ: `regions` means this document
- * survived and only its slots changed, and `document` means the whole shell was replaced.
- *
- * **In the same task as the paint, and this is the whole of why it is fired from inside the
- * commit.** It used to be fired by `go`, which is after the commit has returned — and a commit
- * ends by rebinding the channel, which is a POST. So the listener ran a round trip after the new
- * document was on screen, and everything it restores was missing for that long: on this project's
- * own site the reader's theme reverted to the server's for the length of a request and then
- * corrected itself, and the control that the stylesheet gates on a flag set by an inline script
- * vanished and came back. Neither was broken. Both were late.
- *
- * The rule the ordering encodes: what an application does on a swap is part of painting the page,
- * and nothing that is part of painting the page may wait for the network. So it goes after the
- * scroll has landed and before `rebind`, which means the listener's DOM writes land in the same
- * frame as the swap and there is no moment where the page is half the previous one.
+ * **Fired from inside the commit, in the same task as the paint.** It used to fire from `go`, after
+ * the commit's own rebind POST — so the listener ran a round trip after the new document was on
+ * screen: the theme reverted to the server's for the length of a request, and a flag-gated control
+ * vanished and came back. Nothing that paints the page may wait for the network. See
+ * `spec/client/navigation.md`.
  */
 function announceNavigation(url: URL, kind: 'regions' | 'document'): void {
   document.dispatchEvent(
@@ -2232,13 +1693,8 @@ function announceNavigation(url: URL, kind: 'regions' | 'document'): void {
 }
 
 /**
- * Where a route change lands, and who decides.
- *
- * The link wins, then the application's config, then `top` — which is what a navigation has always
- * done, and the reason it is the default rather than the clever option. `preserve` exists because
- * on some pages the scroll position *is* the reader's place: a long list whose filter is in the
- * URL, or a document with a chapter per route. Back and forward ignore both and restore the
- * position recorded against the entry being returned to.
+ * Where a route change lands, and who decides: the link, then the application's config, then
+ * `top`. Back and forward ignore both. See `spec/client/navigation.md`.
  */
 function scrollFor(link?: HTMLAnchorElement | null): 'top' | 'preserve' {
   const asked = link?.dataset.weftScroll ?? window.__weftScroll
@@ -2246,16 +1702,9 @@ function scrollFor(link?: HTMLAnchorElement | null): 'top' | 'preserve' {
 }
 
 /**
- * Where a GET submit lands, which is the opposite default to a link's.
- *
- * A link goes somewhere else, and a new page starts at the top. A GET form re-renders the page it is
- * already on with different parameters — Compile on the playground, a search, a filter — so the
- * reader is still reading the same thing and the top is the one place they did not ask to be.
- *
- * Only the form's own attribute is read, deliberately. `window.__weftScroll` is the application's
- * answer for *links* and defaults to `top`, so consulting it here made every form inherit a decision
- * about a different kind of navigation: the playground's Compile threw the reader back to the top of
- * a page they had scrolled through, because the config said what links do.
+ * Where a GET submit lands: the opposite default to a link's. A GET form re-renders the page it is
+ * already on, so `preserve` by default. Only the form's own attribute is read — `__weftScroll` is
+ * the link answer and once made every form inherit a link's decision.
  */
 function scrollForForm(form: HTMLFormElement): 'top' | 'preserve' {
   return form.dataset.weftScroll === 'top' ? 'top' : 'preserve'
@@ -2269,24 +1718,12 @@ async function navigate(href: string, scroll: 'top' | 'preserve' = scrollFor()):
     departingToTop = false
     return true
   }
-  /**
-   * Overtaken, so this is not a navigation any more and must not become one.
-   *
-   * The fallback below is `location.assign`, which is right for a route that was never staged and
-   * exactly wrong here: the reader has since asked for somewhere else, and sending the browser to
-   * this URL would land them on the page they changed their mind about — after the page they
-   * actually wanted had already painted.
-   */
+  // Overtaken: `location.assign` below is right for a never-staged route and wrong here — the
+  // reader asked for somewhere else since.
   if (went === 'stale') return false
   departingToTop = y === 0
-  /**
-   * The same link, answered by the browser — and `preserve` has to mean the same thing there.
-   *
-   * A click on a route that was not staged is a real navigation, and a real navigation lands at
-   * the top of a new document. Without this, whether the reader kept their place depended on
-   * whether they happened to hover long enough first, which is a setting that works most of the
-   * time and is therefore worse than one that does not work at all.
-   */
+  // `preserve` has to mean the same thing for a real navigation, or keeping the reader's place
+  // depended on whether they happened to hover long enough first.
   const url = new URL(href, window.location.href)
   if (y > 0) handOff(url.pathname, y)
   window.location.assign(url.href)
@@ -2294,26 +1731,11 @@ async function navigate(href: string, scroll: 'top' | 'preserve' = scrollFor()):
 }
 
 /**
- * A link the reader has been looking at.
- *
- * The strongest mobile signal there is, and it needs no gesture: a phone reader scrolls a link
- * into view seconds before tapping it, which is far more warning than a hover ever gives. What
- * makes it defensible rather than a load-time stampede is entirely in the bounds.
- *
- * Every link, and not only the ones inside a region. Excluding the chrome was a stand-in for the
- * bound that actually matters — a nav is on every page and lists every page, and staging all of it
- * because the reader can see it is a fetch per link for a page they came to read. But the ceiling
- * below is that bound, said directly, and drawing the line at the region instead meant the links
- * a reader most often takes were the ones never staged.
- *
- * What holds it down is three things. Only after the link has been visible for a moment, because
- * scrolling past is not looking at. Only `VIEWPORT_MAX` at a time, so hover and a press still have
- * somewhere to go inside the staging ceiling. And the plan: a route the server's own recording says
- * readers of this page do not take is refused by `prefetchable` before it is ever observed, which
- * is the bound that gets *better* the more the deployment knows.
- *
- * `data-weft-prefetch="hover"` on the document or a link opts out of this signal alone — the link
- * is still staged on hover, a press and focus. `"off"` opts out of all of them.
+ * A link the reader has been looking at — the strongest mobile signal there is, needing no
+ * gesture. Every link, not only the ones inside a region: excluding the chrome meant the links a
+ * reader most often takes were never staged. Held down by dwell time, `VIEWPORT_MAX`, and the plan.
+ * `data-weft-prefetch="hover"` opts out of this signal alone; `"off"` opts out of all. See
+ * `spec/client/navigation.md`.
  */
 const VIEWPORT_DWELL_MS = 300
 const VIEWPORT_MAX = 2
@@ -2326,14 +1748,8 @@ function watched(link: HTMLAnchorElement): boolean {
 
 function watchViewport(): void {
   if (typeof IntersectionObserver === 'undefined') return
-  /**
-   * How many routes this signal is holding, rather than how many it has ever staged.
-   *
-   * A counter that only went up spent its two on the first screenful and then did nothing for the
-   * rest of the page's life — including after a navigation, which replaces every link on it. What
-   * the ceiling is protecting is the staging table, and a route that has left the table is not in
-   * it any more: committed by a click, evicted, or expired. So the count follows the table.
-   */
+  // How many routes this signal is holding, not how many it has ever staged — a counter that only
+  // went up spent its two on the first screenful and did nothing for the rest of the page's life.
   const mine = new Set<string>()
   const holding = (): number => {
     for (const key of mine) if (routes.state(key) === 'none') mine.delete(key)
@@ -2375,10 +1791,8 @@ function watchViewport(): void {
     }
   }
   observe()
-  // A region replaced by a delta or a commit brings new links with it, and an observer only knows
-  // about the nodes it was given. A commit also replaces every link in the chrome, and the ones
-  // that survived it are pointing at a different page now: what was staged from the last page is
-  // no longer what this one would stage, so the observer is given the whole document again.
+  // A region or a commit brings new links, and an observer only knows the nodes it was given, so
+  // it is given the whole document again.
   observed = () => {
     observer.disconnect()
     dwelling.clear()
@@ -2390,16 +1804,9 @@ function watchViewport(): void {
 let observed: (() => void) | null = null
 
 /**
- * The browser's own heuristics, told which links are worth them.
- *
- * Speculation rules are the one mechanism here that is not this framework's: the engine decides
- * when to prefetch, using signals it has and we do not — how the pointer is moving, what the
- * connection is doing, whether the reader is on a metered network. `moderate` is roughly
- * "hovered or pressed", which is the same intent as the code above and better tuned per platform.
- *
- * Chrome and Android WebView have it; Safari does not, which is the wrong half for iOS. So this is
- * a layer over the two above rather than a replacement: where it exists the cache is warm before
- * `stage` is called, and where it does not nothing changes.
+ * The browser's own heuristics, told which links are worth them — the one mechanism here that is
+ * not this framework's, using signals it has and we do not. A layer over the two above, not a
+ * replacement. See `spec/client/navigation.md`.
  */
 function speculate(): void {
   const supports = (HTMLScriptElement as { supports?(type: string): boolean }).supports
@@ -2421,16 +1828,11 @@ function speculate(): void {
 }
 
 /**
- * Links, answered by the framework only where the markup says it may.
- *
- * Delegated at the document rather than wired per link, because a region replaced by a delta
- * brings new links with it and a listener attached per link is a listener that will be missed
- * once. The click is taken on the bubble rather than on capture, so an application that calls
- * `preventDefault` is not overruled by the framework it is running on.
+ * Links, answered by the framework only where the markup says it may. Delegated at the document:
+ * a listener attached per link is one that will be missed once a delta brings new ones.
  */
 function wireNavigation(): void {
-  // Recorded only once this runtime owns scroll; while the engine has it, a reload is restored
-  // before the first paint and a record here would be a second, later one. See `SCROLL_PRELUDE`.
+  // Recorded only once this runtime owns scroll. See `spec/client/navigation.md`.
   window.addEventListener('pagehide', () => {
     try {
       if (window.history.scrollRestoration !== 'manual') return
@@ -2451,9 +1853,8 @@ function wireNavigation(): void {
     const href = link.href
     cancel()
     intent = window.setTimeout(() => {
-      // Asked again on the way out, not only on the way in. Clicking a link focuses it, so the
-      // click itself schedules one of these — and by the time it fires the page it names is the
-      // page you are on, which would stage the document you are already looking at.
+      // Asked again on the way out: clicking a link focuses it, so by the time this fires the
+      // page it names may already be the page you are on.
       const url = new URL(href, window.location.href)
       if (samePage(url)) return
       void routes.stage(stagingKey(url.href, window.location.href)).then(syncStaged)
@@ -2461,16 +1862,8 @@ function wireNavigation(): void {
   }
 
   /**
-   * Staged now, with no hover intent to wait for.
-   *
-   * `pointerdown` is one event for mouse, pen and touch, and it fires on finger-down rather than
-   * on the tap resolving — which is the only warning a phone gives, since a phone has no hover at
-   * all. The window is the press plus the browser's tap handling, roughly 80–150 ms: a head start
-   * rather than an answer, and when it is not enough the click falls back the way it already does.
-   *
-   * No delay, because there is nothing to disambiguate. A pointer crossing a nav on its way
-   * somewhere else is what hover intent protects against; a finger pressed on a link is a
-   * decision.
+   * Staged now, with no hover intent to wait for: `pointerdown` fires on finger-down, the only
+   * warning a phone gives, and a press is a decision with nothing to disambiguate.
    */
   const now_ = (event: Event): void => {
     const link = (event.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null
@@ -2481,15 +1874,14 @@ function wireNavigation(): void {
 
   document.addEventListener('pointerover', consider, { passive: true })
   document.addEventListener('pointerout', cancel, { passive: true })
-  // A keyboard reader never hovers either, and focus is the same signal by another name.
+  // A keyboard reader never hovers either; focus is the same signal by another name.
   document.addEventListener('focusin', consider, { passive: true })
   document.addEventListener('pointerdown', now_, { passive: true })
   watchViewport()
   speculate()
 
-  // A `method="get"` submit is a navigation and means what a link click means, so it goes through
-  // the same path. A POST is an intent and `upgradeIntentForms` already has it. Falling through
-  // leaves the browser to submit, which is what happened before this existed.
+  // A `method="get"` submit means what a link click means. A POST is an intent —
+  // `upgradeIntentForms` already has it.
   document.addEventListener('submit', (event) => {
     if (event.defaultPrevented) return
     const form = event.target as HTMLFormElement | null
@@ -2502,14 +1894,12 @@ function wireNavigation(): void {
     } catch {
       return
     }
-    // The form's own fields decide the query, which is what the browser would have done.
+    // The form's own fields decide the query, as the browser would have done.
     url.search = new URLSearchParams(new FormData(form) as unknown as Record<string, string>).toString()
     if (!navigable({ href: url.href }, window.location.href)) return
     event.preventDefault()
-    // The reader's place is kept, the same as a refresh keeps it. A GET submit re-renders the page
-    // somebody is reading — the playground's Compile, a search filter — rather than taking them
-    // somewhere new, so landing them at the top would lose the thing they were looking at. A form
-    // that wants the top says so the way a link does, with `data-weft-scroll`.
+    // The reader's place is kept: a GET submit re-renders the page they are reading rather than
+    // taking them somewhere new.
     void navigate(url.href, scrollForForm(form))
   })
 
@@ -2520,15 +1910,8 @@ function wireNavigation(): void {
     const link = (event.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null
     if (!link || !navigable(linkFacts(link), window.location.href)) return
     const url = new URL(link.href, window.location.href)
-    /**
-     * The page already on screen.
-     *
-     * Handing this to the browser meant a nav that reloaded the document whenever a reader clicked
-     * the section they were already reading — the one click on a nav that should cost nothing, and
-     * the most expensive one there was. A link to a fragment of this page never arrives here;
-     * `navigable` refuses it above, so the browser scrolls and does that better than a swap could.
-     * What is left is the same URL exactly, and the honest answer to it is nothing at all.
-     */
+    // The page already on screen: handing this to the browser reloaded the document whenever a
+    // reader clicked the section they were already reading.
     if (samePage(url)) {
       event.preventDefault()
       return
@@ -2548,17 +1931,9 @@ function wireNavigation(): void {
     void (async () => {
       // `stale` returns too: a newer traversal is in charge, and reloading would fight it.
       if ((await go(url.href, 'restore', y)) !== 'cold') return
-      /**
-       * Nothing staged for the entry being returned to, so it is loaded — streamed, the way the
-       * first visit was. What a reload loses is the position, because the browser restores scroll
-       * for a history traversal and this is a fresh navigation to the same URL.
-       *
-       * So the position recorded on that entry is handed to the same session storage a
-       * framework-caused reload already uses, and boot puts it back before the first paint.
-       */
-      // Written even when it is zero, so a position recorded on an earlier visit to this path
-      // cannot be restored over a page the reader left at the top: boot removes the key it reads,
-      // whatever it says.
+      // Nothing staged: loaded streamed, the way the first visit was. Written even when zero, so an
+      // earlier position cannot be restored over a page left at the top — boot removes the key
+      // it reads regardless.
       handOff(url.pathname, y)
       window.location.reload()
     })()
@@ -2580,12 +1955,10 @@ async function boot(): Promise<void> {
   wireNavigation()
   await wireRuntimeReadouts()
   state.stage = 'ready'
-  // A page with a live region wants the channel now; every other page opens one shortly after the
-  // page settles, because the plan it answers with is what the three staging signals read.
+  // A page with a live region wants the channel now; every other page opens one shortly after.
   if (regionsHeld.length && liveRegions) await wire()
   else learn()
-  // The application's own client code, last, so it can see adopted regions and send intents. It
-  // is loaded rather than bundled: there is no build step here to bundle it with.
+  // The application's own client code, last: loaded rather than bundled, since there is no build step.
   if (window.__weftClient) {
     state.stage = 'app'
     await import(window.__weftClient)
