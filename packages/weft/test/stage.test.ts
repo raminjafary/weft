@@ -112,6 +112,15 @@ test('a route on a different shell is refused, and the client is told to fetch t
   const nav = out.find((f) => f.kind === 'NAV') as Frame
   assert.equal(str(nav, 'form'), 'document')
   assert.match(str(nav, 'why') ?? '', /different document/)
+  /**
+   * And it says which question it is answering, which is the half that was missing.
+   *
+   * A refusal has nowhere to put values, so the epoch looked like it had no meaning here. It has
+   * the other one an epoch has: it is the name the client gave this question. Without it back, the
+   * client cannot match this frame to the route it is staging — it waits out the grace period and
+   * fetches the document afterwards, which is the same answer two seconds later.
+   */
+  assert.equal(str(nav, 'epoch'), 'n-3', 'the refusal names the epoch that asked for it')
   assert.equal(
     out.filter((f) => f.kind === 'HTML' || f.kind === 'DELTA').length,
     0,

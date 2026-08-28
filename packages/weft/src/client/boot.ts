@@ -970,6 +970,15 @@ async function wireRuntimeReadouts(): Promise<void> {
 interface Wire {
   send(frames: readonly ChannelFrame[]): Promise<void>
   client: ReturnType<typeof createChannelClient>
+  /**
+   * What is underneath, asked rather than remembered.
+   *
+   * A binding is not fixed for the channel's life: a POST answered with 409 means the downstream
+   * this connection was to be answered on is gone, and the channel takes turns from there. What
+   * reads this is `rebind`, which has to know whether a request already re-declares this client —
+   * a turn does, and re-declaring on top of that asks the server for the plan twice.
+   */
+  readonly binding: 'socket' | 'stream' | 'turn'
 }
 
 let opening: Promise<Wire> | null = null
@@ -1146,9 +1155,49 @@ const routePlan = planFrames(known, (arrival) => {
   if (arrival.prefix && here_ && arrival.prefix !== here_.pattern) return
   for (const pattern of (here_?.next ?? []).slice(0, 2)) {
     if (pattern.includes(':') || pattern.includes('*')) continue
-    void routes.stage(stagingKey(pattern, window.location.href)).then(syncStaged)
+    /**
+     * Acted on once per page, and this is the reason it needs saying.
+     *
+     * A `PLAN` is not a once-per-page event. Every re-declaration answers with one — which is every
+     * turn on a deployment that takes them, so an intent fired on a page would re-stage this hint,
+     * and a route committed or expired since would be fetched again. From the reader's side that is
+     * a page that quietly re-fetches its neighbours forever. The hint is a statement about where
+     * they might go, and hearing it a second time is not new information.
+     */
+    const key = stagingKey(pattern, window.location.href)
+    if (hinted.has(key)) continue
+    hinted.add(key)
+    void routes.stage(key).then(syncStaged)
   }
 })
+
+/** Hints already acted on, so a repeated `PLAN` is not a repeated fetch. Cleared on a commit. */
+const hinted = new Set<string>()
+
+/**
+ * The plan, on a page that would otherwise never ask for it.
+ *
+ * A `PLAN` arrives unasked when a channel opens, and a channel only opened when a page had a live
+ * region or something fired an intent. On every other page — which is most of them, and every page
+ * of a site that is mostly reading — the client's route table stayed empty for the whole visit, and
+ * everything that reads it was dead code in practice: whether a staged route can come back as
+ * regions rather than as a whole document, which stylesheet to preload before it is needed, which
+ * routes the recording says this page's readers take next, and which ones they measurably do not.
+ * The visible half of that was a document fetch per hover with no knowledge behind it.
+ *
+ * After the page rather than during it, because it is speculation and one request's worth of it:
+ * the timer outlasts the application's own client module, which boot imports on the line below the
+ * one that calls this. And on the same gate the three staging signals are on — a reader who has
+ * asked to save data is not spending a request to find out where they might go next.
+ */
+const LEARN_MS = 200
+
+function learn(): void {
+  if (!speculating()) return
+  window.setTimeout(() => {
+    void wire().catch((error: unknown) => log('down', `no plan: ${String(error)}`))
+  }, LEARN_MS)
+}
 
 /**
  * Ask about a subtree of the plan: the design's `router.discover('/checkout/*')`.
@@ -1422,16 +1471,33 @@ async function open(): Promise<Wire> {
   }
 
   /**
-   * The opening handshake, on the bindings that have an opening. A turn has none: each one carries
-   * `RESIDENT` and `HELD` itself, because the channel it speaks to was built for that request and
-   * will not survive it.
+   * The opening handshake, on the bindings that have an opening — and the one a turn has to take
+   * on purpose.
+   *
+   * A turn carries `RESIDENT` and `HELD` in every request, because the channel it speaks to was
+   * built for that request and will not survive it, so there is nothing an opening handshake would
+   * add. What that overlooked is the frames the server sends *unasked* when a channel opens: the
+   * part of the plan a client cannot know it is missing. On a held binding those arrive with the
+   * handshake; on a turn they arrive as a side effect of the first thing the page happens to send,
+   * which on a page that sends nothing is never — and a page that sends nothing is most of them.
+   *
+   * So the opening turn is taken here, with nothing in it but the two declarations. One request,
+   * and the answer is the plan.
    */
   if (!turning) {
     await post([{ kind: 'RESIDENT', header: residentHeader(socket ? 'socket' : 'stream') }])
     if (regionsHeld.length) await post([{ kind: 'HELD', header: client.held() }])
+  } else {
+    await takeTurn([])
   }
 
-  return { send: post, client }
+  return {
+    send: post,
+    client,
+    get binding() {
+      return socket ? 'socket' : turning ? 'turn' : 'stream'
+    },
+  }
 }
 
 /**
@@ -1632,6 +1698,21 @@ function samePage(url: URL): boolean {
 }
 
 /**
+ * Whether this page speculates about anything at all.
+ *
+ * The document's own switch and what the browser says about the network, in one place because
+ * three things ask it: whether a link may be staged, whether the viewport may stage one, and
+ * whether the channel is worth opening for the plan. A reader who has asked to save data has asked
+ * once, and one of the three going on paying would make the setting a suggestion.
+ */
+function speculating(): boolean {
+  if (document.documentElement.dataset.weftPrefetch === 'off') return false
+  const connection = (navigator as { connection?: { saveData?: boolean; effectiveType?: string } }).connection
+  if (connection?.saveData) return false
+  return !(connection?.effectiveType && connection.effectiveType.includes('2g'))
+}
+
+/**
  * Whether a link is worth fetching before it is clicked.
  *
  * A prefetch is a render the server performs for a page that may never be asked for, so the
@@ -1642,10 +1723,7 @@ function samePage(url: URL): boolean {
 function prefetchable(link: HTMLAnchorElement): boolean {
   if (!navigable(linkFacts(link), window.location.href)) return false
   if (link.dataset.weftPrefetch === 'off') return false
-  if (document.documentElement.dataset.weftPrefetch === 'off') return false
-  const connection = (navigator as { connection?: { saveData?: boolean; effectiveType?: string } }).connection
-  if (connection?.saveData) return false
-  if (connection?.effectiveType && connection.effectiveType.includes('2g')) return false
+  if (!speculating()) return false
   /**
    * The one thing a recording decides about staging.
    *
@@ -1813,10 +1891,24 @@ async function rebind(url: URL): Promise<void> {
   const held = opening
   if (!held) {
     if (liveRegions) await wire()
+    else learn()
     return
   }
   const w = await held
-  await w.send([{ kind: 'HELD', header: w.client.held({ only: true }) }])
+  /**
+   * `RESIDENT` again, because the connection is somewhere else now.
+   *
+   * It is what re-declares this client, and the server answers a re-declaration with the frames it
+   * sends unasked when a channel opens — the plan for the route this connection is on, and where
+   * its readers go from there. Without it the plan a page navigated to was the plan of the page it
+   * came from: the `next` hints staged the wrong routes, and the stylesheet preloads were for a
+   * page nobody was on any more. A turn already re-declares on every request; this is the same
+   * thing on a binding that holds its connection open.
+   */
+  await w.send([
+    ...(w.binding === 'turn' ? [] : [{ kind: 'RESIDENT', header: residentHeader(w.binding) }]),
+    { kind: 'HELD', header: w.client.held({ only: true }) },
+  ])
 }
 
 /**
@@ -1836,6 +1928,8 @@ async function rebind(url: URL): Promise<void> {
  */
 async function commitRegions(staged: StagedRegions, mode: 'push' | 'restore', y: number): Promise<number> {
   const url = new URL(staged.url, window.location.href)
+  // A hint is about the page it was given on, and this is a different page.
+  hinted.clear()
   if (staged.css) await ensureStylesheet(staged.css)
   if (staged.title) document.title = staged.title
 
@@ -1857,9 +1951,12 @@ async function commitRegions(staged: StagedRegions, mode: 'push' | 'restore', y:
   const painted = performance.now()
   landAt(url, y)
   await rebind(url)
-  // What the server's own numbers say this reader is likely to want next.
+  // What the server's own numbers say this reader is likely to want next, once each.
   for (const route of staged.next.slice(0, 2)) {
-    void routes.stage(stagingKey(route, window.location.href)).then(syncStaged)
+    const key = stagingKey(route, window.location.href)
+    if (hinted.has(key)) continue
+    hinted.add(key)
+    void routes.stage(key).then(syncStaged)
   }
   return painted
 }
@@ -1885,6 +1982,8 @@ async function commitPage(page: StagedPage, mode: 'push' | 'restore', y: number)
   const next = page.document
   if (!next.body) return 0
   const url = new URL(page.url, window.location.href)
+  // A hint is about the page it was given on, and this is a different page.
+  hinted.clear()
 
   await applyStyles(next)
   syncHead(next)
@@ -2001,8 +2100,34 @@ async function go(href: string, mode: 'push' | 'restore', y = 0): Promise<Went> 
   if (stageState === 'none' || stageState === 'failed') {
     routes.discard(key)
     syncStaged()
-    state.nav = { ...state.nav, cold: state.nav.cold + 1 }
-    return 'cold'
+    /**
+     * Back and forward, which is the one navigation that cannot be handed to the browser.
+     *
+     * A cold *click* is given to the browser because a document response streams and a `fetch` of
+     * the same document does not: waiting on one leaves the reader on the page they asked to leave
+     * with nothing to show for it. A traversal has no such choice. The address bar has already
+     * moved, so the only way to hand it over is `location.reload()` — and that is not the same
+     * trade at all. It throws away every module this page has parsed, every region it has adopted
+     * and the channel it holds, to fetch a document it would have fetched anyway.
+     *
+     * And it was the common case rather than the edge: committing a staged route spends it, so the
+     * page a reader just came from is never staged, and every single Back was a full reload.
+     *
+     * So a traversal stages the route it is going to and waits for it. Same request, same bytes,
+     * and what survives is the runtime. A stage that fails still falls through to `cold`, and the
+     * reload is where that lands.
+     */
+    if (mode !== 'restore') {
+      state.nav = { ...state.nav, cold: state.nav.cold + 1 }
+      return 'cold'
+    }
+    await routes.stage(key)
+    syncStaged()
+    if (mine !== navSeq) return 'stale'
+    if (routes.state(key) !== 'ready') {
+      state.nav = { ...state.nav, cold: state.nav.cold + 1 }
+      return 'cold'
+    }
   }
   const claimed = await routes.claim(key)
   syncStaged()
@@ -2119,18 +2244,45 @@ async function navigate(href: string, scroll: 'top' | 'preserve' = scrollFor()):
  * into view seconds before tapping it, which is far more warning than a hover ever gives. What
  * makes it defensible rather than a load-time stampede is entirely in the bounds.
  *
- * Only links inside a region — `[data-weft-slot]` — so the chrome is excluded. A nav is on every
- * page and lists every page; staging all of it because the reader can see it would be a fetch per
- * link for a page they came to read. Only after the link has been visible for a moment, because
- * scrolling past is not looking at. And only two, so hover and a press still have somewhere to
- * go inside the ceiling of four.
+ * Every link, and not only the ones inside a region. Excluding the chrome was a stand-in for the
+ * bound that actually matters — a nav is on every page and lists every page, and staging all of it
+ * because the reader can see it is a fetch per link for a page they came to read. But the ceiling
+ * below is that bound, said directly, and drawing the line at the region instead meant the links
+ * a reader most often takes were the ones never staged.
+ *
+ * What holds it down is three things. Only after the link has been visible for a moment, because
+ * scrolling past is not looking at. Only `VIEWPORT_MAX` at a time, so hover and a press still have
+ * somewhere to go inside the staging ceiling. And the plan: a route the server's own recording says
+ * readers of this page do not take is refused by `prefetchable` before it is ever observed, which
+ * is the bound that gets *better* the more the deployment knows.
+ *
+ * `data-weft-prefetch="hover"` on the document or a link opts out of this signal alone — the link
+ * is still staged on hover, a press and focus. `"off"` opts out of all of them.
  */
 const VIEWPORT_DWELL_MS = 300
 const VIEWPORT_MAX = 2
 
+/** Whether the viewport is a staging signal here. On by default; `"hover"` is the opt-out. */
+function watched(link: HTMLAnchorElement): boolean {
+  if (document.documentElement.dataset.weftPrefetch === 'hover') return false
+  return link.dataset.weftPrefetch !== 'hover'
+}
+
 function watchViewport(): void {
   if (typeof IntersectionObserver === 'undefined') return
-  let staged = 0
+  /**
+   * How many routes this signal is holding, rather than how many it has ever staged.
+   *
+   * A counter that only went up spent its two on the first screenful and then did nothing for the
+   * rest of the page's life — including after a navigation, which replaces every link on it. What
+   * the ceiling is protecting is the staging table, and a route that has left the table is not in
+   * it any more: committed by a click, evicted, or expired. So the count follows the table.
+   */
+  const mine = new Set<string>()
+  const holding = (): number => {
+    for (const key of mine) if (routes.state(key) === 'none') mine.delete(key)
+    return mine.size
+  }
   const dwelling = new Map<Element, number>()
 
   const observer = new IntersectionObserver(
@@ -2143,15 +2295,16 @@ function watchViewport(): void {
           dwelling.delete(link)
           continue
         }
-        if (dwelling.has(link) || staged >= VIEWPORT_MAX) continue
+        if (dwelling.has(link) || holding() >= VIEWPORT_MAX) continue
         dwelling.set(
           link,
           window.setTimeout(() => {
             dwelling.delete(link)
-            if (staged >= VIEWPORT_MAX || !prefetchable(link)) return
-            staged++
+            if (holding() >= VIEWPORT_MAX || !prefetchable(link) || !watched(link)) return
+            const key = stagingKey(link.href, window.location.href)
+            mine.add(key)
             observer.unobserve(link)
-            void routes.stage(stagingKey(link.href, window.location.href)).then(syncStaged)
+            void routes.stage(key).then(syncStaged)
           }, VIEWPORT_DWELL_MS),
         )
       }
@@ -2160,14 +2313,21 @@ function watchViewport(): void {
   )
 
   const observe = (): void => {
-    for (const node of document.querySelectorAll('[data-weft-slot] a[href]')) {
-      if (prefetchable(node as HTMLAnchorElement)) observer.observe(node)
+    for (const node of document.querySelectorAll('a[href]')) {
+      const link = node as HTMLAnchorElement
+      if (prefetchable(link) && watched(link)) observer.observe(link)
     }
   }
   observe()
   // A region replaced by a delta or a commit brings new links with it, and an observer only knows
-  // about the nodes it was given.
-  observed = observe
+  // about the nodes it was given. A commit also replaces every link in the chrome, and the ones
+  // that survived it are pointing at a different page now: what was staged from the last page is
+  // no longer what this one would stage, so the observer is given the whole document again.
+  observed = () => {
+    observer.disconnect()
+    dwelling.clear()
+    observe()
+  }
 }
 
 /** Re-observed after a swap. Set by `watchViewport`; a page without one does nothing. */
@@ -2364,8 +2524,10 @@ async function boot(): Promise<void> {
   wireNavigation()
   await wireRuntimeReadouts()
   state.stage = 'ready'
-  // A page with a live region wants the channel now; every other page opens one on first use.
+  // A page with a live region wants the channel now; every other page opens one shortly after the
+  // page settles, because the plan it answers with is what the three staging signals read.
   if (regionsHeld.length && liveRegions) await wire()
+  else learn()
   // The application's own client code, last, so it can see adopted regions and send intents. It
   // is loaded rather than bundled: there is no build step here to bundle it with.
   if (window.__weftClient) {

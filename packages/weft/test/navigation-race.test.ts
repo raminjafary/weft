@@ -49,12 +49,38 @@ test('every navigation takes a ticket, and staging does not', () => {
 test('the ticket is checked between the waiting and the painting, which is the only place it works', () => {
   const go = slice('async function go(', 'function announceNavigation')
   const claim = go.indexOf('await routes.claim')
-  const check = go.indexOf('mine !== navSeq')
+  // From the claim, because a traversal that had to stage its own route waits earlier and takes
+  // the same ticket there. That check is asserted below; this one is about the claim's wait.
+  const check = go.indexOf('mine !== navSeq', claim)
   const paint = go.indexOf('commitRegions')
   assert.notEqual(check, -1, 'the ticket is checked at all')
   assert.ok(claim < check, 'checked after the wait — before it, nothing has had time to overtake')
   assert.ok(check < paint, 'and before the paint, or the wrong page is already on screen')
   assert.match(go, /return 'stale'/, 'and says which of the three outcomes this was')
+})
+
+/**
+ * The other wait `go` has, and the reason it is a wait at all.
+ *
+ * Back and forward cannot be handed to the browser — the address bar has already moved, so handing
+ * over means `location.reload()`, which throws away every module this page parsed and the channel
+ * it holds to fetch a document it was going to fetch anyway. So a traversal with nothing staged
+ * stages the route it is going to and waits. That is time spent, which means it is time something
+ * can overtake it in, which means the ticket.
+ */
+test('a traversal that stages the route it is going to takes the ticket for that wait too', () => {
+  const go = slice('async function go(', 'function announceNavigation')
+  const staged = go.indexOf('await routes.stage(key)')
+  assert.notEqual(staged, -1, 'a traversal with nothing staged stages rather than reloading')
+  const check = go.indexOf('mine !== navSeq', staged)
+  const claim = go.indexOf('await routes.claim')
+  assert.notEqual(check, -1, 'and checks the ticket afterwards')
+  assert.ok(check < claim, 'before it goes on to claim and paint')
+  assert.match(
+    go.slice(0, staged),
+    /if \(mode !== 'restore'\)/,
+    "and only a traversal waits: a cold click is still the browser's, because a document streams",
+  )
 })
 
 test('a superseded navigation does not paint and does not load the document either', () => {

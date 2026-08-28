@@ -147,15 +147,15 @@ ceiling.
 | Channel route — plus routing frames       | **4,121**  | 4,512  | 11,915 | 4,608   |
 | Patching route — plus applying a patch    | **4,601**  | 5,076  | 13,857 | 5,120   |
 | Navigating route — plus staged routes     | **4,970**  | 5,446  | 14,315 | 5,120   |
-| Front door — the code, bundled            | **14,031** | 15,500 | 45,330 | 14,336  |
+| Front door — the code, bundled            | **14,343** | 15,864 | 46,368 | 15,360  |
 | Server kernel — the document request path | **8,273**  | 9,288  | 24,241 | 8,320   |
 | Kernel + intent dispatch                  | **9,802**  | 11,049 | 29,321 | 10,240  |
 | Kernel + surgical refresh and epochs      | **11,039** | 12,388 | 33,359 | 12,288  |
 | Kernel + the patch encoder                | **11,712** | 13,128 | 35,830 | 12,288  |
 | Kernel + authority                        | **11,722** | 13,183 | 35,428 | 12,288  |
-| Kernel + composition                      | **11,419** | 12,837 | 34,392 | 12,288  |
-| Kernel + a live Warp channel              | **13,929** | 15,607 | 42,234 | 14,336  |
-| Kernel + composition over a live channel  | **16,917** | 18,966 | 51,969 | 17,408  |
+| Kernel + composition                      | **11,517** | 12,953 | 34,676 | 12,288  |
+| Kernel + a live Warp channel              | **13,963** | 15,635 | 42,326 | 14,336  |
+| Kernel + composition over a live channel  | **17,025** | 19,115 | 52,345 | 17,408  |
 
 **The front-door row is the code, not the download, and the difference is 1.9×.** It bundles with
 Rolldown and minifies; this framework has neither, so a page fetches nineteen modules served as

@@ -98,11 +98,23 @@ export function createStager(options: StageOptions): RouteStager {
 
     const epoch = request.epoch
     if (!staged.shared || !staged.slots || !epoch) {
+      /**
+       * The epoch comes back on a refusal too, and leaving it off cost two seconds a navigation.
+       *
+       * An epoch is where staged values are put, so a refusal has nowhere to put anything and it
+       * looked like there was nothing to echo. But that is not the only thing an epoch is: it is
+       * also the name the client gave this question, and the only way it can tell which of its
+       * questions an answer belongs to. Without it the client could not match `form=document` to
+       * the route it was staging, so the promise waiting on that route was never settled — it sat
+       * out the full grace period and *then* fetched the document, on every hover over a link to a
+       * page on a different shell. The fallback worked. It arrived two seconds late.
+       */
       return [
         frame('NAV', {
           at: request.path,
           route: staged.route,
           form: 'document',
+          ...(epoch ? { epoch } : {}),
           why: staged.why ?? (epoch ? 'a different shell has different holes' : 'no epoch to stage into'),
         }),
       ]

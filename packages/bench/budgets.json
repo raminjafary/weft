@@ -31,9 +31,9 @@
   },
   {
     "id": "front-door",
-    "raw": 45330,
-    "gzip": 15500,
-    "brotli": 14031
+    "raw": 46368,
+    "gzip": 15864,
+    "brotli": 14343
   },
   {
     "id": "kernel",
@@ -49,9 +49,9 @@
   },
   {
     "id": "kernel-discover",
-    "raw": 44333,
-    "gzip": 16242,
-    "brotli": 14490
+    "raw": 44443,
+    "gzip": 16275,
+    "brotli": 14518
   },
   {
     "id": "kernel-intent",
@@ -61,9 +61,9 @@
   },
   {
     "id": "kernel-journal",
-    "raw": 42742,
-    "gzip": 15773,
-    "brotli": 14072
+    "raw": 42834,
+    "gzip": 15800,
+    "brotli": 14098
   },
   {
     "id": "kernel-nested",
@@ -85,33 +85,33 @@
   },
   {
     "id": "kernel-region",
-    "raw": 34392,
-    "gzip": 12837,
-    "brotli": 11419
+    "raw": 34676,
+    "gzip": 12953,
+    "brotli": 11517
   },
   {
     "id": "kernel-region-channel",
-    "raw": 51969,
-    "gzip": 18966,
-    "brotli": 16917
+    "raw": 52345,
+    "gzip": 19115,
+    "brotli": 17025
   },
   {
     "id": "kernel-render",
-    "raw": 44182,
-    "gzip": 16246,
-    "brotli": 14495
+    "raw": 44274,
+    "gzip": 16273,
+    "brotli": 14509
   },
   {
     "id": "kernel-stage",
-    "raw": 43686,
-    "gzip": 16002,
-    "brotli": 14288
+    "raw": 43796,
+    "gzip": 16035,
+    "brotli": 14314
   },
   {
     "id": "kernel-transport",
-    "raw": 42234,
-    "gzip": 15607,
-    "brotli": 13929
+    "raw": 42326,
+    "gzip": 15635,
+    "brotli": 13963
   },
   {
     "id": "nav-route",
