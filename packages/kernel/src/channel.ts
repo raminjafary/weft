@@ -39,49 +39,21 @@ import {
 } from './refresh.ts'
 
 /**
- * The channel: one client, one Warp frame stream, and none of the four bindings.
- *
- * Everything phases 5 and 6 promise — a base render named by the client, a form chosen for
- * it, a delta memoized by its transition, epochs staged and committed atomically, push
- * invalidation travelling the other way — was reachable only from a test until this file
- * existed, because a frame that is produced and parsed but never carried is a data
- * structure rather than a protocol.
- *
- * What is here is binding-agnostic on purpose. A streamed response with discrete POSTs up,
- * an SSE stream, and a WebSocket differ in how bytes move and in nothing else, so they are
- * `ChannelSink` implementations in `@weftjs/adapters` and one state machine here. The
- * differences that are real are named where they bite: SSE cannot carry binary, so it uses
- * text framing and pays base64 on bodies, and the streamed binding has no upstream at all,
- * so an upstream frame arriving with no live downstream is `E_NO_DOWNSTREAM` rather than a
- * silent drop.
- *
- * `turn` is the fourth, and it is the one that is not a connection. The other three hold a
- * downstream open and answer *down it*; a turn carries frames up in a request body and the
- * answer back in that request's own response, so it is a function from bytes to bytes with
- * no held state between calls. That is what makes it the only binding a platform without a
- * process can run — a serverless function terminates no upgrade and outlives no request —
- * and the reason it costs nothing there is that the protocol was already client-authoritative:
- * `RESIDENT` says what the client holds, `HELD` with `only` says what it is showing, and a
- * channel rebuilt from those two frames is the same channel. What a turn cannot do is speak
- * first, because there is nothing to speak down. See `spec/kernel/channel.md`.
+ * The channel: one client, one Warp frame stream, and none of the four bindings. Binding-agnostic
+ * on purpose — a streamed response, SSE and a WebSocket are `ChannelSink` implementations and one
+ * state machine here; `turn` is the fourth, the one that is not a connection. See `spec/kernel/transport.md`.
  */
 export type ChannelBinding = 'stream' | 'sse' | 'socket' | 'turn'
 
 /**
- * The transport underneath a channel, whichever of the four bindings it is.
- *
- * `saturated` is the field that matters: a sink that never reports it makes a slow consumer look
- * like a fast one right up to the point where the process runs out of memory holding frames.
+ * The transport underneath a channel, whichever of the four bindings it is. `saturated` is the
+ * field that matters — a sink that never reports it makes a slow consumer look like a fast one.
  */
 export interface ChannelSink {
   readonly binding: ChannelBinding
   /** False once the peer has gone. Sending to a closed sink is dropped and reported, never thrown. */
   readonly open: boolean
-  /**
-   * True when the transport's buffer is above its watermark — the peer is not reading as fast as
-   * the server is writing. A sink that never reports this makes a slow consumer look like a fast
-   * one right up to the point where the process runs out of memory holding frames for it.
-   */
+  /** True when the transport's buffer is above its watermark. See `spec/kernel/transport.md`. */
   readonly saturated?: boolean
   send(frames: readonly Frame[]): void | Promise<void>
   close(reason?: string): void
@@ -103,31 +75,16 @@ export interface SlotRequest {
   slot: string
   channel: Channel
   /**
-   * The frame that asked, for a source that needs another header off it.
-   *
-   * The same field `WarmRequest` carries and for the same reason: a `REFRESH` asks *give me this
-   * slot's current state*, and a `REFRESH` carrying `r=<id>` asks *put this catalogue entry in this
-   * slot*. Both are answered by a slot source, and only the header tells them apart — so the header
-   * has to reach it. A table of handlers keyed by frame shape would be a second dispatch mechanism in
-   * this file, which is the thing its byte ceiling exists to prevent.
+   * The frame that asked, for a source that needs another header off it: a bare `REFRESH` asks for
+   * current state, one carrying `r=<id>` asks to put a catalogue entry in the slot.
    */
   frame?: Frame
 }
 
 /**
- * A slot this channel does not render: frames somebody else produced, ready to go down the wire.
- *
- * It is a second shape of `SlotSource` answer rather than a second option on the hub, and that is
- * the byte budget deciding an interface again. A table of handlers keyed by slot would be a third
- * dispatch mechanism in a file with 29 bytes of headroom; a union on a return type that is already
- * being branched on is a few. What produces these frames — the composer, for a region on another
- * deployment — is charged to its own entry, and a channel that serves no region carries none of it.
- *
- * `paint` is the one frame that changes what the reader sees, so it is the one an epoch stages.
- * Everything in `also` is what a client needs in order to apply it — a template it does not hold, a
- * stylesheet, a module — and none of that paints, so it travels immediately even inside an epoch.
- * A region deciding that split itself is right: only the side that produced the frames knows which
- * of them is the picture.
+ * A slot this channel does not render: frames somebody else produced, ready to go down the wire —
+ * a second shape of `SlotSource` answer rather than a second option, to keep the byte budget in one
+ * place. `paint` is what an epoch stages; `also` travels immediately. See `spec/kernel/budgets.md`.
  */
 export interface SlotFrames {
   paint?: Frame
@@ -155,7 +112,7 @@ export type WarmHandler = (request: WarmRequest) => Promise<Frame[]>
 export interface Channel {
   readonly id: string
   readonly binding: ChannelBinding
-  /** Null until RESIDENT arrives. Every form decision needs it, so none of it is guessed. */
+  /** Null until RESIDENT arrives. Every form decision needs it. */
   readonly hello: ClientHello | null
   readonly negotiation: Negotiation | null
   readonly epochs: Epochs
@@ -174,145 +131,66 @@ export interface Channel {
 export interface HubOptions {
   store: StorePort
   source: SlotSource
-  /**
-   * What answers an INTENT frame. Optional, and its absence is `E_NO_INTENTS` rather than a
-   * silent drop — an intent that vanishes looks to the client exactly like one that worked.
-   */
+  /** What answers an INTENT frame. Optional — its absence is `E_NO_INTENTS` rather than a silent drop. */
   intents?: IntentDispatch
   /** The envelope context an intent runs against. A channel has no request, so the caller supplies one. */
   intentContext?(channel: Channel): EnvelopeContext | Promise<EnvelopeContext>
   /** Templates a WARM frame may ask for. Without one, WARM is refused by name. */
   templates?: (version: string) => TemplateIR | undefined
   /**
-   * Who answers a `WARM` at each grain, by the header that names the grain.
-   *
-   * `WARM` asks one question — "stage this, do not paint" — about a template set (`tpl`), a route
-   * (`at`), or a subtree of the plan (`plan`), and only the first of those is something a channel
-   * can answer on its own. The rest are hooks, and they are a **table** rather than one option per
-   * grain for a reason the byte budget made concrete twice.
-   *
-   * Route staging arrived as a branch here and took the transport entry 108 bytes past a watermark
-   * set before it existed. Lazy plan extension arrived as a second branch and took it to five bytes
-   * of headroom — a rule that says a new capability does not spend an existing entry's room, being
-   * satisfied by five bytes, is a rule about to stop being satisfied. So the channel stopped
-   * growing a case per capability: one lookup answers every grain, each handler is measured under
-   * the entry that provides it, and a deployment that binds none of them carries none of them.
-   *
-   * `createStager` in `stage.ts` answers `at`; `createExtender` in `discover.ts` answers `plan`.
+   * Who answers a `WARM` at each grain, by the header that names the grain. A table rather than one
+   * option per grain, so a deployment that binds none carries none of it. See `spec/kernel/budgets.md`.
    */
   warm?: Record<string, WarmHandler>
   /**
-   * Everyone this process cannot reach, told after the ones it can.
-   *
-   * `notify` walks the connections *this* hub is holding, which is the whole of push invalidation
-   * on one instance and half of it on any other — and none of it for a client that holds no
-   * connection at all. Both gaps are filled from outside: a `FanoutPort` tells the instances
-   * holding a connection now, a `StaleJournal` writes down what a client with no connection will
-   * ask for later, and a deployment may bind either, both, or neither.
-   *
-   * One hook rather than the two ports, because the hub does not need to know which it got, and a
-   * hub that named them would carry a branch per capability for every deployment that binds none.
-   * The other direction needs nothing here at all: whoever binds a fanout subscribes to it and
-   * calls `hub.notify`, which is already public and is exactly what a delivered message means.
-   *
-   * Its failure is recorded and swallowed. The keys are already dropped and this process's readers
-   * already told, so a broker being down must not turn a partial success into an exception that
-   * reads as the whole invalidation having failed.
+   * Everyone this process cannot reach, told after the ones it can. One hook rather than the two
+   * ports the caller may bind, so a hub that named them would carry a branch per capability. See
+   * `spec/kernel/transport.md`.
    */
   onInvalidated?(keys: readonly string[], reason: string): Promise<void> | void
   /**
-   * Frames appended to the handshake answer, after `WARP`.
-   *
-   * Everything else here answers a question the client asked. This is the one thing a client cannot
-   * ask for, because it does not know what it is missing: a page has no route table to notice a gap
-   * in, and what is worth telling it — where readers of this page go next — is a measurement only
-   * the server has. `createExtender` in `discover.ts` is what fills it.
+   * Frames appended to the handshake answer, after `WARP` — the one thing a client cannot ask for,
+   * because it does not know what it is missing. `createExtender` in `discover.ts` fills it.
    */
   onOpen?(channel: Channel): Promise<readonly Frame[]> | readonly Frame[]
   /**
    * The invalidation key a slot this client is *showing* would be held under, without rendering it.
-   *
-   * Push invalidation matches a dropped key against what each connection holds, and until this
-   * existed a connection was only recorded as holding something by `serveSlot` — which runs on a
-   * REFRESH. So a page that had just loaded, adopted its live region and declared it with `HELD`
-   * was invisible: the first intent from another tab reached every connection that had already
-   * refreshed and none that had merely arrived. Two tabs on a page, press the button in one, and
-   * the other sat there — which is exactly what having no push invalidation looks like, and is what
-   * the scaffold's own counter page tells you to try.
-   *
-   * It cannot be derived here. `HELD` carries the slot, the template version and the base — what
-   * the client is showing — and the key is a property of the route the connection is on, which the
-   * front door knows and the hub does not. So it is asked for, once per declared slot, and a
-   * deployment that answers nothing keeps the old behaviour.
+   * Cannot be derived here — the key is a property of the route, which the front door knows and the
+   * hub does not. See `spec/kernel/transport.md`.
    */
   keyFor?(slot: string, channel: Channel): Promise<string | undefined> | string | undefined
   server?: ServerCapabilities
   maxEpochs?: number
-  /**
-   * Consecutive saturated sends a channel may accumulate before it is closed as a slow
-   * consumer. A channel is not a queue: frames held for a peer that is not reading are memory
-   * the process cannot reclaim, and every one of them is stale by the time it would arrive.
-   * Closing is the honest answer, and the client reconnects and asks for what it holds.
-   */
+  /** Consecutive saturated sends before a channel is closed as a slow consumer. See `spec/kernel/transport.md`. */
   maxSaturatedSends?: number
   /** How long recovered base renders and memoized deltas live. Expiry costs a form, never correctness. */
   ttl?: RefreshTtl
   /**
-   * The patch encoder, which is what puts the second rung on the surgical ladder: a region whose
-   * values are not projectable updates node by node instead of being replaced whole.
-   *
-   * Optional because it is measured that way — `patchPayload` written into the refresh path cost
-   * every entry carrying that path ~440 B of brotli, including two a deployment composing regions
-   * pays and never uses. Bind it from `entry-patch.ts` and the rung is there; leave it and
-   * `selectForm` says the rung is missing rather than falling silently to markup.
+   * The patch encoder, the second rung on the surgical ladder. Optional and measured that way:
+   * `patchPayload` cost every entry on the refresh path ~440 B. See `spec/kernel/surgical.md`.
    */
   patch?: PatchEncoder
   telemetry?: TelemetryPort
 }
 
-/**
- * Every open channel, and the frames that pass through them.
- *
- * Rebinding an existing id is what resumption is: a webview that was frozen and evicted reconnects
- * and keeps the base renders it was known to hold, so the server continues rather than treating it
- * as a first visit.
- */
+/** Every open channel, and the frames that pass through them. */
 export interface ChannelHub {
-  /**
-   * Open a channel, or rebind an existing one. Rebinding is what resumption is: a webview
-   * that was frozen and evicted reconnects under the same id and keeps the base renders it
-   * was known to hold, so the server continues rather than treating it as a first visit.
-   */
+  /** Open a channel, or rebind an existing one under the same id: a frozen webview reconnects and
+   * keeps the base renders it was known to hold. */
   open(sink: ChannelSink, id: string): Channel
   get(id: string): Channel | undefined
   /** Frames from a client, whatever binding carried them. Returns what went back down. */
   receive(id: string, frames: readonly AnyFrame[]): Promise<Frame[]>
-  /**
-   * Invalidate tags, then tell every open channel holding one of the dropped keys. The
-   * client decides whether to refresh now, on next focus, or never — which is what makes
-   * this push invalidation of server-rendered regions rather than a realtime application.
-   */
+  /** Invalidate tags, then tell every open channel holding one of the dropped keys. The client
+   * decides whether and when to refresh. */
   invalidate(tags: string[], reason?: string): Promise<{ keys: string[]; notified: number }>
-  /**
-   * Tell connections about keys something else already dropped. An intent invalidates through
-   * its own declared-write guard, so by the time the channel sees the outcome the store is
-   * already cold — and the connections holding those keys still have to be told. Without this
-   * an invalidation that came from a mutation would notify nobody, which is the same bug as not
-   * having push invalidation at all.
-   */
+  /** Tell connections about keys something else already dropped — the store is already cold by
+   * the time the channel sees the outcome. */
   notify(keys: readonly string[], reason: string, options?: { except?: string }): Promise<number>
   /**
-   * Tell every connection showing one of these slots that it is stale, by slot rather than by key.
-   *
-   * The path an invalidation takes when it crosses a tier boundary. `notify` above works from the
-   * keys a store dropped, which is right for everything this deployment rendered and impossible for
-   * anything it did not: a region holds its own keys and this composite holds a contract. What the
-   * composite does hold is the answer to "which of my connections is showing that region", and this
-   * is that answer turned into frames.
-   *
-   * It is deliberately not `invalidate`. Nothing is dropped from any store here, because there is
-   * nothing of the region's in this deployment's store to drop — the region's markup came down a
-   * wire. The client is told, and the client decides.
+   * Tell every connection showing one of these slots that it is stale, by slot rather than by key —
+   * the path an invalidation takes across a tier boundary, where this composite holds no keys of
+   * the region's own. See `spec/kernel/composition.md`.
    */
   notifySlots(slots: readonly string[], reason: string, options?: { except?: string }): Promise<number>
   close(id: string, reason?: string): void
@@ -445,14 +323,8 @@ export function createHub(options: HubOptions): ChannelHub {
     async invalidate(tags, reason = 'invalidated') {
       const keys = await options.store.invalidate(tags)
       const notified = await hub.notify(keys, reason)
-      /**
-       * Published after the local notify, and its failure does not undo it.
-       *
-       * The keys are already dropped and this process's readers already told, so a broker that is
-       * down must not turn a partial success into an exception that reads as the whole invalidation
-       * having failed. It is recorded and the local half stands — which is exactly the state a
-       * deployment with no fanout bound is in permanently.
-       */
+      // Published after the local notify, and its failure does not undo it: a broker being down
+      // must not turn a partial success into an exception.
       try {
         await options.onInvalidated?.(keys, reason)
       } catch (error) {
@@ -477,14 +349,9 @@ export function createHub(options: HubOptions): ChannelHub {
   }
 
   async function handle(record: ChannelRecord, f: AnyFrame): Promise<Frame[]> {
-    /**
-     * A negotiation that failed is the end of the stream, not a caveat on it.
-     *
-     * `negotiate` can return `ok: false` — a major this server does not speak — and until now the
-     * only consequence was a `WARP` frame that looked degraded. Everything after it was answered
-     * normally, which is the worst of both: the client has been told the stream is unusable and is
-     * then handed frames that depend on it. One refusal, by the name the negotiation gave.
-     */
+    // A negotiation that failed is the end of the stream, not a caveat on it: everything after it
+    // used to be answered normally, which handed frames to a client already told the stream is
+    // unusable.
     if (record.negotiation && !record.negotiation.ok && f.kind !== 'RESIDENT') {
       return [errorFrame('E_WARP_MAJOR', record.negotiation.fatal ?? 'this stream was refused')]
     }
@@ -492,38 +359,22 @@ export function createHub(options: HubOptions): ChannelHub {
       case 'RESIDENT': {
         record.hello = readResident(f as Frame)
         record.negotiation = negotiate(record.hello, options.server ?? serverCapabilities())
-        /**
-         * The negotiation, and then what this client does not know about the plan.
-         *
-         * Unasked, and exactly once per connection. Every other frame here answers a question the
-         * client posed; this one exists because the client cannot pose it — it has no route table
-         * to notice a gap in, and the thing worth telling it (where readers of this page go next)
-         * is a measurement only the server has.
-         */
+        // The negotiation, and then what this client does not know about the plan — unasked, exactly
+        // once per connection, because the client has no route table to notice a gap in.
         return [warpFrame(record.negotiation), ...((await options.onOpen?.(record.channel)) ?? [])]
       }
 
       case 'HELD': {
-        /**
-         * A client that says this is everything it holds is a client that has gone somewhere
-         * else, and slot names belong to a page. Keeping the previous page's entries would
-         * refresh regions nobody is looking at and hand this connection STALE frames about
-         * them, so both the held map and what the stale registry believes it holds are dropped
-         * before the new set is read.
-         */
+        // A client that says this is everything it holds has gone somewhere else, and slot names
+        // belong to a page: both the held map and the stale registry are dropped before the new
+        // set is read.
         if (bool(f, HELD_ONLY)) {
           record.held.clear()
           stale.release(record.channel.id)
         }
         for (const h of parseHeld(f as Frame)) record.held.set(h.slot, h)
-        /**
-         * And recorded as holding it, so an invalidation can find this connection.
-         *
-         * Declaring what you are showing is the whole of what makes you a candidate for a STALE
-         * frame — waiting for the first refresh to register it means the first write after a page
-         * load never reaches the page. Done after the loop because `only: true` clears the registry
-         * above, and re-registering inside the loop would depend on which order those two ran in.
-         */
+        // And recorded as holding it, so an invalidation can find this connection. See
+        // `spec/kernel/transport.md`. Done after the loop: `only: true` clears the registry above.
         for (const slot of record.held.keys()) {
           const key = await options.keyFor?.(slot, record.channel)
           if (key) stale.hold(record.channel.id, slot, key)
@@ -539,19 +390,15 @@ export function createHub(options: HubOptions): ChannelHub {
       }
 
       case 'WARM': {
-        /**
-         * One question at whichever grain the frame names, and the grains it does not name are not
-         * this file's business. A `WARM` carrying two of them is answered at the first, because it
-         * asked two questions in a frame that means one.
-         */
+        // One question at whichever grain the frame names. A `WARM` carrying two is answered at the
+        // first: it asked two questions in a frame that means one.
         for (const grain in options.warm) {
           const value = str(f, grain)
           if (value === undefined) continue
           return (options.warm[grain] as WarmHandler)({ value, frame: f as Frame, channel: record.channel })
         }
         // `tpl` is the one grain a channel can answer on its own; anything else with no handler is
-        // named rather than dropped, because a stage that silently does nothing is indistinguishable
-        // from one that worked.
+        // named rather than dropped.
         if (str(f, 'tpl') === undefined) {
           return [
             errorFrame(
@@ -587,15 +434,9 @@ export function createHub(options: HubOptions): ChannelHub {
   }
 
   /**
-   * One INTENT: dispatch it, tell the client what happened, and refresh what the mutation
-   * says it changed.
-   *
-   * The epoch is the whole reason this is worth doing over a channel rather than over a POST.
-   * A client that staged an optimistic update under `o-3` sends `epoch=o-3`; on success the
-   * refreshed slots are staged into that same epoch and one COMMIT replaces the optimistic
-   * values with the real ones in a single paint. On failure the ACK carries `ok=false` and the
-   * client discards the epoch — which is why rollback needs no frame of its own and no
-   * reconstruction of prior state.
+   * One INTENT: dispatch it, tell the client what happened, and refresh what the mutation says it
+   * changed. The epoch is why this is worth doing over a channel: rollback needs no frame of its
+   * own, because the client just discards it. See `spec/kernel/surgical.md`.
    */
   async function intent(record: ChannelRecord, f: AnyFrame): Promise<Frame[]> {
     const id = str(f, 'i')
@@ -616,9 +457,8 @@ export function createHub(options: HubOptions): ChannelHub {
       // Nothing is refreshed and nothing is committed. The client discards the epoch it staged.
       return out
     }
-    // The intent invalidated through its own declared-write guard, so the store is already
-    // cold. Everyone holding one of those keys is told; the connection that ran the intent is
-    // not, because it is about to be handed the new values instead of a note about old ones.
+    // Everyone holding a dropped key is told; the connection that ran the intent is not, since
+    // it is about to be handed the new values instead of a note about old ones.
     if (outcome.dropped.length) {
       await hub.notify(outcome.dropped, `${outcome.name ?? outcome.id} invalidated it`, {
         except: record.channel.id,
@@ -626,15 +466,7 @@ export function createHub(options: HubOptions): ChannelHub {
     }
     /**
      * What this connection is refreshed for: what the intent named, and what it is holding that the
-     * write dropped.
-     *
-     * The second half is the other side of the `except` above. Excluding this connection from the
-     * `STALE` is right — a note about an old value is the wrong thing to send someone you are about
-     * to send the new one to — but that promise was only kept for slots the author also listed in
-     * `refresh`. An intent that declared its writes and called `revalidate`, which is the whole of
-     * what the design asks for, left every *other* tab correct and the tab whose reader pressed the
-     * button showing the old number. The registry already knows which slots this connection holds
-     * and under which keys; those are the ones it can be handed rather than told about.
+     * write dropped. See `spec/kernel/transport.md`.
      */
     const held = stale.holding(record.channel.id, outcome.dropped)
     const refreshing = [...new Set([...outcome.refresh, ...held])]
@@ -653,12 +485,9 @@ export function createHub(options: HubOptions): ChannelHub {
   }
 
   /**
-   * One slot, rendered into the smallest form this client can apply.
-   *
-   * Shared by a refresh and by a route being staged, because it is the same question both times:
-   * what does this client hold, and what is the least that has to travel given that. The only
-   * difference is whether the answer becomes what the server believes the client is showing —
-   * true for a refresh of the page they are on, false for a route they have not gone to.
+   * One slot, rendered into the smallest form this client can apply. Shared by a refresh and by a
+   * route being staged — the only difference is whether the answer becomes what the server
+   * believes the client is showing.
    */
   async function serveSlot(
     record: ChannelRecord,
@@ -667,9 +496,7 @@ export function createHub(options: HubOptions): ChannelHub {
     remember: boolean,
     staged = false,
   ): Promise<SlotFrames & { frame?: Frame }> {
-    // Frames from elsewhere are already the smallest form their producer could send: it was given
-    // what this client holds and made the choice on its own side. Choosing again here would mean
-    // re-deriving a delta against a template this process does not have.
+    // Frames from elsewhere are already the smallest form their producer could send.
     if (!('ir' in source)) return source
     const held = record.held.get(slot)
     const result = await surgicalRefresh({
@@ -700,18 +527,8 @@ export function createHub(options: HubOptions): ChannelHub {
   }
 
   /**
-   * One REFRESH, any number of slots. `epoch` stages instead of sending, which is the whole
-   * point of an epoch: the data arrives, resolves, and paints nothing. `commit` flips
-   * everything staged under that epoch at once — set both on one frame and you have an
-   * optimistic update, which is a staged epoch committed immediately.
-   */
-  /**
-   * A slot's worth of invalidation, told to whoever is showing that slot.
-   *
-   * `record.held` is what this connection says it is displaying, which is the only thing that
-   * decides whether an invalidation is any of its business. A connection showing none of these
-   * slots is not told, and a connection showing two is told twice — once per slot, because a
-   * client's decision about a stale region is per region.
+   * A slot's worth of invalidation, told to whoever is showing that slot. `record.held` is the only
+   * thing that decides whether an invalidation is any of a connection's business.
    */
   async function notifySlots(
     slots: readonly string[],
@@ -748,8 +565,7 @@ export function createHub(options: HubOptions): ChannelHub {
         out.push(errorFrame('E_NO_SUCH_SLOT', slot))
         continue
       }
-      // An epoch means the frame is held rather than painted, which is the one fact a form
-      // choice has to know beyond what the client holds: a patch addresses nodes by position.
+      // An epoch means the frame is held rather than painted: a patch addresses nodes by position.
       const result = await serveSlot(record, slot, source, true, Boolean(epoch))
       const paint = result.frame ?? result.paint
       out.push(...(result.also ?? []))
@@ -769,10 +585,8 @@ export function createHub(options: HubOptions): ChannelHub {
 }
 
 /**
- * What this build can actually serve. The two wire packages are versioned independently and
- * neither can see the other's version, so this is the only place that can state both — and
- * stating it anywhere else is how a server ends up advertising an IR major it stopped
- * emitting three minors ago.
+ * What this build can actually serve. The two wire packages are versioned independently, so this
+ * is the only place that can state both.
  */
 export function serverCapabilities(overrides: Partial<ServerCapabilities> = {}): ServerCapabilities {
   return { warp: WARP_VERSION, ir: TEMPLATE_IR_VERSION, forms: [...WARP_FORMS], ...overrides }
@@ -797,12 +611,8 @@ export function errorFrame(code: string, detail: string): Frame {
 }
 
 /**
- * The ACK. Carries the outcome rather than only the fact of arrival, because a client that
- * staged an optimistic epoch needs to know whether to commit it or throw it away — and
- * "discard this epoch" is that answer, not a frame of its own.
- *
- * Here rather than beside the dispatcher, so a channel takes `IntentDispatch` as a type and
- * never imports the intent module at runtime. An ACK is a frame; framing is this file's job.
+ * The ACK. Carries the outcome rather than only the fact of arrival: a client that staged an
+ * optimistic epoch needs to know whether to commit it or discard it.
  */
 export function ackFrame(outcome: IntentOutcome, epoch?: string): Frame {
   return frame('ACK', {

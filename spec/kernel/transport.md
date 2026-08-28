@@ -106,6 +106,21 @@ watching one price list produce one delta computation rather than ten thousand.
 | `RESUME`   | Continue rather than restart: rebinding under the same channel id keeps the held map                                               |
 | `INTENT`   | Dispatched through the hub's intent dispatch, answered with `ACK`. A hub given none answers `E_NO_INTENTS`                         |
 
+## Declaring what you hold is what makes you a candidate
+
+`HELD` records a slot without rendering it, and that has to be enough to make a connection a
+target for `STALE`: waiting for the first refresh to register a page as holding a region meant the
+first write after a page load never reached it. Two tabs on a page, press the button in one, and
+the other tab — freshly loaded, never refreshed — sat there. So the connection's own front door is
+asked which key each held slot would resolve to, once per declared slot, and it is recorded as
+holding that key immediately.
+
+An intent's own connection is excluded from the `STALE` its write produces — being told about an
+old value you are about to be handed the new one for is the wrong shape of answer — but that
+exclusion only ever covered the slots the intent's author also listed in `refresh`. What holds the
+tags the write actually dropped is the same registry `HELD` populates, so a connection is refreshed
+for the union of what the intent named and what it is holding that the write invalidated.
+
 ## Epochs, over the wire
 
 `REFRESH s=prices epoch=e1` renders, diffs, and sends **nothing**. The client sees no frame

@@ -3,14 +3,9 @@ import type { Intent } from './intent.ts'
 import type { Renderable } from './render-intent.ts'
 
 /**
- * The ports. One active implementation each, and the kernel knows nothing else about the
- * outside world — no filesystem, no sockets, no `process`. Everything here is expressible
- * against the WinterTC Minimum Common Web API, which is what makes "runs on Workers" a
- * property of the kernel rather than a porting exercise.
- *
- * A port is not a plugin. There is exactly one implementation of each, it answers "who
- * does this job", and replacing it cannot change any invariant — cache keys are still
- * derived from effects, render is still read-only, the envelope still has two phases.
+ * The ports. One active implementation each, and the kernel knows nothing else about the outside
+ * world. A port is not a plugin: it answers "who does this job", and replacing it cannot change any
+ * invariant. See `spec/kernel/ports.md`.
  */
 
 export type PortName =
@@ -69,11 +64,7 @@ export function unimplemented(port: PortName): never {
 
 export type Consistency = 'eventual' | 'strong'
 
-/**
- * How a tier learns that something it holds is now wrong. A process-local cache cannot be
- * addressed from outside, so without naming this the honest description of an L1 is "a
- * short buffer whose TTL you tune down until staleness stops hurting".
- */
+/** How a tier learns that something it holds is now wrong. See `spec/kernel/ports.md`. */
 export type Coherence = 'ttl' | 'generation' | 'pubsub' | 'tracking' | 'warp'
 
 /** What the store knows about an entry besides its bytes. The class is the load-bearing field. */
@@ -101,21 +92,15 @@ export interface Lease {
 }
 
 /**
- * Who can read this tier. `process` is an isolate-local map nobody outside can address;
- * `shared` is anything another process, another isolate, or a CDN can read.
- *
- * This is not the same question as consistency or coherence, and conflating them is how a
- * private entry ends up somewhere it can be served to the wrong person. A tiered store refuses
- * to write a private entry to a shared tier on the strength of exactly this field.
+ * Who can read this tier. Not the same question as consistency or coherence — conflating them is
+ * how a private entry ends up served to the wrong person.
  */
 export type Scope = 'process' | 'shared'
 
 /**
- * Where rendered bytes are held, and what the deployment can honestly claim about them.
- *
- * The four readonly properties are the interesting half: consistency, coherence, scope and a value
- * ceiling are checked at build time, so a plan asking for `strong` against an eventual store is a
- * build error rather than a guarantee nobody keeps.
+ * Where rendered bytes are held, and what the deployment can honestly claim about them. The four
+ * readonly properties are checked at build time, so `strong` against an eventual store is a build
+ * error rather than a guarantee nobody keeps.
  */
 export interface StorePort {
   readonly name: string
@@ -124,16 +109,9 @@ export interface StorePort {
   readonly coherence: Coherence
   readonly scope: Scope
   /**
-   * `stale: true` asks for an entry past its TTL rather than nothing.
-   *
-   * There is exactly one caller entitled to ask: a slot whose declared degradation is `stale`,
-   * whose render has just failed, and whose alternative is a placeholder. An expired entry **is**
-   * the last good render, so this needs no second key and no second write — the price of stale is
-   * paid only by the request that actually needs it.
-   *
-   * An entry that was *invalidated* is not recoverable this way and must not be. Expiry means "this
-   * may be out of date"; invalidation means "this is known to be wrong", and serving known-wrong
-   * bytes is worse than admitting the region is missing.
+   * `stale: true` asks for an entry past its TTL rather than nothing — the one caller entitled to
+   * ask is a slot whose degradation is `stale`. An *invalidated* entry is never recoverable this
+   * way. See `spec/kernel/cache.md`.
    */
   get(key: string, options?: { stale?: boolean }): Promise<StoreEntry | null>
   set(
@@ -146,32 +124,16 @@ export interface StorePort {
   /** Stampede lease. A null return means somebody else holds it and this caller should wait or serve stale. */
   lease(key: string, ttlMs: number): Promise<Lease | null>
   /**
-   * How far a *lease* is remembered, when that is not how far an entry travels.
-   *
-   * `scope` above answers "who can read what this holds", and a tiered store refuses to write a
-   * private entry to a shared tier on the strength of it. A lease answers a different question — how
-   * many processes agree that somebody already took this — and the two were the same field until
-   * something needed them to differ.
-   *
-   * What needed it: replay. A nonce is spent by taking a lease nobody releases, so replay protection
-   * is exactly as wide as the lease, and a deployment that wanted per-deployment single-use had to
-   * make its whole *cache* shared to get it — which is a much larger decision, made for a reason that
-   * has nothing to do with caching. Split, a process-local cache can take shared leases, which is
-   * what `sharedLeases` in `@weftjs/adapters` does. Absent, it is `scope`, which is what every store
-   * that has one answer for both means.
+   * How far a *lease* is remembered, when that is not how far an entry travels. `scope` answers who
+   * can read what this holds; this answers how many processes agree somebody took it — split for
+   * replay protection. See `spec/kernel/authority.md`.
    */
   readonly leaseScope?: Scope
   /** `waitUntil` on Workers, a task queue on Node. Revalidation happens after the response, or not at all. */
   revalidateAfterResponse(task: () => Promise<void>): void
   /**
-   * Run what `revalidateAfterResponse` collected.
-   *
-   * Optional because the two hosts differ in who calls it, and that difference is the whole reason
-   * the queue exists. On Workers the platform is handed the promise — `ctx.waitUntil(store.drain())`
-   * — and the isolate stays alive for it. On Node nobody is watching, so the front door drains after
-   * the response is out. A store that collects tasks and has no way to run them is a store whose
-   * revalidation silently never happens, which is what this being on the port rather than on one
-   * adapter is meant to stop.
+   * Run what `revalidateAfterResponse` collected. Optional: Workers hands the platform the promise,
+   * Node's front door drains it after the response. See `spec/kernel/ports.md`.
    */
   drain?(): Promise<void>
 }
@@ -181,10 +143,8 @@ export interface StorePort {
 export type FlagValue = string | number | boolean
 
 /**
- * Feature flags, and the one thing that makes them plannable: the complete axis set.
- *
- * A flag whose values are enumerable partitions the plan rather than branching inside a render, so
- * only the resolved branch is reachable and a value off the axis is refused rather than rendered.
+ * Feature flags, and the one thing that makes them plannable: the complete axis set. A flag whose
+ * values are enumerable partitions the plan rather than branching inside a render.
  */
 export interface FlagPort {
   readonly name: string
@@ -196,15 +156,9 @@ export interface FlagPort {
 // ── session ──────────────────────────────────────────────────────────────────────────
 
 /**
- * Who is asking, and the cookies that say so.
- *
- * The one port whose reads change a cache key: `identity` taints `identity`, which forces a private
- * class, so a fragment that asks who the reader is can never be in a shared cache. That is why this
- * is a port and not a helper — the kernel has to be able to see the read to derive the key from it.
- *
- * Writing is phase A only, and the port returns the cookies rather than setting them: only the
- * envelope knows whether it is still open, and a port that could write a header after the first
- * body byte would be a port that can fail halfway through a response.
+ * Who is asking, and the cookies that say so. The one port whose reads change a cache key —
+ * `identity` forces a private class. Writing is phase A only; the port returns cookies rather than
+ * setting them.
  */
 export interface SessionPort {
   readonly name: string
@@ -235,18 +189,9 @@ export interface SetCookie {
 export type ExecutorKind = 'inline' | 'pool' | 'isolate' | 'binding' | 'svc' | 'client'
 
 /**
- * Where a render lives, as an address rather than as a function.
- *
- * This exists because of a problem the executor interface had from the start and that only
- * showed up when something tried to implement `pool`: `run` takes a closure, and **a closure
- * cannot cross a crash domain**. A worker thread, a separate isolate, a service binding and
- * another pod all need a name they can resolve on their own side. The four unimplemented
- * executor kinds were not unimplemented because they are hard; they were unimplemented because
- * the interface as written could only express same-thread execution.
- *
- * `props` is whatever the export needs, and it has to survive structured clone — which is a
- * real constraint on what a poolable fragment may take, and is why this is opt-in per slot
- * rather than the only way to describe a render.
+ * Where a render lives, as an address rather than as a function: a closure cannot cross a crash
+ * domain, which is why `pool`, `isolate`, `binding` and `svc` need a name they can resolve on their
+ * own side. See `spec/kernel/locus.md`.
  */
 export interface JobAddress {
   module: string
@@ -259,10 +204,7 @@ export interface RenderJob {
   slot: string
   /** Milliseconds of CPU this slot is allowed before it is killed and degraded. */
   cpuBudgetMs?: number
-  /**
-   * Set when the slot can be named rather than only called. An executor that runs somewhere
-   * else requires it and refuses by name without it — `E_JOB_NOT_ADDRESSABLE`.
-   */
+  /** Set when the slot can be named rather than only called. Required off-thread — `E_JOB_NOT_ADDRESSABLE`. */
   address?: JobAddress
   run(signal: AbortSignal): Promise<Uint8Array>
 }
@@ -274,13 +216,8 @@ export interface RenderOutcome {
   /** Wall-clock, measured by the executor rather than reported by the job. */
   ms: number
   /**
-   * CPU this render actually consumed, where that is a separable quantity.
-   *
-   * Absent on the request thread, and absent honestly: several renders and the stream itself
-   * interleave there, so a `cpuUsage` delta around one of them is a measurement of all of them. It
-   * is present on an executor that gave the render a thread of its own — which is the same
-   * property that makes a budget a limit rather than a report, because a thread can be stopped and
-   * a thread's CPU can be attributed.
+   * CPU this render actually consumed, where that is separable. Absent on the request thread —
+   * several renders interleave there. See `spec/kernel/locus.md`.
    */
   cpuMs?: number
   /** Set when the job was killed or threw. The slot degrades; the request does not fail. */
@@ -288,10 +225,8 @@ export interface RenderOutcome {
 }
 
 /**
- * One method, and it collapses six mechanisms that are normally six unrelated subsystems:
- * same thread, a worker pool, a separate isolate, a service binding, another pod, or the
- * browser. The executor boundary is also the fault and budget boundary — a slot that blows
- * its CPU budget is killed and degrades, and the rest of the response is untouched.
+ * One method, collapsing six mechanisms into one: same thread, a worker pool, an isolate, a
+ * binding, another pod, or the browser. Also the fault and budget boundary.
  */
 export interface ExecutorPort {
   readonly name: string
@@ -312,12 +247,8 @@ export interface SchedulableSlot {
 export interface SchedulerPort {
   readonly name: string
   /**
-   * Given one wave's worth of ready slots, decide what order to dispatch them in.
-   *
-   * A scheduler **reorders what it was handed**. It may not invent a slot, drop one, or return
-   * something it was not given: the wave is the plan's, and a scheduler that could change its
-   * membership would be a scheduler that can change what a page contains. The kernel passes its
-   * own nodes through and reads the order back, so anything else would be discarded anyway.
+   * Given one wave's worth of ready slots, decide what order to dispatch them in. A scheduler
+   * **reorders what it was handed** — it may not invent, drop or add a slot.
    */
   order<T extends SchedulableSlot>(ready: readonly T[]): readonly T[]
   /** Hard ceiling on concurrent renders per request. Forty parallel queries will melt a database. */
@@ -345,24 +276,9 @@ export interface AssetPort {
 // ── fanout ───────────────────────────────────────────────────────────────────────────
 
 /**
- * Invalidation that crosses a process boundary.
- *
- * `hub.notify` walks the connections *this* process is holding, which is the whole of push
- * invalidation and is correct on exactly one shape of deployment: one instance. On two, a write
- * handled by one of them drops its own copy and tells its own readers, and the readers on the other
- * are neither told nor purged — so the invalidation appears to work, at a hit rate equal to one over
- * the number of instances running. That is not a cache being eventually consistent; it is half the
- * readers being told a thing happened and half not, with nothing in the system able to say which.
- *
- * Unbound, `hub.invalidate` stays local and says so. It is a port rather than a Redis client for the
- * reason every other port here is one: the answer differs per deployment — Redis and Valkey speak
- * pub/sub, NATS is a subject, a single-process deployment needs nothing at all — and the hub should
- * not know which it got.
- *
- * The contract that matters is that `publish` must not deliver back to the publisher. A hub that
- * heard its own message would notify its own connections twice and, worse, would have no way to
- * tell that from a second write. Implementations that cannot suppress their own delivery must
- * filter it, which is what `origin` is for.
+ * Invalidation that crosses a process boundary. `hub.notify` alone is correct on exactly one
+ * instance; on two, half the readers are told and half are not. `publish` must not deliver back to
+ * the publisher — `origin` is for implementations that cannot suppress it. See `spec/kernel/transport.md`.
  */
 export interface FanoutPort {
   readonly name: string
@@ -371,11 +287,9 @@ export interface FanoutPort {
   /** Tell the other instances that these keys are known wrong. */
   publish(keys: readonly string[], reason: string): Promise<void>
   /**
-   * Start delivering what other instances publish. Called once, when the hub is built.
-   *
-   * A failure to subscribe is thrown rather than swallowed: a deployment that believes it has
-   * cross-instance invalidation and does not is strictly worse off than one that knows it has none,
-   * because the first will bind a shared store and trust it.
+   * Start delivering what other instances publish. A failure to subscribe throws rather than being
+   * swallowed: believing you have cross-instance invalidation and not having it is worse than
+   * knowing you have none.
    */
   subscribe(deliver: (keys: readonly string[], reason: string) => void): Promise<void>
   close?(): Promise<void>
@@ -384,14 +298,8 @@ export interface FanoutPort {
 // ── telemetry ────────────────────────────────────────────────────────────────────────
 
 /**
- * Where the marks and the measures go.
- *
- * Two methods, because a render produces exactly two kinds of fact: an instant something happened,
- * and how long something took. Anything richer is the collector's to build out of them.
- *
- * The kernel measures whether or not one of these is bound — an unbound telemetry drops the numbers
- * rather than never producing them, because a figure that only exists when somebody is watching is
- * a figure that changes the thing it measures.
+ * Where the marks and the measures go. Two methods: an instant something happened, and how long
+ * something took. The kernel measures whether or not one is bound.
  */
 export interface TelemetryPort {
   readonly name: string
@@ -402,31 +310,21 @@ export interface TelemetryPort {
 // ── transport ────────────────────────────────────────────────────────────────────────
 
 /**
- * What the runtime underneath can do that the Fetch API cannot express.
- *
- * Small on purpose, and it will stay small: everything the kernel needs from a server it gets from
- * `Request` and `Response`, which is what lets the same kernel run on Node, Deno, Bun, a worker and
- * the edge unchanged. This is the exceptions — the parts of HTTP that have no place in that API and
- * are worth having anyway.
+ * What the runtime underneath can do that the Fetch API cannot express. Small on purpose: `Request`
+ * and `Response` cover everything else, and this is the exceptions.
  */
 export interface TransportPort {
   readonly name: string
-  /**
-   * 103 Early Hints. H2/H3 only, and an HTTP/1.1 client simply waits for the final
-   * response — which is why this returns whether it actually went out rather than void.
-   */
+  /** 103 Early Hints. H2/H3 only; returns whether it actually went out rather than void. */
   earlyHints?(links: PreloadLink[]): Promise<boolean> | boolean
 }
 
 // ── coalescing ───────────────────────────────────────────────────────────────────────
 
 /**
- * What runs a render that might be duplicated. The kernel supplies the key and the render and
- * knows nothing else: whether to take a lease, how long to wait for the holder, and whether
- * waiting means polling or a subscription are all properties of the store behind it.
- *
- * `waited` distinguishes "this render happened" from "somebody else's render was handed to me",
- * which is the difference the trace and every dashboard actually care about.
+ * What runs a render that might be duplicated. The kernel supplies the key and the render; whether
+ * to lease, how long to wait, and whether waiting polls are the store's. `waited` distinguishes a
+ * render that happened from one handed to you.
  */
 export type Coalescer = (
   key: string,
@@ -436,10 +334,8 @@ export type Coalescer = (
 // ── registry ─────────────────────────────────────────────────────────────────────────
 
 /**
- * An opaque id to the thing it names. The client never carries the name of server code, so
- * something has to hold the mapping — and it is a port rather than a module-level map because
- * a build-time manifest, a live module graph and a remote service are all legitimate answers
- * and they have different failure modes.
+ * An opaque id to the thing it names. A port rather than a module-level map: a build-time
+ * manifest, a live module graph and a remote service are all legitimate answers.
  */
 export interface Registry {
   readonly name: string
@@ -447,30 +343,16 @@ export interface Registry {
   /** Every registered id. For `weft why`, and for refusing a build whose wiring names nothing. */
   intents(): readonly string[]
   /**
-   * A region name to the deployment serving it. Optional, because a deployment that composes
-   * nothing has no regions to resolve, and a registry that cannot answer refuses by name —
-   * `E_NO_REGION_REGISTRY` — rather than being approximated by a table somewhere else.
-   *
-   * This is the indirection the design's topology rests on. A shell names a region; what is
-   * behind that name is a registry entry, so rolling a region to a new revision is a registry
-   * write rather than a shell redeploy — and a checked-in file, a KV namespace and a control
-   * plane are all legitimate answers with different failure modes, which is what makes it a
-   * port rather than a constant.
+   * A region name to the deployment serving it. Optional — `E_NO_REGION_REGISTRY` rather than
+   * approximated elsewhere. The indirection composition's topology rests on: a roll is a registry
+   * write, not a shell redeploy. See `spec/kernel/composition.md`.
    */
   region?(name: string): Promise<RegionBinding | undefined> | RegionBinding | undefined
   /** Every region this registry can resolve. For a build report, and for `weft verify`. */
   regions?(): readonly string[]
   /**
    * An opaque id to a fragment a client may ask to have rendered — the design's module catalogue.
-   *
-   * The third question this port answers, and the one that makes "rendering as a service, by passing
-   * component names over the wire" safe rather than alarming: the name on the wire is opaque and
-   * derived, so it discloses no server code, and what is behind it is a registry entry rather than a
-   * table compiled into the page — so an entry can be served by this process today and by a region on
-   * another deployment tomorrow without the client knowing either way.
-   *
-   * Optional, and an absent implementation is `E_NO_CATALOGUE` rather than an empty catalogue. A
-   * deployment that offers nothing renderable should refuse the question, not answer it with silence.
+   * The name on the wire discloses no server code. `E_NO_CATALOGUE` rather than an empty one.
    */
   renderable?(id: string): Promise<Renderable | undefined> | Renderable | undefined
   /** Every renderable id. For a build report, and so a page can be told what it may ask for. */
@@ -478,13 +360,8 @@ export interface Registry {
 }
 
 /**
- * What a region's name resolves to: somewhere to run it, something to run, and what the shell
- * believes it will get back.
- *
- * The whole of the difference between the design's four topologies is in `executor`. A binding
- * naming `inline` is the monolith — the default, and the best-tested path, because it is the same
- * path every other slot takes. One naming `binding:` or `svc:` is a tier boundary, which is also a
- * crash domain and a place a budget becomes a deadline. Nothing above this has to know which.
+ * What a region's name resolves to. The whole difference between the design's four topologies is
+ * in `executor`: `inline` is the monolith; `binding:`/`svc:` is a tier boundary and a crash domain.
  */
 export interface RegionBinding {
   /** The name the shell used, which is the only name a client or a sibling region ever sees. */
@@ -501,46 +378,23 @@ export interface RegionBinding {
   /** What the shell expects this deployment to serve. A mismatch degrades rather than renders. */
   contract?: RegionContract
   /**
-   * A shared secret this region's deployment presents when it has something to tell the composite.
-   *
-   * Push invalidation stops at a tier boundary for a structural reason: the composite holds a
-   * contract and the keys are the region's own, so a `STALE` about them has nobody to send. The
-   * missing half is not a protocol, it is an *authority* — who may tell this composite that a
-   * region it composes has gone stale. That is a deployment's decision, so it is a secret in a
-   * deployment's config rather than a mechanism in a framework.
-   *
-   * Absent, the endpoint refuses by name. A composite that never configured one cannot be told
-   * anything by anybody, which is the right default for something that reaches every open
-   * connection showing that region.
+   * A shared secret this region's deployment presents to tell the composite it went stale. The
+   * missing half is not a protocol, it is an authority — a deployment's decision. See `spec/kernel/composition.md`.
    */
   staleSecret?: string
 }
 
 /**
- * What a region promises, as an id and a version.
- *
- * Cross-boundary contracts are not novel — Module Federation checks published types in CI. What
- * is checked here is narrower: the version the deployment is *actually serving right now*, stated
- * by the region itself in its own `REGION` frame, against what the shell was built expecting. CI
- * against a published type closes the window before a deploy; this closes the one after it.
+ * What a region promises, as an id and a version — the version actually serving right now, against
+ * what the shell was built expecting. See `spec/kernel/composition.md`.
  */
 export interface RegionContract {
   id: string
   version: string
   /**
-   * What the region's own compiler inferred it reads, in the same vocabulary a local fragment
-   * uses — and this is the field that makes a composed page cacheable at all.
-   *
-   * A cache class here is still derived and never declared. The derivation happens on the other
-   * side, where the code is, and the contract carries the *reads* rather than the conclusion: the
-   * composite runs them through the same `cacheClassOf`, `varyOn` and `requiresTtl` as everything
-   * else, so a region contributes to a document's `Vary` and to its strictest class exactly as a
-   * slot does.
-   *
-   * Absent means unknown, and unknown is not the same as nothing: an undeclared region reads
-   * `opaque`, which is uncacheable and private. A page that advertised itself as shareable on the
-   * strength of a region nobody had described would be the leak this whole mechanism exists to
-   * prevent.
+   * What the region's own compiler inferred it reads — the field that makes a composed page
+   * cacheable at all. Still derived, never declared. Absent reads `opaque`: uncacheable, private.
+   * See `spec/kernel/composition.md`.
    */
   reads?: readonly string[]
 }
@@ -556,15 +410,9 @@ export interface RenderJobIR {
 }
 
 /**
- * Who turns a fragment and a value set into bytes.
- *
- * Naming the slot was not enough: one slot renders a different fragment on every route, so a
- * renderer that is handed only a name has to be told the route as well and then look up what the
- * plan already knows. The job carries the template.
- *
- * The default implementation is the IR renderer, and it is bound rather than assumed — which is
- * what makes `remote` in phase 9 another implementation of this port rather than a second render
- * path beside it.
+ * Who turns a fragment and a value set into bytes. The job carries the template, since one slot
+ * renders a different fragment on every route. Bound rather than assumed — `remote` is another
+ * implementation of this port, not a second render path.
  */
 export interface RenderPort {
   readonly name: string
@@ -574,13 +422,8 @@ export interface RenderPort {
 // ── config ───────────────────────────────────────────────────────────────────────────
 
 /**
- * What this deployment was configured with, read through a port so nothing else has to know
- * whether that means an environment variable, a Worker binding, or a secrets manager.
- *
- * A setting is deliberately **not** a tracked read. Every read on `Reads` taints a fragment and
- * lands in its cache key; a setting is a property of the deployment rather than of the request,
- * so two requests that differ in nothing may not produce two entries — and a key that contained
- * a database URL would be a key nobody could safely log.
+ * What this deployment was configured with. A setting is deliberately **not** a tracked read — a
+ * property of the deployment rather than of the request, so it never lands in a cache key.
  */
 export interface ConfigPort {
   readonly name: string
@@ -602,16 +445,9 @@ export interface DbQuery {
 }
 
 /**
- * Where a loader's data comes from, named rather than anonymous.
- *
- * The framework never sees a loader — a `.data.ts` is application code the compiler does not
- * read — so a query is invisible to everything that would otherwise bound it. Running it through
- * a port gives back the three things that absence costs: a name in the telemetry, a deadline that
- * is somebody's decision rather than the database's default, and the tags the render depended on
- * recorded where an invalidation can be checked against them.
- *
- * Deliberately not a query language. What runs is the caller's function; this decides what
- * happens around it.
+ * Where a loader's data comes from, named rather than anonymous — the framework never sees a
+ * `.data.ts` loader, so running its query through a port gives back a name, a deadline and tags.
+ * Not a query language: what runs is the caller's function.
  */
 export interface DbPort {
   readonly name: string
@@ -623,12 +459,8 @@ export interface DbPort {
 // ── deployment ───────────────────────────────────────────────────────────────────────
 
 /**
- * Which build is answering, and where it is running.
- *
- * The reason this is a port rather than three environment variables read wherever they are
- * needed: every runtime spells them differently — a revision is `GIT_SHA` on one platform, a
- * deployment id on another, and nothing at all on a laptop — and a kernel that read the ambient
- * environment would stop being a kernel that runs on Workers.
+ * Which build is answering, and where it is running. A port rather than environment variables read
+ * ad hoc: every runtime spells them differently.
  */
 export interface DeploymentPort {
   readonly name: string
@@ -653,31 +485,14 @@ export interface RequestFacts {
 // ── limits ───────────────────────────────────────────────────────────────────────────
 
 /**
- * How often one caller may do something, and the one decision this port exists to refuse to make.
- *
- * The design puts rate limiting in the authority tier and it belongs there — but it is the piece of
- * that tier a kernel cannot implement, because the whole question is *what a call is counted
- * against*. An address is wrong behind a proxy and wrong for mobile carriers. A session is wrong for
- * an unauthenticated API. A subject is wrong for the calls made before anybody signs in. Which of
- * the three is right is a property of the deployment, and a kernel picking one would be guessing
- * with a straight face.
- *
- * So an intent declares how much traffic it can take — that is its own business, and a mutation that
- * writes to a payment provider knows something the deployment does not. And the port decides who is
- * being counted. Neither half can be inferred from the other, which is why this is a port and not a
- * number in a config file.
- *
- * Unbound, an intent that declares a limit is `E_NO_RATE_LIMIT` rather than unlimited — the same
- * argument as an unchecked capability, one step further along: a limit nothing enforces reads as a
- * protection that is not there.
+ * How often one caller may do something. The kernel cannot implement this: which of an address, a
+ * session or a subject to count against is a deployment's decision, and the intent declares how
+ * much traffic it can take. See `spec/kernel/authority.md`.
  */
 export interface LimitPort {
   readonly name: string
-  /**
-   * Whether this call may proceed. Called before the signature is verified, because it is the
-   * cheapest of the three checks and the one that protects the other two: a caller hammering with
-   * forged tokens should be turned away before an Ed25519 verification is done on their behalf.
-   */
+  /** Whether this call may proceed. Called before the signature is verified — the cheapest check,
+   * protecting the other two. */
   check(request: LimitRequest): Promise<LimitDecision> | LimitDecision
 }
 
@@ -690,14 +505,8 @@ export interface IntentLimit {
 }
 
 /**
- * What the port is told, which is exactly the three things the design says a limit can be counted
- * against and nothing else.
- *
- * Not the whole request, deliberately. A port handed `RequestFacts` could count against anything —
- * a path, a query string, the body — and a limit counted against something nobody can enumerate is
- * a limit nobody can reason about. An address, a session and a subject are the three; a header, a
- * cookie and `subject` are how each of them is reached, through the same tracked read surface a
- * fragment uses rather than around it.
+ * What the port is told: exactly the three things a limit can be counted against, not the whole
+ * request — a limit counted against anything is a limit nobody can reason about.
  */
 export interface LimitRequest {
   /** The intent's opaque id, which is what travelled on the wire. */
@@ -725,11 +534,8 @@ export type LimitDecision =
     }
 
 /**
- * Everything the kernel refuses to implement.
- *
- * Fourteen capabilities, of which the first four are required and the rest are absent-or-bound. A
- * port has one implementation at a time and swapping it changes *where* something happens; plugins
- * are the other axis and only ever add. The one thing neither may do is write a cache key.
+ * Everything the kernel refuses to implement. Fourteen capabilities; the first four are required
+ * and the rest absent-or-bound. Neither a port nor a plugin may write a cache key.
  */
 export interface Ports {
   store: StorePort
@@ -749,10 +555,8 @@ export interface Ports {
 }
 
 /**
- * The request, reduced to what a read may see.
- *
- * Deliberately not the `Request`: a render that could reach the whole thing could read something the
- * compiler never saw, and the cache key would then not describe the render.
+ * The request, reduced to what a read may see. Deliberately not the `Request`: a render that could
+ * reach the whole thing could read something the compiler never saw.
  */
 export function requestFacts(request: Request, params: Record<string, string> = {}): RequestFacts {
   return {
