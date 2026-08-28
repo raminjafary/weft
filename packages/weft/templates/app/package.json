@@ -7,7 +7,8 @@
     "dev": "weft dev",
     "build": "weft build",
     "start": "weft start",
-    "routes": "weft routes"
+    "routes": "weft routes",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@weftjs/core": "__WEFT_VERSION__"

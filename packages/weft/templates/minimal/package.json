@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "weft dev",
     "build": "weft build",
-    "start": "weft start"
+    "start": "weft start",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@weftjs/core": "__WEFT_VERSION__"

@@ -181,11 +181,11 @@ async function main(): Promise<number> {
       ...(flags['dry-run'] ? { dryRun: true } : {}),
     })
     for (const object of report.objects) {
-      out(`  ${object.status.padEnd(8)} ${object.href}${object.detail ? `  — ${object.detail}` : ''}`)
+      out(`  ${object.status.padEnd(8)} ${object.href}${object.detail ? `  — ${object.detail}` : ''}\n`)
     }
     out(
       `\n  ${report.uploaded} uploaded, ${report.skipped} skipped, ${report.failed} failed — ` +
-        `${report.sent} bytes sent to ${report.to}`,
+        `${report.sent} bytes sent to ${report.to}\n`,
     )
     return report.failed ? 1 : 0
   }

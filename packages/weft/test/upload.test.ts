@@ -188,3 +188,50 @@ test('a store that refuses one object reports that object and finishes the rest'
     await target.close()
   }
 })
+
+/**
+ * What a site report counts, and what a sitemap is allowed to name.
+ *
+ * Both were derived from `immutable`, which is a proxy for "is a document" that is wrong for
+ * exactly one class of file: `public/` is copied and served at the name its author wrote, so a
+ * favicon and a `robots.txt` are mutable without being pages. The report called them documents —
+ * "6 documents" for four HTML files — and the sitemap listed them, which its own rule forbids in
+ * the sentence above the function.
+ */
+test('a site counts pages as documents and copied files as assets', async () => {
+  const dir_ = await built()
+  const { siteObjects, sitemapFor, writeSite } = await import('../src/site.ts')
+  const objects = await siteObjects(dir_)
+
+  const documents = objects.filter((o) => o.document)
+  const copied = objects.filter((o) => !o.document)
+  assert.ok(documents.length > 0, 'the demo has an L0 tier')
+  assert.ok(
+    documents.every((o) => o.path.endsWith('.html')),
+    `a document is a page: ${documents.map((o) => o.path).join(', ')}`,
+  )
+  assert.ok(
+    copied.some((o) => o.href === '/robots.txt'),
+    'the demo copies a robots.txt, and it is not a page',
+  )
+  assert.ok(
+    !documents.some((o) => o.href === '/robots.txt'),
+    'a mutable file in public/ is not a document just because it is mutable',
+  )
+
+  // And the sitemap names pages only, which is what it says it does.
+  const xml = sitemapFor(objects, 'https://example.test')
+  assert.match(xml, /<loc>https:\/\/example\.test\/app\/article<\/loc>/)
+  assert.ok(!xml.includes('/robots.txt'), 'a crawler is not told to index a robots.txt')
+  assert.ok(!xml.includes('/_weft/'), 'nor the contents of a cache')
+
+  const out = join(dir_, '..', '.site-test')
+  try {
+    const report = await writeSite(dir_, out, { origin: 'https://example.test' })
+    assert.equal(report.documents, documents.length, 'the report counts what it wrote')
+    assert.equal(report.assets, copied.length)
+    assert.equal(report.sitemap?.urls, documents.length)
+  } finally {
+    await rm(out, { recursive: true, force: true })
+  }
+})

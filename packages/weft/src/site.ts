@@ -33,6 +33,15 @@ export interface SiteObject {
   headers: Record<string, string>
   /** A document is not: it answers a URL a reader typed, and the next build may answer it differently. */
   immutable: boolean
+  /**
+   * A page this build resolved, as opposed to a file it copied.
+   *
+   * Stated rather than inferred from `immutable`, because a file in `public/` is mutable too — a
+   * favicon is served at the name its author wrote. Inferring it counted `robots.txt` and
+   * `logo.svg` as documents in the report, and, worse, listed them in the sitemap, which the
+   * sitemap's own rule says is for pages only.
+   */
+  document: boolean
 }
 
 async function walk(dir: string): Promise<string[]> {
@@ -75,6 +84,7 @@ export async function siteObjects(dir: string): Promise<SiteObject[]> {
         path: document.file,
         headers: document.headers,
         immutable: false,
+        document: true,
       })
     }
   } catch {
@@ -116,6 +126,7 @@ export async function siteObjects(dir: string): Promise<SiteObject[]> {
       path,
       headers: { 'content-type': typeOf(href), 'cache-control': cacheControl(immutable) },
       immutable,
+      document: false,
     })
   }
 
@@ -151,7 +162,7 @@ export interface SiteReport {
 export function sitemapFor(objects: readonly SiteObject[], origin: string): string {
   const base = origin.replace(/\/+$/, '')
   const urls = objects
-    .filter((object) => !object.immutable)
+    .filter((object) => object.document)
     .map((object) => `${base}${object.href}`)
     .sort()
   return (
@@ -191,13 +202,13 @@ export async function writeSite(
     const xml = sitemapFor(objects, options.origin)
     await writeFile(join(out, 'sitemap.xml'), xml, 'utf8')
     bytes += Buffer.byteLength(xml)
-    sitemap = { urls: objects.filter((object) => !object.immutable).length }
+    sitemap = { urls: objects.filter((object) => object.document).length }
   }
 
   return {
     out,
-    documents: objects.filter((object) => !object.immutable).length,
-    assets: objects.filter((object) => object.immutable).length,
+    documents: objects.filter((object) => object.document).length,
+    assets: objects.filter((object) => !object.document).length,
     bytes,
     ...(sitemap ? { sitemap } : {}),
   }
