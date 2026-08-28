@@ -1,6 +1,6 @@
 {
   "name": "@weftjs/bench",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "The measurement harness. Every claim in the specs is a number this produced.",
   "license": "MIT",

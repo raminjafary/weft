@@ -1,6 +1,6 @@
 {
   "name": "@weftjs/warp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Warp/1: the binary frame codec the channel speaks.",
   "keywords": [
     "weft",

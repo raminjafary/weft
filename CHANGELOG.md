@@ -4,7 +4,22 @@ Every commit in this repository appears here, not only `feat` and `fix`. The sec
 generated from Conventional Commit types by `scripts/release/`, and a package changelog holds
 the commits scoped to that package.
 
-## [0.2.1](https://github.com/raminjafary/weft/compare/v0.2.0...HEAD) (2026-08-28)
+## [0.2.2](https://github.com/raminjafary/weft/compare/v0.2.1...HEAD) (2026-08-28)
+
+### 🐛 Bug Fixes
+
+* **release:** a package the commits changed and did not name was never published ([c08c2f0](https://github.com/raminjafary/weft/commit/c08c2f0924fedd80047578e00f489a5a100291ae))
+* **warp:** the decoder's refusal names the remedy, and the guard's premise is asserted ([d428648](https://github.com/raminjafary/weft/commit/d42864874bdee3deba42b23876f88c1df079b764))
+
+### ✅ Testing
+
+* **weft:** the repeated-preamble test pinned a close code that races the teardown ([3134f48](https://github.com/raminjafary/weft/commit/3134f482036fa20085ab8acaf2d2c890e0d22be9))
+
+### 🚚 Chores
+
+* **repo:** the budget follows the decoder's longer refusal message ([f67a647](https://github.com/raminjafary/weft/commit/f67a6471a159157f0ef737563d9b33355b3adae7))
+
+## [0.2.1](https://github.com/raminjafary/weft/compare/v0.2.0...v0.2.1) (2026-08-28)
 
 ### ✨ Features
 

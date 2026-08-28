@@ -382,15 +382,15 @@ table.
 
 | Package             | Version                                                   | What it is                                                                    |
 | ------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `@weftjs/core`      | [`0.2.1`](https://www.npmjs.com/package/@weftjs/core)     | The framework. The CLI, the conventions, and what an application imports      |
-| `create-weft`       | [`0.1.3`](https://www.npmjs.com/package/create-weft)      | `npm create weft` — a shim over the templates that ship inside `@weftjs/core` |
+| `@weftjs/core`      | [`0.2.2`](https://www.npmjs.com/package/@weftjs/core)     | The framework. The CLI, the conventions, and what an application imports      |
+| `create-weft`       | [`0.1.4`](https://www.npmjs.com/package/create-weft)      | `npm create weft` — a shim over the templates that ship inside `@weftjs/core` |
 | `@weftjs/ir`        | [`0.1.1`](https://www.npmjs.com/package/@weftjs/ir)       | The template IR: what a compiled fragment is                                  |
-| `@weftjs/warp`      | [`0.1.0`](https://www.npmjs.com/package/@weftjs/warp)     | The frame vocabulary that carries it                                          |
-| `@weftjs/compiler`  | [`0.1.3`](https://www.npmjs.com/package/@weftjs/compiler) | TSX to IR, on Oxc, with the type-driven escape class                          |
+| `@weftjs/warp`      | [`0.1.1`](https://www.npmjs.com/package/@weftjs/warp)     | The frame vocabulary that carries it                                          |
+| `@weftjs/compiler`  | [`0.1.4`](https://www.npmjs.com/package/@weftjs/compiler) | TSX to IR, on Oxc, with the type-driven escape class                          |
 | `@weftjs/client`    | [`0.1.0`](https://www.npmjs.com/package/@weftjs/client)   | Adoption, signals, deltas, patches, navigation                                |
-| `@weftjs/kernel`    | [`0.2.1`](https://www.npmjs.com/package/@weftjs/kernel)   | Routing, the request lifecycle, cache keys, waves, epochs, surgical refresh   |
-| `@weftjs/plan`      | [`0.1.3`](https://www.npmjs.com/package/@weftjs/plan)     | The plan DSL, validation against inferred effects, plugins, `weft why`        |
-| `@weftjs/adapters`  | [`0.1.3`](https://www.npmjs.com/package/@weftjs/adapters) | The fourteen ports, implemented                                               |
+| `@weftjs/kernel`    | [`0.2.2`](https://www.npmjs.com/package/@weftjs/kernel)   | Routing, the request lifecycle, cache keys, waves, epochs, surgical refresh   |
+| `@weftjs/plan`      | [`0.1.4`](https://www.npmjs.com/package/@weftjs/plan)     | The plan DSL, validation against inferred effects, plugins, `weft why`        |
+| `@weftjs/adapters`  | [`0.1.4`](https://www.npmjs.com/package/@weftjs/adapters) | The fourteen ports, implemented                                               |
 | `@weftjs/bench`     | _not published_                                           | The measurement harness, and the gates it enforces                            |
 | `@weftjs/docs`      | _not published_                                           | The documentation site, which is a weft application                           |
 | `@weftjs/inspector` | _not published_                                           | A station per capability, each with a control you can turn                    |
