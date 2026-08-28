@@ -260,6 +260,30 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
+/**
+ * Ports a browser will not connect to, whatever is listening on them.
+ *
+ * The WHATWG fetch standard blocks these outright — the request is a network error before it is
+ * sent, on `fetch`, on `WebSocket`, and on every other subresource. A framework whose channel is
+ * built out of all three has a specific reason to care: a deployment on one of these serves its
+ * documents perfectly and its channel never connects, and *nothing says so*. The page has no error
+ * to report because a blocked request produces none, so the symptom is a live region that never
+ * updates and a navigation that is always a document.
+ *
+ * This was not theoretical. The documentation site was configured on 4190 — sieve — so its own
+ * channel could never have worked in a browser, and the number had been sitting in
+ * `weft.config.ts` looking like any other port.
+ *
+ * Kept as the list rather than a range because it is a list: the standard names each port for the
+ * protocol it belongs to, and it is stable enough that copying it is better than approximating it.
+ */
+const BLOCKED_PORTS = new Set([
+  1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102, 103, 104,
+  109, 110, 111, 113, 115, 117, 119, 123, 135, 137, 139, 143, 161, 179, 389, 427, 465, 512, 513, 514, 515,
+  526, 530, 531, 532, 540, 548, 554, 556, 563, 587, 601, 636, 989, 990, 993, 995, 1719, 1720, 1723, 2049,
+  3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669, 6697, 10080,
+])
+
 /** Load `weft.config.ts`, apply overrides, and fill in the defaults. An absent file is fine. */
 export async function loadConfig(root: string, overrides: WeftConfig = {}): Promise<ResolvedConfig> {
   let file: string | undefined
@@ -276,11 +300,20 @@ export async function loadConfig(root: string, overrides: WeftConfig = {}): Prom
     break
   }
   const config = { ...loaded, ...overrides }
+  const port = config.port ?? 3000
+  if (BLOCKED_PORTS.has(port)) {
+    throw new Error(
+      `E_BLOCKED_PORT: ${port} is on the WHATWG bad-port list, so a browser refuses every ` +
+        `fetch() and WebSocket to it. The documents would still be served and the channel would ` +
+        `never connect — silently, because a blocked request reports no error the page can see. ` +
+        `Pick another port.`,
+    )
+  }
   return {
     root,
     srcDir: config.srcDir ?? 'app',
     outDir: config.outDir ?? '.weft',
-    port: config.port ?? 3000,
+    port,
     host: config.host ?? 'localhost',
     css: config.css ?? [],
     ...(config.nav ? { nav: config.nav } : {}),

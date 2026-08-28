@@ -9,7 +9,9 @@ import { defineConfig } from '@weftjs/core'
  * list every guide page in the header.
  */
 export default defineConfig({
-  port: 4190,
+  // Not 4190. That is sieve, which the WHATWG fetch standard blocks, so a browser refused every
+  // channel request this site made and reported nothing — see `E_BLOCKED_PORT`.
+  port: 4191,
   /**
    * A deploy purges the CDN in front of this site, so a document the build proved invariant can be
    * answered from the edge until the next one. Without it every navigation to a prerendered page
