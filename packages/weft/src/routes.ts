@@ -154,7 +154,17 @@ export class GenerateError extends Error {
 }
 
 /** The layout values the framework always supplies. A layout may use any subset of these. */
-const STANDARD = ['title', 'description', 'css', 'runtime', 'preload', 'brand', 'nav', 'prelude'] as const
+const STANDARD = [
+  'title',
+  'description',
+  'css',
+  'runtime',
+  'preload',
+  'canonical',
+  'brand',
+  'nav',
+  'prelude',
+] as const
 
 async function loadModule(file: string | undefined): Promise<RouteModule> {
   if (!file) return {}
@@ -796,6 +806,14 @@ export interface GenerateOptions {
    * is exactly as correct as it was before, just slower.
    */
   preload(): string
+  /**
+   * `<link rel="canonical">` for this page, or nothing.
+   *
+   * A canonical URL is absolute by convention, so it needs the origin the config supplies — and
+   * with no origin this is empty rather than a relative guess, because a canonical pointing at the
+   * wrong host is worse for a crawler than none at all.
+   */
+  canonical(pattern: string, params: Record<string, string>): string
   brand: string
 }
 
@@ -1076,6 +1094,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
         css: options.styleHref(route.pattern),
         runtime: options.runtime(),
         preload: options.preload(),
+        canonical: options.canonical(route.pattern, params),
         prelude: SCROLL_PRELUDE,
         brand: options.brand,
         nav: nav.map((item) => ({

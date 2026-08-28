@@ -31,6 +31,14 @@ export default defineConfig({
    * no writes at all.
    */
   channel: { hold: false },
+  /**
+   * Where this site is served from, which is the one thing the build cannot work out for itself.
+   *
+   * It is what makes `weft site` write a `sitemap.xml` — generated from the documents that were
+   * actually published, so it cannot list a page that does not exist or miss one that does — and
+   * what lets every page carry an absolute `<link rel="canonical">`.
+   */
+  site: { origin: 'https://weft-rr7.vercel.app' },
   nav: [
     { href: '/quick-start', label: 'Quick Start' },
     { href: '/guide', label: 'Guide' },

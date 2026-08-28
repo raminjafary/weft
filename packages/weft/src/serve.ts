@@ -432,6 +432,22 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     store,
     runtime: () => table().boot,
     preload: () => preloads,
+    /**
+     * The path a pattern answers with these params filled in, as an absolute canonical link.
+     *
+     * Built from the pattern rather than from the request, because the canonical URL of a page is
+     * the one the route defines — a request carrying a tracking parameter or an alternate casing
+     * still belongs to the same page, and saying so is the entire point of the tag.
+     */
+    canonical: (pattern, params) => {
+      if (!config.origin) return ''
+      const path = pattern.replace(/:([A-Za-z0-9_]+)/g, (_, name: string) => params[name] ?? `:${name}`)
+      const href = `${config.origin.replace(/\/+$/, '')}${path}`
+      const safe = href.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+      // Both tags, because both are the same claim: this page's identity is the URL its route
+      // defines. What a *share card* says about it is the application's, and stays in its layout.
+      return `<link rel="canonical" href="${safe}"><meta property="og:url" content="${safe}">`
+    },
     brand: basename(root) || 'weft',
   })
 

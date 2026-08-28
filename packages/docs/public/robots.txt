@@ -6,3 +6,7 @@ Allow: /
 # the combinations that are not, because there is no end to them and each one costs a render.
 Disallow: /play?
 Disallow: /search?
+
+# Written by `weft site` from the documents it actually published, so it cannot name a page
+# that does not exist or miss one that does.
+Sitemap: https://weft-rr7.vercel.app/sitemap.xml

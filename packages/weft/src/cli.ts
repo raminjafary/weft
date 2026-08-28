@@ -197,10 +197,18 @@ async function main(): Promise<number> {
       return 2
     }
     const config = await loadConfig(root, overrides)
-    const report = await writeSite(join(root, config.outDir), resolve(to))
+    const report = await writeSite(
+      join(root, config.outDir),
+      resolve(to),
+      config.origin ? { origin: config.origin } : {},
+    )
     out(
       `\n  wrote ${report.out} — ${report.documents} documents, ${report.assets} assets, ` +
-        `${report.bytes} bytes\n\n  Every URL a page references resolves inside it. Point a static host here.\n`,
+        `${report.bytes} bytes\n` +
+        (report.sitemap
+          ? `  sitemap.xml — ${report.sitemap.urls} urls, from what was published rather than a list somebody maintains\n`
+          : `  no sitemap — set \`site: { origin }\` in weft.config.ts and one is written from the routes that were built\n`) +
+        `\n  Every URL a page references resolves inside it. Point a static host here.\n`,
     )
     return 0
   }

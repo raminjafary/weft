@@ -31,6 +31,8 @@ interface ShellProps {
    * not load or miss one it does.
    */
   preload: string
+  /** `<link rel="canonical">`, or empty when no origin is configured. Supplied by the framework. */
+  canonical: string
 }
 
 /**
@@ -46,7 +48,20 @@ interface ShellProps {
  * upgrades it to a ⌘K dropdown afterwards, and the form underneath it keeps working either way.
  */
 export default fragment(
-  ({ title, description, css, runtime, nav, body, versions, repo, boot, prelude, preload }: ShellProps) => (
+  ({
+    title,
+    description,
+    css,
+    runtime,
+    nav,
+    body,
+    versions,
+    repo,
+    boot,
+    prelude,
+    preload,
+    canonical,
+  }: ShellProps) => (
     <>
       {raw('<!doctype html>')}
       <html lang="en">
@@ -74,6 +89,15 @@ export default fragment(
           <link rel="stylesheet" href={css} />
           <script type="module" src={runtime} />
           {raw(preload)}
+          {raw(canonical)}
+          {/* What a share card says. The URL half is the framework's, in `canonical` above. */}
+          <meta property="og:type" content="website" />
+          <meta property="og:site_name" content="weft" />
+          <meta property="og:title" content={title} />
+          <meta property="og:description" content={description} />
+          <meta name="twitter:card" content="summary" />
+          <meta name="twitter:title" content={title} />
+          <meta name="twitter:description" content={description} />
           {raw(boot)}
         </head>
         <body>

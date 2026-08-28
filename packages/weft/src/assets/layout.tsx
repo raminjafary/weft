@@ -13,6 +13,8 @@ interface LayoutProps {
   runtime: string
   /** Every module this page will fetch, as preload links. Supplied by the framework. */
   preload: string
+  /** `<link rel="canonical">`, or empty when no origin is configured. */
+  canonical: string
   brand: string
   nav: NavItem[]
   header: string
@@ -33,7 +35,19 @@ interface LayoutProps {
  * fills, whatever they are called.
  */
 export default fragment(
-  ({ title, description, css, runtime, preload, brand, nav, header, body, footer }: LayoutProps) => (
+  ({
+    title,
+    description,
+    css,
+    runtime,
+    preload,
+    canonical,
+    brand,
+    nav,
+    header,
+    body,
+    footer,
+  }: LayoutProps) => (
     <>
       {raw('<!doctype html>')}
       <html lang="en">
@@ -45,6 +59,7 @@ export default fragment(
           <link rel="stylesheet" href={css} />
           <script type="module" src={runtime} />
           {raw(preload)}
+          {raw(canonical)}
         </head>
         <body>
           <header class="weft-top">

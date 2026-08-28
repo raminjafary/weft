@@ -139,6 +139,15 @@ export interface WeftConfig {
    */
   instances?: number
   /**
+   * Where this application is served from, for the things that are absolute by specification.
+   *
+   * A sitemap's entries and a canonical link are both absolute URLs, and the origin is the one
+   * thing a build genuinely cannot derive: the same output is served from a preview URL, a staging
+   * host and a domain, and guessing would put the wrong one in a file crawlers read. Unset, no
+   * sitemap is written and no canonical is emitted — an absence rather than a guess.
+   */
+  site?: { origin?: string }
+  /**
    * How an invalidation reaches the instances this one is not.
    *
    * Needed exactly when `instances` is more than one, and inert when it is one. Unbound,
@@ -224,6 +233,8 @@ export interface ResolvedConfig extends Required<Pick<WeftConfig, 'srcDir' | 'ou
   channelHold: boolean
   /** How many instances run at once. See `WeftConfig.instances`. */
   instances: number
+  /** Where this application is served from. See `WeftConfig.site`. */
+  origin?: string
   /** Cross-instance invalidation. See `WeftConfig.fanout`. */
   fanout?: FanoutPort
   /** Where an invalidation waits for a turn. See `WeftConfig.journal`. */
@@ -323,6 +334,7 @@ export async function loadConfig(root: string, overrides: WeftConfig = {}): Prom
     channelPath: config.channel?.path ?? '/_weft/channel',
     channelHold: config.channel?.hold ?? true,
     instances: config.instances ?? 1,
+    ...(config.site?.origin ? { origin: config.site.origin } : {}),
     ...(config.fanout ? { fanout: config.fanout } : {}),
     ...(config.journal ? { journal: config.journal } : {}),
     scroll: config.navigation?.scroll === 'preserve' ? 'preserve' : 'top',

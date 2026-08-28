@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, readdir, rm, stat } from 'node:fs/promises'
+import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, sep } from 'node:path'
 import { cacheControl, typeOf } from './assets.ts'
 import { STATIC_DIR, type StaticManifest } from './static.ts'
@@ -128,6 +128,37 @@ export interface SiteReport {
   documents: number
   assets: number
   bytes: number
+  /** Whether a sitemap was written, and how many URLs it names. Absent when no origin was given. */
+  sitemap?: { urls: number }
+}
+
+/**
+ * Every document this build answers, as a sitemap.
+ *
+ * The route table is the framework's, and so is the set of URLs a build actually wrote — which is
+ * why a hand-maintained sitemap in `public/` is a list that is wrong the first time somebody adds
+ * a page. This is generated from the objects that were published, so it cannot name a URL that does
+ * not exist or miss one that does.
+ *
+ * Documents only. An asset is not a page and listing revved bundles would be telling a crawler to
+ * index the contents of a cache.
+ *
+ * It needs an origin because a sitemap's entries are absolute by specification, and an origin is
+ * the one thing a build genuinely cannot know: the same output is served from a preview URL, a
+ * staging host and a domain. So it is `site.origin` in the config, and without it no sitemap is
+ * written rather than one full of guesses.
+ */
+export function sitemapFor(objects: readonly SiteObject[], origin: string): string {
+  const base = origin.replace(/\/+$/, '')
+  const urls = objects
+    .filter((object) => !object.immutable)
+    .map((object) => `${base}${object.href}`)
+    .sort()
+  return (
+    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+    urls.map((url) => `  <url><loc>${url.replace(/&/g, '&amp;')}</loc></url>\n`).join('') +
+    `</urlset>\n`
+  )
 }
 
 /**
@@ -138,7 +169,11 @@ export interface SiteReport {
  * needs no rules applied to it: the documents are at the paths they answer and every URL they
  * reference resolves beside them.
  */
-export async function writeSite(dir: string, out: string): Promise<SiteReport> {
+export async function writeSite(
+  dir: string,
+  out: string,
+  options: { origin?: string } = {},
+): Promise<SiteReport> {
   const objects = await siteObjects(dir)
   // Emptied first, and the directory is the one the caller named. A page deleted from an
   // application is a file left behind here otherwise — still reachable, still linked from
@@ -151,10 +186,19 @@ export async function writeSite(dir: string, out: string): Promise<SiteReport> {
     await cp(object.file, target)
     bytes += (await stat(object.file)).size
   }
+  let sitemap: { urls: number } | undefined
+  if (options.origin) {
+    const xml = sitemapFor(objects, options.origin)
+    await writeFile(join(out, 'sitemap.xml'), xml, 'utf8')
+    bytes += Buffer.byteLength(xml)
+    sitemap = { urls: objects.filter((object) => !object.immutable).length }
+  }
+
   return {
     out,
     documents: objects.filter((object) => !object.immutable).length,
     assets: objects.filter((object) => object.immutable).length,
     bytes,
+    ...(sitemap ? { sitemap } : {}),
   }
 }
