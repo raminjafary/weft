@@ -12,20 +12,9 @@ import { frame, HELD_ONLY, reservedHeader, type Frame } from '@weftjs/warp'
 import type { StorePort } from './ports.ts'
 
 /**
- * Surgical updates without a stateful server.
- *
- * LiveView is the strongest prior art here and the one thing it structurally cannot do is
- * the whole opportunity: it holds the previous render in a process per connected user, so
- * a diff is computed per connection and can never be shared. Ten thousand users watching
- * one price list produce ten thousand identical diffs.
- *
- * Keep the render state on the client instead. The client names the base render it holds;
- * the server recovers that base from the store, recomputes, and emits the delta. Any
- * stateless isolate anywhere can serve it, and because the delta is a pure function of two
- * content-addressed states it is cacheable by exactly the machinery that already exists —
- * one computation, ten thousand deliveries.
- *
- * Every step degrades, which is what makes it deployable rather than clever.
+ * Surgical updates without a stateful server: the client names the base render it holds, the
+ * server recomputes and emits the delta, and any stateless isolate can serve it. See
+ * `spec/kernel/surgical.md`.
  */
 export interface Held {
   slot: string
@@ -46,13 +35,8 @@ export function parseHeld(f: Frame): Held[] {
 }
 
 /**
- * What the client is showing, per slot — and, with `only`, that this is the whole of it.
- *
- * Without `only` a HELD frame adds to what the server believes, which is right for a client that
- * is telling it about one more region. It is wrong for a client that has *navigated*: slot names
- * belong to a page, so the previous page's `sidebar` would sit in the map forever, be refreshed
- * by a REFRESH that names no slots, and be told it was stale by an invalidation about a page
- * nobody is on. `only` says the client is somewhere else now and this is everything it holds.
+ * What the client is showing, per slot — and, with `only`, that this is the whole of it. `only`
+ * says the client has navigated: slot names belong to a page. See `spec/kernel/transport.md`.
  */
 export function heldFrame(held: readonly Held[], options: { only?: boolean } = {}): Frame {
   const header: Record<string, string | boolean> = {}
@@ -83,31 +67,18 @@ export interface FormInput {
   /** Measured round trip. High RTT favours one payload over N chunk fetches. */
   rttMs?: number
   /**
-   * The frame will carry an epoch, so it is held unpainted until a commit.
-   *
-   * `patch` is refused here, and it is the one form whose exclusion is about *when* rather than
-   * what: a delta addresses a binding, which does not move, and a patch addresses a path and a
-   * marker ordinal, which another epoch's commit can move under it. A stale address writes a
-   * value into the wrong node, so a form that cannot be held is not offered for holding.
+   * The frame will carry an epoch, so it is held unpainted until a commit. `patch` is refused
+   * here: it addresses a path another epoch's commit can move under it.
    */
   staged?: boolean
-  /**
-   * Whether this deployment included the patch encoder.
-   *
-   * A seam rather than a policy, for the reason stampede coalescing is one: the rung costs bytes
-   * on every entry that carries the refresh path, and a deployment whose regions are all
-   * projectable never reaches it. Without one the ladder has the rung missing and says so, which
-   * is the difference between a degradation and a silence.
-   */
+  /** Whether this deployment included the patch encoder. A seam: without one the rung is missing
+   * and says so, rather than silently degrading. */
   encodesPatch?: boolean
 }
 
 /**
- * The degradation ladder, and it is two rungs rather than the design's three. The `data`
- * form was cut in IR 2.0.0 after measurement — 1% smaller after brotli and slower to apply
- * than `html` — so a client that holds the template but whose base render the server cannot
- * recover falls straight to `html` rather than to a projected value set. See
- * `spec/FINDINGS.md`.
+ * The degradation ladder: two rungs rather than the design's three. `data` was cut in IR 2.0.0
+ * after measurement. See `spec/FINDINGS.md`.
  */
 export function selectForm(input: FormInput): FormChoice {
   const can = (form: WireForm): boolean =>
@@ -125,12 +96,8 @@ export function selectForm(input: FormInput): FormChoice {
   if (input.resident && input.baseRecovered && can('delta')) {
     return { form: 'delta', reason: 'template resident and base recovered: only changed values travel' }
   }
-  /**
-   * The rung the ladder was missing. A template whose values are not projectable — a `raw()`
-   * value, an isolated instance, a `slot` hole — cannot serve a delta however much the client
-   * holds, and used to fall the whole way to markup on every refresh. A patch addresses the DOM
-   * structurally instead, so what travels is the holes that changed rather than the region.
-   */
+  // The rung the ladder was missing: a template whose values are not projectable used to fall
+  // the whole way to markup on every refresh.
   if (input.resident && input.baseRecovered && can('patch')) {
     return {
       form: 'patch',
@@ -181,16 +148,8 @@ export function deltaKey(tpl: string, from: string, to: string): string {
 }
 
 /**
- * How long a recovered base render and a memoized delta live.
- *
- * Both were written with no expiry, which for a shared store means every distinct value set ever
- * rendered accumulates forever. It looked harmless because `memoryStore` is byte-bounded and
- * evicts; a Redis or KV adapter would not.
- *
- * A TTL here is safe in a way a TTL on a cache entry is not: an expired base costs a **form**,
- * never correctness. The client names a base the server can no longer recover, `selectForm`
- * falls to `html`, and the page is right. So the ceiling can be short, and the only thing a
- * short one costs is delta hit rate.
+ * How long a recovered base render and a memoized delta live. A TTL here is safe in a way a cache
+ * TTL is not: an expired base costs a **form**, never correctness. See `spec/kernel/surgical.md`.
  */
 export interface RefreshTtl {
   /** Default fifteen minutes: long enough for an idle tab, short enough to bound the store. */
@@ -199,11 +158,8 @@ export interface RefreshTtl {
 }
 
 /**
- * How long a base render and a memoised delta are kept.
- *
- * Fifteen minutes each, and configurable per deployment. A base nobody can recover means the next
- * refresh falls back to `html`, which is correct and larger — so this is a memory-for-bytes trade
- * rather than a correctness one.
+ * How long a base render and a memoised delta are kept. A memory-for-bytes trade, never a
+ * correctness one.
  */
 export const DEFAULT_REFRESH_TTL: Required<RefreshTtl> = {
   baseMs: 15 * 60_000,
@@ -254,21 +210,11 @@ export interface SurgicalInput {
   ttl?: RefreshTtl
   /** The frame will carry an epoch. See `FormInput.staged`: a patch is not held. */
   staged?: boolean
-  /**
-   * The patch encoder, when this deployment includes it. `patchPayload` from `@weftjs/ir` is the
-   * implementation; passing it is what puts the second rung on the ladder. See
-   * `entry-patch.ts` for what it costs.
-   */
+  /** The patch encoder, when this deployment includes it. `patchPayload` from `@weftjs/ir`. */
   patch?: PatchEncoder
 }
 
-/**
- * How a patch is encoded, supplied rather than imported.
- *
- * A seam for a byte budget: written into this module the encoder took four watermarks past their
- * ceilings, so it arrives through here and is measured under `entry-patch.ts`. A deployment whose
- * regions are all projectable never imports it.
- */
+/** How a patch is encoded, supplied rather than imported — a seam for the byte budget. */
 export type PatchEncoder = (
   ir: TemplateIR,
   base: string,
@@ -291,9 +237,8 @@ export interface SurgicalResult {
 }
 
 /**
- * The whole flow, end to end: recover, recompute, diff, memoize, emit. The memoization is
- * the part that matters — the delta is keyed by the transition, not by the connection, so
- * the ten-thousandth client to make the same transition pays a store read.
+ * The whole flow, end to end: recover, recompute, diff, memoize, emit — keyed by the transition,
+ * not the connection, so the ten-thousandth client making it pays a store read.
  */
 export async function surgicalRefresh(input: SurgicalInput): Promise<SurgicalResult> {
   const held = input.held
@@ -314,12 +259,8 @@ export async function surgicalRefresh(input: SurgicalInput): Promise<SurgicalRes
 
   const nextBase = await recordBase(input.store, input.ir, input.next, input.ttl ?? {})
 
-  /**
-   * The two surgical forms, on one path. They differ in what they encode and in nothing else:
-   * both are a pure function of two content-addressed states, both are memoized under the
-   * transition, and both degrade to markup when the pieces are not there. Two branches would be
-   * two places for that to stop being true.
-   */
+  // The two surgical forms, on one path: both are a pure function of two content-addressed
+  // states, both memoized under the transition.
   const surgicalForm = choice.form === 'delta' || choice.form === 'patch' ? choice.form : undefined
   const encode = surgicalForm === 'delta' ? deltaPayload : input.patch
   if (surgicalForm && encode && prev && held) {
@@ -328,8 +269,8 @@ export async function surgicalRefresh(input: SurgicalInput): Promise<SurgicalRes
       payloadKey(surgicalForm, input.ir.version, held.base, nextBase),
       () => encode(input.ir, held.base, prev, input.next, input.resolve),
     )
-    // The patch body carries its writes and its opaque paths, because a client applying one may
-    // hold no copy of the template — everything it needs to find a node is in the frame.
+    // The patch body carries its writes and opaque paths: a client applying one may hold no
+    // copy of the template.
     const body = value.form === 'delta' ? value.changed : { opaque: value.opaque, writes: value.writes }
     return {
       choice,
@@ -354,10 +295,8 @@ export async function surgicalRefresh(input: SurgicalInput): Promise<SurgicalRes
 }
 
 /**
- * Read it, or compute it and record it. One helper rather than a branch per form, because the
- * two are the same operation on the same key space: a payload named by the transition it encodes
- * is shared by every client making that transition, which is the whole argument for
- * content-addressing the design.
+ * Read it, or compute it and record it. One helper rather than a branch per form: both are the
+ * same operation on the same key space.
  */
 async function shared<T>(
   input: SurgicalInput,
@@ -393,10 +332,8 @@ function payload(
 }
 
 /**
- * Invalidation travelling the other way. When a tag is invalidated the store names the keys
- * it dropped, and every open connection holding one of them is told — the client then
- * decides whether to refresh now, on next focus, or never. Push invalidation of
- * server-rendered regions without turning the application into a realtime app.
+ * Invalidation travelling the other way: every connection holding a dropped key is told, and the
+ * client decides whether to refresh. See `spec/kernel/transport.md`.
  */
 export interface StaleRegistry {
   hold(connection: string, slot: string, key: string): void
@@ -404,14 +341,8 @@ export interface StaleRegistry {
   /** Frames to push, grouped by connection. */
   staleFor(keys: readonly string[], reason: string): Map<string, Frame[]>
   /**
-   * The slots one connection holds under any of these keys.
-   *
-   * The same question `staleFor` answers, asked about one connection — and it exists because of the
-   * connection `staleFor` is always asked to skip. A `STALE` is a note about a value that has gone
-   * old, and the connection that ran the intent is excluded from it on the grounds that it is being
-   * handed the new values instead. That is true only of the slots the intent named in `refresh`, so
-   * an intent that declared its writes and nothing else left exactly one client stale: the one
-   * whose reader had just pressed the button.
+   * The slots one connection holds under any of these keys — the same question `staleFor` answers,
+   * for the connection it is always asked to skip. See `spec/kernel/transport.md`.
    */
   holding(connection: string, keys: readonly string[]): string[]
   readonly connections: number

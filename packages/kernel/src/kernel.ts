@@ -254,9 +254,8 @@ export function createKernel(options: KernelOptions): Kernel {
     await route.envelope?.(phaseA)
     options.ports.telemetry?.mark('envelope.end', performance.now())
 
-    // Still phase A: the plan resolves and the derived headers are written while the
-    // envelope is open, because `Cache-Control` and `Vary` come from the same effect
-    // signature that produced the keys and there is no later moment they could be added.
+    // Still phase A: the derived headers are written while the envelope is open — there is no
+    // later moment they could be added.
     const keys = await resolveAll(route, facts, options.ports)
     const document = route.shell
       ? await resolveKey(
@@ -335,15 +334,8 @@ export function createKernel(options: KernelOptions): Kernel {
           slot: slot.name,
           code: outcome.failure.code,
         })
-        /**
-         * `onExceed: 'stale'`, meant literally.
-         *
-         * The last good render of this slot is the expired entry under its own key — so there is no
-         * second key, no second write, and nothing on the success path pays for the possibility. The
-         * store is asked to read past the TTL exactly once, by the request that has already failed
-         * and whose only other answer is a placeholder. An *invalidated* entry is gone and stays
-         * gone: expiry means possibly out of date, invalidation means known to be wrong.
-         */
+        // `onExceed: 'stale'`, meant literally: the last good render is the expired entry under its
+        // own key, so nothing on the success path pays for the possibility.
         const policy = slot.onExceed ?? 'placeholder'
         const last =
           policy === 'stale' && resolved.key
@@ -471,13 +463,8 @@ function emptyTrace(): KernelTrace {
 }
 
 /**
- * One slot's bytes, awaited by the stream and opened by the render.
- *
- * It has to be able to fail. A slot whose render throws — which is exactly what
- * `onExceed: 'fail'` is for — would otherwise leave this promise pending forever, and the stream
- * awaiting it would never close: the shell and every other slot would be on the wire and the
- * response would simply never end. A request that has already failed and does not say so is the
- * one outcome indistinguishable from a hung server.
+ * One slot's bytes, awaited by the stream and opened by the render. Has to be able to fail — a
+ * pending promise would leave the response never ending, indistinguishable from a hung server.
  */
 interface Gate {
   open(bytes: Uint8Array): void
@@ -515,9 +502,8 @@ async function resolveAll(
 }
 
 /**
- * The document's own headers. `Vary` is the union of every slot's, because the document
- * contains all of them; `Cache-Control` is the route's declared policy checked against the
- * strictest class among its slots, so one private region cannot be advertised as public.
+ * The document's own headers. `Vary` is the union of every slot's; `Cache-Control` is checked
+ * against the strictest class among its slots.
  */
 function routeHeaders(
   route: KernelRoute,
