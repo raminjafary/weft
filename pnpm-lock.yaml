@@ -127,7 +127,7 @@ importers:
         specifier: 0.146.0
         version: 0.146.0
       typescript:
-        specifier: '>=5.7.0'
+        specifier: '>=7.0.0'
         version: 7.0.2
     devDependencies:
       '@weftjs/core':
