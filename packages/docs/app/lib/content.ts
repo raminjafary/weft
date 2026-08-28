@@ -105,6 +105,12 @@ weft dev`,
   styles.css              appended after the framework's own
 weft.config.ts            what this deployment binds`,
     ) +
+    prose(
+      'Every path in that tree, with what the framework does with it, is on ' +
+        '<a href="/reference/directories">the files and directories reference</a> — parsed out of the ' +
+        'walk that implements the convention, so a path the framework stops recognising stops being ' +
+        'listed.',
+    ) +
     heading('Two files, one route', 'two-files') +
     prose(
       'A route is a <code>.tsx</code>, or a <code>.data.ts</code> that says what renders its body, or ' +
@@ -468,6 +474,11 @@ export default defineRoute({
 })`,
     ) +
     heading('What a slot may declare', 'slot-fields') +
+    prose(
+      'Nine of them, which are the ones worth meeting first. The other seven — and every field a ' +
+        '<em>route</em> may declare, with its type and its default — are on ' +
+        '<a href="/reference/route">the <code>defineRoute</code> reference</a>.',
+    ) +
     table(
       ['Field', 'What it decides'],
       [
@@ -504,6 +515,13 @@ export default defineRoute({
         'nothing becomes a file at build time without asking.',
       'And the part that is about <em>time</em> can come from a measurement rather than from you — see ' +
         '<a href="/guide/measuring">a plan generated from measurement</a>.',
+    ) +
+    note(
+      'why',
+      'Every field, with its type and its default',
+      'This page is the argument. The reference is the list: /reference/route has an entry for every ' +
+        'field of a route, a slot, a cache policy, a budget, a region and a head — read out of the ' +
+        'interfaces the build checks against, so it cannot be missing one.',
     ),
 
   'the-client': () =>
@@ -591,6 +609,13 @@ export const add = defineIntent<{ sku: string; qty: number }>({
           'The client stages its guess in an epoch; success replaces it with the truth in one paint, failure discards it.',
         ],
       ],
+    ) +
+    prose(
+      'Every field an intent may declare — <code>reads</code>, <code>capabilities</code>, ' +
+        '<code>signed</code>, <code>limit</code>, <code>invalidatesAll</code> — is on ' +
+        '<a href="/reference/intent">the <code>defineIntent</code> reference</a>, along with ' +
+        '<a href="/reference/renderable"><code>defineRenderable</code></a>, which is the same shape for ' +
+        'the other thing a client may ask this deployment to do.',
     ) +
     note(
       'refused',
@@ -1249,6 +1274,13 @@ export default defineConfig({
   executors: { 'pool:heavy': workerPool({ size: 4 }) },
   flags: { 'new-cart': ['off', 'on'] },
 })`,
+    ) +
+    prose(
+      'Those four are the ones an application reaches for first. There are twenty-nine, and every one ' +
+        'of them — with what it accepts, what it defaults to and a line showing the shape — is on ' +
+        '<a href="/reference/config">the <code>weft.config.ts</code> reference</a>. ' +
+        '<a href="/reference/ports">Every port</a> is there too, with what implements it and which key ' +
+        'binds it.',
     ) +
     heading('Ports replace, plugins extend', 'ports-plugins') +
     prose(

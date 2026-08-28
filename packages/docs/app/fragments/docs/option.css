@@ -1,0 +1,132 @@
+/**
+ * One reference entry, and the vocabulary shared by the six pages that draw them.
+ *
+ * Linked only where `docs/option.tsx` renders, which is the reference section and nowhere else —
+ * the rest of the site pays nothing for a component it does not compose.
+ *
+ * The layout is a rule, a name, a two-row meta grid and the prose: the same shape the API entry
+ * beside it uses, because a reader moving between `/reference/config` and `/api/weft` should not
+ * have to re-learn where the type is. What is different is the meta grid. An option's two facts —
+ * what it accepts, what it is without you — are the two somebody came for, so they sit above the
+ * argument rather than inside it.
+ *
+ * Every value is spent from `styles.css`; this file defines none.
+ */
+
+.option {
+  border-block-start: 1px solid var(--line);
+  padding-block-start: 20px;
+  margin-block-start: 30px;
+  scroll-margin-top: calc(var(--head-h) + 20px);
+}
+
+.option-head {
+  margin: 0;
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-size: 19px;
+  font-family: var(--mono);
+}
+
+.option-head code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+  color: var(--ink);
+}
+
+/** `optional` is the common case and says so quietly; `required` is the one worth seeing. */
+.option-req {
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.option-req.is-required {
+  color: var(--accent-ink);
+  background: var(--accent-quiet);
+  border: 1px solid var(--accent-edge);
+  border-radius: var(--r-pill);
+  padding: 2px 8px;
+  letter-spacing: 0.07em;
+}
+
+.option-meta {
+  margin: 13px 0 0;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+/** `display: contents`, so the two labels align against one another across both rows. */
+.option-row {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+}
+
+.option-meta dt {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.option-meta dd {
+  margin: 0;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.option-meta dd code {
+  white-space: pre;
+}
+
+.option-doc {
+  margin-block-start: 14px;
+}
+
+.option-doc p {
+  font-size: 14px;
+  line-height: 1.65;
+  max-width: 78ch;
+  margin: 0 0 10px;
+}
+
+.option-doc p:last-child {
+  margin-block-end: 0;
+}
+
+.option-example,
+.option-members {
+  margin-block-start: 14px;
+}
+
+/** Tighter than a prose figure: it is a line or two, not a file. */
+.option-example figure {
+  margin: 0;
+}
+
+.option-example:has(.none) {
+  margin-block-start: 0;
+}
+
+/** A falsy branch writes nothing, so the wrapper is what keeps the margin off an absent table. */
+.option-members:has(.none) {
+  margin-block-start: 0;
+}
+
+@media (width < 700px) {
+  .option-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}

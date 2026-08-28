@@ -22,6 +22,7 @@ const EMPTY: Block = {
   isNote: false,
   isTable: false,
   isFigure: false,
+  isOption: false,
   paragraphs: [],
   text: '',
   id: '',
@@ -35,6 +36,13 @@ const EMPTY: Block = {
   lang: '',
   sketch: false,
   html: '',
+  name: '',
+  optionType: '',
+  fallback: '',
+  requirement: '',
+  hasMembers: '',
+  example: '',
+  hasExample: '',
 }
 
 /** Paragraphs of authored prose. The inline markup is this repository's, and travels as it is. */
@@ -83,6 +91,42 @@ export function figure(lang: string, source: string, caption: string): Block {
 /** A sketch: quoted, never compiled, and the caption says so. */
 export function sketch(lang: string, source: string): Block {
   return { ...figure(lang, source, 'sketch — not compiled'), kind: 'sketch' }
+}
+
+/**
+ * One reference entry: a field, what it accepts, what it is without you, and why.
+ *
+ * The doc paragraphs arrive already escaped with backticks turned into `<code>` — see `docHtml` in
+ * `declared.ts`. Everything else is a value and the compiler escapes it.
+ */
+export function option(entry: {
+  name: string
+  id: string
+  type: string
+  fallback: string
+  required: boolean
+  paragraphs: readonly string[]
+  members?: readonly (readonly Cell[])[]
+  /** A line or two showing the shape. Highlighted here, so the block carries markup to trust. */
+  example?: string
+}): Block {
+  const members = entry.members ?? []
+  return {
+    ...EMPTY,
+    kind: 'option',
+    isOption: true,
+    name: entry.name,
+    id: entry.id,
+    optionType: entry.type,
+    fallback: entry.fallback,
+    requirement: entry.required ? 'required' : 'optional',
+    paragraphs: entry.paragraphs.map((html) => ({ html })),
+    headers: members.length ? ['Field', 'Type', 'Default'] : [],
+    rows: members.map((cells) => ({ cells: [...cells] })),
+    hasMembers: members.length ? 'yes' : '',
+    example: entry.example ? highlight('ts', entry.example.trim()) : '',
+    hasExample: entry.example ? 'yes' : '',
+  }
 }
 
 /**

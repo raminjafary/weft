@@ -44,6 +44,7 @@ export default defineConfig({
     { href: '/guide', label: 'Guide' },
     { href: '/tutorial', label: 'Tutorial' },
     { href: '/examples', label: 'Examples' },
+    { href: '/reference', label: 'Reference' },
     { href: '/api', label: 'API' },
     { href: '/glossary', label: 'Glossary' },
     { href: '/errors', label: 'Errors' },

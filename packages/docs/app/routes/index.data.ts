@@ -5,6 +5,10 @@ import { exampleCount } from '../lib/content.ts'
 import { errorCodes } from '../lib/errors.ts'
 import { surface } from '../lib/surface.ts'
 import { PAGES } from '../lib/pages.ts'
+import { REFERENCES } from '../lib/reference.ts'
+import { fieldCount } from '../lib/reference.ts'
+import { ports } from '../lib/ports.ts'
+import { conventionRows } from '../lib/conventions.ts'
 import { TERMS } from '../lib/glossary.ts'
 
 /**
@@ -40,6 +44,13 @@ export default defineRoute({
           terms: TERMS.length,
           templates: Object.keys(allFragments()).length,
           pages: PAGES.length,
+          fields:
+            REFERENCES.filter((reference) => reference.kind === 'declaration').reduce(
+              (sum, reference) => sum + fieldCount(reference),
+              0,
+            ) +
+            ports().length +
+            conventionRows().length,
         }),
     },
   },

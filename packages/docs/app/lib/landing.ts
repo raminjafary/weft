@@ -2,6 +2,7 @@ import { escapeHtml } from './escape.ts'
 import { highlight } from './highlight.ts'
 import { barChart, chartBlock, wireBars } from './figures.ts'
 import { candidate, figure, measured as benchRow, run } from './bench.ts'
+import { SECTIONS } from './sections.ts'
 
 /**
  * The landing page's body.
@@ -25,6 +26,8 @@ export interface Counts {
   terms: number
   templates: number
   pages: number
+  /** Every field the reference documents, across its six pages. */
+  fields: number
 }
 
 interface Tab {
@@ -397,55 +400,42 @@ function wire(): string {
   </section>`
 }
 
+/**
+ * The way in, as a card per section.
+ *
+ * The bodies say a number where there is one worth saying, and fall back to the section's own
+ * blurb where there is not — so a section added to `sections.ts` appears here rather than being
+ * added twice. The line under the heading counts what it is describing for the same reason: it
+ * read "nine sections; four generated" for as long as there were eight, because a sentence about a
+ * list is a copy of the list.
+ */
+const DECK: Record<string, (counts: Counts) => string> = {
+  '/guide': (counts) =>
+    `${counts.pages} pages in order: fragments, layouts, effects, streaming, the client, intents, live regions, composition, operating it.`,
+  '/examples': (counts) =>
+    `All ${counts.examples} live fragments on this site, with their source and what the compiler knows about them.`,
+  '/reference': (counts) =>
+    `${counts.fields} fields across six pages — every option of weft.config.ts, every field of a route, an intent, a renderable — with what each accepts and defaults to.`,
+  '/api': (counts) =>
+    `${counts.exports} importable names across ${counts.modules} modules, read out of each public entry.`,
+  '/errors': (counts) =>
+    `${counts.codes} named refusals, each with the message it raises and the file that raises it.`,
+  '/glossary': (counts) => `${counts.terms} words this framework uses in a way another framework does not.`,
+}
+
 function start(counts: Counts): string {
-  const cards = [
-    {
-      href: '/quick-start',
-      title: 'Quick Start',
-      body: 'One command, three files, and a page that streams. Ten minutes.',
-    },
-    {
-      href: '/guide',
-      title: 'Guide',
-      body: `${counts.pages} pages in order: fragments, layouts, effects, streaming, the client, intents, live regions, composition, operating it.`,
-    },
-    {
-      href: '/tutorial',
-      title: 'Tutorial',
-      body: 'Build one real page from nothing, a step at a time, and watch what each step costs.',
-    },
-    {
-      href: '/examples',
-      title: 'Examples',
-      generated: true,
-      body: `All ${counts.examples} live fragments on this site, with their source and what the compiler knows about them.`,
-    },
-    {
-      href: '/api',
-      title: 'API',
-      generated: true,
-      body: `${counts.exports} importable names across ${counts.modules} modules, read out of each public entry.`,
-    },
-    {
-      href: '/errors',
-      title: 'Error Reference',
-      generated: true,
-      body: `${counts.codes} named refusals, each with the message it raises and the file that raises it.`,
-    },
-  ]
+  const derived = SECTIONS.filter((section) => section.derived).length
   return `<section class="deck">
     <div class="deck-head">
       <h2>Where to start</h2>
-      <span class="hint">nine sections; four generated from the source, so they cannot drift</span>
+      <span class="hint">${SECTIONS.length} sections; ${derived} generated from the source, so they cannot drift</span>
     </div>
-    <div class="deck-grid">${cards
-      .map(
-        (card) => `<a class="card" href="${enc(card.href)}">
-          <h3>${enc(card.title)}${card.generated ? '<span class="badge">generated</span>' : ''}</h3>
-          <p>${enc(card.body)}</p>
+    <div class="deck-grid">${SECTIONS.map(
+      (section) => `<a class="card" href="${enc(section.href)}">
+          <h3>${enc(section.label)}${section.derived ? '<span class="badge">generated</span>' : ''}</h3>
+          <p>${enc(DECK[section.href]?.(counts) ?? section.blurb)}</p>
         </a>`,
-      )
-      .join('')}</div>
+    ).join('')}</div>
   </section>`
 }
 

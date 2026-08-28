@@ -44,6 +44,13 @@ export const SECTIONS: readonly Section[] = [
     derived: true,
   },
   {
+    href: '/reference',
+    label: 'Reference',
+    blurb:
+      'Every field of every declaration — weft.config.ts, a route, an intent, the folder convention, the ports — with what it accepts and what it defaults to.',
+    derived: true,
+  },
+  {
     href: '/api',
     label: 'API',
     blurb: 'Every export of every package, read out of the source so it cannot drift.',

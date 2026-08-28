@@ -4,6 +4,9 @@ import { PARTS, STEPS } from './tutorial.ts'
 import { errorsByPackage, errorByCode } from './errors.ts'
 import { TERMS, slug } from './glossary.ts'
 import { GROUPS, PAGES } from './pages.ts'
+import { fieldCount, REFERENCES } from './reference.ts'
+import { conventionRows } from './conventions.ts'
+import { ports } from './ports.ts'
 
 /**
  * The values behind `fragments/docs/contents.tsx`, one function per section.
@@ -216,4 +219,40 @@ export function tutorialContents(current?: string): ContentsGroup[] {
       current: step.slug === current ? HERE : ELSEWHERE,
     })),
   })).filter((group) => group.items.length > 0)
+}
+
+/**
+ * The reference's rail: what you write, with how many fields each one has.
+ *
+ * The count is the useful number here in a way it is not on the API rail, where it says how big a
+ * package is. Here it says how much there is to know before you have decided anything — twenty-nine
+ * for the config, twenty-eight for a route — and that is what somebody deciding which page to open
+ * is actually weighing.
+ */
+export function referenceContents(current?: string): ContentsGroup[] {
+  return [
+    {
+      label: 'What you write',
+      items: [
+        {
+          label: 'All references',
+          href: '/reference',
+          count: String(REFERENCES.length),
+          current: current === undefined ? HERE : ELSEWHERE,
+        },
+        ...REFERENCES.map((reference) => ({
+          label: reference.label,
+          href: `/reference/${reference.id}`,
+          count: String(
+            reference.kind === 'declaration'
+              ? fieldCount(reference)
+              : reference.kind === 'ports'
+                ? ports().length
+                : conventionRows().length,
+          ),
+          current: reference.id === current ? HERE : ELSEWHERE,
+        })),
+      ],
+    },
+  ]
 }

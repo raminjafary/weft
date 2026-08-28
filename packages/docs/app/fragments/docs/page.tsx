@@ -1,5 +1,6 @@
 import { fragment, raw } from '@weftjs/core'
 import Note from './note.tsx'
+import Option from './option.tsx'
 import Table from './table.tsx'
 import type { Cell } from './table.tsx'
 
@@ -17,6 +18,7 @@ export interface Block {
   isNote: boolean
   isTable: boolean
   isFigure: boolean
+  isOption: boolean
   /** Paragraphs, each carrying authored inline markup. See the note on `raw` below. */
   paragraphs: { html: string }[]
   text: string
@@ -32,6 +34,20 @@ export interface Block {
   sketch: boolean
   /** The escape hatch, named so it is visible in a diff rather than hiding inside a helper. */
   html: string
+  /**
+   * The reference entry's own fields. `id`, `paragraphs`, `headers` and `rows` are shared with the
+   * blocks above it, which is the whole reason a block carries every field: an option is a heading,
+   * some prose and a table, and it should not need four of its own.
+   */
+  name: string
+  optionType: string
+  fallback: string
+  requirement: string
+  /** Non-empty draws the nested member table. A hole is filled, never branched on. */
+  hasMembers: string
+  /** The entry's own example, already highlighted. Non-empty `hasExample` draws it. */
+  example: string
+  hasExample: string
 }
 
 export interface PageProps {
@@ -76,6 +92,20 @@ export default fragment(({ blocks }: PageProps) => (
           <Note kind={block.noteKind} title={block.title} body={block.body} />
         ) : block.isTable ? (
           <Table headers={block.headers} rows={block.rows} />
+        ) : block.isOption ? (
+          <Option
+            name={block.name}
+            id={block.id}
+            type={block.optionType}
+            fallback={block.fallback}
+            requirement={block.requirement}
+            paragraphs={block.paragraphs}
+            memberHeaders={block.headers}
+            memberRows={block.rows}
+            hasMembers={block.hasMembers}
+            example={block.example}
+            hasExample={block.hasExample}
+          />
         ) : block.isFigure ? (
           <figure class="code">
             <figcaption>{block.caption}</figcaption>

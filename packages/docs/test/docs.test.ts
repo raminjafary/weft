@@ -17,6 +17,12 @@ import { errorBody, errorsIndexBody } from '../app/lib/errors-page.ts'
 import { compilePlayground, STARTER } from '../app/lib/play.ts'
 import { infer } from '../app/infer.ts'
 import { commands, options } from '../app/lib/cli.ts'
+import { declarationOf } from '../app/lib/declared.ts'
+import { anchorOf, defaultsFor, fieldCount, groupDeclaration, REFERENCES } from '../app/lib/reference.ts'
+import { referenceBody, referenceIndexBody, referenceOutline } from '../app/lib/reference-page.ts'
+import { EXAMPLES } from '../app/lib/examples.ts'
+import { conventionRows } from '../app/lib/conventions.ts'
+import { bindable, implemented as portsImplemented, ports } from '../app/lib/ports.ts'
 import { budgets, ceilingFor } from '../app/lib/budgets.ts'
 import { namedCount, specifiedIn } from '../app/lib/specified.ts'
 import { drawnDependencies, frameVocabulary, FRAME_SAYS } from '../app/lib/architecture.ts'
@@ -115,6 +121,11 @@ test('no page, and no glossary entry, points at something that does not exist', 
   }
 
   for (const section of SECTIONS) assert.ok(matches(section.href), `section ${section.href} is not a route`)
+  for (const reference of REFERENCES) {
+    for (const link of reference.seeAlso) {
+      assert.ok(matches(link.href), `/reference/${reference.id} points at ${link.href}`)
+    }
+  }
   for (const term of TERMS) {
     for (const link of term.see ?? []) assert.ok(matches(link.href), `${term.term} links to ${link.href}`)
   }
@@ -420,7 +431,14 @@ test('every framework name a sketch imports actually exists', () => {
   const exported = new Map(
     surface().map((module) => [module.specifier, new Set(module.entries.map((entry) => entry.name))]),
   )
-  const files = ['app/lib/content.ts', 'app/lib/tutorial.ts', 'app/lib/play.ts', 'app/lib/glossary.ts']
+  const files = [
+    'app/lib/content.ts',
+    'app/lib/tutorial.ts',
+    'app/lib/play.ts',
+    'app/lib/glossary.ts',
+    'app/lib/reference.ts',
+    'app/lib/examples.ts',
+  ]
   let found = 0
 
   for (const file of files) {
@@ -460,6 +478,8 @@ test('every route in the site serves a document', async () => {
     '/examples',
     '/api',
     ...surface().map((module) => `/api/${module.id}`),
+    '/reference',
+    ...REFERENCES.map((reference) => `/reference/${reference.id}`),
     '/glossary',
     '/errors',
     '/errors/E_NO_SHELL',
@@ -587,6 +607,25 @@ test('nothing that reaches a hole carries markup, because a hole escapes it', ()
         check(`${code} note body`, block.body)
       }
       if (block.isHeading) check(`${code} heading`, block.text)
+    }
+  }
+  /**
+   * The reference's authored text, which is its notes and its headings.
+   *
+   * Its *values* are deliberately not checked here and could not be: a type is
+   * `Record<string, string[]>` and a path is `app/slots/<name>.tsx`, both of which look exactly like
+   * markup to this heuristic and are correct. That they arrive escaped rather than as tags is
+   * asserted against the served bytes instead — see the reference section's own test below.
+   */
+  for (const reference of [...REFERENCES.map((one) => one.id), '']) {
+    const blocks = reference ? referenceBody(reference) : referenceIndexBody()
+    const where = reference || 'index'
+    for (const block of blocks) {
+      if (block.isNote) {
+        check(`${where} note title`, block.title)
+        check(`${where} note body`, block.body)
+      }
+      if (block.isHeading) check(`${where} heading`, block.text)
     }
   }
   assert.deepEqual(
@@ -805,4 +844,210 @@ test('every frame in the protocol has a sentence on the architecture page, and n
     'a sentence about a frame the protocol no longer has',
   )
   assert.equal(up.length > 0 && down.length > 0, true, 'the table was read, not guessed')
+})
+
+/**
+ * Every field of every declaration the reference covers is on its page.
+ *
+ * The gate the section exists for. The page walks the interface; this walks it again from the
+ * rendered blocks, so a field the walker drops — a member shape it does not understand, an
+ * interface that moves file — fails here rather than silently disappearing from a reference whose
+ * whole claim is that it is complete.
+ */
+test('every field of every declaration reaches its reference page', () => {
+  for (const reference of REFERENCES) {
+    if (reference.kind !== 'declaration') continue
+    const blocks = referenceBody(reference.id)
+    const drawn = new Set(blocks.filter((block) => block.isOption).map((block) => block.id))
+    for (const group of reference.groups) {
+      for (const field of groupDeclaration(group).fields) {
+        assert.ok(
+          drawn.has(anchorOf(group, field)),
+          `${group.name}.${field.name} is declared and not on /reference/${reference.id}`,
+        )
+      }
+    }
+    assert.equal(drawn.size, fieldCount(reference), `${reference.id} draws an entry for something else`)
+  }
+})
+
+/**
+ * And every field says something. A reference entry with nothing in it is worse than no entry.
+ *
+ * The floor is a doc comment on the declaration, because that is the copy a reader in an editor
+ * also gets — so an undocumented field is a hole in the framework rather than a hole in this site,
+ * and the fix is upstream. The count is asserted rather than the absence, so somebody adding a
+ * field is told to write the comment and not blocked by a test they cannot see the point of.
+ */
+test('every declaration field carries a doc comment written in the framework', () => {
+  const undocumented: string[] = []
+  for (const reference of REFERENCES) {
+    if (reference.kind !== 'declaration') continue
+    for (const group of reference.groups) {
+      for (const field of groupDeclaration(group).fields) {
+        if (!field.doc.trim()) undocumented.push(`${group.name}.${field.name}`)
+      }
+    }
+  }
+  assert.deepEqual(undocumented, [], 'these reach the reference with nothing to say about them')
+})
+
+/** The defaults are read out of the loader, so a page that shows none has stopped reading it. */
+test('the config defaults are read out of the loader that applies them', () => {
+  const config = REFERENCES.find((reference) => reference.id === 'config')
+  assert.ok(config, 'the config reference is gone')
+  const defaults = defaultsFor(config)
+  assert.equal(defaults.get('srcDir'), "'app'")
+  assert.equal(defaults.get('port'), '3000')
+  assert.equal(defaults.get('session.cookie'), "'sid'")
+  assert.equal(defaults.get('channel.path'), "'/_weft/channel'")
+  // Not a `??` at all: the loader narrows a union with a comparison, and the falsy side is default.
+  assert.equal(defaults.get('navigation.scroll'), "'top'")
+  assert.ok(defaults.size > 15, `only ${defaults.size} defaults found; the scan has stopped working`)
+})
+
+/** An example that names an export the framework does not have is a snippet that does not compile. */
+test('every reference example is for a field that exists', () => {
+  const known = new Set<string>()
+  for (const reference of REFERENCES) {
+    if (reference.kind !== 'declaration') continue
+    for (const group of reference.groups) {
+      for (const field of groupDeclaration(group).fields) {
+        known.add(`${reference.id}.${anchorOf(group, field)}`)
+      }
+    }
+  }
+  assert.deepEqual(
+    Object.keys(EXAMPLES)
+      .filter((key) => !known.has(key))
+      .sort(),
+    [],
+    'an example is keyed to a field no declaration has',
+  )
+  assert.ok(Object.keys(EXAMPLES).length > 90, 'the example map has emptied out')
+})
+
+/**
+ * The two pages whose source is not an interface still have a source.
+ *
+ * The folder convention is parsed out of the doc comment the discovery keeps beside its own walk,
+ * and the ports out of two package source trees. Both are the kind of parse that returns an empty
+ * list rather than throwing when the shape it expects moves, so both are floors.
+ */
+test('the folder convention and the ports are read, not listed', () => {
+  const rows = conventionRows()
+  assert.ok(rows.length > 12, `only ${rows.length} paths parsed out of the convention`)
+  assert.ok(
+    rows.some((row) => row.path === 'app/routes/index.tsx'),
+    'the smallest application there is has stopped being in the convention block',
+  )
+  assert.ok(
+    rows.some((row) => row.path.includes('<dir>')),
+    'a nested layout is one space from the column and a run-of-two rule used to drop it',
+  )
+
+  const all = ports()
+  assert.ok(all.length >= 14, `only ${all.length} ports found in the kernel`)
+  assert.ok(portsImplemented() >= 12, `only ${portsImplemented()} ports have an adapter`)
+  assert.ok(bindable() >= 7, `only ${bindable()} ports name a config key`)
+  const store = all.find((port) => port.name === 'StorePort')
+  assert.equal(store?.key, 'store', 'the config key comes from the option whose type names the port')
+  assert.ok(
+    store?.implementations.some((one) => one.name === 'redisLeases'),
+    'a branded return — `LeasedStore` — is still resolved back to the port it is one of',
+  )
+  assert.deepEqual(
+    all.filter((port) => !port.doc.trim()).map((port) => port.name),
+    [],
+    'a port with nothing to say about it. The fix is a doc comment in the kernel, not here',
+  )
+  assert.deepEqual(
+    all.filter((port) => /─/.test(port.doc)).map((port) => port.name),
+    [],
+    'a divider line comment reached a port description; only block comments are doc comments',
+  )
+})
+
+/**
+ * The outline is the section's index, so it has to agree with the page in both directions.
+ *
+ * Both, because each failure is a different kind of useless and both are silent. An entry the
+ * outline omits is an option nobody browsing the page can find; a link the outline has and the page
+ * does not is a jump that goes nowhere — which is what the directories page shipped with for an
+ * afternoon, because the outline listed every directory and the body only drew the ones with two or
+ * more paths under them.
+ */
+test('the reference outline and its page agree, both ways', () => {
+  for (const reference of REFERENCES) {
+    const outline = referenceOutline(reference.id)
+    const body = referenceBody(reference.id)
+    const anchors = new Set(body.filter((block) => block.id).map((block) => block.id))
+
+    for (const block of body) {
+      if (!block.isOption) continue
+      assert.ok(
+        outline.includes(`href="#${block.id}"`),
+        `${reference.id} draws ${block.id} and the outline does not link it`,
+      )
+    }
+    for (const match of outline.matchAll(/href="#([^"]+)"/g)) {
+      const href = match[1] as string
+      assert.ok(anchors.has(href), `${reference.id}'s outline links #${href}, which is not on the page`)
+    }
+  }
+  const index = referenceIndexBody()
+  assert.ok(index.length > 6, 'the section index has emptied out')
+})
+
+/** The reference is reachable, and it is where the section list says it is. */
+test('the reference section is in the nav and in the rail', async () => {
+  const serving = await serveApp(await app())
+  servers.push(serving)
+  assert.ok(
+    SECTIONS.some((section) => section.href === '/reference' && section.derived),
+    'the reference is generated, and the landing page counts the generated ones',
+  )
+  const page = await (await fetch(new URL('/reference/config', serving.url))).text()
+  assert.match(page, /id="documents"/, 'an option is an anchor a link can point at')
+  assert.match(page, /<dt>Default<\/dt>/, 'and it says what it is without you')
+  assert.match(page, /class="option-example"><figure/, 'and shows what to type')
+  assert.equal(page.includes('E_DOCS_NO_DECLARATION'), false, 'an interface moved and nothing said so')
+
+  // A type is the one value on this site that is *made* of angle brackets, so it is where an
+  // unescaped hole would show first — and it would show as a browser silently eating the type.
+  assert.match(
+    page,
+    /Record&lt;string, string\[\]&gt;/,
+    'a type reaches the reader as text, because a hole escapes it',
+  )
+  assert.equal(page.includes('<code>Record<string'), false, 'a type was written as markup')
+
+  const tree = await (await fetch(new URL('/reference/directories', serving.url))).text()
+  assert.match(tree, /app\/slots\/&lt;name&gt;\.tsx/, 'and so does a path with a placeholder in it')
+})
+
+/**
+ * The declaration reader, against the shapes that broke it.
+ *
+ * Three of them, and each was silent: a method signature has no type annotation to slice so its
+ * return read as `void`; a multi-line object literal collapsed to `{ kid: string privateKey?: … }`,
+ * which is not a type anybody could paste; and a `//` banner above an interface read as its
+ * description.
+ */
+test('the declaration reader renders a type a reader could paste', () => {
+  const intent = declarationOf('packages/kernel/src/intent.ts', 'Intent')
+  const run = intent.fields.find((field) => field.name === 'run')
+  assert.match(run?.type ?? '', /=> Promise<IntentResult \| void>/, 'a method signature keeps its return')
+
+  const authority = declarationOf('packages/weft/src/authority.ts', 'AuthorityConfig')
+  const signing = authority.fields.find((field) => field.name === 'signing')
+  assert.match(signing?.type ?? '', /kid: string; privateKey\?/, 'members are joined with a separator')
+  assert.equal(signing?.members.length, 4, 'and are also broken out as a table')
+
+  const config = declarationOf('packages/weft/src/config.ts', 'WeftConfig')
+  assert.ok(config.fields.length > 25, `only ${config.fields.length} options read out of WeftConfig`)
+  assert.ok(
+    config.fields.every((field) => field.type.length > 0 && !field.type.includes('\n')),
+    'every option has a type, on one line',
+  )
 })

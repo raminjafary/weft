@@ -1,0 +1,30 @@
+/**
+ * The reference section's own vocabulary: the summary table, and the way in from the index.
+ *
+ * Linked on every route under `/reference` and nowhere else. The entries themselves are styled
+ * beside the component that draws them — `fragments/docs/option.css` — because a page that does not
+ * render one should not download its rules.
+ */
+
+/** The summary table is a lookup, so it is dense and its first column is the anchor list. */
+.reference table {
+  font-size: 13px;
+}
+
+.reference table td:first-child {
+  white-space: nowrap;
+}
+
+/** A type is the widest thing in any of these tables, and it wraps badly. Let the box scroll. */
+.reference table td code {
+  white-space: pre;
+}
+
+/** The index's way into a page, under each entry's paragraph. */
+.reference .more {
+  font-weight: 500;
+}
+
+.reference h2 {
+  scroll-margin-top: calc(var(--head-h) + 20px);
+}
