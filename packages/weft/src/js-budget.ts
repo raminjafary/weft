@@ -1,8 +1,13 @@
 import { brotliCompressSync, constants } from 'node:zlib'
-import { stripTypeScriptTypes } from 'node:module'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { moduleFileName, REWRITTEN_SPECIFIERS, type AssetTable, type ModuleTree } from './assets.ts'
+import {
+  browserModule,
+  moduleFileName,
+  REWRITTEN_SPECIFIERS,
+  type AssetTable,
+  type ModuleTree,
+} from './assets.ts'
 import type { GeneratedRoute } from './routes.ts'
 
 /**
@@ -96,8 +101,19 @@ export async function measureClientJs(assets: AssetTable, appClient?: string): P
           `${located.tree.dir}. The byte figure would be smaller than the truth.`,
       )
     }
-    const stripped = located.tree.ext === '.ts' ? stripTypeScriptTypes(source, { mode: 'strip' }) : source
-    modules.push({ href, ...compressed(stripped) })
+    /**
+     * Measured through the function that serves it, rather than through a copy of what it does.
+     *
+     * This used to strip types here and compress the result, which was a second implementation of
+     * `browserModule` and drifted from it the moment the first one gained a step: production builds
+     * remove comments, this did not, and the figure reported was larger than anything a browser
+     * would ever download. A number that claims to be "what a page downloads" has to come from the
+     * bytes that are actually sent, specifier rewrites and all.
+     */
+    modules.push({
+      href,
+      ...compressed(browserModule(source, located.tree, located.prefix, { comments: 'strip' })),
+    })
 
     for (const specifier of importsOf(source)) {
       if (specifier.startsWith('./') || specifier.startsWith('../')) {

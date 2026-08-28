@@ -1490,7 +1490,11 @@ export async function appHandler(app: App): Promise<Handler> {
         res.writeHead(404, { 'content-type': 'text/plain' }).end(`no such module: ${name}\n`)
         return
       }
-      const body = browserModule(await readFile(source, 'utf8'), tree, prefix)
+      // Legible in dev, small everywhere else: the one reader who wants these comments is the one
+      // who opened devtools on their own machine.
+      const body = browserModule(await readFile(source, 'utf8'), tree, prefix, {
+        comments: app.mode === 'dev' ? 'keep' : 'strip',
+      })
       const payload = path === assets.boot ? prelude + body : body
       const headers: Record<string, string> = {
         'content-type': 'text/javascript; charset=utf-8',

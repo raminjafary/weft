@@ -638,34 +638,47 @@ function bindings(): string {
  * Every animated element carries `data-wf`, which is what the site's reduced-motion rule keys on:
  * with motion off the whole thing is still a legible diagram of the two orders of events.
  */
+/**
+ * When the head reaches a mark, expressed as a delay.
+ *
+ * `wf-travel` sweeps a playhead across the track over the first 84% of the cycle and holds it at
+ * the end for the rest. So a mark standing at `p` percent is reached at `p × 0.84` of the way
+ * through, and giving its own animation exactly that delay is what makes the light and the head
+ * agree. Derived rather than written down twice, so they still agree when a mark moves.
+ */
+const HEAD_SWEEP = 0.84
+const reached = (at: number, cycle: number): string => (cycle * (at / 100) * HEAD_SWEEP).toFixed(2)
+
 function carried(): string {
   const row = (name: string, note: string, cells: string) =>
     `<div class="dlv-row"><span class="dlv-name">${enc(name)}</span>
-      <div class="dlv-track">${cells}</div>
+      <div class="dlv-track"><span class="dlv-line"></span>${cells}<span class="dlv-head" data-wf
+        style="animation:wf-travel 6s linear 0s infinite"></span></div>
       <span class="dlv-note">${enc(note)}</span></div>`
-  const mark = (at: number, cls: string, label: string, delay: number) =>
+  const mark = (at: number, cls: string, label: string) =>
     `<span class="dlv-mark ${cls}" style="left:${at}%"><i data-wf
-       style="animation:wf-pulse 6s linear ${delay}s infinite"></i>${enc(label)}</span>`
+       style="animation:wf-step 6s linear ${reached(at, 6)}s infinite"></i>${enc(label)}</span>`
+  const turn = settled('turn')
   return figure(
     `<div class="dlv">
       ${row(
         'socket, stream, sse',
         'the write and the telling are one instant',
-        `<span class="dlv-line"></span>
-         ${mark(6, 'dlv-write', 'a write invalidates', 0.6)}
-         <span class="dlv-run" data-wf style="animation:wf-draw 6s linear 0.7s infinite"></span>
-         ${mark(40, 'dlv-told', 'STALE, pushed', 1.1)}`,
+        `${mark(6, 'dlv-write', 'a write invalidates')}${mark(40, 'dlv-told', 'STALE, pushed')}`,
       )}
       ${row(
         'turn',
         'nothing to push to, so the journal holds it until the reader asks',
-        `<span class="dlv-line"></span>
-         ${mark(6, 'dlv-write', 'the same write', 0.6)}
-         <span class="dlv-hold" data-wf style="animation:wf-nodein 6s linear 1.1s infinite"></span>
-         ${mark(62, 'dlv-ask', 'the reader’s next turn', 3.2)}
-         ${mark(88, 'dlv-told', 'STALE, carried', 3.5)}`,
+        `<span class="dlv-hold"></span>${mark(6, 'dlv-write', 'the same write')}${mark(
+          62,
+          'dlv-ask',
+          'the reader’s next turn',
+        )}${mark(88, 'dlv-told', 'STALE, carried')}`,
       )}
-    </div>`,
+    </div>
+    <p class="gfx-note">Both rows run on one clock, so the gap is the figure. The dashes are the
+      stretch where a held binding has already told the reader and a turn has nobody to tell:
+      <em>${enc(turn.downgrades[0] ?? '')}</em></p>`,
     'The whole of what a turn gives up, drawn to scale: not whether the reader is told, but when. ' +
       'Everything the client asks for is answered on the same request that asked.',
   )
@@ -754,6 +767,15 @@ function vocabulary(): string {
  * time it is the reason a background revalidation cannot disturb a half-typed form.
  */
 function epochs(): string {
+  /**
+   * One lane, and the thing that makes the two of them different to look at.
+   *
+   * Marks in the same places on both lanes, because the frames arrive at the same times — that is
+   * the premise. What differs is the screen on the right, which flashes once per *paint*: three
+   * times on the lane with no epoch, once on the lane with one. Without it the two rows were the
+   * same drawing in two colours, and the idea being shown — that nothing changes until it all
+   * changes — was the one thing the figure did not do.
+   */
   const lane = (
     name: string,
     note: string,
@@ -765,7 +787,17 @@ function epochs(): string {
         .map(
           (c) =>
             `<span class="ep-cell${c.paint ? ' ep-paint' : ''}" style="left:${c.at}%"><i data-wf
-              style="animation:wf-pulse 7s linear ${(c.at / 100) * 5 + 0.4}s infinite"></i>${enc(c.label)}</span>`,
+              style="animation:wf-step 7s linear ${reached(c.at, 7)}s infinite"></i>${enc(c.label)}</span>`,
+        )
+        .join(
+          '',
+        )}<span class="dlv-head" data-wf style="animation:wf-travel 7s linear 0s infinite"></span></div>
+      <div class="ep-screen"><span class="ep-screen-label">what the reader sees</span>${cells
+        .filter((c) => c.paint)
+        .map(
+          (c) =>
+            `<span class="ep-flash" data-wf
+              style="animation:wf-flash 7s linear ${reached(c.at, 7)}s infinite"></span>`,
         )
         .join('')}</div>
       <span class="dlv-note">${enc(note)}</span>
@@ -783,10 +815,12 @@ function epochs(): string {
         { at: 70, label: 'COMMIT — paints', paint: true },
       ])}
     </div>
-    <p class="gfx-note">A frame carrying an epoch is invisible until its <code>COMMIT</code>, and
-      that is a property of where frames are routed rather than of anything an application remembers
-      to do. It is also what makes a staged route possible: a whole page can be resolved and held,
-      painting nothing, until the reader actually clicks.</p>`,
+    <p class="gfx-note">One clock, two lanes, and the head reaches the same three moments in each.
+      Only the accent marks changed what the reader sees — which on the second lane is the last one
+      alone. A frame carrying an epoch is invisible until its <code>COMMIT</code>, and that is a
+      property of where frames are routed rather than of anything an application remembers to do. It
+      is also what makes a staged route possible: a whole page can be resolved and held, painting
+      nothing, until the reader actually clicks.</p>`,
     'Nothing paints on arrival unless the frame says to — which is what lets the server revalidate ' +
       'under a reader without ever disturbing what they are doing.',
   )

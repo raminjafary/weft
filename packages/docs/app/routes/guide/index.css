@@ -226,20 +226,55 @@
   background: var(--line);
 }
 
-.dlv-run {
+/**
+ * The playhead: the thing that makes both figures read as time rather than as a list.
+ *
+ * Marks alone were static for most of the cycle — `wf-step` holds its lit state across four fifths
+ * of the loop, so a figure with three of them looked like a diagram somebody had drawn and left.
+ * A head sweeping the track gives the eye something continuous to follow, and each mark then lights
+ * *as it is reached*, which is the sentence the figure is trying to say.
+ */
+/**
+ * A playhead, not a travelling dot.
+ *
+ * A dot moving along a line reads as a thing going somewhere, which is why two of them running in
+ * step looked like a duplicated animation rather than one clock. A vertical cursor reads as time —
+ * the rows are stacked under a single sweep, each lighting as it is crossed, and the fact that both
+ * rows are governed by the same instant becomes the obvious thing about the figure rather than a
+ * coincidence somebody has to be told about.
+ */
+.dlv-head {
   position: absolute;
-  left: 8%;
-  width: 32%;
-  top: 16px;
-  height: 1px;
-  background: var(--accent);
-  transform-origin: left;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in oklab, var(--accent) 70%, transparent) 30%,
+    color-mix(in oklab, var(--accent) 70%, transparent) 70%,
+    transparent
+  );
+  pointer-events: none;
 }
 
+.dlv-head::after {
+  content: '';
+  position: absolute;
+  left: -3px;
+  top: 12px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 20%, transparent);
+}
+
+/** The stretch a turn spends with nobody to tell. Static: it is a label for a gap, not an event. */
 .dlv-hold {
   position: absolute;
-  left: 8%;
-  width: 54%;
+  left: 6%;
+  width: 56%;
   top: 16px;
   height: 1px;
   background: repeating-linear-gradient(90deg, var(--dim) 0 4px, transparent 4px 9px);
@@ -355,9 +390,41 @@
 
 .ep-lane {
   display: grid;
-  grid-template-columns: 150px 1fr;
+  grid-template-columns: 150px 1fr 132px;
   gap: 6px 16px;
   align-items: center;
+}
+
+/**
+ * What the reader sees, as a thing that can be seen changing.
+ *
+ * Every flash is stacked in the same box and each carries its own delay, so "three paints" and
+ * "one paint" are two counts of the same element rather than two drawings.
+ */
+.ep-screen {
+  position: relative;
+  grid-row: 1 / span 2;
+  grid-column: 3;
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.ep-screen-label {
+  font: 10px/1.3 var(--mono);
+  color: var(--faint);
+  text-align: center;
+  padding: 0 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.ep-flash {
+  position: absolute;
+  inset: 0;
 }
 
 .ep-name {
@@ -402,6 +469,12 @@
 @media (max-width: 620px) {
   .ep-lane {
     grid-template-columns: 1fr;
+  }
+
+  .ep-screen {
+    grid-row: auto;
+    grid-column: 1;
+    height: 34px;
   }
 
   .ep-cell {

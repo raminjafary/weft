@@ -1,6 +1,7 @@
 import type { AssetPort, PreloadLink } from '@weftjs/kernel'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { stripTypeScriptTypes } from 'node:module'
+import { stripComments } from '@weftjs/compiler'
 import { extname, join, relative, resolve, sep } from 'node:path'
 import { fastHash, short } from '@weftjs/ir'
 
@@ -436,8 +437,26 @@ export const REWRITTEN_SPECIFIERS: Record<string, string> = {
  * resolves that against the URL it is reading, so the specifier has to name the neighbour's URL
  * rather than the neighbour's filename.
  */
-export function browserModule(source: string, tree: ModuleTree, mountedAt: string): string {
-  const stripped = tree.ext === '.ts' ? stripTypeScriptTypes(source, { mode: 'strip' }) : source
+export function browserModule(
+  source: string,
+  tree: ModuleTree,
+  mountedAt: string,
+  options: { comments?: 'keep' | 'strip' } = {},
+): string {
+  /**
+   * The prose comes out before the types do, and only outside `weft dev`.
+   *
+   * `stripTypeScriptTypes` keeps comments by design, which is right for a source map and wrong for
+   * a payload: this framework explains itself at length in its own modules and every byte of that
+   * was reaching browsers that cannot read it. Removing it is exact rather than approximate —
+   * `stripComments` parses — and it happens first, on the original source, because that is the one
+   * form the parser is guaranteed to accept.
+   *
+   * Kept in dev, where a reader who opens the module in devtools is the whole point of it being
+   * legible in the first place.
+   */
+  const said = options.comments === 'strip' ? stripComments(`module${tree.ext}`, source).code : source
+  const stripped = tree.ext === '.ts' ? stripTypeScriptTypes(said, { mode: 'strip' }) : said
   const root = mountedAt.replace(/\/[a-z]+\/$/, '')
   let out = stripped
   for (const [specifier, name] of Object.entries(REWRITTEN_SPECIFIERS)) {
@@ -470,7 +489,11 @@ export async function moduleFiles(assets: AssetTable, prelude = ''): Promise<Map
     for (const name of (await readdir(tree.dir)).sort()) {
       if (!name.endsWith(tree.ext)) continue
       const href = `${mountedAt}${servedModuleName(name, tree)}`
-      const body = browserModule(await readFile(join(tree.dir, name), 'utf8'), tree, mountedAt)
+      // Written by `weft build`, which is production output by definition — there is no reader of
+      // these files who is also reading the source.
+      const body = browserModule(await readFile(join(tree.dir, name), 'utf8'), tree, mountedAt, {
+        comments: 'strip',
+      })
       out.set(href, href === assets.boot ? prelude + body : body)
     }
   }
