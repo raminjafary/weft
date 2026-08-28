@@ -11,19 +11,9 @@ import {
   type Type,
 } from 'typescript/unstable/sync'
 import { getTokenAtPosition, type Node, type SourceFile } from 'typescript/unstable/ast'
+import type { TypeOracle, ValueKind } from './kinds.ts'
 
-/** What the checker said a hole holds. `number` and `boolean` are what make escaping a no-op. */
-export type ValueKind = 'number' | 'boolean' | 'string' | 'other'
-
-/** The type checker, asked one question: what kind of value occupies this span. */
-export interface TypeOracle {
-  /** The kind of the expression occupying exactly this span, if it can be determined. */
-  kindAt(file: string, start: number, end: number): ValueKind
-  /** Type errors in the compiled files. Reported, never fatal: a template still lowers. */
-  diagnostics(): string[]
-  /** Shuts down the checker. It runs as a separate process, so this is not optional. */
-  dispose(): void
-}
+export { cannotBeMarkup, type TypeOracle, type ValueKind } from './kinds.ts'
 
 type Snapshot = ReturnType<InstanceType<typeof API>['updateSnapshot']>
 type Project = ReturnType<Snapshot['getProjects']>[number]
@@ -149,9 +139,4 @@ function kindOf(type: Type): ValueKind {
     }
   }
   return 'other'
-}
-
-/** Values of these kinds cannot contain markup, so escaping them is a no-op. */
-export function cannotBeMarkup(kind: ValueKind): boolean {
-  return kind === 'number' || kind === 'boolean'
 }

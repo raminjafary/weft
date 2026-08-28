@@ -16,7 +16,7 @@ import { name, node, nodes, type Node } from './ast.ts'
 import { CompileError, locate, type Loc } from './errors.ts'
 import { inferEffects } from './effects.ts'
 import { lower, returnedJsx, type ComponentRef, type ImportRef, type Lowered, type Scope } from './lower.ts'
-import { createTypeOracle, type TypeOracle } from './types.ts'
+import type { TypeOracle } from './kinds.ts'
 
 /** One compiled fragment: its sealed entry, the templates inside it, and which export it was. */
 export interface CompiledFragment {
@@ -688,6 +688,16 @@ export async function compileFiles(
   let diagnostics: string[] = []
   if (options?.types !== false && !virtual) {
     try {
+      /**
+       * Imported here rather than at the top of the file, and that placement is the whole of what
+       * makes the peer optional.
+       *
+       * `./types.ts` imports `typescript/unstable/*` statically, so a static import of it here fails
+       * at module load — before this `catch` exists to fall back. Which is what it did: `npm create
+       * weft` installs no optional peer and died on `Cannot find package 'typescript'` in a
+       * scaffolder that never needed a checker.
+       */
+      const { createTypeOracle } = await import('./types.ts')
       oracle = createTypeOracle(files, options?.root)
       diagnostics = oracle.diagnostics()
     } catch {

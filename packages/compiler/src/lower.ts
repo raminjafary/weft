@@ -25,7 +25,7 @@ import {
 } from './ast.ts'
 import { CompileError, locate } from './errors.ts'
 import { intentId } from './intents.ts'
-import { cannotBeMarkup, type TypeOracle } from './types.ts'
+import { cannotBeMarkup, type TypeOracle } from './kinds.ts'
 
 /** Where a tag came from: the module specifier and the export, exactly as written. */
 export interface ImportRef {

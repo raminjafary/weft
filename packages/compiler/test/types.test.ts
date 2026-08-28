@@ -126,3 +126,62 @@ test('the oracle answers by exact span', async () => {
   assert.equal(oracle.kindAt(file, start, start + 1), 'number')
   assert.equal(oracle.kindAt(file, 0, 3), 'other')
 })
+
+/**
+ * The compiler with its optional peer actually absent, which is the environment that shipped.
+ *
+ * `typescript` is an optional peer of this package, so npm does not install it — and `./types.ts`
+ * imports `typescript/unstable/sync` at the top level. A static import of that module from
+ * `compile.ts` therefore failed at *load*, before the try/catch that exists to fall back could run.
+ *
+ * The symptom was `npm create weft <name>` dying on `Cannot find package 'typescript'` from a
+ * scaffolder that never needed a checker: `create-weft` imports `@weftjs/core/server` for
+ * `scaffold`, and that module graph reaches the compiler. Every test in this file passed throughout,
+ * because a checkout that runs them has TypeScript in the workspace root.
+ *
+ * So this one hides it, in a child process, and asserts the two things that matter: the compile
+ * happens at all, and escape elision degrades to escaping rather than to a crash.
+ */
+test('the compiler runs with typescript absent, and escapes everything instead', async () => {
+  const file = await fixture(
+    'no-checker',
+    'export default fragment(({ n, s }: { n: number; s: string }) => <p data-n={n}>{s}</p>)',
+  )
+  const { execFile } = await import('node:child_process')
+  const { promisify } = await import('node:util')
+  const run = promisify(execFile)
+  const script = fileURLToPath(new URL('./hooks/compile-without-typescript.mjs', import.meta.url))
+  const register = fileURLToPath(new URL('./hooks/register-no-typescript.mjs', import.meta.url))
+
+  const { stdout } = await run(process.execPath, ['--import', register, script, file, dir])
+  const result = JSON.parse(stdout) as { compiled: boolean; escapes: string[]; diagnostics: string[] }
+
+  assert.ok(result.compiled, 'a missing optional peer must not stop the compile')
+  assert.deepEqual(
+    result.escapes,
+    ['escape', 'escape'],
+    'without a checker every hole is escaped, which is the safe direction — the numeric hole is ' +
+      'proven-safe when TypeScript is there, and this is the whole cost of it not being',
+  )
+})
+
+/** And the same absence at the front door, because that is the path `npm create weft` takes. */
+test('the scaffolder does not need a type checker to exist', async () => {
+  const { execFile } = await import('node:child_process')
+  const { promisify } = await import('node:util')
+  const run = promisify(execFile)
+  const register = fileURLToPath(new URL('./hooks/register-no-typescript.mjs', import.meta.url))
+  const target = join(dir, 'scaffolded')
+
+  // `@weftjs/core/server` is what `create-weft` imports, and importing it is what used to throw.
+  const { stdout } = await run(process.execPath, [
+    '--import',
+    register,
+    '--input-type=module',
+    '-e',
+    `import { scaffold } from ${JSON.stringify(fileURLToPath(new URL('../../weft/src/server.ts', import.meta.url)))}
+     const created = await scaffold({ directory: ${JSON.stringify(target)}, name: 'scaffolded', template: 'minimal' })
+     process.stdout.write(String(created.files.length))`,
+  ])
+  assert.ok(Number(stdout) > 0, 'the scaffold wrote files with no checker installed')
+})
