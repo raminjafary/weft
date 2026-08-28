@@ -59,6 +59,13 @@ code went straight from `set` to the subscriber call; this one pushes through pr
 a queue, and a flush. The axis expects a tie and this is still a tie, but it is not free
 and should not be reported as a win.
 
+Those two columns stay as they were measured, back to back on one machine, because that is
+the only way the comparison is worth anything — the `Set` implementation no longer exists
+and cannot be re-run. The linked graph on its own, on the current build, is 0.52 µs on
+Chromium, 1.41 µs on Firefox and 1.31 µs on WebKit. Read the pair above as the A/B it was
+and this line as where the surviving half stands now; a machine, a browser version and two
+years of engine work are all in the difference between them.
+
 The runtime grew from 1,695 to 2,583 bytes brotli against a 6,144 ceiling, and a content
 route from 1,096 to 1,939 against 5,120. Both figures include the derived-value evaluator
 that landed with it.

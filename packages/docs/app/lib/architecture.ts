@@ -3,7 +3,8 @@ import { FRAMES, negotiate, WARP_VERSION, type Transport } from '@weftjs/warp'
 import { escapeHtml } from './escape.ts'
 import { graph, type GraphEdge, type GraphNode } from './graph.ts'
 import { artifacts } from './versions.ts'
-import { entryFor } from './budgets.ts'
+import { demoWeight, entryFor } from './budgets.ts'
+import { deltaClients, deltaCost } from './measured.ts'
 import { measured as benchRow } from './bench.ts'
 
 /**
@@ -93,7 +94,7 @@ function version(what: string): string {
  * it sits rather than by how much.
  */
 function wireSize(candidate: string): string {
-  const found = benchRow('update-bytes', candidate)
+  const found = benchRow('update-bytes', candidate, undefined, 'feed')
   if (!found) return 'not measured'
   const raw = `${found.p50.toLocaleString('en-US')} B`
   return found.brotli === undefined ? raw : `${raw} · ${found.brotli.toLocaleString('en-US')} brotli`
@@ -228,7 +229,7 @@ function request(): string {
  * calls. Nothing on this figure is a number somebody worked out and typed: change a duration here
  * and every bar, every keyframe and both totals move, because they are all derived from it.
  */
-const SLOTS: readonly (DagNode & { reads: string })[] = [
+export const SLOTS: readonly (DagNode & { reads: string })[] = [
   { name: 'header', ms: 20, reads: 'reads nothing' },
   { name: 'nav', ms: 10.9, reads: 'reads nothing' },
   { name: 'items', ms: 20, reads: 'reads the cart' },
@@ -524,9 +525,10 @@ function negotiation(): string {
   return figure(
     `${graph(nodes, edges, { height: 300, cycle: 6 })}
     <p class="gfx-note">A delta is memoized under <code>delta:&lt;tpl&gt;:&lt;from&gt;-&gt;&lt;to&gt;</code>,
-      so a thousand clients on one base cost one diff — 0.3 ms against a per-connection differ’s 8.2 ms. A
-      thousand clients each on a different base share nothing, and the shared path then costs 17.3 ms against
-      9.2.</p>`,
+      so ${deltaClients()} clients on one base cost one diff — ${deltaCost('shared', 'aligned')} against a
+      per-connection differ’s ${deltaCost('per-connection', 'aligned')}. The same clients each on a different
+      base share nothing, and the shared path then costs ${deltaCost('shared', 'staggered')} against
+      ${deltaCost('per-connection', 'staggered')}.</p>`,
     'All three forms produce identical DOM, so which one you get is never something you have to reason ' +
       'about: you write the fragment once and delivery is negotiated underneath it.',
   )
@@ -1089,8 +1091,8 @@ export function architecture(counts: ArchCounts): string {
       'From your files to what the browser fetches',
       'The build produces sealed templates, a generated plan, a manifest and revved assets — and prints ' +
         'which pages became files. Nothing is bundled at any point, which is why the byte budget is measured ' +
-        'on the real walk over HTTP: 46,698 B brotli for the demo, agreeing within 0.3% with the same walk ' +
-        'over the bundle.',
+        `on the real walk over HTTP: ${demoWeight().brotli.toLocaleString('en-US')} B brotli for the demo, ` +
+        'agreeing within 0.3% with the same walk over the bundle.',
     )}
     ${build(counts.files)}
     ${three()}

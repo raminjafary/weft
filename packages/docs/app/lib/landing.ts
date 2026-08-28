@@ -2,6 +2,7 @@ import { escapeHtml } from './escape.ts'
 import { highlight } from './highlight.ts'
 import { barChart, chartBlock, wireBars } from './figures.ts'
 import { candidate, figure, measured as benchRow, run } from './bench.ts'
+import { demoWeight } from './budgets.ts'
 import { SECTIONS } from './sections.ts'
 
 /**
@@ -445,7 +446,7 @@ function absences(): string {
       kicker: 'No bundler',
       title: 'The file on disk is the file that runs',
       body: 'Client modules are TypeScript with their types stripped and two bare specifiers rewritten. Nothing is packed, so the stack trace you get is the code you wrote.',
-      figure: '46,698 B',
+      figure: `${demoWeight().brotli.toLocaleString('en-US')} B`,
       fine: 'brotli, for the whole demo — measured over HTTP, not a bundle',
     },
     {
@@ -459,9 +460,13 @@ function absences(): string {
       kicker: 'No component code in the browser',
       title: 'The runtime binds what the parser already built',
       body: 'Adoption walks the server-rendered DOM and records where each value lives. No component function executes, on first paint or after.',
-      figure: figure('tti-server-rendered', 'adopt a server-rendered region', { engine: 'chromium' }),
+      figure: figure('tti-server-rendered', 'adopt a server-rendered region', {
+        engine: 'chromium',
+        scenario: 'feed',
+      }),
       fine: `to adopt a 50-row region — against ${figure('client-work', 'html form, parsed', {
         engine: 'chromium',
+        scenario: 'feed',
       })} to parse the same markup`,
     },
   ]
@@ -534,7 +539,7 @@ function markerCost(): string {
  * drifted to 190 in the file sitting three directories away. Both halves are read now.
  */
 function wireSize(id: string): string {
-  const found = benchRow('update-bytes', id)
+  const found = benchRow('update-bytes', id, undefined, 'feed')
   if (!found) return 'not measured'
   const raw = `${found.p50.toLocaleString('en-US')} B`
   return found.brotli === undefined ? raw : `${raw} · ${found.brotli.toLocaleString('en-US')} brotli`
@@ -542,8 +547,8 @@ function wireSize(id: string): string {
 
 /** How much of the markup's bytes a delta is, for the bar's width. */
 function deltaShare(): number {
-  const html = benchRow('update-bytes', 'segments:html')
-  const delta = benchRow('update-bytes', 'segments:delta')
+  const html = benchRow('update-bytes', 'segments:html', undefined, 'feed')
+  const delta = benchRow('update-bytes', 'segments:delta', undefined, 'feed')
   return html && delta && html.p50 ? delta.p50 / html.p50 : 0.059
 }
 
@@ -558,8 +563,8 @@ const ENGINES = ['chromium', 'firefox', 'webkit'] as const
 
 function applyRange(): string {
   const ratios = ENGINES.map((engine) => {
-    const parse = benchRow('client-work', 'html form, parsed', engine)
-    const apply = benchRow('client-work', 'delta form, applied surgically', engine)
+    const parse = benchRow('client-work', 'html form, parsed', engine, 'feed')
+    const apply = benchRow('client-work', 'delta form, applied surgically', engine, 'feed')
     return parse && apply && apply.p50 ? parse.p50 / apply.p50 : undefined
   }).filter((ratio): ratio is number => ratio !== undefined)
   if (!ratios.length) return 'not measured'

@@ -1,5 +1,6 @@
 import { escapeHtml } from './escape.ts'
 import { highlight } from './highlight.ts'
+import { raceFigure } from './measured.ts'
 
 /**
  * The figures, and the small motion language they share.
@@ -112,8 +113,8 @@ export function tree(
  * is both regions painted and no head at all.
  */
 export function streamRace(
-  slow = 'fast region visible at 103 ms',
-  fast = 'fast region visible at 22 ms',
+  slow = `fast region visible at ${raceFigure('chromium', 'in-order')}`,
+  fast = `fast region visible at ${raceFigure('chromium', 'out-of-order')}`,
 ): string {
   return `<figure class="race">
     <div class="race-head"><span>in order</span><span class="race-num">${enc(slow)}</span></div>

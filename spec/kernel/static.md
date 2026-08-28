@@ -169,20 +169,20 @@ nothing to do with L0.
 
 ## Where the numbers are
 
-Two of the demo's seven routes are files: `/` at 4,332 B and `/app/article` at 3,035 B. The
+Two of the demo's seven routes are files: `/` at 6,174 B and `/app/article` at 3,640 B. The
 other five are refused by name — two for parameters, two for reads, one for a streaming slot.
 `weft build` prints the table.
 
 What that is worth is measured rather than asserted —
 [`packages/bench/src/measure/l0.ts`](../../packages/bench/src/measure/l0.ts), run as
-`node packages/bench/src/cli.ts l0`. One process, one connection, 200 warm samples, and the only
-difference between the two runs is whether the document is in the table: removing it is not a
-simulation of the kernel path, it is the kernel path.
+`node packages/bench/src/cli.ts l0 --route /,/app/article`. One process, one connection, 200 warm
+samples, and the only difference between the two runs is whether the document is in the table:
+removing it is not a simulation of the kernel path, it is the kernel path.
 
 | Document       | Bytes | L0 ttlb  | Kernel ttlb, warm store |       |
 | -------------- | ----- | -------- | ----------------------- | ----- |
-| `/`            | 4,332 | 0.073 ms | 0.239 ms                | 3.29× |
-| `/app/article` | 3,035 | 0.070 ms | 0.252 ms                | 3.60× |
+| `/`            | 6,174 | 0.078 ms | 0.269 ms                | 3.46× |
+| `/app/article` | 3,640 | 0.064 ms | 0.209 ms                | 3.25× |
 
 The kernel run has a **warm** store, which is deliberately the case that flatters it least: the
 slots have already been rendered and the difference is only the key derivation, the plan, the
@@ -259,9 +259,10 @@ Three properties, each a decision rather than a detail:
 comments — right for a source map, wrong for a payload. This framework explains itself at length in
 its own modules and every byte of that was reaching browsers that cannot read it.
 
-Removing it halves the client payload: the documentation site went from 59,719 to 29,369 bytes
-brotli, the demo from 50,048 to 25,835. `weft dev` keeps every comment, because the one reader who
-wants them is the one with devtools open on their own machine.
+Removing it halves the client payload: the documentation site went from 59,719 to 29,356 bytes
+brotli, the demo from 50,048 to 25,992. `weft dev` keeps every comment, because the one reader who
+wants them is the one with devtools open on their own machine. Both current figures are read from
+the `weft.budget.json` each build writes, so this paragraph is checkable rather than remembered.
 
 It is done by **parsing**, not by pattern. `//` inside a string is not a comment, `/*` inside a
 template literal is not a comment, and `/` is a comment, a division or a regular-expression

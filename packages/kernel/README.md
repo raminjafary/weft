@@ -21,7 +21,7 @@ path against a 123.3 ms sequential walk — safe for exactly one reason, which i
 provably read-only.
 
 **A slot is a hole the shell refuses to wait for.** Out-of-order streaming puts a fast region on
-screen 4.7× earlier than in-order in all three engines, for 329 bytes of inline script.
+screen 4.6× earlier than in-order in all three engines, for 329 bytes of inline script.
 
 **Intents are the only thing allowed to write**, and they declare what they invalidate. An
 undeclared tag throws, because an undeclared write is an invalidation nobody can predict from the

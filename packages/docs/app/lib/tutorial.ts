@@ -2,6 +2,7 @@ import { escapeHtml, heading, note, prose, sketch, table } from './markup.ts'
 import { diff, stats, terminal } from './figures.ts'
 import { entryFor } from './budgets.ts'
 import { figure } from './bench.ts'
+import { raceFigure } from './measured.ts'
 
 /**
  * One page, built from nothing, one step at a time.
@@ -424,7 +425,11 @@ export default defineRoute({
       heading('2 · Read what it cost', 'cost') +
       stats([
         { value: '43.5 ms', note: 'TTFB, unchanged — the shell never read the feed', lit: true },
-        { value: '22 ms', note: 'fast region visible, from 103 ms', lit: true },
+        {
+          value: raceFigure('chromium', 'out-of-order'),
+          note: `fast region visible, from ${raceFigure('chromium', 'in-order')}`,
+          lit: true,
+        },
         { value: '+329 B', note: 'inline script, the whole price of out-of-order' },
       ]) +
       heading('3 · Ask the framework why', 'why-it') +
@@ -764,7 +769,10 @@ export default fragment(({ sku }: { sku: string }) => {
         { value: '3', note: 'bindings attached — two events and one value', lit: true },
         { value: '0', note: 'components executed on the client' },
         {
-          value: figure('tti-server-rendered', 'adopt a server-rendered region', { engine: 'chromium' }),
+          value: figure('tti-server-rendered', 'adopt a server-rendered region', {
+            engine: 'chromium',
+            scenario: 'feed',
+          }),
           note: 'to adopt a 50-row region in Chromium',
         },
       ]) +

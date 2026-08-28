@@ -20,10 +20,10 @@ the command the report prints.
 | The `delta` form is the smallest possible payload               | **Confirmed** — 3.2× after brotli                    |
 | A returning visitor does zero wiring construction               | **Confirmed, with a correction**                     |
 | The client runtime fits in 4–6 KB                               | **Confirmed** for what exists                        |
-| Isolated DOM updates will tie                                   | **Consistent** — 0.29–1.7 µs                         |
+| Isolated DOM updates will tie                                   | **Consistent** — 0.52–1.41 µs                        |
 | Warp unifies five jobs on one channel                           | **One path exercised** of five                       |
 | Client rendering work belongs off the main thread               | **Refused** — the decode is under the worker's floor |
-| The front-door entry is what a page downloads                   | **Reversed** — 3.5× under the served figure          |
+| The front-door entry is what a page downloads                   | **Reversed** — 1.9× under the served figure          |
 
 ## Reversed: the front-door figure was measuring a bundle this framework does not ship
 
@@ -32,26 +32,30 @@ the command the report prints.
 That entry was added because nothing was measuring the composition a reader actually loads, which
 was the right instinct and the wrong measurement. It bundles with Rolldown and minifies. This
 framework has **no bundler and no minifier**, on purpose and in writing: a page fetches the boot
-module and each module it imports as its own response, served as written with types stripped and
-comments intact.
+module and each module it imports as its own response, served as written with types stripped.
 
 Wiring `budget({ js })` to a real number is what exposed it. Walking the graph the browser walks and
 compressing each response the way it arrives:
 
 | The demo's client            | Modules | Raw       | Brotli       |
 | ---------------------------- | ------- | --------- | ------------ |
-| Bundled and minified         | 1       | 43,383 B  | 13,428 B     |
-| **Served, module by module** | 19      | 176,264 B | **46,698 B** |
+| Bundled and minified         | 1       | 45,192 B  | 13,991 B     |
+| **Served, module by module** | 19      | 110,643 B | **25,992 B** |
 
-**3.5× the figure that was published**, and the same walk over HTTP against the running server
-agrees within 0.3% — 46,830 B, the difference being the boot prelude the front door adds.
+**1.9× the figure that was published**, and the same walk over HTTP against the running server
+agrees within 0.3% — 25,923 B.
 
-Where the bytes are: nearly half of it is `boot.ts` alone, a file whose comments are a large
-fraction of it. Nothing here is a compression failure; it is what "no minifier" costs, measured
-instead of assumed. Two smaller effects are in the number too and are worth knowing — a barrel of
-re-exports compresses to _more_ than it was, because a brotli stream has a header and a fifty-byte
-file has nothing to find, and nineteen responses cannot share a compression window the way one
-bundle can.
+It was 3.5× when this was written, and the gap closed from the other end rather than by anything
+here turning out to be wrong. A production build now strips comments, which took the served figure
+from 46,698 B to 25,992: this codebase explains itself at length in its own modules, and every byte
+of that was being downloaded by browsers that cannot read it. The finding is unchanged and the
+number is nearly half — a bundled entry is still not what a page pays, and 1.9× is still not a
+rounding error.
+
+What is left is what "no bundler" costs rather than what "no minifier" costs, and the two smaller
+effects in it are worth knowing — a barrel of re-exports compresses to _more_ than it was, because
+a brotli stream has a header and a fifty-byte file has nothing to find, and nineteen responses
+cannot share a compression window the way one bundle can.
 
 The bundled entry stays and is relabelled. It is a good gate on how much code the front door _is_ —
 minified bytes are a proxy for logic, and comments do not move them — and it is no longer allowed to
@@ -191,7 +195,7 @@ at all, because the content lands where it belongs. Out-of-order requires every 
 closed, so content must arrive elsewhere and be moved, and moving a node is JavaScript.
 
 The filler is therefore not a fallback for weaker engines. It is the price of fastest-first
-on every engine, and it costs 329 bytes to buy a fast region at 22 ms instead of 103 ms.
+on every engine, and it costs 329 bytes to buy a fast region at 23 ms instead of 105 ms.
 
 ## Confirmed, with a correction: repeat visits
 
@@ -216,7 +220,7 @@ reported it **1.28× worse** than sending markup. That number was published here
 commits. It was measuring a client that could not address its own holes: only signal-wired
 bindings carried addressing, so a server-owned value could not be located. With anchors on
 holes (IR 2.1.0) a delta is applied as designed — one write per changed value — and is
-**22–67× cheaper** than the parse it replaces.
+**21–67× cheaper** than the parse it replaces.
 
 The lesson is not about deltas. A measurement of a capability that does not exist yet
 measures the stand-in, and reports it as if it were the thing.
@@ -492,14 +496,14 @@ had never been run.
 
 | Arrival                     | Strategy       | Diffs | Store reads | ms   |
 | --------------------------- | -------------- | ----- | ----------- | ---- |
-| all on one base render      | per-connection | 1,000 | 0           | 8.2  |
-| all on one base render      | shared         | **1** | 1,001       | 0.3  |
-| each on its own base render | per-connection | 1,000 | 0           | 9.2  |
-| each on its own base render | shared         | 1,000 | 2,000       | 17.3 |
+| all on one base render      | per-connection | 1,000 | 0           | 9.2  |
+| all on one base render      | shared         | **1** | 1,001       | 0.4  |
+| each on its own base render | per-connection | 1,000 | 0           | 9.6  |
+| each on its own base render | shared         | 1,000 | 2,000       | 18.7 |
 
 The second block is the finding. **When clients hold different bases there is nothing to share**,
-and the shared path does the same N diffs _plus_ a store read and a write for each — 17.3 ms
-against 9.2, so measurably worse. The win is proportional to how many clients share a base, and
+and the shared path does the same N diffs _plus_ a store read and a write for each — 18.7 ms
+against 9.6, so measurably worse. The win is proportional to how many clients share a base, and
 the shape it is for is a broadcast. A benchmark that reported only the first block would be
 advocacy, and this one reports both because the second one is where a deployment gets surprised.
 

@@ -20,16 +20,16 @@ fills whichever region resolves first. Nothing waits on document order. It costs
 mechanism: **329 bytes** of inline script, sent only when a route actually has slots.
 
 Measured with the slow region first — the only arrangement that separates the two — at
-80 ms against 20 ms, p50 of 5 loads:
+80 ms against 20 ms, p50 of 15 loads:
 
 |                           | Chromium  | Firefox   | WebKit    |
 | ------------------------- | --------- | --------- | --------- |
-| in-order, slow region     | 82 ms     | 102 ms    | 82 ms     |
-| in-order, fast region     | 103 ms    | 104 ms    | 103 ms    |
-| out-of-order, slow region | 82 ms     | 83 ms     | 82 ms     |
-| out-of-order, fast region | **22 ms** | **23 ms** | **22 ms** |
+| in-order, slow region     | 83 ms     | 106 ms    | 82 ms     |
+| in-order, fast region     | 105 ms    | 106 ms    | 105 ms    |
+| out-of-order, slow region | 83 ms     | 84 ms     | 82 ms     |
+| out-of-order, fast region | **23 ms** | **24 ms** | **23 ms** |
 
-The fast region arrives 4.7× earlier for 329 bytes. Both orders end at identical DOM in
+The fast region arrives 4.6× earlier for 329 bytes. Both orders end at identical DOM in
 all three engines, which is checked rather than assumed.
 
 ## Why the fill mechanism cannot be declarative shadow DOM

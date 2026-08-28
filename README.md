@@ -152,7 +152,9 @@ none at all. The demo ships none.
 
 Everything here is measured, reproducible from this repository, and reversed in public when it turns
 out to be wrong — [`spec/FINDINGS.md`](spec/FINDINGS.md) is the claim-by-claim ledger. Apple M4,
-Node 24.18, loopback, 300 samples.
+Node 24.18, loopback, 200 samples after 30 warmup requests. The falsification test below is the one
+exception and says so: it injects 40 ms of round trip and a 1,600 kbps link, because a shell-TTFB
+claim measured on loopback is a claim about a network that is not there.
 
 ### The falsification test the design set for itself
 
@@ -162,19 +164,19 @@ test, the central premise is wrong._ A route whose data takes 40 ms, 40 ms of in
 
 | Candidate                                                 | TTFB p50     | Last byte | Bytes |
 | --------------------------------------------------------- | ------------ | --------- | ----- |
-| Weft segments                                             | 43.46 ms     | 84.67 ms  | 6,289 |
-| String-concat SSR, streaming                              | 43.48 ms     | 84.84 ms  | 6,289 |
-| **RR7, tuned** — promise loader, Suspense, `onShellReady` | **44.65 ms** | 90.78 ms  | 7,687 |
-| Await the loader, then render                             | 84.75 ms     | 84.78 ms  | 6,289 |
-| **RR7, default shape** — awaited loader, `onAllReady`     | **95.35 ms** | 95.40 ms  | 6,370 |
+| Weft segments                                             | 44.01 ms     | 114.41 ms | 6,289 |
+| String-concat SSR, streaming                              | 44.19 ms     | 114.53 ms | 6,289 |
+| **RR7, tuned** — promise loader, Suspense, `onShellReady` | **46.54 ms** | 126.53 ms | 7,687 |
+| Await the loader, then render                             | 91.31 ms     | 115.45 ms | 6,289 |
+| **RR7, default shape** — awaited loader, `onAllReady`     | **98.85 ms** | 122.95 ms | 6,370 |
 
-**The premise survives and the framing does not.** 1.03× faster to first byte is 1.2 ms on a 43 ms
-number, and a design marketed on that would be marketing 1.2 ms. What the test does establish is
+**The premise survives and the framing does not.** 1.06× faster to first byte is 2.5 ms on a 44 ms
+number, and a design marketed on that would be marketing 2.5 ms. What the test does establish is
 worth more: **streaming is the whole game.** The two blocking candidates pay their query before
-their first byte — 1.95× and 2.19× worse — and no renderer improvement recovers it. Weft cannot be
+their first byte — 2.07× and 2.25× worse — and no renderer improvement recovers it. Weft cannot be
 configured into that failure, because a fragment that reads something slow is a hole by
 construction. RR7 can, and its default shape is the slow one. The edge that is left sits on the axes
-nobody markets: 6.7% faster to last byte, 18% fewer bytes for the same content.
+nobody markets: 9.6% faster to last byte, 18% fewer bytes for the same content.
 
 ### Streaming — the largest advantage measured anywhere here
 
@@ -182,10 +184,10 @@ A slot is a hole the shell refuses to wait for. With the slow region first, 80 m
 
 |                           | Chromium  | Firefox   | WebKit    |
 | ------------------------- | --------- | --------- | --------- |
-| in-order, fast region     | 103 ms    | 104 ms    | 103 ms    |
-| out-of-order, fast region | **22 ms** | **23 ms** | **22 ms** |
+| in-order, fast region     | 105 ms    | 106 ms    | 105 ms    |
+| out-of-order, fast region | **23 ms** | **24 ms** | **23 ms** |
 
-**4.7× earlier**, for 329 bytes of inline script, with identical final DOM in all three engines.
+**4.6× earlier**, for 329 bytes of inline script, with identical final DOM in all three engines.
 
 ### Bytes per server-driven update
 
@@ -194,7 +196,7 @@ One row's quantity and price change:
 | Form    | Raw   | Brotli |
 | ------- | ----- | ------ |
 | `html`  | 6,289 | 605    |
-| `delta` | 371   | 187    |
+| `delta` | 371   | 190    |
 
 **16.9× smaller raw, 3.2× after brotli** — and nothing else in the field offers it without a
 stateful process per connection.
@@ -206,13 +208,15 @@ executing. 50-row region, ~200 bindings, p50:
 
 |                                  | Chromium  | Firefox   | WebKit    |
 | -------------------------------- | --------- | --------- | --------- |
-| Adopt the region                 | 0.044 ms  | 0.105 ms  | 0.050 ms  |
-| Parse the same markup            | 0.076 ms  | 0.065 ms  | 0.140 ms  |
+| Adopt the region                 | 0.044 ms  | 0.1 ms    | 0.045 ms  |
+| Parse the same markup            | 0.076 ms  | 0.06 ms   | 0.14 ms   |
 | Apply a 12-path delta surgically | 0.0018 ms | 0.0029 ms | 0.0021 ms |
-| One signal write to one node     | 0.29 µs   | 1.7 µs    | 0.71 µs   |
+| One signal write to one node     | 0.52 µs   | 1.41 µs   | 1.31 µs   |
 
 A delta applied as designed — one write per changed value, into DOM that already exists — is
-**22–67× cheaper** than the parse it replaces.
+**21–67× cheaper** than the parse it replaces. The signal-write row is at the floor and is meant to
+be: it is a tie with every compiled reactive runtime, and at half a microsecond it is also close to
+what these engines' clocks can resolve.
 
 <details>
 <summary><b>More numbers</b> — server throughput, repeat visits, shared refresh, navigation</summary>
@@ -222,29 +226,29 @@ the same compiled templates, so this compares the mechanism and nothing else.
 
 | Scenario      | Segments            | String SSR |       |
 | ------------- | ------------------- | ---------- | ----- |
-| shell, 707 B  | 1,165,022 renders/s | 594,914    | 1.96× |
-| cart, 12 rows | 236,539             | 167,419    | 1.41× |
-| feed, 50 rows | 62,492              | 43,807     | 1.43× |
+| shell, 707 B  | 1,201,504 renders/s | 561,534    | 2.14× |
+| cart, 12 rows | 213,999             | 156,357    | 1.37× |
+| feed, 50 rows | 56,674              | 39,728     | 1.43× |
 
-The 1.4–1.96× lives in server capacity; it is invisible to latency.
+The 1.37–2.14× lives in server capacity; it is invisible to latency.
 
 **Repeat visits.** Templates persist in IndexedDB, are advertised to the server as a coarse digest,
 and arrive as `TPL` frames only when the client does not already hold them:
 
-| Boot path, p50    | Chromium    | Firefox | WebKit  |
-| ----------------- | ----------- | ------- | ------- |
-| First visit       | 2.50 ms     | 6.00 ms | 3.00 ms |
-| Repeat visit      | 0.70 ms     | 3.00 ms | 1.00 ms |
-| Protocol bytes    | 1,124 → 132 | same    | same    |
-| `TPL` frames sent | 2 → 0       | same    | same    |
+| Boot path, p50           | Chromium    | Firefox | WebKit  |
+| ------------------------ | ----------- | ------- | ------- |
+| First visit              | 2.70 ms     | 5.00 ms | 3.00 ms |
+| Repeat visit             | 0.60 ms     | 3.00 ms | 1.00 ms |
+| Protocol bytes, Chromium | 1,156 → 138 |         |         |
+| `TPL` frames sent        | 2 → 0       |         |         |
 
 IndexedDB rather than a service worker, because WKWebView gates service workers behind app-bound
 domains — the traffic where a repeat-visit gain matters most is the traffic that does not have them.
 
 **The shared surgical refresh.** The client names the base it holds, the server recovers it, diffs,
 and memoizes under `delta:<tpl>:<from>-><to>`. A thousand clients on one base cost **one** diff —
-0.3 ms against a per-connection differ's 8.2. A thousand clients each on a _different_ base share
-nothing, and the shared path then costs 17.3 ms against 9.2. Both are in the report, because the
+0.4 ms against a per-connection differ's 9.2. A thousand clients each on a _different_ base share
+nothing, and the shared path then costs 18.7 ms against 9.6. Both are in the report, because the
 second is where a deployment gets surprised.
 
 A region whose values are not projectable — a `raw()` value, an isolated instance, a `slot` hole —
@@ -255,8 +259,8 @@ compression, which is in [`spec/kernel/surgical.md`](spec/kernel/surgical.md) wi
 still the right answer there.
 
 **Instant navigation.** Hover stages a route into an epoch that paints nowhere; a click commits it as
-a DOM swap. 17 ms staged against 606 ms on the demo's deliberately slow page, and 7–19× on ordinary
-ones at 100 ms injected RTT. On loopback a staged click is _slower_ than letting the browser do it,
+a DOM swap. 17.5 ms staged against 606.0 ms on the demo's deliberately slow page, and 7–19× on
+ordinary ones at 100 ms injected RTT. On loopback a staged click is _slower_ than letting the browser do it,
 which is the honest floor of the idea and is in
 [`spec/client/navigation.md`](spec/client/navigation.md) with the table.
 
@@ -272,7 +276,7 @@ A test fails the moment an entry crosses its ceiling.
 | Content route — adopt and bind            | **2,251**  | 5,120   |
 | App route — adopt, bind, patch, epochs    | **3,190**  | 12,288  |
 | Server kernel — the document request path | **8,273**  | 8,320   |
-| Front door — the code, bundled            | **13,725** | 14,336  |
+| Front door — the code, bundled            | **13,991** | 14,336  |
 
 Fifteen entries in all, each with its own stated ceiling rather than a share of one — see
 [`DESIGN.md`](DESIGN.md#byte-budgets-which-are-gates-rather-than-reports) for the full table, the

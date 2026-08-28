@@ -1,5 +1,12 @@
 import { plainTerms, verdictPair, type Refusal, type Verdict } from './figures.ts'
 import { figure as benchFigure } from './bench.ts'
+import { demoWeight, downloadRatio } from './budgets.ts'
+import { fillerBytes, raceFigure, stagedClick } from './measured.ts'
+import { SLOTS } from './architecture.ts'
+import { criticalPath } from '@weftjs/kernel'
+
+/** The scheduler's own answer for the nine-slot example, rather than two numbers typed beside it. */
+const WAVES = criticalPath([...SLOTS])
 
 /**
  * The three client figures this file quotes, read once from the recorded run.
@@ -8,9 +15,15 @@ import { figure as benchFigure } from './bench.ts'
  * and the first and last had drifted from what `results/` measures.
  */
 const IN_CHROMIUM = {
-  adopt: benchFigure('tti-server-rendered', 'adopt a server-rendered region', { engine: 'chromium' }),
-  parse: benchFigure('client-work', 'html form, parsed', { engine: 'chromium' }),
-  apply: benchFigure('client-work', 'delta form, applied surgically', { engine: 'chromium' }),
+  adopt: benchFigure('tti-server-rendered', 'adopt a server-rendered region', {
+    engine: 'chromium',
+    scenario: 'feed',
+  }),
+  parse: benchFigure('client-work', 'html form, parsed', { engine: 'chromium', scenario: 'feed' }),
+  apply: benchFigure('client-work', 'delta form, applied surgically', {
+    engine: 'chromium',
+    scenario: 'feed',
+  }),
 }
 import { hero } from './heroes.ts'
 import { staticPages } from './counts.ts'
@@ -157,8 +170,7 @@ const OPENERS: Record<string, Opener> = {
     },
     plain:
       'Mark the slow part of the page as a slot and the shell stops waiting for it. Everything fast goes out immediately, the slow region sends a placeholder, and its real markup arrives later and lands in the right hole.',
-    caption:
-      'Both lanes settle at 103 ms with identical DOM in Chromium, Firefox and WebKit. The difference is when the fast region became visible, and it costs 329 bytes of inline script.',
+    caption: `Both lanes settle at ${raceFigure('chromium', 'in-order')} with identical DOM in Chromium, Firefox and WebKit. The difference is when the fast region became visible, and it costs ${fillerBytes()} bytes of inline script.`,
   },
   'where-it-runs': {
     ok: {
@@ -172,8 +184,7 @@ const OPENERS: Record<string, Opener> = {
     },
     plain:
       'Slots that do not depend on each other run at the same time. Saying a slot needs another puts it in a later wave. Where a slot runs is separate: in the request, deferred, in a worker pool, or on another deployment entirely.',
-    caption:
-      'Nine slots, three waves: a 42.7 ms critical path against a 123.3 ms sequential walk. Safe for one reason — render is provably read-only, so two fragments cannot observe each other’s side effects.',
+    caption: `${SLOTS.length} slots, three waves: a ${WAVES.ms.toFixed(1)} ms critical path against a ${WAVES.sequentialMs.toFixed(1)} ms sequential walk. Safe for one reason — render is provably read-only, so two fragments cannot observe each other’s side effects.`,
   },
   declarations: {
     ok: {
@@ -228,13 +239,12 @@ const OPENERS: Record<string, Opener> = {
     },
     no: {
       title: 'staging on loopback',
-      body: '17 ms staged against 606 ms on a slow page; on loopback a staged click loses to the browser. That is the floor of the idea, and the table says so.',
+      body: `${stagedClick().staged} staged against ${stagedClick().browser} on a slow page; on loopback a staged click loses to the browser. That is the floor of the idea, and the table says so.`,
       chips: ['what you wrote', 'there is no latency to hide', 'slower, and stated'],
     },
     plain:
       'Hovering a link fetches the next page into a staging area that paints nothing. Clicking swaps it in as one atomic change. If you never click, nothing you saw was disturbed — discarding a staged epoch is free.',
-    caption:
-      '17 ms staged against 606 ms, and 7–19× on ordinary pages at 100 ms injected RTT. On loopback a staged click is slower than letting the browser do it, which is the honest floor of the idea.',
+    caption: `${stagedClick().staged} staged against ${stagedClick().browser}, and 7–19× on ordinary pages at 100 ms injected RTT. On loopback a staged click is slower than letting the browser do it, which is the honest floor of the idea.`,
   },
   intents: {
     ok: {
@@ -269,7 +279,7 @@ const OPENERS: Record<string, Opener> = {
   'what-ships': {
     ok: {
       title: 'An entry inside its ceiling',
-      body: 'The gate is the real walk over HTTP — 46,698 B brotli for the demo — and the build writes weft.budget.json so a change is a diff.',
+      body: `The gate is the real walk over HTTP — ${demoWeight().brotli.toLocaleString('en-US')} B brotli for the demo — and the build writes weft.budget.json so a change is a diff.`,
     },
     no: {
       title: 'an entry over its ceiling',
@@ -278,8 +288,7 @@ const OPENERS: Record<string, Opener> = {
     },
     plain:
       'There is no bundler. The browser fetches the files on disk with their types stripped, so what you read is what runs. The budget is measured on that real fetch, not on an imaginary bundle.',
-    caption:
-      'The bundled figure is the code, not the download, and the difference is 3.5×. The gated number is the walk over HTTP, which agrees with the bundle walk within 0.3%.',
+    caption: `The bundled figure is the code, not the download, and the difference is ${downloadRatio()}×. The gated number is the walk over HTTP, which agrees with the bundle walk within 0.3%.`,
   },
   deploying: {
     ok: {

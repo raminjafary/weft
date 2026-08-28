@@ -172,14 +172,14 @@ serves all of them.
 
 | Arrival                     | Strategy       | Diffs | Memoized | Store reads | ms   |
 | --------------------------- | -------------- | ----- | -------- | ----------- | ---- |
-| all on one base render      | per-connection | 1,000 | 0        | 0           | 8.2  |
-| all on one base render      | shared         | **1** | 999      | 1,001       | 0.3  |
-| each on its own base render | per-connection | 1,000 | 0        | 0           | 9.2  |
-| each on its own base render | shared         | 1,000 | 0        | 2,000       | 17.3 |
+| all on one base render      | per-connection | 1,000 | 0        | 0           | 9.2  |
+| all on one base render      | shared         | **1** | 999      | 1,001       | 0.4  |
+| each on its own base render | per-connection | 1,000 | 0        | 0           | 9.6  |
+| each on its own base render | shared         | 1,000 | 0        | 2,000       | 18.7 |
 
 Both rows of the second block are the honest part. **When clients hold different bases there is
 nothing to share**, and the shared path then does the same N diffs plus a store read and a write
-for each — measurably worse, 17.3 ms against 9.2. Reporting only the first block would be
+for each — measurably worse, 18.7 ms against 9.6. Reporting only the first block would be
 advocacy. The win is proportional to how many clients share a base, and the shape it is for is
 a broadcast: a price list, a feed, a scoreboard.
 

@@ -266,23 +266,29 @@ and a page whose links all share its shell pays it for nothing.
 and once with `data-weft-prefetch="off"` on the document so the framework hands the same click to
 the browser. Both figures are the page's own clock, from the navigation starting to the target
 being interactive — `nav.lastMs` for the staged path, `readyAt` in the new document for the other.
-The demo, in Chromium, five samples each:
+The demo, in Chromium, ten samples each:
 
-| Route             | Staged | Browser | Loopback | 100 ms RTT |
-| ----------------- | ------ | ------- | -------- | ---------- |
-| `/app/article`    | 17 ms  | 7 ms    | 0.41×    | —          |
-| `/app/cart`       | 19 ms  | 17 ms   | 0.89×    | —          |
-| `/app/ordinary/…` | 17 ms  | 15 ms   | 0.88×    | 7.3×       |
-| `/app/feed`       | 22 ms  | 18 ms   | 0.82×    | 19.0×      |
-| `/app/dashboard`  | 17 ms  | 606 ms  | 35.7×    | —          |
+| Route             | Staged  | Browser  | Loopback | 100 ms RTT |
+| ----------------- | ------- | -------- | -------- | ---------- |
+| `/app/article`    | 1.0 ms  | 7.0 ms   | 7.00×    | —          |
+| `/app/composed`   | 1.0 ms  | 6.0 ms   | 6.00×    | —          |
+| `/app/cart`       | 16.5 ms | 14.0 ms  | 0.85×    | —          |
+| `/app/ordinary/…` | 16.0 ms | 6.0 ms   | 0.38×    | 7.3×       |
+| `/app/feed`       | 18.0 ms | 16.0 ms  | 0.89×    | 19.0×      |
+| `/app/dashboard`  | 17.5 ms | 606.0 ms | 34.63×   | —          |
 
 Read the first column of ratios as the honest floor: **on loopback a staged click is slower than
 letting the browser do it** for a page the server produces quickly, because the swap costs more
 than a local request that never left the machine. What the staging removes is the round trip and
 the render, and loopback has neither — so the same two routes measured through the harness's
-link proxy at 100 ms RTT come out 7.3× and 19.0× instead. The dashboard is the case that wins
-without any latency at all, because its slots are deliberately slow: 606 ms of server work the
-reader spent hovering rather than waiting.
+link proxy at 100 ms RTT come out 7.3× and 19.0× instead — those two are the only figures on this
+page from an earlier run, because `--latency` currently hangs before it launches a browser, and a
+number is better labelled than quietly replaced. The dashboard is the case that wins without any
+latency at all, because its slots are deliberately slow: 606 ms of server work the reader spent
+hovering rather than waiting.
+
+Two routes come in at 1.0 ms staged. Those are the pages the client can serve entirely from what it
+already staged — no document at all — and they are the shape the whole mechanism is for.
 
 The bytes are identical either way. A staged navigation transfers the same document, from the same
 kernel, on the same route; what changes is when it is asked for. That is also why `--bandwidth`

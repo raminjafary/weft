@@ -1,6 +1,6 @@
 {
   "environment": {
-    "when": "2026-08-20T16:15:54.981Z",
+    "when": "2026-08-28T10:00:42.661Z",
     "node": "v24.18.0",
     "v8": "13.6.233.17-node.50",
     "platform": "darwin",
@@ -9,20 +9,22 @@
     "cpu": "Apple M4",
     "cores": 10,
     "memoryGb": 16,
-    "freeMemoryGb": 0.2,
-    "commit": "a1fa599",
+    "freeMemoryGb": 0.9,
+    "commit": "41ad38d",
     "loadAverage": [
-      2.64,
-      1.9,
-      1.86
+      1.54,
+      2.15,
+      2.51
     ]
   },
   "methodology": {
-    "iterations": 100,
-    "warmup": 15,
+    "iterations": 200,
+    "warmup": 30,
     "connection": "warm",
     "transport": "stream",
     "latencyMs": 40,
+    "bandwidthKbps": 1600,
+    "lossPercent": 0,
     "batches": 25,
     "opsPerBatch": 200,
     "browserIterations": 5,
@@ -42,10 +44,6 @@
           "ok": true
         },
         {
-          "name": "data form projects to the same bytes as html",
-          "ok": true
-        },
-        {
           "name": "delta applied to the base render reproduces the html bytes",
           "ok": true
         },
@@ -53,6 +51,19 @@
           "name": "delta carries fewer entries than the full value set",
           "ok": true,
           "detail": "12 changed paths"
+        },
+        {
+          "name": "incremental render, cold memo: byte-identical to a full render",
+          "ok": true
+        },
+        {
+          "name": "incremental render, warm memo: byte-identical to a full render",
+          "ok": true
+        },
+        {
+          "name": "the warm render reused more rows than it rendered",
+          "ok": true,
+          "detail": "44 reused, 6 rendered"
         },
         {
           "name": "served bytes over http: segments vs string-ssr",
@@ -73,23 +84,24 @@
       "unit": "ms",
       "status": "measured",
       "summary": {
-        "n": 100,
-        "min": 41.74445899999955,
-        "p50": 43.4614375000001,
-        "p95": 44.006006849999494,
-        "p99": 44.413966990000375,
-        "max": 49.25754099999995,
-        "mean": 43.355504159999974,
-        "stddev": 0.807060836540467,
-        "mad": 0.2881870000001072
+        "n": 200,
+        "min": 42.517125000000306,
+        "p50": 44.00825000000077,
+        "p95": 44.63958304999706,
+        "p99": 45.174590829998124,
+        "max": 84.31574999999793,
+        "mean": 44.16124253999997,
+        "stddev": 2.8967135215964595,
+        "mad": 0.3804999999993015
       },
       "extra": {
-        "headersP50": 43.397,
-        "ttlbP50": 84.666,
+        "headersP50": 43.956,
+        "ttlbP50": 114.409,
         "bytes": 6289,
         "connection": "warm",
         "transport": "stream",
         "rtt": 40,
+        "kbps": 1600,
         "queryMs": 40
       }
     },
@@ -100,23 +112,24 @@
       "unit": "ms",
       "status": "measured",
       "summary": {
-        "n": 100,
-        "min": 41.22745800000121,
-        "p50": 43.48295800000142,
-        "p95": 44.05462884999933,
-        "p99": 44.28180341999976,
-        "max": 44.402625000000626,
-        "mean": 43.397911620000144,
-        "stddev": 0.5475112007715983,
-        "mad": 0.2843334999997751
+        "n": 200,
+        "min": 41.625417000002926,
+        "p50": 44.19031249999898,
+        "p95": 44.75524519999562,
+        "p99": 45.24642208000373,
+        "max": 84.51974999999948,
+        "mean": 44.24426479500014,
+        "stddev": 2.9394922381294535,
+        "mad": 0.35724999999729334
       },
       "extra": {
-        "headersP50": 43.411,
-        "ttlbP50": 84.839,
+        "headersP50": 44.127,
+        "ttlbP50": 114.528,
         "bytes": 6289,
         "connection": "warm",
         "transport": "stream",
         "rtt": 40,
+        "kbps": 1600,
         "queryMs": 40
       }
     },
@@ -127,23 +140,24 @@
       "unit": "ms",
       "status": "measured",
       "summary": {
-        "n": 100,
-        "min": 81.82062500000029,
-        "p50": 84.74999949999801,
-        "p95": 85.57917705000182,
-        "p99": 85.6614179100014,
-        "max": 85.71516600000177,
-        "mean": 84.60300993999982,
-        "stddev": 0.7694137621829916,
-        "mad": 0.5033540000003995
+        "n": 200,
+        "min": 89.00299999999697,
+        "p50": 91.31102049999754,
+        "p95": 92.15521285000068,
+        "p99": 93.70033808999493,
+        "max": 131.06883299999754,
+        "mean": 91.67577415499993,
+        "stddev": 4.010970866350676,
+        "mad": 0.40677100000175415
       },
       "extra": {
-        "headersP50": 84.637,
-        "ttlbP50": 84.783,
+        "headersP50": 91.272,
+        "ttlbP50": 115.448,
         "bytes": 6289,
         "connection": "warm",
         "transport": "stream",
         "rtt": 40,
+        "kbps": 1600,
         "queryMs": 40
       }
     },
@@ -154,23 +168,24 @@
       "unit": "ms",
       "status": "measured",
       "summary": {
-        "n": 100,
-        "min": 43.20141600000352,
-        "p50": 44.64916700000322,
-        "p95": 45.632843100003086,
-        "p99": 45.965820749999224,
-        "max": 46.10479199999827,
-        "mean": 44.59682164999998,
-        "stddev": 0.7275432823129668,
-        "mad": 0.6235210000013467
+        "n": 200,
+        "min": 43.487458999996306,
+        "p50": 46.543437500004075,
+        "p95": 47.709932699993075,
+        "p99": 52.34282226000839,
+        "max": 85.51641700000619,
+        "mean": 46.72469621499993,
+        "stddev": 2.964531839329128,
+        "mad": 0.6612920000043232
       },
       "extra": {
-        "headersP50": 44.586,
-        "ttlbP50": 90.778,
+        "headersP50": 46.49,
+        "ttlbP50": 126.531,
         "bytes": 7687,
         "connection": "warm",
         "transport": "stream",
         "rtt": 40,
+        "kbps": 1600,
         "queryMs": 40
       }
     },
@@ -181,30 +196,32 @@
       "unit": "ms",
       "status": "measured",
       "summary": {
-        "n": 100,
-        "min": 85.41720799999894,
-        "p50": 95.35412500000166,
-        "p95": 99.23687290000234,
-        "p99": 101.40849625000374,
-        "max": 101.5318749999933,
-        "mean": 95.18330543000026,
-        "stddev": 3.0113202817689944,
-        "mad": 1.9260624999988067
+        "n": 200,
+        "min": 93.19700000000012,
+        "p50": 98.85137450000184,
+        "p95": 102.44586075000042,
+        "p99": 138.2694100000111,
+        "max": 139.83308299999044,
+        "mean": 99.21283231499932,
+        "stddev": 5.410166812053811,
+        "mad": 1.5483339999991586
       },
       "extra": {
-        "headersP50": 95.24,
-        "ttlbP50": 95.403,
+        "headersP50": 98.796,
+        "ttlbP50": 122.95,
         "bytes": 6370,
         "connection": "warm",
         "transport": "stream",
         "rtt": 40,
+        "kbps": 1600,
         "queryMs": 40
       }
     }
   ],
   "warnings": [
     "webkit stands for Safari, every iOS webview by policy, and WebKitGTK under Tauri on Linux, but it is not WKWebView on a real device: no app-bound-domain rules, no host-app request interception, and no OS-level suspension: do not publish a webkit number as an iOS number",
-    "injected 40 ms RTT, latency only: bandwidth, loss, and congestion control are not modelled, and the TCP handshake is not delayed, so a cold-connection number understates a real one",
-    "transport is stream: these numbers do not cover webviews whose host app intercepts the request. Run --transport buffered as a separate, first-class mode"
+    "injected link: 40 ms RTT, 1600 kbps each way, no loss. Serialization, slow start (IW10, doubling once per RTT) and in-order loss recovery are modelled. The TCP handshake, congestion avoidance after the first loss, ack clocking, the receive window and competing flows are not — every one of those omissions makes a real link worse than this one, so a number here understates it",
+    "transport is stream: these numbers do not cover webviews whose host app intercepts the request. Run --transport buffered as a separate, first-class mode",
+    "machine load average was 2.42 at start: treat small differences as noise"
   ]
 }

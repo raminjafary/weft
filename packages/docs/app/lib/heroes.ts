@@ -2,6 +2,7 @@ import { criticalPath, schedule } from '@weftjs/kernel'
 import { escapeHtml } from './escape.ts'
 import { caption } from './openers.ts'
 import { siteWeight } from './budgets.ts'
+import { raceFigure, stagedClick } from './measured.ts'
 import { graph, type GraphEdge, type GraphNode } from './graph.ts'
 
 /**
@@ -374,7 +375,7 @@ function slotsAndStreaming(): string {
           { label: 'feed', tall: true, anim: 'wf-slow' },
           { label: 'prices', anim: 'wf-fast-io', lit: true },
         ],
-        [{ at: 100, label: '103 ms', anim: 'wf-tick-late' }],
+        [{ at: 100, label: raceFigure('chromium', 'in-order'), anim: 'wf-tick-late' }],
       )}
       ${lane(
         'Out of order',
@@ -385,8 +386,8 @@ function slotsAndStreaming(): string {
           { label: 'feed', tall: true, anim: 'wf-slow' },
         ],
         [
-          { at: 21, label: '22 ms', anim: 'wf-tick', lit: true },
-          { at: 100, label: '103 ms', anim: 'wf-tick-late' },
+          { at: 21, label: raceFigure('chromium', 'out-of-order'), anim: 'wf-tick', lit: true },
+          { at: 100, label: raceFigure('chromium', 'in-order'), anim: 'wf-tick-late' },
         ],
       )}
      </div>`,
@@ -484,7 +485,7 @@ function navigation(): string {
       row(
         `${code('hover', 'ghost')}${step(0, box(code('epoch staged — paints nowhere'), 'dashed'))}${step(
           0.84,
-          pill('17 ms', 'lit'),
+          pill(stagedClick().staged, 'lit'),
         )}`,
       ),
       row(
@@ -493,7 +494,7 @@ function navigation(): string {
       row(
         `${code('unstaged', 'ghost')}${step(2.1, note('on the demo’s deliberately slow page'))}${step(
           2.52,
-          pill('606 ms'),
+          pill(stagedClick().browser),
         )}`,
       ),
     ]),
@@ -691,7 +692,7 @@ function whatShips(): string {
         ).toFixed(2)}s infinite"></span>`,
     ).join('')}</div>
      ${row(
-       `${note(`${site.modules} modules, served as written, comments intact`)}
+       `${note(`${site.modules} modules, served as written, types stripped`)}
         <span class="hpush"></span>
         ${code(`${site.brotli.toLocaleString('en-US')} B brotli`, 'lit')}`,
      )}
@@ -730,9 +731,9 @@ function composition(): string {
 /** Three engines, measured directly, and the one that is labelled a proxy rather than a phone. */
 function devices(): string {
   const engines: readonly [string, string][] = [
-    ['chromium', '22 ms'],
-    ['firefox', '23 ms'],
-    ['webkit', '22 ms, a desktop proxy'],
+    ['chromium', raceFigure('chromium', 'out-of-order')],
+    ['firefox', raceFigure('firefox', 'out-of-order')],
+    ['webkit', `${raceFigure('webkit', 'out-of-order')}, a desktop proxy`],
   ]
   return frame(
     'devices',

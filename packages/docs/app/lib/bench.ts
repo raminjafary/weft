@@ -105,7 +105,7 @@ function measurements(): Map<string, Measured> {
     }
     for (const row of raw.rows) {
       if (row.status !== 'measured' || !row.summary) continue
-      everything.set(key(row.axis, row.candidate, row.engine), {
+      everything.set(key(row.axis, row.candidate, row.engine, row.scenario), {
         p50: row.summary.p50,
         n: row.summary.n,
         unit: row.unit,
@@ -119,8 +119,21 @@ function measurements(): Map<string, Measured> {
   return everything
 }
 
-function key(axis: string, name: string, engine?: string): string {
-  return `${axis}\u0000${name}\u0000${engine ?? ''}`
+/**
+ * The scenario is part of the key, because the same candidate is measured on several of them.
+ *
+ * It was not, and the day a scenario was added to the harness's default set every figure on this
+ * site changed silently: `adopt a server-rendered region` is measured on the 12-row cart, the
+ * 50-row feed and the two-hole `derived` page, and with the scenario left out of the key the last
+ * one written won. The page saying "adopting a 50-row region costs …" started printing what a
+ * two-hole page costs, and nothing failed — a smaller number is exactly what a reader would expect
+ * a faster runtime to produce.
+ *
+ * A default so the callers that do not care do not have to say so: a figure that is measured on one
+ * scenario is unambiguous without one, and a figure that is measured on several has to name it.
+ */
+function key(axis: string, name: string, engine?: string, scenario = ''): string {
+  return `${axis}\u0000${name}\u0000${engine ?? ''}\u0000${scenario}`
 }
 
 /**
@@ -130,17 +143,28 @@ function key(axis: string, name: string, engine?: string): string {
  * page that says a figure is unmeasured, not fail to render. Every call site here decides what to
  * say in that case, and none of them may invent the number.
  */
-export function measured(axis: string, name: string, engine?: string): Measured | undefined {
-  return measurements().get(key(axis, name, engine))
+export function measured(
+  axis: string,
+  name: string,
+  engine?: string,
+  scenario?: string,
+): Measured | undefined {
+  const all = measurements()
+  if (scenario) return all.get(key(axis, name, engine, scenario))
+  // No scenario asked for: answer only if exactly one was measured, so an ambiguous lookup is an
+  // absence a page can say out loud rather than whichever row the directory listing ended on.
+  const prefix = key(axis, name, engine, '')
+  const found = [...all].filter(([at]) => at.startsWith(prefix))
+  return found.length === 1 ? found[0]?.[1] : undefined
 }
 
 /** A measured figure rounded the way a page wants to print it, or the honest absence. */
 export function figure(
   axis: string,
   name: string,
-  options: { engine?: string; digits?: number; unit?: string } = {},
+  options: { engine?: string; digits?: number; unit?: string; scenario?: string } = {},
 ): string {
-  const found = measured(axis, name, options.engine)
+  const found = measured(axis, name, options.engine, options.scenario)
   if (!found) return 'not measured'
   const digits = options.digits ?? (found.p50 < 0.01 ? 4 : found.p50 < 1 ? 3 : found.p50 < 10 ? 2 : 1)
   const value = found.p50.toLocaleString('en-US', { maximumFractionDigits: digits })

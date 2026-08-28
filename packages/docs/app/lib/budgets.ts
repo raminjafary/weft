@@ -38,6 +38,7 @@ export interface Budget {
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
 const SOURCE = join(ROOT, 'packages/bench/src/budget.ts')
 const SITE = fileURLToPath(new URL('../../weft.budget.json', import.meta.url))
+const DEMO = join(ROOT, 'demo/weft.budget.json')
 
 /**
  * One declared entry, pulled out of the array by splitting on `id:` rather than by one long regex.
@@ -135,8 +136,39 @@ export interface SiteWeight {
  * its own response. This number is that walk, compressed the way it arrives.
  */
 export function siteWeight(): SiteWeight {
-  const parsed = JSON.parse(readFileSync(SITE, 'utf8')) as SiteWeight
+  return weightOf(SITE)
+}
+
+/**
+ * The same question about the demo, which is the application every published figure is about.
+ *
+ * Three pages named the demo's download in prose — a hero figure, a guide opener and a paragraph on
+ * the architecture page — and all three had it as 46,698 B, which was true until a production build
+ * stopped shipping its own comments and took it to 25,992. A number typed into three files is a
+ * number that goes stale in three files, so it is read from the file the build writes.
+ */
+export function demoWeight(): SiteWeight {
+  return weightOf(DEMO)
+}
+
+function weightOf(file: string): SiteWeight {
+  const parsed = JSON.parse(readFileSync(file, 'utf8')) as SiteWeight
   return { brotli: parsed.brotli, raw: parsed.raw, modules: parsed.modules }
+}
+
+/**
+ * How far the bundled front-door entry is from what a page actually downloads.
+ *
+ * Both halves are measured and neither is typed: the numerator is the walk the browser makes,
+ * recorded by `weft build`; the denominator is the same code through Rolldown, recorded by
+ * `pnpm bench budget --write`. The ratio was published as 3.5× and is now under 2×, because a
+ * production build stopped shipping its own comments — which is exactly the kind of movement a
+ * derived figure should follow on its own.
+ */
+export function downloadRatio(): string {
+  const bundled = entryFor('front-door')?.brotli
+  if (!bundled) return 'not measured'
+  return (demoWeight().brotli / bundled).toFixed(1)
 }
 
 /**

@@ -19,12 +19,12 @@ the gate is the test that calls it. Rolldown, minified, brotli at quality 11 —
 | `entry-patch.ts`          | The above, plus the patch encoder: the surgical rung a template needs no proof for   | 11,712 B | 12,288 B | No design figure. Its own, because in the refresh path it cost everyone |
 | `entry-intent.ts`         | The request path, plus intent dispatch, the three authority branches, method routing | 9,802 B  | 10,240 B | No design figure. A watermark                                           |
 | `entry-authority.ts`      | The above, plus the capability model, signed intents and delegation                  | 11,722 B | 12,288 B | No design figure. Its own, because the design calls this tier separable |
-| `entry-transport.ts`      | The channel path, plus a live channel: negotiation, held state, push invalidation    | 13,842 B | 14,336 B | No design figure. A watermark, **moved from 13,312**                    |
-| `entry-stage.ts`          | The above, plus a whole route staged over the channel: `WARM at=`, `NAV`             | 14,200 B | 14,336 B | No design figure. Its own, because it went past the watermark above     |
-| `entry-discover.ts`       | The above, plus lazy plan extension: `WARM plan=`, `PLAN`                            | 14,406 B | 15,360 B | No design figure. Its own, on the rule route staging established        |
-| `entry-render.ts`         | The transport, plus a catalogue of fragments a client can name: render intents       | 14,411 B | 14,464 B | No design figure. Its own, on the same rule                             |
+| `entry-transport.ts`      | The channel path, plus a live channel: negotiation, held state, push invalidation    | 13,929 B | 14,336 B | No design figure. A watermark, **moved from 13,312**                    |
+| `entry-stage.ts`          | The above, plus a whole route staged over the channel: `WARM at=`, `NAV`             | 14,288 B | 14,336 B | No design figure. Its own, because it went past the watermark above     |
+| `entry-discover.ts`       | The above, plus lazy plan extension: `WARM plan=`, `PLAN`                            | 14,490 B | 15,360 B | No design figure. Its own, on the rule route staging established        |
+| `entry-render.ts`         | The transport, plus a catalogue of fragments a client can name: render intents       | 14,495 B | 14,592 B | No design figure. Its own, on the same rule                             |
 | `entry-region.ts`         | The request path, plus regions resolved through the registry and checked on arrival  | 11,419 B | 12,288 B | No design figure. Its own, on the same rule. **Moved from 11,264**      |
-| `entry-region-channel.ts` | The transport plus composition: a region refreshed over a live channel               | 16,828 B | 17,408 B | No design figure. Its own, and **moved from 16,384**                    |
+| `entry-region-channel.ts` | The transport plus composition: a region refreshed over a live channel               | 16,917 B | 17,408 B | No design figure. Its own, and **moved from 16,384**                    |
 | `index.ts`                | Everything, including build-time validation and serialisation                        | 11,601 B | —        | Not a claim. Reported so the marginal split is checkable                |
 
 On the client, same rule:
@@ -42,7 +42,7 @@ is the argument, and the client's channel ceiling moved from 4,096 in the same c
 | `entry-nav.ts` | Plus routes staged and unpainted, `NAV` frames, and what a click is | 4,970 B | 5,120 B |
 | `entry-discover.ts` | Plus what it knows about routes it has not been to | 5,331 B | 6,144 B |
 | `index.ts` | Everything | 6,137 B | 6,144 B |
-| `boot.ts` (front door) | The front door's code, bundled and minified — see below | 13,725 B | 14,336 B |
+| `boot.ts` (front door) | The front door's code, bundled and minified — see below | 13,991 B | 14,336 B |
 
 Navigation is the client-side case of the rule below: 851 bytes on top of a channel route, in an
 entry of its own, because a page that links nowhere should not carry the staging model. Discovery is
@@ -107,7 +107,7 @@ reason written down; what it is _not_ is the number a reader pays, which is the 
 this page is Rolldown-bundled and minified. This framework has no bundler and no minifier, and says
 so in `build.ts`: a page fetches the boot module and each module it imports as its own response,
 served as written with types stripped. Walked and compressed the way it arrives, the demo's client is
-**46,698 B across 19 modules** against the 13,428 B in the table — 3.5×, and the same walk over HTTP
+**25,992 B across 19 modules** against the 13,991 B in the table — 1.9×, and the same walk over HTTP
 agrees within 0.3%. The reversal is in [`FINDINGS.md`](../FINDINGS.md); what to do about it is a
 separate question from what to call it, and the first step was to stop publishing the smaller number
 as the one a reader pays.

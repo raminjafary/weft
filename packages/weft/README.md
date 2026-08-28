@@ -118,9 +118,9 @@ weft upload --to <url> --header <k=v>   # PUT the build to an object store
 
 |                                                |                                                      |
 | ---------------------------------------------- | ---------------------------------------------------- |
-| Out-of-order streaming, fast region on screen  | **4.7× earlier**, in all three engines               |
+| Out-of-order streaming, fast region on screen  | **4.6× earlier**, in all three engines               |
 | A server-driven update as a delta              | **16.9×** fewer bytes raw, 3.2× after brotli         |
-| Applying that delta against parsing the markup | **22–67× cheaper**                                   |
+| Applying that delta against parsing the markup | **21–67× cheaper**                                   |
 | Client runtime, everything                     | **6,137 B** brotli, against a gated ceiling of 6,144 |
 | Server kernel, the document request path       | **8,273 B** brotli, against 8,320                    |
 | Third-party runtime dependencies               | **1** — `oxc-parser`, in the compiler                |
