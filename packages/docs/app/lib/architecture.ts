@@ -1,4 +1,5 @@
-import { criticalPath, schedule, type DagNode } from '@weftjs/kernel'
+import { criticalPath, schedule, serverCapabilities, type DagNode } from '@weftjs/kernel'
+import { negotiate, WARP_VERSION, type Transport } from '@weftjs/warp'
 import { escapeHtml } from './escape.ts'
 import { graph, type GraphEdge, type GraphNode } from './graph.ts'
 import { artifacts } from './versions.ts'
@@ -531,7 +532,152 @@ function negotiation(): string {
   )
 }
 
-/* ── 6 · the build ────────────────────────────────────────────────────────── */
+/* ── 6 · the delivery ─────────────────────────────────────────────────────── */
+
+/**
+ * The four bindings, and what each one costs — computed, not transcribed.
+ *
+ * The strategy and the downgrade line under each binding come from `negotiate()` itself, run here
+ * at build time against `serverCapabilities()`. A page that restated them would be a page that
+ * could disagree with the handshake it describes, and this is the one figure where that would
+ * matter most: somebody reads it to decide where to deploy.
+ */
+const BINDINGS: readonly { id: string; transport: Transport; label: string; down: string; up: string }[] = [
+  { id: 'socket', transport: 'socket', label: 'socket', down: 'one WebSocket', up: 'the same socket' },
+  { id: 'stream', transport: 'stream', label: 'stream', down: 'a held GET response', up: 'discrete POSTs' },
+  { id: 'sse', transport: 'stream', label: 'sse', down: 'text/event-stream', up: 'discrete POSTs' },
+  { id: 'turn', transport: 'turn', label: 'turn', down: "the POST's own response", up: 'the same POST' },
+]
+
+/** What the server actually settles for a client arriving on each binding. */
+function settled(transport: Transport): { strategy: string; resumable: boolean; downgrades: string[] } {
+  const caps = serverCapabilities()
+  const n = negotiate(
+    {
+      warp: WARP_VERSION,
+      ir: caps.ir,
+      forms: ['html', 'delta', 'patch'],
+      transport,
+      dsd: true,
+      vt: true,
+      sw: true,
+    },
+    caps,
+  )
+  return {
+    strategy: n.strategy,
+    resumable: n.resumable,
+    // The form line is about this hypothetical client's own list, not about the binding, so it is
+    // not what this figure is describing.
+    downgrades: n.downgrades.filter((d) => !d.startsWith('forms unavailable')),
+  }
+}
+
+function bindings(): string {
+  const nodes: GraphNode[] = [
+    {
+      id: 'hello',
+      x: 6,
+      y: 118,
+      w: 250,
+      h: 74,
+      title: 'RESIDENT',
+      notes: ['the client names its versions,', 'the forms it takes, and the transport it has'],
+      at: 0,
+    },
+    ...BINDINGS.map((b, i) => {
+      const s = settled(b.transport)
+      return {
+        id: b.id,
+        x: 400,
+        y: 10 + i * 82,
+        w: 400,
+        h: 68,
+        title: `${b.label} — strategy ${s.strategy}`,
+        notes: [`down: ${b.down}`, `up: ${b.up}`],
+        accent: b.id === 'socket',
+        at: 0.9 + i * 0.25,
+      } as GraphNode
+    }),
+    {
+      id: 'warp',
+      x: 880,
+      y: 118,
+      w: 300,
+      h: 74,
+      title: 'WARP',
+      notes: ['every axis settled, and a named', 'downgrade for each one that was not'],
+      accent: true,
+      at: 2.2,
+    },
+  ]
+  const edges: GraphEdge[] = [
+    ...BINDINGS.map((b, i) => ({ from: 'hello', to: b.id, at: 0.5 + i * 0.1, flow: 0.85 + i * 0.2 })),
+    ...BINDINGS.map((b, i) => ({ from: b.id, to: 'warp', at: 1.6 + i * 0.1, flow: 2.1 + i * 0.1 })),
+  ]
+  const turn = settled('turn')
+  return figure(
+    `${graph(nodes, edges, { height: 350, cycle: 6 })}
+    <p class="gfx-note">Every form in figure 5 is available on every binding — a turn is a bounded
+      stream, not a degraded one. What differs is only whether the server can speak without being
+      asked, which is why the one binding that cannot says so on the handshake:
+      <em>${enc(turn.downgrades[0] ?? '')}</em></p>`,
+    'The client says which transport it has and the server says what it will do with it. Nothing ' +
+      'above the handshake knows which of the four it got.',
+  )
+}
+
+/** The axes the handshake settles, each with what it decides and what it costs to lose. */
+const AXES: readonly { key: string; is: string; lost: string }[] = [
+  {
+    key: 'warp',
+    is: 'the frame protocol version, settled to the lower of the two',
+    lost: 'a major mismatch is fatal on the frame that settles it: the stream is unusable and nothing renders under it, rather than frames arriving that depend on a version nobody has',
+  },
+  {
+    key: 'ir',
+    is: 'the template format the client can apply',
+    lost: 'a major mismatch drops every client to html — the whole region, re-parsed — because a delta names paths into a template shape it does not have',
+  },
+  {
+    key: 'forms',
+    is: 'which of html, delta, patch, split and bundle this client accepts',
+    lost: 'the kernel picks the smallest form both sides hold; a client that takes only html gets html, over the wire and not merely in the plan',
+  },
+  {
+    key: 'strategy',
+    is: 'how frames move: socket, stream, or collapse',
+    lost: 'collapse is the webview case — the host app buffers the document, so holes cannot arrive out of order and slots fold into the document instead',
+  },
+  {
+    key: 'fill',
+    is: 'declarative shadow DOM, or a script that moves the nodes',
+    lost: 'a client without incremental DSD parsing is filled by script; the DOM is identical either way',
+  },
+  {
+    key: 'commit',
+    is: 'whether an epoch commits inside a view transition',
+    lost: 'without one the commit is instant — still atomic, just not animated',
+  },
+  {
+    key: 'residency',
+    is: 'where resident templates live: a service worker, IndexedDB, or the HTTP cache',
+    lost: 'the HTTP cache is the floor, and repeat-visit gains stop being guaranteed',
+  },
+  {
+    key: 'resumable',
+    is: 'whether this client may come back with RESUME and continue',
+    lost: 'a buffered transport cannot, so an evicted webview starts over rather than continuing from its last commit',
+  },
+]
+
+function axes(): string {
+  return `<dl class="arch-defs">${AXES.map(
+    (a) => `<dt><code>${enc(a.key)}</code></dt><dd><b>${enc(a.is)}.</b> ${enc(a.lost)}</dd>`,
+  ).join('')}</dl>`
+}
+
+/* ── 7 · the build ────────────────────────────────────────────────────────── */
 
 function build(files: number): string {
   const stages: readonly { title: string; note: string; accent?: boolean }[] = [
@@ -663,6 +809,68 @@ export function architecture(counts: ArchCounts): string {
 
     ${heading(
       '6',
+      'How a frame reaches the browser at all',
+      'Figure 5 is one negotiation and this is the other, and conflating them is the usual mistake. ' +
+        '<em>Form</em> decides what a region becomes on the wire. <em>Delivery</em> decides how any frame ' +
+        'gets there — and the two are independent, so every form is available on every binding.',
+    )}
+    ${bindings()}
+
+    <div class="arch-prose">
+      <p>The whole handshake is one frame each way. The client sends <code>RESIDENT</code>: the protocol
+        version it speaks, the template format it can apply, the wire forms it accepts, the transport it
+        actually has, and what its engine can do — incremental declarative shadow DOM, view transitions, a
+        service worker, IndexedDB. The server answers <code>WARP</code>, which settles every axis at once and
+        carries a named line for each one it could not honour.</p>
+
+      <p>That list of names is the part worth dwelling on. A framework that degrades silently is a framework
+        whose failures look like bugs: a region that never updates and a navigation that is always a document
+        are the same symptom whether the cause is a blocked port, a proxy eating an upgrade, or a client three
+        template majors behind. So nothing degrades quietly here. Every downgrade is a sentence on the frame
+        that settled it, which is why the one thing a turn cannot do is written into its handshake rather than
+        into a paragraph somebody has to find.</p>
+
+      <h3>What the handshake settles</h3>
+      ${axes()}
+
+      <h3>The four bindings, and the one that holds nothing</h3>
+      <p>Three of the four hold a downstream open, and answer <em>down it</em>. A socket is one connection
+        carrying both directions. The streamed binding is a long-lived GET with discrete POSTs going up, and
+        the SSE binding is the same arrangement in text framing — which is why it is not the default, since it
+        cannot carry binary and pays base64 on every body. All three share one consequence: the server can
+        speak first. An invalidation reaches the reader the moment the write happens.</p>
+
+      <p>The fourth holds nothing. A <code>turn</code> carries frames up in a request body and the answer back
+        in that request's own response, so it is a function from bytes to bytes with no state between calls.
+        That is the only shape that runs on a platform which terminates no upgrade and outlives no request —
+        a serverless function — and it needs no server memory because the protocol was already
+        client-authoritative: <code>RESIDENT</code> says what the client holds and <code>HELD</code> says what
+        it is showing, both in the same body, so a channel built for one request answers exactly as a socket
+        would. It opens, is used, and is dropped.</p>
+
+      <p>What it gives up is the ability to be spoken to. With no held downstream there is nowhere to put an
+        unasked <code>STALE</code>, so an invalidation waits and is carried on the next turn — which is a real
+        limitation and a small one, because everything a client <em>asks</em> for it still gets: intents,
+        surgical refreshes, a whole route staged before it is clicked.</p>
+
+      <h3>Which one you get, and who decides</h3>
+      <p>The client does not guess. A deployment that cannot hold a connection says so, and the client takes
+        turns from its first request. Guessing is worse than it sounds: the upgrade fails, the streamed GET
+        then <em>appears</em> to work, and the POSTs that follow land on whichever instance the platform
+        happened to route to — so a channel that is merely unavailable ends up looking broken, intermittently.
+        A deployment that did not say is still not stranded: the first refusal switches bindings and takes the
+        refused frames as a turn rather than losing them.</p>
+
+      <p>The gap a turn leaves is filled from outside the hub, by whichever of two things a deployment
+        needs. A <em>fanout</em> carries an invalidation to the other instances holding a connection right now,
+        which is what more than one replica requires whatever binding it serves. A <em>journal</em> writes down
+        what a client with no connection will ask for later. The hub knows about neither: it takes one hook and
+        tells whatever is on the other end, because which of them applies is a property of the deployment and
+        not of the protocol.</p>
+    </div>
+
+    ${heading(
+      '7',
       'From your files to what the browser fetches',
       'The build produces sealed templates, a generated plan, a manifest and revved assets — and prints ' +
         'which pages became files. Nothing is bundled at any point, which is why the byte budget is measured ' +

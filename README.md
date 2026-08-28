@@ -2,6 +2,12 @@
 
 **A TypeScript fullstack framework that negotiates how UI reaches the browser.**
 
+It runs wherever you deploy it. On a host that keeps a process — Fly, Railway, Render, a container,
+a bare pod — the channel is a WebSocket. On one that keeps none, a serverless function on Vercel or
+Lambda or Workers, the same channel becomes a request and its response, and everything the client
+asks for still works: intents, surgical refreshes, and a whole route staged before it is clicked.
+Nothing degrades silently — whatever a host cannot do is a named line on the handshake.
+
 The wire form of a piece of UI — full markup, a surgical delta, a patch — is chosen per request from
 a set of encodings the compiler has proven equivalent, instead of being frozen at build time.
 

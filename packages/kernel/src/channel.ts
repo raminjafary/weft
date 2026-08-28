@@ -68,7 +68,7 @@ import {
 export type ChannelBinding = 'stream' | 'sse' | 'socket' | 'turn'
 
 /**
- * The transport underneath a channel, whichever of the three bindings it is.
+ * The transport underneath a channel, whichever of the four bindings it is.
  *
  * `saturated` is the field that matters: a sink that never reports it makes a slow consumer look
  * like a fast one right up to the point where the process runs out of memory holding frames.

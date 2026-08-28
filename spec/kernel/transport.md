@@ -1,4 +1,4 @@
-# The Warp channel, and the three bindings
+# The Warp channel, and the four bindings
 
 Every flow phases 5 and 6 promise was produced, parsed and tested before this existed, and
 none of it had ever left a test process. `surgicalRefresh` was called directly, `STALE` was
@@ -7,7 +7,7 @@ carried is a data structure, not a protocol.
 
 ## The shape
 
-One state machine, three sinks. [`channel.ts`](../../packages/kernel/src/channel.ts) knows
+One state machine, four sinks. [`channel.ts`](../../packages/kernel/src/channel.ts) knows
 nothing about how bytes move; [`node-channel.ts`](../../packages/adapters/src/node-channel.ts)
 is where they do.
 
@@ -16,16 +16,63 @@ is where they do.
 | `stream` | one long-lived GET response | discrete POSTs  | binary  | 8 preamble bytes per POST; a dead downstream refuses |
 | `sse`    | `text/event-stream`         | discrete POSTs  | text    | base64 on every non-text body                        |
 | `socket` | WebSocket                   | the same socket | binary  | an upgrade, and no HTTP caching of the channel       |
+| `turn`   | the POST's own response     | the same POST   | binary  | `RESIDENT` and `HELD` re-declared per turn; no push  |
 
-The costs are stated because they decide which one a deployment wants, and two of them are
+The costs are stated because they decide which one a deployment wants, and three of them are
 not obvious from the outside:
 
 - **SSE cannot carry binary.** It uses the text framing, so a rendered fragment travels
   base64. That is why it is not the default; it is here because a client behind a proxy that
   breaks other things often still has SSE.
-- **The half-duplex bindings answer on the other connection.** An upstream POST arriving after
+- **The three held bindings answer on the other connection.** An upstream POST arriving after
   its downstream has dropped is `E_NO_DOWNSTREAM` — the frames were understood and there was
   nowhere to put the answer. A silent 200 would be the wrong answer to a real question.
+- **A turn has no other connection**, so it cannot have that failure and cannot be spoken to.
+  It answers 200 rather than 202 for exactly that reason: 202 says the answer went down the
+  other connection, and here this response _is_ the answer.
+
+## `turn`, and why a channel that holds nothing is still a channel
+
+The other three hold a downstream open. A host that terminates no upgrade and outlives no
+request can run none of them, and the failure is worse than an absence: the upgrade is refused,
+the streamed GET appears to work, and the POSTs that follow reach whichever instance the
+platform routed them to. A channel that is merely unavailable ends up looking broken.
+
+A turn carries frames up in a request body and the answer back in that request's own response.
+Nothing had to be invented for it. `hub.receive` already returned the frames it produced and
+the POST path was discarding them; and the protocol was already client-authoritative, so the
+server needs no memory between calls — `RESIDENT` says what the client holds, `HELD` with
+`only` says what it is showing, both ahead of whatever they answer, because frames are handled
+in the order they arrive. The channel is opened for one request, used, and dropped.
+
+What it gives up is the ability to be spoken to first. There is nowhere to put an unasked
+`STALE`, so an invalidation is carried on the next turn — and that is named on the handshake
+rather than left to be discovered, because a region that never updates looks identical to a
+framework that does not work.
+
+Which binding a client takes is not guessed. `channel: { hold: false }` says a deployment
+cannot hold a downstream and the client takes turns from its first request; a deployment that
+did not say is not stranded, because the first `409` switches bindings and takes the refused
+frames as a turn rather than losing them.
+
+## The two gaps a held connection was hiding
+
+`hub.notify` walks the connections _this_ process is holding. That is the whole of push
+invalidation on one instance, half of it on two, and none of it for a client that holds no
+connection at all — and both gaps are filled from outside the hub, which takes a single
+`onInvalidated` hook and knows about neither.
+
+- **`FanoutPort`** carries an invalidation to the instances holding a connection now. Needed by
+  any deployment above one instance, whatever binding it serves; a memory implementation ships,
+  and Redis, Valkey or NATS replace it without the hub noticing. A publisher must not hear
+  itself, which is what `origin` is for.
+- **`StaleJournal`** writes down what a client with no connection will ask for later. A record
+  rather than a queue: reading does not consume, so two tabs are both told, and `since` on the
+  turn is what stops one write becoming one refresh per turn. One store entry per key rather
+  than a list, because a list is read-modify-write and `StorePort` has no compare-and-swap.
+
+A process-scoped store makes both of these a lie on more than one instance, so the plan
+validator refuses it at build time: `E_TAGS_PROCESS_SCOPED`.
 
 ## What a channel holds
 

@@ -154,6 +154,9 @@ importers:
       '@weftjs/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@weftjs/warp':
+        specifier: workspace:*
+        version: link:../warp
       oxc-parser:
         specifier: 0.146.0
         version: 0.146.0

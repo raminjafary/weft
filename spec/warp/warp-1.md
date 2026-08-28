@@ -99,13 +99,19 @@ are both present they are two claims about one topology and are refused if they 
 
 ## Transport bindings
 
-Warp is a logical channel with three bindings and one frame vocabulary:
+Warp is a logical channel with four bindings and one frame vocabulary:
 
 1. **Streamed response down, discrete POSTs up.** Default. The initial document _is_
    the first frames. Streaming a _request_ body is Chromium-only, HTTP/2-only, and never
    truly duplex, so it is not the foundation.
 2. **WebSocket.** The only Baseline true-duplex transport. Baseline in every webview.
-3. **WebTransport.** Later, where it exists.
+3. **A turn: one POST, its own response.** For a host that holds no connection between
+   requests. Frames go up in the body and come back in the response to the same request, so
+   there is no downstream to be answered on and no server state between calls — the client
+   re-declares `RESIDENT` and `HELD` each time, which the protocol already required it to be
+   able to do. It is a bounded stream and not a degraded one: every form remains available,
+   and the only thing lost is the server speaking first, which the handshake names.
+4. **WebTransport.** Later, where it exists.
 
 Read the downlink with `getReader()`. `for await…of` over a stream is the part Safari
 lacks, not stream reading itself.
