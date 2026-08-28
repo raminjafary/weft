@@ -64,9 +64,9 @@ rather than the tree the browser ended up with.
 
 |                                  | Chromium  | Firefox   | WebKit    |
 | -------------------------------- | --------- | --------- | --------- |
-| Adopt the region                 | 0.047 ms  | 0.095 ms  | 0.040 ms  |
-| Parse the same markup            | 0.076 ms  | 0.060 ms  | 0.140 ms  |
-| Apply a 12-path delta surgically | 0.0017 ms | 0.0029 ms | 0.0015 ms |
+| Adopt the region                 | 0.044 ms  | 0.105 ms  | 0.050 ms  |
+| Parse the same markup            | 0.076 ms  | 0.065 ms  | 0.140 ms  |
+| Apply a 12-path delta surgically | 0.0018 ms | 0.0029 ms | 0.0021 ms |
 | One signal write to one node     | 0.29 µs   | 1.7 µs    | 0.71 µs   |
 
 Adoption costs about what parsing the region costs — less in Chromium and WebKit, more in

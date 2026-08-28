@@ -88,3 +88,130 @@ test('the specification quotes the sizes the last recorded run measured', () => 
   assert.ok(checked > 10, `only ${checked} rows were checked; the table's shape has changed`)
   assert.deepEqual(stale, [], 'run `pnpm bench budget --write` and update spec/kernel/budgets.md')
 })
+
+/**
+ * And every other document that quotes one of those sizes.
+ *
+ * The test above holds `spec/kernel/budgets.md`, and that is exactly why that file was the only one
+ * still correct: eight other documents quoted the same per-entry figures and every one of them had
+ * drifted, some by thousands of bytes. `spec/kernel/composition.md` said `entry-region-channel.ts`
+ * was 11,264 B against a measured 16,828, and `packages/weft/README.md` — the repository's front
+ * page — carried a kernel figure the documentation site had already stopped agreeing with.
+ *
+ * The rule is deliberately loose about columns, because these tables do not share a shape: one puts
+ * the ceiling beside the measurement, one puts a description between them, and two are prose. What
+ * it asks is only that a passage naming an entry file, and quoting bytes at all, quotes the measured
+ * number somewhere in it. A two-line window, because prose wraps.
+ */
+const QUOTES = [
+  'DESIGN.md',
+  'README.md',
+  'spec/FINDINGS.md',
+  'spec/kernel/ports.md',
+  'spec/kernel/authority.md',
+  'spec/kernel/composition.md',
+  'packages/weft/README.md',
+  'packages/client/README.md',
+]
+
+test('every document quoting an entry size quotes the one that was measured', () => {
+  const root = fileURLToPath(new URL('../../../', import.meta.url))
+  const recorded = JSON.parse(readFileSync(join(root, 'packages/bench/budgets.json'), 'utf8')) as {
+    id: string
+    brotli: number
+  }[]
+  const brotli = new Map(recorded.map((entry) => [entry.id, entry.brotli]))
+
+  const source = readFileSync(join(root, 'packages/bench/src/budget.ts'), 'utf8')
+  const byFile = new Map<string, string>()
+  const ids = [...source.matchAll(/\n\s*id: '([^']+)',/g)]
+  for (const [at, match] of ids.entries()) {
+    const chunk = source.slice(match.index ?? 0, ids[at + 1]?.index ?? source.length)
+    const entry = /entry:\s*[a-zA-Z]+\('([^']+)'\)/.exec(chunk)
+    // Only the server entries are named by file in prose; a client file name collides with one.
+    if (entry && (entry[1] as string).startsWith('entry-') && /kernelSrc\(/.test(chunk)) {
+      byFile.set(entry[1] as string, match[1] as string)
+    }
+  }
+
+  const stale: string[] = []
+  let checked = 0
+  for (const file of QUOTES) {
+    const lines = readFileSync(join(root, file), 'utf8').split('\n')
+    for (const [at, line] of lines.entries()) {
+      for (const mention of line.matchAll(/`(entry-[a-z-]+\.ts)`/g)) {
+        const id = byFile.get(mention[1] as string)
+        const now = id ? brotli.get(id) : undefined
+        if (now === undefined) continue
+        const window = `${line}\n${lines[at + 1] ?? ''}`
+        if (!/[\d,]{4,} ?B\b/.test(window)) continue
+        checked++
+        if (!window.includes(now.toLocaleString('en-US'))) {
+          stale.push(`${file}:${at + 1} names ${mention[1]}, whose measured size is ${now}`)
+        }
+      }
+    }
+  }
+
+  assert.ok(checked > 8, `only ${checked} quotations were checked; a document may have moved`)
+  assert.deepEqual(stale, [], 'run `pnpm bench budget --write`, then update the documents named')
+})
+
+/**
+ * The tables that name an entry in prose rather than by file.
+ *
+ * `packages/weft/README.md` says "Server kernel, the document request path" where the specification
+ * says `entry-request.ts`, so the check above walked straight past the repository's own front page —
+ * which was carrying an 8,118 the documentation site had already corrected. The mapping is stated
+ * rather than matched, because these labels are written for a reader and three documents word the
+ * same row three different ways; a fuzzy match here would be a test that passes for the wrong reason.
+ */
+const LABELLED: readonly (readonly [string, string])[] = [
+  ['Client runtime, everything', 'runtime'],
+  ['Content route — adopt and bind', 'content-route'],
+  ['App route — adopt, bind, patch, epochs', 'app-route'],
+  ['Channel route — plus routing frames', 'channel-route'],
+  ['Patching route — plus applying a patch', 'patch-route'],
+  ['Navigating route — plus staged routes', 'nav-route'],
+  ['Front door — the code, bundled', 'front-door'],
+  ['Server kernel — the document request path', 'kernel'],
+  ['Server kernel, the document request path', 'kernel'],
+  ['Kernel + intent dispatch', 'kernel-intent'],
+  ['Kernel + surgical refresh and epochs', 'kernel-refresh'],
+  ['Kernel + the patch encoder', 'kernel-patch'],
+  ['Kernel + authority', 'kernel-authority'],
+  ['Kernel + composition', 'kernel-region'],
+  ['Kernel + a live Warp channel', 'kernel-transport'],
+  ['Kernel + composition over a live channel', 'kernel-region-channel'],
+  ['The whole runtime is', 'runtime'],
+]
+
+test('a table that names an entry in prose quotes the measured size too', () => {
+  const root = fileURLToPath(new URL('../../../', import.meta.url))
+  const recorded = JSON.parse(readFileSync(join(root, 'packages/bench/budgets.json'), 'utf8')) as {
+    id: string
+    brotli: number
+  }[]
+  const brotli = new Map(recorded.map((entry) => [entry.id, entry.brotli]))
+
+  const stale: string[] = []
+  let checked = 0
+  for (const file of QUOTES) {
+    const lines = readFileSync(join(root, file), 'utf8').split('\n')
+    for (const [at, line] of lines.entries()) {
+      const cell = line.startsWith('|') ? (line.split('|')[1] ?? '').trim() : undefined
+      for (const [label, id] of LABELLED) {
+        if (cell === undefined ? !line.includes(label) : cell !== label) continue
+        const now = brotli.get(id)
+        if (now === undefined || !/\*\*[\d,]{4,}/.test(line)) continue
+        checked++
+        if (!line.includes(now.toLocaleString('en-US'))) {
+          stale.push(`${file}:${at + 1} is the ${id} row, whose measured size is ${now}`)
+        }
+      }
+    }
+  }
+
+  assert.ok(checked > 15, `only ${checked} rows were checked; a table may have been reworded`)
+  assert.deepEqual(stale, [], 'run `pnpm bench budget --write`, then update the rows named')
+})

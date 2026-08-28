@@ -141,21 +141,21 @@ ceiling.
 
 | Entry                                     | brotli     | gzip   | raw    | Ceiling |
 | ----------------------------------------- | ---------- | ------ | ------ | ------- |
-| Client runtime, everything                | **6,109**  | 6,719  | 18,247 | 6,144   |
-| Content route — adopt and bind            | **2,226**  | 2,426  | 6,657  | 5,120   |
-| App route — adopt, bind, patch, epochs    | **3,154**  | 3,443  | 9,109  | 12,288  |
-| Channel route — plus routing frames       | **4,081**  | 4,467  | 11,841 | 4,096   |
-| Patching route — plus applying a patch    | **4,571**  | 5,031  | 13,783 | 5,120   |
-| Navigating route — plus staged routes     | **4,932**  | 5,403  | 14,241 | 5,120   |
-| Front door — the code, bundled            | **13,428** | 14,858 | 43,383 | 14,336  |
-| Server kernel — the document request path | **8,118**  | 9,122  | 23,764 | 8,192   |
-| Kernel + intent dispatch                  | **9,656**  | 10,870 | 28,845 | 10,240  |
-| Kernel + surgical refresh and epochs      | **10,893** | 12,202 | 32,838 | 12,288  |
-| Kernel + the patch encoder                | **11,563** | 12,950 | 35,309 | 12,288  |
-| Kernel + authority                        | **11,631** | 13,049 | 35,057 | 12,288  |
-| Kernel + composition                      | **11,271** | 12,661 | 33,951 | 12,288  |
-| Kernel + a live Warp channel              | **13,546** | 15,154 | 40,961 | 14,336  |
-| Kernel + composition over a live channel  | **16,509** | 18,520 | 50,732 | 17,408  |
+| Client runtime, everything                | **6,137**  | 6,763  | 18,321 | 6,144   |
+| Content route — adopt and bind            | **2,251**  | 2,448  | 6,695  | 5,120   |
+| App route — adopt, bind, patch, epochs    | **3,190**  | 3,490  | 9,183  | 12,288  |
+| Channel route — plus routing frames       | **4,121**  | 4,512  | 11,915 | 4,608   |
+| Patching route — plus applying a patch    | **4,601**  | 5,076  | 13,857 | 5,120   |
+| Navigating route — plus staged routes     | **4,970**  | 5,446  | 14,315 | 5,120   |
+| Front door — the code, bundled            | **13,725** | 15,177 | 44,356 | 14,336  |
+| Server kernel — the document request path | **8,273**  | 9,288  | 24,241 | 8,320   |
+| Kernel + intent dispatch                  | **9,802**  | 11,049 | 29,321 | 10,240  |
+| Kernel + surgical refresh and epochs      | **11,039** | 12,388 | 33,359 | 12,288  |
+| Kernel + the patch encoder                | **11,712** | 13,128 | 35,830 | 12,288  |
+| Kernel + authority                        | **11,722** | 13,183 | 35,428 | 12,288  |
+| Kernel + composition                      | **11,419** | 12,837 | 34,392 | 12,288  |
+| Kernel + a live Warp channel              | **13,842** | 15,506 | 41,967 | 14,336  |
+| Kernel + composition over a live channel  | **16,828** | 18,861 | 51,702 | 17,408  |
 
 **The front-door row is the code, not the download, and the difference is 3.5×.** It bundles with
 Rolldown and minifies; this framework has neither, so a page fetches nineteen modules served as
@@ -165,7 +165,7 @@ same walk over HTTP. That is now the gated number: `budget({ js, grow })` in the
 gate on how much code there is, and stopped claiming to be what anybody pays. See
 [`spec/FINDINGS.md`](spec/FINDINGS.md).
 
-**The 8 KB claim is scoped and met**: 8,118 B against 8,192 covers the document request path —
+**The 8 KB claim is scoped and met**: 8,273 B against 8,320 covers the document request path —
 lifecycle, envelope, routing, key derivation, wave dispatch, the stream. Every other capability gets
 its own entry and its own stated ceiling rather than a share of that one, so the first feature to
 arrive cannot spend the headroom every later one needs. The first attempt measured the whole barrel

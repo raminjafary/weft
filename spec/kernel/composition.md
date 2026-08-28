@@ -330,18 +330,19 @@ region, what it composes, and both numbers.
 
 ## Measured
 
-`entry-region.ts` — the document request path plus resolution and the check — is **11,246 B brotli**
-against a stated 11,264 B ceiling. `entry-region-channel.ts` — the transport plus composition, which
-is what a gateway serving both actually imports — is **16,268 B** against 16,384. Both are their own
+`entry-region.ts` — the document request path plus resolution and the check — is **11,419 B brotli**
+against a stated 12,288 B ceiling. `entry-region-channel.ts` — the transport plus composition, which
+is what a gateway serving both actually imports — is **16,828 B** against 17,408. Both are their own
 entries on the rule route staging established: a deployment that composes nothing never imports
 either, and its request path is the size it was.
 
-`readsFor` cost 155 bytes on the first of those and 143 on the second, taking the region entry from 243
-bytes of headroom to **18**. It is worth what it cost: without it a region's declared reads reached the
-key derivation and not the region, so a contract could say `route:q` and the region would render as if
-it had not been told — a page whose key described something other than what rendered it.
+`readsFor` cost 155 bytes on the first of those and 143 on the second, which at the ceiling then in
+force took the region entry from 243 bytes of headroom to **18** — the reason that ceiling was raised
+afterwards. It is worth what it cost: without it a region's declared reads reached the key derivation
+and not the region, so a contract could say `route:q` and the region would render as if it had not
+been told — a page whose key described something other than what rendered it.
 
-On the client, the exposed table is `entry-expose.ts` at **4,368 B** against 5,120, and it took the
+On the client, the exposed table is `entry-expose.ts` at **4,405 B** against 5,120, and it took the
 front door past a watermark set before composition existed: 12 KB → 13 KB, measured at 12,540. That
 watermark has moved four times and this is the fifth; what it covers is now stated as _adoption to
 composition_. The trims that were available were taken first — a named error class the client package

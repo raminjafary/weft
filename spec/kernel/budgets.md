@@ -78,8 +78,8 @@ figure and moving it would make the figure a label.
 
 So the splice is `chainSplitter` in `split-chain.ts`, built on the flat splitter rather than
 replacing it, and it reaches the request path only through `entry-nested.ts`. What
-`entry-request.ts` pays is the `route.split ?? splitAtSlots` that chooses between them:
-8,118 → 8,178, leaving **14 bytes**. Most of those 60 are not the expression — they are
+`entry-request.ts` pays is the `route.split ?? splitAtSlots` that chooses between them, which at the
+time cost 8,118 → 8,178 and left **14 bytes**. Most of those 60 are not the expression — they are
 `splitAtSlots` becoming a named function that survives inlining, because it is now referenced as a
 value rather than called once.
 
@@ -117,7 +117,7 @@ carries, comments and formatting do not move it, and that makes it the right thi
 growth on. The download figure is gated separately, by `budget({ js, grow })` against
 `measureClientJs`, and recorded in `weft.budget.json` where a regression is a diff.
 
-**The client runtime's "everything" entry has 35 bytes left.** 6,109 B against a ceiling of 6,144
+**The client runtime's "everything" entry has 7 bytes left.** 6,137 B against a ceiling of 6,144
 that comes from the design's stated "4–6 KB", so this one is not a watermark that can be moved with
 a paragraph: the next capability that lands in `packages/client` either finds its bytes elsewhere or
 contradicts a design figure in public. The applier itself is 490 B and it is in `entry-patch.ts`

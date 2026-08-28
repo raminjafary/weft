@@ -12,9 +12,9 @@ npm install @weftjs/client
 ## What it is
 
 **Nothing mounts.** Adoption walks the DOM the parser already built and records where each value
-lives, with no component code executing. On a 50-row region with ~200 bindings that is 0.040–0.095 ms
+lives, with no component code executing. On a 50-row region with ~200 bindings that is 0.044–0.105 ms
 — faster than parsing the same markup in Chromium and WebKit — and applying a 12-path delta
-afterwards costs 0.0015–0.0029 ms, **20–93× cheaper than the parse it replaces**.
+afterwards costs 0.0018–0.0029 ms, **22–67× cheaper than the parse it replaces**.
 
 **Epochs separate data currency from view currency.** Staged frames paint nothing; one `COMMIT`
 flips every slot at once. Prefetch cannot disturb the present, rollback is discarding an epoch, and
@@ -22,9 +22,9 @@ it costs 254 bytes.
 
 **Templates stay resident** in IndexedDB across visits — not a service worker, because WKWebView
 gates those behind app-bound domains and that is exactly the traffic where a repeat-visit gain
-matters. A repeat boot is 0.70 ms against 2.50 in Chromium, with protocol bytes going 1,124 → 132.
+matters. A repeat boot is 0.70 ms against 2.60 in Chromium, with protocol bytes going 1,124 → 132.
 
-The whole runtime is **6,109 bytes brotli**, against a ceiling of 6,144 that a test enforces. An
+The whole runtime is **6,137 bytes brotli**, against a ceiling of 6,144 that a test enforces. An
 application can ship no client code at all: adoption, intents and control wiring are reached through
 `data-weft-*` attributes.
 

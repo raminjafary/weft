@@ -216,7 +216,7 @@ reported it **1.28× worse** than sending markup. That number was published here
 commits. It was measuring a client that could not address its own holes: only signal-wired
 bindings carried addressing, so a server-owned value could not be located. With anchors on
 holes (IR 2.1.0) a delta is applied as designed — one write per changed value — and is
-**20–93× cheaper** than the parse it replaces.
+**22–67× cheaper** than the parse it replaces.
 
 The lesson is not about deltas. A measurement of a capability that does not exist yet
 measures the stand-in, and reports it as if it were the thing.
@@ -293,8 +293,8 @@ it. Bundled with Rolldown, minified, brotli:
 
 | Entry                                           | brotli   | Ceiling  |
 | ----------------------------------------------- | -------- | -------- |
-| Document request path (`entry-request.ts`)      | 7,602 B  | 8,192 B  |
-| Plus the Warp channel path (`entry-channel.ts`) | 9,846 B  | 12,288 B |
+| Document request path (`entry-request.ts`)      | 8,273 B  | 8,320 B  |
+| Plus the Warp channel path (`entry-channel.ts`) | 11,039 B | 12,288 B |
 | The whole barrel (`index.ts`)                   | 10,686 B | —        |
 
 The claim holds, with **590 bytes of headroom**, and only for the entry the claim is about.

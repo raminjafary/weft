@@ -200,13 +200,13 @@ executing. 50-row region, ~200 bindings, p50:
 
 |                                  | Chromium  | Firefox   | WebKit    |
 | -------------------------------- | --------- | --------- | --------- |
-| Adopt the region                 | 0.047 ms  | 0.095 ms  | 0.040 ms  |
-| Parse the same markup            | 0.076 ms  | 0.060 ms  | 0.140 ms  |
-| Apply a 12-path delta surgically | 0.0017 ms | 0.0029 ms | 0.0015 ms |
-| One signal write to one node     | 0.31 µs   | 1.7 µs    | 0.74 µs   |
+| Adopt the region                 | 0.044 ms  | 0.105 ms  | 0.050 ms  |
+| Parse the same markup            | 0.076 ms  | 0.065 ms  | 0.140 ms  |
+| Apply a 12-path delta surgically | 0.0018 ms | 0.0029 ms | 0.0021 ms |
+| One signal write to one node     | 0.29 µs   | 1.7 µs    | 0.71 µs   |
 
 A delta applied as designed — one write per changed value, into DOM that already exists — is
-**20–93× cheaper** than the parse it replaces.
+**22–67× cheaper** than the parse it replaces.
 
 <details>
 <summary><b>More numbers</b> — server throughput, repeat visits, shared refresh, navigation</summary>
@@ -262,11 +262,11 @@ A test fails the moment an entry crosses its ceiling.
 
 | Entry                                     | brotli     | Ceiling |
 | ----------------------------------------- | ---------- | ------- |
-| Client runtime, everything                | **6,109**  | 6,144   |
-| Content route — adopt and bind            | **2,226**  | 5,120   |
-| App route — adopt, bind, patch, epochs    | **3,154**  | 12,288  |
-| Server kernel — the document request path | **8,118**  | 8,192   |
-| Front door — the code, bundled            | **13,428** | 14,336  |
+| Client runtime, everything                | **6,137**  | 6,144   |
+| Content route — adopt and bind            | **2,251**  | 5,120   |
+| App route — adopt, bind, patch, epochs    | **3,190**  | 12,288  |
+| Server kernel — the document request path | **8,273**  | 8,320   |
+| Front door — the code, bundled            | **13,725** | 14,336  |
 
 Fifteen entries in all, each with its own stated ceiling rather than a share of one — see
 [`DESIGN.md`](DESIGN.md#byte-budgets-which-are-gates-rather-than-reports) for the full table, the
