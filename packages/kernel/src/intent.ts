@@ -3,25 +3,9 @@ import type { IntentLimit, LimitPort, Registry, StorePort } from './ports.ts'
 import type { IntentVerifier } from './token.ts'
 
 /**
- * Intents: the only thing in this framework allowed to write.
- *
- * A render cannot write — that is enforced by the type of the context it gets — so until
- * something else could, `EffectSet.writes` was empty everywhere and every downstream
- * capability that depends on a write was blocked: invalidation, `revalidateTag`, an
- * optimistic epoch driven by a real mutation, and a route that can answer a POST.
- *
- * Two rules do the work, and they are the mirror of the two that govern plugins.
- *
- * **A write is declared, and an undeclared one throws.** `writes: ['cart']` is the whole set
- * of tags an intent may invalidate; `ctx.revalidate('orders')` from that intent is
- * `E_UNDECLARED_WRITE`. Unlike the read guard this is not dev-only, because an undeclared
- * write is not a missed optimisation — it is a cache invalidation nobody can predict from
- * reading the code, and predicting it from the code is the entire value of the effect graph.
- *
- * **The client never names server code.** An intent is addressed by an opaque id derived from
- * its module and export by the compiler (`intentId`), so renaming an export does not change
- * the wire and the wire does not disclose a function name. Resolving an id to an
- * implementation is the `registry` port.
+ * Intents: the only thing in this framework allowed to write. A write is declared and an
+ * undeclared one throws, not in dev only. The client never names server code — an intent is
+ * addressed by an opaque id. See `spec/kernel/intents.md`.
  */
 export class IntentError extends Error {
   code: string
@@ -38,10 +22,7 @@ export class IntentError extends Error {
 /** What an intent runs against: the envelope, still open, plus the one thing a render cannot do. */
 export interface IntentContext extends EnvelopeContext {
   readonly phase: 'envelope'
-  /**
-   * Invalidate a declared tag. Returns the keys the store dropped, because an intent that
-   * cannot see what it invalidated cannot report it either.
-   */
+  /** Invalidate a declared tag. Returns the keys the store dropped. */
   revalidate(tag: string): Promise<string[]>
   /** Which tags this intent actually invalidated, in order. */
   invalidated(): string[]
@@ -55,13 +36,7 @@ export interface IntentResult {
   data?: unknown
 }
 
-/**
- * A mutation, and the only thing in this framework allowed to write.
- *
- * `writes` is the complete set of tags it may invalidate and an undeclared one throws — not in dev
- * only, because an undeclared read is a missed optimisation and an undeclared write is a cache
- * invalidation nobody can predict by reading the code.
- */
+/** A mutation, and the only thing in this framework allowed to write. `writes` is the complete set; an undeclared one throws. */
 export interface Intent<I = unknown> {
   /** Human-readable, for logs and `weft why`. Never on the wire. */
   name: string
@@ -72,38 +47,23 @@ export interface Intent<I = unknown> {
   /** Capabilities the caller must hold. Unchecked capabilities are refused, not waved through. */
   capabilities?: readonly string[]
   /**
-   * Reachable only with a signed, expiring token this deployment minted.
-   *
-   * A different question from a capability, and both are asked: a grant says this caller may make
-   * this call, a signature says the server issued it. Declared and unverifiable is
-   * `E_NO_VERIFIER`, for the same reason an unchecked capability is refused rather than allowed.
+   * Reachable only with a signed, expiring token this deployment minted. A different question
+   * from a capability, and both are asked. Declared and unverifiable is `E_NO_VERIFIER`.
    */
   signed?: boolean
   /** Parse and validate the raw payload. Throwing here is `E_INTENT_INPUT`, a 422, not a 500. */
   input?(raw: unknown): I
   /**
-   * How much traffic this mutation can take, over how long.
-   *
-   * What it deliberately cannot say is *whose* traffic. An intent knows what it costs — a mutation
-   * that calls a payment provider knows something the deployment does not — and the deployment knows
-   * what a caller is, which is the `limits` port's job. Neither half is derivable from the other.
-   *
-   * Declared and unenforceable is `E_NO_RATE_LIMIT`, for the same reason an unchecked capability is
-   * refused rather than allowed: a limit nothing counts reads as a protection that is not there.
+   * How much traffic this mutation can take, over how long. Deliberately cannot say *whose* — that
+   * is the `limits` port's job. Declared and unenforceable is `E_NO_RATE_LIMIT`.
    */
   limit?: IntentLimit
   /** Invalidate every declared tag on success without naming them again. */
   invalidatesAll?: boolean
   /**
-   * The mutation itself. The only thing in this framework allowed to change anything.
-   *
-   * `ctx` is the one context with a `revalidate` on it — a render's has no such method, which is
-   * how "a render cannot write" is enforced by the type system rather than by a convention. A
-   * `revalidate` naming a tag this intent did not declare in `writes` throws.
-   *
-   * Returning nothing is success. Returning an `IntentResult` is how an intent says what the caller
-   * should see: a value for the JSON binding, a redirect for the form post, a status other than
-   * 200. Throwing is a 500 and is logged; refusing input is `input`'s job and is a 422.
+   * The mutation itself — the only thing allowed to change anything. `ctx` is the one context
+   * with a `revalidate` on it, which is how "a render cannot write" is enforced by the type
+   * system. Throwing is a 500; refusing input is `input`'s job and is a 422.
    */
   run(ctx: IntentContext, input: I): Promise<IntentResult | void> | IntentResult | void
 }
@@ -113,10 +73,7 @@ export function defineIntent<I>(intent: Intent<I>): Intent<I> {
   return intent
 }
 
-/**
- * Who may run this intent. The seam; `createCapabilityModel` in `authority.ts` is the model
- * behind it, and a deployment that binds neither refuses every intent that declares one.
- */
+/** Who may run this intent. `createCapabilityModel` in `authority.ts` is the model behind it. */
 export type CapabilityCheck = (
   ctx: EnvelopeContext,
   capabilities: readonly string[],
@@ -126,23 +83,13 @@ export type CapabilityCheck = (
 export interface IntentDispatchOptions {
   registry: Registry
   store: StorePort
-  /**
-   * Required as soon as any intent declares a capability. An unchecked capability is a
-   * capability that is not enforced, and defaulting to allow would make the declaration
-   * decorative.
-   */
+  /** Required as soon as any intent declares a capability, or the declaration is decorative. */
   capabilities?: CapabilityCheck
-  /**
-   * Required as soon as any intent declares `signed`. Same argument, one step stronger: a
-   * signature nobody checks is a signature, and an intent that reads as authorised is worse than
-   * one that reads as open.
-   */
+  /** Required as soon as any intent declares `signed`: an intent that reads as authorised and
+   * is not is worse than one that reads as open. */
   verify?: IntentVerifier
-  /**
-   * Required as soon as any intent declares a limit. Same argument again, and this is the one where
-   * the kernel could not have a default even if it wanted one: what a call is counted against is a
-   * property of the deployment.
-   */
+  /** Required as soon as any intent declares a limit — what a call is counted against is a
+   * property of the deployment. */
   limits?: LimitPort
 }
 
@@ -168,11 +115,8 @@ export interface IntentOutcome {
   code?: string
   detail?: string
   /**
-   * Milliseconds until this call is worth making again. Set only by a limit that could say.
-   *
-   * On the field rather than in the detail because both bindings have somewhere to put it — a
-   * `Retry-After` header on a 429, a header on the `ACK` — and a caller that had to parse a sentence
-   * to find out when to come back would be parsing a sentence somebody will one day reword.
+   * Milliseconds until this call is worth making again. On the field rather than in the detail,
+   * so both bindings have somewhere to put it — a `Retry-After` header, a header on `ACK`.
    */
   retryAfterMs?: number
   invalidated: string[]
@@ -191,15 +135,8 @@ export function createIntentDispatch(options: IntentDispatchOptions): IntentDisp
         return refusal(id, null, 'E_NO_SUCH_INTENT', `no intent is registered under ${id}`)
       }
 
-      /**
-       * The limit before either of them, because it is the cheapest and it protects both.
-       *
-       * A caller hammering a signed intent with forged tokens should be turned away before this
-       * process does an Ed25519 verification on their behalf, and before a capability check reaches
-       * whatever a deployment resolves a subject from. So the order is capacity, then authenticity,
-       * then authority — each one more expensive than the last, and each one only reached because
-       * the one before it passed.
-       */
+      // The limit before either of them: cheapest, and protects both. Capacity, then
+      // authenticity, then authority — each more expensive, each reached only if the last passed.
       if (intent.limit) {
         if (!options.limits) {
           return refusal(
@@ -215,14 +152,12 @@ export function createIntentDispatch(options: IntentDispatchOptions): IntentDisp
           intent: intent.name,
           limit: intent.limit,
           subject: await base.user(),
-          // Through the context rather than around it: a limit counted against a cookie has read
-          // that cookie, and the read surface is the only thing in this framework that knows.
+          // Through the context: a limit counted against a cookie has read that cookie.
           header: (key) => base.header(key),
           cookie: (key) => base.cookie(key),
         })
         if (!decision.ok) {
-          // What the call was counted against is not said back to the caller: it identifies them,
-          // and telling somebody which bucket they are in is telling them how to leave it.
+          // What the call was counted against is not said back: it identifies the caller.
           return {
             ...refusal(
               id,
@@ -235,13 +170,8 @@ export function createIntentDispatch(options: IntentDispatchOptions): IntentDisp
         }
       }
 
-      /**
-       * The signature before the grant, because they answer different questions in an order.
-       *
-       * Authenticity first: whether this deployment issued the call at all. Only then who is
-       * making it. Reversed, a caller with the right grant would learn whether their forged token
-       * was the problem — and a denial that distinguishes the two is a denial that helps.
-       */
+      // The signature before the grant: authenticity first, then who is making the call.
+      // Reversed, a denial would tell a caller whether their forged token was the problem.
       if (intent.signed) {
         if (!options.verify) {
           return refusal(
@@ -317,9 +247,8 @@ export function createIntentDispatch(options: IntentDispatchOptions): IntentDisp
         }
       }
 
-      // Declared-and-not-yet-invalidated tags, for an intent that would rather not name each
-      // one at the end of a successful run. Opt-in, because "invalidate everything I declared"
-      // is a different statement from "invalidate what I actually touched".
+      // Declared-and-not-yet-invalidated tags. Opt-in: "invalidate everything declared" is a
+      // different statement from "invalidate what was actually touched".
       if (intent.invalidatesAll) {
         for (const tag of intent.writes) {
           if (invalidated.includes(tag)) continue
