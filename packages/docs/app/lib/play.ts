@@ -256,6 +256,37 @@ function result(outcome: Outcome | null): string {
  * were. Compile needs no attribute: a `method="get"` submit preserves by default, since a form
  * re-renders the page it is on.
  */
+/**
+ * How much source this page can carry, and why it is a number rather than nothing.
+ *
+ * The source is a query parameter, deliberately: a compiled result then has a URL somebody can
+ * share, and the page works with the runtime switched off. The cost is a ceiling nobody chose — a
+ * URL has a length limit, it belongs to whatever is in front of the deployment rather than to this
+ * application, and it is enforced *before* the request arrives. Past it the reader got the
+ * platform's own error page: no styling, no explanation, and nothing this site could say about it.
+ *
+ * So the limit is stated where the typing happens. `maxlength` is the right primitive because it is
+ * the browser's: it holds with JavaScript switched off, which is the one thing this page must not
+ * give up, and it stops a paste at the boundary instead of accepting it and failing on submit.
+ *
+ * The number is derived rather than guessed, from three facts.
+ *
+ * The ceiling in front of this deployment is 32 KB of URL. Percent-encoding costs three bytes for
+ * every character that is not URL-safe, and a fragment is dense with `<`, `>`, `/` and newlines, so
+ * the worst case is three times what was typed. And the source is not the only thing in the URL:
+ * there is an origin and a path before it, and a reader may have arrived with parameters of their
+ * own or added some — a ceiling divided by three exactly would be a box that fits only when nothing
+ * else does, which is a limit that holds until the day somebody shares a link with a fragment on it.
+ *
+ * So a quarter of the ceiling is kept back for everything that is not the source, and what is left
+ * is divided by three. Eight thousand characters is around a hundred and sixty lines, which is more
+ * than a playground fragment ever is.
+ */
+const URL_CEILING = 32_000
+/** Room for the origin, the path, and whatever else the reader is carrying in the query. */
+const URL_RESERVE = 8_000
+export const SOURCE_MAX = Math.floor((URL_CEILING - URL_RESERVE) / 3)
+
 export function playBody(source: string, outcome: Outcome | null): string {
   return `<form class="play" method="get" action="/play">
     <header class="play-head">
@@ -280,7 +311,8 @@ export function playBody(source: string, outcome: Outcome | null): string {
         <div class="editor">
           <pre class="editor-hl" aria-hidden="true"><code>${highlight('tsx', `${source}\n`)}</code></pre>
           <textarea id="src" name="src" spellcheck="false" autocapitalize="off" autocomplete="off"
-            autocorrect="off" aria-label="A fragment module">${enc(source)}</textarea>
+            autocorrect="off" maxlength="${SOURCE_MAX}"
+            aria-label="A fragment module">${enc(source)}</textarea>
         </div>
         <div class="pane-head second">
           <span class="eyebrow">While you type</span>
@@ -300,6 +332,12 @@ export function playBody(source: string, outcome: Outcome | null): string {
         checker to open, so every hole compiled here escapes — which is the safe direction, and why the
         elision example in the guide is a real file.
         <a href="/guide/fragments#escaping">See it there</a>.</p>
+      <p>What you type travels in the URL, which is what makes a compiled result a link you can send
+        and what lets this page work with JavaScript switched off. A URL has a length limit that
+        belongs to the host rather than to this site, so the box stops at
+        <strong>${SOURCE_MAX.toLocaleString('en-GB')} characters</strong> — about a hundred and sixty
+        lines. It is the largest source that still fits once every <code>&lt;</code> and newline is
+        percent-encoded and there is room left for the rest of the URL.</p>
     </footer>
   </form>`
 }

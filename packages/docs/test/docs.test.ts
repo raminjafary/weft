@@ -14,7 +14,7 @@ import { TERMS } from '../app/lib/glossary.ts'
 import { surface } from '../app/lib/surface.ts'
 import { errorCodes } from '../app/lib/errors.ts'
 import { errorBody, errorsIndexBody } from '../app/lib/errors-page.ts'
-import { compilePlayground, STARTER } from '../app/lib/play.ts'
+import { compilePlayground, playBody, SOURCE_MAX, STARTER } from '../app/lib/play.ts'
 import { infer } from '../app/infer.ts'
 import { commands, options } from '../app/lib/cli.ts'
 import { declarationOf } from '../app/lib/declared.ts'
@@ -1081,4 +1081,44 @@ test('a rule that stops the figures says important, because their timing is inli
       )
     }
   }
+})
+
+/**
+ * The playground's box stops before the URL does.
+ *
+ * What you type is a query parameter, deliberately — a compiled result is then a link you can send,
+ * and the page works with the runtime switched off. The cost is a ceiling that belongs to whatever
+ * is in front of the deployment and is enforced before the request arrives: past it the reader got
+ * the platform's own error page, unstyled, with nothing this site could say about it. Measured
+ * against the deployment, that boundary is 32 KB of URL.
+ *
+ * `maxlength` is the fix because it is the browser's own: it holds with JavaScript switched off,
+ * which is the one thing this page must not give up, and it stops a paste at the boundary rather
+ * than accepting it and failing on submit.
+ */
+test('the playground caps its source below the URL ceiling, with room to spare', () => {
+  const body = playBody('const x = 1', null)
+  const capped = /maxlength="(\d+)"/.exec(body)
+  assert.ok(capped, 'the source box has no maxlength, so a long paste reaches the platform')
+  const max = Number(capped[1])
+  assert.equal(max, SOURCE_MAX)
+  /**
+   * Three times, because percent-encoding costs three bytes for every character that is not
+   * URL-safe and a fragment is dense with `<`, `>`, `/` and newlines. A cap that only fits when the
+   * source is plain ASCII is a cap that holds until somebody types a tag.
+   */
+  assert.ok(max * 3 <= 32_000, `${max} characters can encode past a 32 KB URL`)
+  /**
+   * And with room left over. The source is not the only thing in the URL — there is an origin and a
+   * path in front of it and a reader may be carrying parameters of their own — so a cap that is
+   * exactly a third of the ceiling holds only when nothing else does.
+   */
+  assert.ok(max * 3 <= 32_000 - 8_000, 'nothing but the source would fit in the URL')
+  // And it is still a usable playground rather than a text field: a fragment is tens of lines.
+  assert.ok(max >= 4_000, `${max} characters is too small to paste a fragment into`)
+})
+
+test('and says so where somebody typing can see it', () => {
+  const body = playBody('const x = 1', null)
+  assert.match(body, /8,000 characters/, 'the limit is enforced and never mentioned')
 })
