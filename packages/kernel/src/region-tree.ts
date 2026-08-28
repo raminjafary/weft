@@ -3,32 +3,16 @@ import type { Ports, RegionBinding } from './ports.ts'
 import type { RegionAnnouncement, RegionOutcome } from './region.ts'
 import { announceRegion, readRegion, RegionError } from './region.ts'
 
-/**
- * The executor name a plan uses for a region it has not resolved yet, repeated here rather than
- * imported: `@weftjs/plan` depends on the kernel and not the other way round, and one string is a
- * better price than an edge in the wrong direction. `spec/plan/regions.md` is where it is defined.
- */
+/** The executor name a plan uses for a region it has not resolved yet, repeated here — `@weftjs/plan` depends on the kernel, not the other way round. */
 const REGION_EXECUTOR = 'region'
 
 /** How many tiers a probe walks before it stops asking. See `probeRegions`. */
 export const PROBE_DEPTH = 8
 
 /**
- * A composite's regions as a graph rather than as a total, and the one module that knows the shape.
- *
- * A region's own regions are resolved by its own registry — that is what the registry being a port
- * buys, and it is right. What it left behind was a **number**: a composite could report that it
- * crossed three boundaries and nothing could say which three, or where the third one was, or whether
- * a page's fallback came from the region it named or from something two tiers behind it. `hops` is
- * the answer to "how much latency"; this is the answer to "made of what".
- *
- * **Why it is a file of its own and not part of `region.ts`.** The request path never sees one. A
- * region announces its subtree when something *asks* what the topology is — `weft verify --probe`,
- * and nothing else — so `readRegion` keeps the bytes and stops there, and the parser below is
- * imported by the verifier and by a region service answering a probe. Composition got its own entry
- * on the rule that a deployment which composes nothing should not carry the check that makes
- * composing safe; this is the same rule applied one level in, and it is the difference between 18
- * bytes of headroom on that entry and none.
+ * A composite's regions as a graph rather than as a total. `hops` answers "how much latency"; this
+ * answers "made of what". Its own file: the request path never sees one — a region announces its
+ * subtree only when `weft verify --probe` asks. See `spec/kernel/composition.md`.
  */
 export interface RegionNode {
   region: string
@@ -45,26 +29,16 @@ export interface RegionNode {
 }
 
 /**
- * How far a tree may go before it is a tree somebody is making up.
- *
- * These are the only two numbers here that are not somebody else's claim. A subtree is the one thing
- * a region sends whose size it chooses, and a composite that walked an arbitrarily deep one on the
- * strength of a length prefix would be doing what every parser that trusted a nesting depth has
- * done. Refused rather than truncated: a graph silently cut off at the interesting level is worse
- * than no graph, because it reads as complete.
+ * How far a tree may go before it is a tree somebody is making up. Refused rather than truncated: a
+ * graph silently cut off at the interesting level reads as complete.
  */
 const MAX_DEPTH = 8
 const MAX_NODES = 256
 
 /**
  * Read a subtree out of what a region announced, and check it against what the same frame counted.
- *
- * Nothing in a tree is verifiable from here — every node is one deployment's claim about another
- * deployment — so what is checked is the shape and the arithmetic. The arithmetic matters more than
- * it looks: `hops` was the whole of what a nested tier reported and therefore could not be
- * contradicted, and a total that does not add up is now either a tier miscounting its own boundaries
- * or a tree describing a topology other than the one that answered. Both are worth refusing, because
- * the count is what a plan's ceiling and a route's latency budget were checked against.
+ * Every node is one deployment's claim about another, so what is checked is shape and arithmetic —
+ * `hops` was previously unverifiable and a mismatch now refuses.
  */
 export function readRegionTree(region: string, bytes: Uint8Array): readonly RegionNode[] {
   const first = decodeFirst(region, bytes)
@@ -137,13 +111,9 @@ export function readRegionTree(region: string, bytes: Uint8Array): readonly Regi
 }
 
 /**
- * The `REGION` frame out of an answer, decoded here rather than handed over by `readRegion`.
- *
- * A second decode of the same bytes, and worth being plain about why it is not wasteful: this runs
- * at deploy time, once per region, on a command that has already made a network round trip to get
- * these bytes. What it buys is that the request path — which will never see a subtree — carries no
- * line of code for one. `readRegion` still does every check that matters before any of this is
- * looked at; the caller runs it first, and this only reaches for the part it left behind.
+ * The `REGION` frame out of an answer, decoded here rather than handed over by `readRegion` — a
+ * second decode, but one that runs once per region at deploy time, keeping the request path free
+ * of this code.
  */
 function decodeFirst(region: string, bytes: Uint8Array): AnyFrame | undefined {
   try {
@@ -160,13 +130,7 @@ function decodeFirst(region: string, bytes: Uint8Array): AnyFrame | undefined {
   }
 }
 
-/**
- * What a region answers with when it was asked what it is rather than for a page.
- *
- * The one place the body form of a `REGION` frame is written, matching the one place it is read.
- * A leaf answers with no body at all, which is a real answer — "composes nothing" — and costs the
- * bytes it should.
- */
+/** What a region answers with when it was asked what it is rather than for a page. A leaf answers with no body: "composes nothing". */
 export function regionProbeStream(announcement: RegionAnnouncement, tree: readonly RegionNode[]): Uint8Array {
   const first = announceRegion(announcement)
   const body = encodeRegionTree(tree)
@@ -185,14 +149,8 @@ export function treeHops(tree: readonly RegionNode[]): number {
 }
 
 /**
- * One outcome as a node: what a tier's own render actually composed.
- *
- * One level, and deliberately. A region reports its subtree when it is *asked what it is* — the
- * probe path, where a graph is the answer — and a render carries the count instead, because a
- * composite has no parser for a subtree on the request path and would be forwarding bytes nobody
- * reads. What this is for is the count being **measured**: a service that composed three regions
- * and lost one to a timeout announces the boundaries it crossed rather than the ones its
- * configuration said it usually crosses.
+ * One outcome as a node: what a tier's own render actually composed. One level, deliberately — a
+ * render carries the count rather than a subtree, and the count is **measured**.
  */
 export function regionNode(outcome: RegionOutcome): RegionNode {
   return {
@@ -209,13 +167,7 @@ export function regionGraph(composed: readonly RegionOutcome[]): readonly Region
   return composed.map(regionNode)
 }
 
-/**
- * A graph as something a person reads, which is the whole reason it exists.
- *
- * Indented rather than boxed: the depth is the point, and a table cannot show depth without a column
- * per tier. Each line says where it ran and what it cost, and a degraded region says so on its own
- * line rather than in a footnote — a hole in a page is a fact about the graph.
- */
+/** A graph as something a person reads. Indented rather than boxed: the depth is the point. */
 export function formatRegionGraph(tree: readonly RegionNode[], indent = '    '): string {
   const lines: string[] = []
   const walk = (nodes: readonly RegionNode[], prefix: string): void => {
@@ -238,19 +190,11 @@ export function formatRegionGraph(tree: readonly RegionNode[], indent = '    '):
 }
 
 /**
- * A probe that asks a region what it is serving, through the executor the registry named.
- *
- * It is the composition path and not a second one: the same executor, the same address, the same
- * announcement — so a verification that passes is a verification of the thing that will actually
- * serve traffic. What it deliberately does not do is render: the request carries no route and no
- * params, because a region asked what it is has not been asked for a page.
+ * A probe that asks a region what it is serving, through the executor the registry named — the
+ * composition path, not a second one, so a passing verification verifies what will actually serve
+ * traffic.
  */
-/**
- * What asking needs: somewhere to run and, for the recursive half, something to resolve a name.
- *
- * Narrower than `Ports` because a region composing regions is not a deployment with a session and a
- * store — it is a registry and an executor, which is the same reduction `createComposer` makes.
- */
+/** What asking needs: somewhere to run and, for the recursive half, something to resolve a name. */
 export type ProbePorts = Pick<Ports, 'registry' | 'executors'>
 
 /** Ask every region what it is actually serving, so `weft verify` can fail on a disagreement. */
@@ -274,17 +218,9 @@ export function regionProbe(
 }
 
 /**
- * The recursive half: what a deployment answers when *it* is the region being probed.
- *
- * A region service that composes regions of its own implements `probe` with this, and what it hands
- * back is its whole subtree — resolved through its own registry, over its own executors, one depth
- * cheaper than it was asked. That is the only arrangement in which a composite tree can be reported
- * as one graph: nobody in the chain can resolve anybody else's names, so each tier answers for
- * itself and the tier above splices.
- *
- * A region that cannot be reached becomes a node saying so rather than an exception, for the reason
- * the whole tier boundary exists: one region being down is a hole in a page, and a verification that
- * threw would report nothing about the other four.
+ * The recursive half: what a deployment answers when *it* is the region being probed — its whole
+ * subtree, resolved through its own registry, one depth cheaper than asked. A region that cannot be
+ * reached becomes a node saying so rather than an exception.
  */
 export async function probeRegions(
   ports: ProbePorts,
@@ -297,7 +233,7 @@ export async function probeRegions(
 
   for (const region of regions) {
     if (depth <= 0) {
-      // The bound, as a node. A graph that stopped without saying it stopped would read as complete.
+      // The bound, as a node: a graph that stopped silently would read as complete.
       out.push({ region, executor: 'unresolved', hops: 0, failed: 'E_REGION_TOO_DEEP' })
       continue
     }
