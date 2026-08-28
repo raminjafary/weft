@@ -258,6 +258,21 @@ export async function measureNavigation(options: NavOptions): Promise<NavReport>
     const pairs: NavPair[] = []
     const skipped: string[] = []
     const raced = { count: 0 }
+    /**
+     * Progress, because this is the one measurement here that runs for minutes without a sound.
+     *
+     * Every sample is a page load, a hover, a wait for the answer to be held, a click and a wait
+     * for the arrival — and each of those waits is allowed twenty-six seconds. On an injected link
+     * a run is minutes long by construction, and a run that has stopped looks exactly like a run
+     * that is working. It cost an afternoon to tell those apart once; a line per sample is cheaper
+     * than doing it again.
+     */
+    const total = targets.length * options.iterations * 2
+    let done = 0
+    const tick = (label: string): void => {
+      done++
+      process.stderr.write(`  ${String(done).padStart(4)}/${total}  ${label}\n`)
+    }
     for (const href of targets) {
       await page.goto(new URL(href, origin).href, { waitUntil: 'load' })
       if (!(await page.evaluate<boolean>('Boolean(window.weft)'))) {
@@ -270,7 +285,9 @@ export async function measureNavigation(options: NavOptions): Promise<NavReport>
       // throttles moves both figures instead of one.
       for (let i = 0; i < options.iterations; i++) {
         staged.push(await sampled(page, origin, from, href, true, documents, timeout, raced))
+        tick(`${href} staged`)
         plain.push(await sampled(page, origin, from, href, false, documents, timeout, raced))
+        tick(`${href} browser`)
       }
       pairs.push({
         from,
