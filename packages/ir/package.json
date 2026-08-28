@@ -1,6 +1,6 @@
 {
   "name": "@weftjs/ir",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The Template IR: sealed, versioned templates, their effects, and the renderer.",
   "keywords": [
     "weft",

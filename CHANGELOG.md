@@ -4,7 +4,26 @@ Every commit in this repository appears here, not only `feat` and `fix`. The sec
 generated from Conventional Commit types by `scripts/release/`, and a package changelog holds
 the commits scoped to that package.
 
-## 0.1.0 (2026-08-27)
+## [0.1.1](https://github.com/raminjafary/weft/compare/v0.1.0...HEAD) (2026-08-28)
+
+### ✨ Features
+
+* **docs:** the six pages the redesign had not reached, and the rhythm they all share ([8e88c05](https://github.com/raminjafary/weft/commit/8e88c059146c2f4ef409135e888ce9b953fbfc24))
+* **repo:** a release can take a one-time password, and publishes what the registry is missing ([be5a4de](https://github.com/raminjafary/weft/commit/be5a4deb59c2bfa9c6e78001c55b3b71913e6f6f))
+
+### 🐛 Bug Fixes
+
+* **repo:** a terminal can answer npm's code prompt, so the release stops refusing one ([722defc](https://github.com/raminjafary/weft/commit/722defc58b7e87746ecf5ec040c80b662b131099))
+* **docs:** the tutorial index has no rail, which is what the design draws ([bf92e3d](https://github.com/raminjafary/weft/commit/bf92e3d69629a5b4683d49046f5e59d52cb89587))
+* **repo:** five map spreads become the thing they were spreading for, and the rule goes off ([6fb5ad8](https://github.com/raminjafary/weft/commit/6fb5ad812541986b9110e9ec1147ac3c00706e98))
+* **repo:** the tag is the framework's version, so it agrees with the packages under it ([fffe800](https://github.com/raminjafary/weft/commit/fffe8005ce624eb83140f4e4e9f0198439f37c6c))
+* **docs:** a refusal whose message holds a nested template literal is read whole ([9d1cb3d](https://github.com/raminjafary/weft/commit/9d1cb3dd7ac77ec3ec83eeb784cdadb5896f7714))
+* **repo:** the release reads a command's stdout, not stdout with its warnings mixed in ([c1ef7ff](https://github.com/raminjafary/weft/commit/c1ef7ffd473a0c1dff26230f892c4db06726bfaa))
+* **ir:** E_INVALID_DOCUMENT says what an invalid document is, not just its own name ([c1bb5ad](https://github.com/raminjafary/weft/commit/c1bb5adb3c51b8941532ac8eeec163c8e6954d0b))
+* **weft:** a client module is served at a .js URL, whatever the source extension is ([bffbf1f](https://github.com/raminjafary/weft/commit/bffbf1ff77640a4dae767cf02acc85de4a8f9a8d))
+* **repo:** the token check asks npm what the token can do, instead of assuming ([4f6f04a](https://github.com/raminjafary/weft/commit/4f6f04a5186e76a3f19a3c969cb794d4fb5e84f6))
+
+## 0.1.0 (2026-08-28)
 
 ### ✨ Features
 

@@ -1,6 +1,6 @@
 {
   "name": "@weftjs/adapters",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Port implementations: Node HTTP, channels, stores, sessions, flags, a worker pool.",
   "keywords": [
     "weft",

@@ -4,7 +4,18 @@ Every commit in this repository appears here, not only `feat` and `fix`. The sec
 generated from Conventional Commit types by `scripts/release/`, and a package changelog holds
 the commits scoped to that package.
 
-## 0.1.0 (2026-08-27)
+## [0.2.0](https://github.com/raminjafary/weft/compare/v0.1.0...HEAD) (2026-08-28)
+
+### ✨ Features
+
+* the six pages the redesign had not reached, and the rhythm they all share ([8e88c05](https://github.com/raminjafary/weft/commit/8e88c059146c2f4ef409135e888ce9b953fbfc24))
+
+### 🐛 Bug Fixes
+
+* the tutorial index has no rail, which is what the design draws ([bf92e3d](https://github.com/raminjafary/weft/commit/bf92e3d69629a5b4683d49046f5e59d52cb89587))
+* a refusal whose message holds a nested template literal is read whole ([9d1cb3d](https://github.com/raminjafary/weft/commit/9d1cb3dd7ac77ec3ec83eeb784cdadb5896f7714))
+
+## 0.1.0 (2026-08-28)
 
 ### ✨ Features
 
