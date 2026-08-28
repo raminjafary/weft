@@ -39,8 +39,9 @@ export default defineRoute({
       html: () =>
         heading('Create it', 'create') +
         prose(
-          'A folder is an application. There is no config file you must have — <code>weft.config.ts</code> ' +
-            'exists to bind ports, and a first application binds none.',
+          'A folder is an application: a file under <code>app/routes/</code> answers the URL its path spells, ' +
+            'and nothing anywhere registers it. There is no config file you must have either — ' +
+            '<code>weft.config.ts</code> exists to bind ports, and a first application binds none.',
         ) +
         terminal(
           'install',

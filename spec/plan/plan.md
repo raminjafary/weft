@@ -53,6 +53,7 @@ and a guard is phase A by construction — a real 302, not a body the client has
 | `E_DUPLICATE_SLOT`              | the same slot name twice                                                                             |
 | `E_PLAN_CYCLE`                  | slots that depend on each other                                                                      |
 | `E_BAD_DURATION` / `E_BAD_SIZE` | `every('soon')`, `budget({ js: 'lots' })`                                                            |
+| `E_TAGS_PROCESS_SCOPED`         | cache tags against a process-scoped store on a deployment declaring more than one instance           |
 
 The first one is the promise the design makes in the strongest terms it uses, and it now has
 something to fire against:
@@ -63,16 +64,35 @@ E_PLAN_INVALID — /cart
     classified private. The read that caused it: identity
 ```
 
+### Two of these are about invalidation reaching nobody
+
+`E_TAGS_PROCESS_SCOPED` and `W_DOCUMENT_OUTLIVES_INVALIDATION` are the same failure seen from two
+sides, and both were found by a write that worked perfectly and changed nothing on screen.
+
+A store declares its `scope`. `process` means no other process can read those bytes — so on more
+than one instance a tag drop empties this instance's copy and leaves every other one serving what
+it already had. Half the readers are told and half are not, and nothing in the system can say
+which half. `instances` defaults to 1, so the error fires only for a deployment that has said it
+runs more than one, which is the deployment that has the problem.
+
+The warning is the second cache. A slot's `cache.tags` decide when _its_ stored bytes are dropped;
+the document's own policy decides how long the whole assembled response is held. Invalidate a tag
+and the slot entry goes — and a reader is still handed the stored document, whose body was rendered
+once and will not be rendered again until the ttl runs out. It is a warning rather than an error
+because a `live` slot does reach connected readers over the channel, so a document that lags at the
+edge may be the trade a deployment wants; what is not defensible is arriving there by accident.
+
 ## What the build warns about
 
-| Code                     | When                                                                                                      |
-| ------------------------ | --------------------------------------------------------------------------------------------------------- |
-| `W_CPU_BUDGET_ADVISORY`  | a CPU budget on anything that is not a separate crash domain, naming the executors where it would be real |
-| `W_WAVE_WIDTH`           | the widest wave exceeds the concurrency ceiling; the extra slots queue                                    |
-| `W_TTL_UNDECLARED`       | reads the clock and declares no policy, so nothing is cached                                              |
-| `W_TTL_ON_STATIC`        | a TTL on a fragment that reads nothing and resolves at build time                                         |
-| `W_INCREMENTAL_NO_GRAPH` | `.incremental()` with no derived values, so the input hashing is pure overhead                            |
-| `W_HOP_COUNT`            | the fan-out is within 20% of the platform's subrequest ceiling, and a region that fans out adds its own   |
+| Code                               | When                                                                                                      |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `W_CPU_BUDGET_ADVISORY`            | a CPU budget on anything that is not a separate crash domain, naming the executors where it would be real |
+| `W_WAVE_WIDTH`                     | the widest wave exceeds the concurrency ceiling; the extra slots queue                                    |
+| `W_TTL_UNDECLARED`                 | reads the clock and declares no policy, so nothing is cached                                              |
+| `W_TTL_ON_STATIC`                  | a TTL on a fragment that reads nothing and resolves at build time                                         |
+| `W_INCREMENTAL_NO_GRAPH`           | `.incremental()` with no derived values, so the input hashing is pure overhead                            |
+| `W_HOP_COUNT`                      | the fan-out is within 20% of the platform's subrequest ceiling, and a region that fans out adds its own   |
+| `W_DOCUMENT_OUTLIVES_INVALIDATION` | the document is held with a ttl and its slots declare tags the document policy does not carry             |
 
 `assertPlan()` reports every error at once. A build that surfaces one problem per run is a
 build people stop running.

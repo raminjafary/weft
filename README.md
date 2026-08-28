@@ -11,9 +11,15 @@ Nothing degrades silently — whatever a host cannot do is a named line on the h
 The wire form of a piece of UI — full markup, a surgical delta, a patch — is chosen per request from
 a set of encodings the compiler has proven equivalent, instead of being frozen at build time.
 
-A folder is an application. There is no bundler, no virtual DOM, and no component code running in
-the browser: the compiler seals your pages into templates, the server fills them, and the client
-runtime binds what is already there.
+A folder is an application: the file tree _is_ the route table, and nothing registers anything.
+`app/routes/about.data.ts` answers `/about` and `app/routes/guide/[page].data.ts` answers
+`/guide/:page`, because of where they are. Fragments in `app/fragments/` are compiled by being
+there; writes in `app/intents/` become the intent manifest by being there. There is no wiring file
+to keep in step with the directory, and no config file you must have.
+
+There is also no bundler, no virtual DOM, and no component code running in the browser: the
+compiler seals your pages into templates, the server fills them, and the client runtime binds what
+is already there.
 
 [![npm](https://img.shields.io/npm/v/@weftjs/core?label=%40weftjs%2Fcore&color=blue)](https://www.npmjs.com/package/@weftjs/core)
 [![npm](https://img.shields.io/npm/v/create-weft?label=create-weft&color=blue)](https://www.npmjs.com/package/create-weft)

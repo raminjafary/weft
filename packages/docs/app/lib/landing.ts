@@ -134,9 +134,13 @@ function hero(): string {
       <p class="hero-lede">The wire form of a piece of UI — full markup, a surgical delta, a patch — is chosen
         per request from a set of encodings the compiler has proven equivalent, instead of being frozen at
         build time.</p>
-      <p class="hero-sub">A folder is an application. There is no bundler, no virtual DOM, and no component
-        code running in the browser: the compiler seals your pages into templates, the server fills them, and
-        the client runtime binds what is already there.</p>
+      <p class="hero-sub">A folder is an application: the file tree <em>is</em> the route table.
+        <code>app/routes/about.data.ts</code> answers <code>/about</code> because of where it is, fragments
+        compile by being in <code>app/fragments/</code>, and writes become the intent manifest by being in
+        <code>app/intents/</code> — nothing registers anything, and there is no wiring file to keep in step.</p>
+      <p class="hero-sub">There is no bundler, no virtual DOM, and no component code running in the browser:
+        the compiler seals your pages into templates, the server fills them, and the client runtime binds what
+        is already there.</p>
       <p class="hero-sub">Pages still change. <a href="/guide/the-client">Signals</a> update a value in place
         without re-rendering around it, an <a href="/guide/intents">intent</a> is the one thing allowed to
         write, and the <a href="/guide/live-regions">regions</a> it invalidates are declared — so what goes

@@ -253,6 +253,53 @@ Three properties, each a decision rather than a detail:
   half-uploaded deployment nobody can enumerate is worse. `weft upload` exits non-zero and prints
   every object with its status.
 
+## What a production build stops shipping
+
+`stripTypeScriptTypes` with `mode: 'strip'` replaces type annotations with whitespace and keeps
+comments — right for a source map, wrong for a payload. This framework explains itself at length in
+its own modules and every byte of that was reaching browsers that cannot read it.
+
+Removing it halves the client payload: the documentation site went from 59,719 to 29,369 bytes
+brotli, the demo from 50,048 to 25,835. `weft dev` keeps every comment, because the one reader who
+wants them is the one with devtools open on their own machine.
+
+It is done by **parsing**, not by pattern. `//` inside a string is not a comment, `/*` inside a
+template literal is not a comment, and `/` is a comment, a division or a regular-expression
+delimiter depending on what came before it. A tokenizer that gets that wrong removes a slice of a
+working program and ships it, silently. So `stripComments` lives in `@weftjs/compiler`, which
+already owns the only third-party parser this framework has; the spans come from the parser, a block
+comment that spanned lines leaves a newline behind because it may have been the only statement
+separator there was, and `/*!`, `@license` and `@preserve` are kept.
+
+`weft start` transforms each module once and memoises it by URL. The path already carries a digest
+of the bundle, so a URL that would produce different bytes is a different URL. It was 4.7 ms per
+request for the boot module before, which a CDN deployment never noticed and every host that keeps
+a process paid forever.
+
+## What a document says about itself
+
+Three things the framework supplies to a layout, because all three are its own knowledge and a
+hand-maintained copy goes stale the first time somebody adds a file.
+
+**`preload`** — `<link rel="modulepreload">` for every module the page will fetch. With no bundler a
+browser finds the graph by following imports, so a module three deep is three round trips away;
+naming the set in the head collapses that to one. Walked from the real import graph, which is the
+same walk the byte budget measures — one function with two callers, because when they were two
+walks the figure drifted from what was served. `import()` is not followed: a dynamic import is the
+code a page decided _not_ to need yet.
+
+**`canonical`** — built from the route's own pattern rather than from the request, which is the
+point of the tag: a request carrying a tracking parameter or an alternate casing is the same page,
+and the route is what says so. It carries `og:url` with it.
+
+**`sitemap.xml`** — written by `weft site` from the documents it just published, so it cannot name a
+page that does not exist or miss one that does. Documents only; an asset is not a page.
+
+The last two need an origin, and the origin is the one thing a build genuinely cannot derive — the
+same output is served from a preview URL, a staging host and a domain. So it is `site: { origin }`
+in the config, and without it no sitemap is written and no canonical is emitted. An absence rather
+than a guess: a canonical pointing at the wrong host is worse for a crawler than none at all.
+
 ## What this does not do yet
 
 - **The kernel is not invoked at serve time, and the process still is.** Serving from

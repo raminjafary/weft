@@ -208,6 +208,35 @@ and neither is optional:
 A page that had no channel does not open one to say this; a page that arrives with a live region
 opens one, and it registers where it is as part of opening.
 
+### A navigation that was overtaken while it waited
+
+A staged route is claimed with no deadline, deliberately: waiting for a request already in flight
+cannot cost more than discarding it and issuing an identical one. What that leaves is a reader who
+clicks a slow route and then clicks others. The first claim settles last, and without a ticket it
+painted last too — the reader landed on the page they had already changed their mind about, seconds
+after the one they wanted had appeared.
+
+Every `go` takes a number and checks it in the one place that works: **after the claim**, which is
+where the time goes, and **before the commit**, which is where the damage would be. Checked
+anywhere else it is decoration.
+
+Three outcomes, because two of them are not failures:
+
+| Outcome   | Means                                      | What happens                                          |
+| --------- | ------------------------------------------ | ----------------------------------------------------- |
+| `painted` | the staged answer was committed            | the swap, `pushState`, `weft:navigated`               |
+| `cold`    | nothing was staged for this route          | the browser loads the document — the correct fallback |
+| `stale`   | a newer navigation started while it waited | nothing at all                                        |
+
+The third row is the one a boolean could not carry. `cold` falls back to `location.assign`, which
+is right for a route nobody staged and exactly wrong for one the reader has moved on from: it would
+send the browser to the abandoned URL _after_ the right page had painted, turning a wrong paint into
+a wrong document.
+
+Staging deliberately does not take the ticket. Hovering a link changes nothing about where the
+reader is going, and if it did this it would cancel the click already in flight — the same bug from
+the other side.
+
 ### Measured on a touch profile
 
 Chromium with `hasTouch`, a 390×780 viewport and no pointer that can hover: the category pill is

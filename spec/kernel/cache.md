@@ -178,6 +178,29 @@ Two rules:
 A tiered store passes the flag down and does **not** promote what comes back: writing an expired
 entry into a fresher tier would hand stale bytes to the next reader who never asked for any.
 
+## There are two caches on a route, and a write must reach both
+
+A slot's `cache.tags` decide when _its_ stored bytes are dropped. A route's own `cache` decides how
+long the whole assembled response is held. They are separate entries with separate lifetimes, and an
+invalidation only reaches the ones carrying the tag.
+
+Miss that and the failure is quiet in the worst way: the write succeeds, the invalidation reports
+the tags it dropped, every layer does its job, and the number on the page does not move — because
+the slot entry was emptied and the reader was still handed the stored document, whose body had been
+rendered once and would not be rendered again until the ttl ran out.
+
+So a tag belongs on both:
+
+```ts
+cache: { class: 'public', ttl: '1h', tags: ['votes'] },   // the document
+slots: {
+  body: { cache: { class: 'public', ttl: '1h', tags: ['votes'] }, live: true, … },
+}
+```
+
+Or give the document no ttl and let the slots decide. `W_DOCUMENT_OUTLIVES_INVALIDATION` names the
+case where neither was done, because the alternative is finding it by hand.
+
 ## What this does not do yet
 
 - **L0 is built, and it is a document rather than a fragment.** A page whose every fragment

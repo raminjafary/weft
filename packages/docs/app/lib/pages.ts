@@ -33,7 +33,7 @@ export const PAGES: readonly Page[] = [
   {
     slug: 'getting-started',
     title: 'Getting started',
-    lede: 'A folder is an application. Three files and one command.',
+    lede: 'Three files and one command. The file tree is the route table, so nothing registers anything.',
     group: 'start',
     covers: [],
     examples: [

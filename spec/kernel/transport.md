@@ -55,6 +55,20 @@ cannot hold a downstream and the client takes turns from its first request; a de
 did not say is not stranded, because the first `409` switches bindings and takes the refused
 frames as a turn rather than losing them.
 
+## A port a browser will not connect to
+
+The channel is built out of `fetch`, `WebSocket` and a streamed response, and the WHATWG fetch
+standard blocks about forty ports outright — the request is a network error before it is sent, on
+all three. A deployment on one of them serves its documents perfectly and its channel never
+connects, and **nothing says so**: a blocked request produces no error the page can report, so the
+symptom is a live region that never updates and a navigation that is always a document, which is
+indistinguishable from the framework not working.
+
+This was not theoretical. This repository's own documentation site was configured on 4190 — sieve —
+so its channel could never have worked in a browser, and the number had been sitting in
+`weft.config.ts` looking like any other port. `E_BLOCKED_PORT` refuses at config resolution and
+names why, because the alternative is that the next person picks one of the other forty.
+
 ## The two gaps a held connection was hiding
 
 `hub.notify` walks the connections _this_ process is holding. That is the whole of push
