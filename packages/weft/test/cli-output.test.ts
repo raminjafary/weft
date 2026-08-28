@@ -105,3 +105,21 @@ test('a refusal goes to stderr with a newline, and the status is not zero', () =
   )
   assert.match(upload, /return 2\n/, 'and answers 2, so a script can tell it was misused')
 })
+
+/**
+ * What asking for help costs, which is nothing.
+ *
+ * `weft help` answered 0 and `weft --help` answered 2, because both land on the same line and only
+ * the positional was consulted. Being run with no arguments at all is a misuse and 2 is right for
+ * it; asking for the help text is a use of the tool. The difference matters to a `set -e` script and
+ * to any smoke test that runs `weft --help` to check the binary resolves.
+ */
+test('asking for help succeeds, and being run with nothing does not', () => {
+  const help = cli.slice(cli.indexOf('async function main'), cli.indexOf('const root ='))
+  assert.match(help, /flags\.help/, 'the flag is what asking for help looks like')
+  assert.match(
+    help,
+    /return command \|\| flags\.help \? 0 : 2/,
+    'a named command or an explicit --help is a success; nothing at all is a misuse',
+  )
+})

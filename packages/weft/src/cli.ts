@@ -99,7 +99,10 @@ async function main(): Promise<number> {
   const { command, positional, flags } = parseArgv(process.argv.slice(2))
   if (!command || flags.help || command === 'help') {
     out(HELP)
-    return command ? 0 : 2
+    // Asking for help is a use of the tool; being run with nothing is not. `weft help` answered 0
+    // and `weft --help` answered 2, because both landed on the same line and only the positional
+    // was consulted — which fails a `set -e` script and any smoke test that runs `weft --help`.
+    return command || flags.help ? 0 : 2
   }
   // `weft why <route> [dir]` is the one command whose first positional is not the directory, which
   // is stated in the help above and was not true of this line: the route pattern became the root,
