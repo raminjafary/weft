@@ -39,6 +39,14 @@ export {
   type CompiledFragment,
 } from './compile.ts'
 export { isScopedSheet, scopeAttribute, scopeCss, scopeStem } from './scoped.ts'
+/**
+ * Exported for the benchmark harness, which cross-checks it against the running server.
+ *
+ * This is the function `budget({ js, grow })` is enforced against — a walk over files on disk. That
+ * it agrees with what a browser receives is a claim the specification makes, and a claim needs
+ * something able to check it.
+ */
+export { measureClientJs, type JsMeasurement } from './js-budget.ts'
 export { generateRoutes, navOf, GenerateError, type Generated, type GeneratedRoute } from './routes.ts'
 export { loadIntents, moduleIdOf, type IntentManifest, type ManifestEntry } from './intents.ts'
 export { loadConfig, type ResolvedConfig } from './config.ts'

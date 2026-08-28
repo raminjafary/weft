@@ -18,8 +18,9 @@ import { fileURLToPath } from 'node:url'
 import { measureChannel } from './measure/channel.ts'
 import { formatSharedDelta, measureSharedDelta, type SharedDeltaReport } from './measure/shared-delta.ts'
 import { formatL0, type L0Report, measureL0 } from './measure/l0.ts'
-import { MEASURED_RUNS, recordMeasured } from './measured.ts'
+import { MEASURED_RUNS, readMeasured, recordMeasured } from './measured.ts'
 import { type DecodeRun, formatDecode, measureDecode } from './measure/decode.ts'
+import { formatDownload, measureDownload } from './measure/download.ts'
 import { formatNavigation, measureNavigation, type NavReport } from './measure/navigation.ts'
 import { compileScenario } from './compiled.ts'
 import { renderMarkdown, comparison } from './report.ts'
@@ -134,6 +135,7 @@ const HELP = `weft-bench — phase-zero benchmark harness
   l0        a document served from the build against the same document rendered (--write)
   nav       a staged click against the same click handed back to the browser (--write)
   decode    frames decoded on the main thread against the same frames decoded in a worker (--write)
+  download  what a page fetches over HTTP against what the build says it fetches (--write)
   devices   list the devices --devices names, and whether each driver answers
   list      list axes, scenarios, and candidates
   ir        print the sealed, versioned IR for a scenario
@@ -382,7 +384,36 @@ async function main(): Promise<number> {
       process.stdout.write(formatNavigation(report))
     }
     if (flags.write !== undefined) {
-      recordMeasured('nav', navs)
+      /**
+       * A shaped run and a loopback run are both kept, because the table has both columns.
+       *
+       * `spec/client/navigation.md` reports each route on loopback and at 100 ms RTT, and those are
+       * two invocations by necessity — one link cannot be two. Replacing the record wholesale meant
+       * whichever ran last erased the other, which is why that page carried one column from a run
+       * months older than the rest of it. Merged by engine and injected latency instead: running
+       * either one updates that one.
+       */
+      const held = (readMeasured().nav?.measured ?? []) as NavReport[]
+      const kept = held.filter(
+        (one) => !navs.some((fresh) => fresh.engine === one.engine && fresh.latencyMs === one.latencyMs),
+      )
+      recordMeasured(
+        'nav',
+        [...kept, ...navs].toSorted((a, b) => a.latencyMs - b.latencyMs),
+      )
+      process.stdout.write(`wrote ${MEASURED_RUNS}\n`)
+    }
+    return 0
+  }
+
+  if (command === 'download') {
+    const report = await measureDownload({
+      root: flags.app ?? positional[0] ?? 'demo',
+      ...(flags.route ? { path: flags.route } : {}),
+    })
+    process.stdout.write(formatDownload(report))
+    if (flags.write !== undefined) {
+      recordMeasured('download', report)
       process.stdout.write(`wrote ${MEASURED_RUNS}\n`)
     }
     return 0
