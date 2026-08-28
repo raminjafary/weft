@@ -781,6 +781,11 @@ export interface GenerateOptions {
   styleOf(file: string): readonly string[]
   /** Where a live slot's base render is recorded, so its first refresh can be a delta. */
   store: StorePort
+  /**
+   * Every cache tag some intent declares it writes, so a page a mutation invalidates is not frozen
+   * into a file nothing can invalidate. See `StaticInput.written`.
+   */
+  written?: ReadonlySet<string>
   /** What this deployment bound. A loader is handed the services half of it. */
   ports: Ports
   /**
@@ -1314,6 +1319,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
       module: module_,
       shell: inner,
       layers,
+      ...(options.written ? { written: options.written } : {}),
       slots: holes.map((name) => {
         const held = declarations[name] as (typeof declarations)[string]
         const entry: {

@@ -43,6 +43,7 @@ export type StaticRefusal =
   | 'L0_ISOLATED'
   | 'L0_LIVE'
   | 'L0_REFRESH'
+  | 'L0_WRITTEN'
   | 'L0_GUARD'
   | 'L0_BUDGET_FOR'
   | 'L0_OUT_OF_ORDER'
@@ -86,6 +87,18 @@ export interface StaticInput {
     declaration: SlotDeclaration
     streams: boolean
   }[]
+  /**
+   * Every cache tag some intent in this application declares it writes.
+   *
+   * The other half of an agreement that already exists on both sides: a slot declares the tags that
+   * invalidate it, an intent declares the tags it writes, and the pair is what makes push
+   * invalidation work without anything subscribing. A file is the one place that agreement cannot
+   * reach — nothing can drop a document off a disk — so a page whose tags appear here is refused
+   * rather than frozen. Both halves are build-time declarations, so this is derivable, and until it
+   * was derived a page tagged `counter` was written out holding whatever the counter was at build
+   * time and served that forever.
+   */
+  written?: ReadonlySet<string>
 }
 
 /**
@@ -243,6 +256,14 @@ export function staticVerdict(input: StaticInput): StaticVerdict {
         static: false,
         code: 'L0_REFRESH',
         reason: `slot '${slot.name}' declares a refresh interval, which says its value changes`,
+      }
+    }
+    const written = (slot.declaration.cache?.tags ?? []).filter((tag) => input.written?.has(tag))
+    if (written.length) {
+      return {
+        static: false,
+        code: 'L0_WRITTEN',
+        reason: `slot '${slot.name}' is invalidated by ${written.join(', ')}, and an intent in this application declares it writes ${written.length > 1 ? 'those tags' : 'that tag'} — so its bytes go stale on a mutation, and nothing can invalidate a file`,
       }
     }
     if (slot.declaration.budgetFor) {

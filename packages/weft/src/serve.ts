@@ -430,6 +430,9 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     ...(recorder ? { recorder } : {}),
     styleOf,
     store,
+    // What the intents in this application say they write, so the static tier refuses a page a
+    // mutation would invalidate rather than freezing it. Both halves are declarations already.
+    written: new Set(intents.entries.flatMap((entry) => entry.writes)),
     runtime: () => table().boot,
     preload: () => preloads,
     /**

@@ -110,8 +110,9 @@ test('the build directory goes up over HTTP, with the headers each object is ser
     assert.match(document.headers['content-type'] ?? '', /text\/html/)
 
     // A parameterised route is one object per URL, which is what makes it a file at all.
-    assert.ok(puts.some((put) => put.path === '/app/ordinary/pantry'))
-    assert.ok(puts.some((put) => put.path === '/app/ordinary/household'))
+    assert.ok(puts.some((put) => put.path === '/docs/nesting'))
+    assert.ok(puts.some((put) => put.path === '/docs/holes'))
+    assert.ok(puts.some((put) => put.path === '/docs/cache'))
 
     // An asset URL names its own contents, so it may be held for a year.
     const asset = puts.find((put) => put.path.startsWith('/_weft/'))

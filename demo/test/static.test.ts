@@ -53,17 +53,8 @@ test('the pages that read nothing are files, and the rest say why they are not',
 
   assert.deepEqual(
     documents.map((d) => d.path).sort(),
-    [
-      '/',
-      '/app/article',
-      '/app/ordinary/household',
-      '/app/ordinary/pantry',
-      '/docs',
-      '/docs/cache',
-      '/docs/holes',
-      '/docs/nesting',
-    ],
-    'the pages that read nothing, and the two parameterised ones that say what their parameter can be',
+    ['/', '/app/article', '/docs', '/docs/cache', '/docs/holes', '/docs/nesting'],
+    'the pages that read nothing, and the parameterised one that says what its parameter can be',
   )
   // A nested layout does not take a page out of the build-time set. The verdict is computed over
   // every layer of the chain, so these four are files because `app/layout.tsx`, the subtree's
@@ -72,12 +63,22 @@ test('the pages that read nothing are files, and the rest say why they are not',
     documents.filter((d) => d.pattern === '/docs/:topic').map((d) => d.path),
     ['/docs/nesting', '/docs/holes', '/docs/cache'],
   )
-  // One route, two documents, each proved on its own: an invariance test that passed for `pantry`
-  // says nothing about `household`, and a loader that reads a cookie for one category and not the
-  // other is exactly the bug that would otherwise be frozen into a file.
+  /**
+   * And the enumeration is not enough on its own, which is what this route is now here to say.
+   *
+   * `/app/ordinary/:category` declares both its values, reads nothing but its own parameter, and
+   * renders identically under both probes — so every structural and empirical test passes and it
+   * was written out as two files. It still must not be: its body renders the shared cart, it is
+   * tagged `cart` so that an invalidation reaches it, and `cart.add` declares it writes `cart`.
+   * Nothing can invalidate a file, so the page served the count from build time and the button its
+   * own readout advertises did nothing you could see.
+   *
+   * Both halves of that are declarations the build already has, which is why this is derived rather
+   * than left to somebody remembering `static: false`.
+   */
   assert.deepEqual(
     documents.filter((d) => d.pattern === '/app/ordinary/:category').map((d) => d.path),
-    ['/app/ordinary/pantry', '/app/ordinary/household'],
+    [],
   )
   assert.deepEqual(
     Object.fromEntries(refused.map((r) => [r.pattern, r.code])),
@@ -89,6 +90,7 @@ test('the pages that read nothing are files, and the rest say why they are not',
       '/app/composed': 'L0_REGION',
       '/app/dashboard': 'L0_OUT_OF_ORDER',
       '/app/feed': 'L0_READS',
+      '/app/ordinary/:category': 'L0_WRITTEN',
     },
     'every page that is not a file is refused by name, because a tier nobody can see is a tier nobody uses',
   )

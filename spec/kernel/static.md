@@ -25,9 +25,26 @@ is decided before any request exists.
 | `L0_ISOLATED`     | a fragment composes a private instance the kernel fills separately       |
 | `L0_LIVE`         | a slot is refreshed over the channel                                     |
 | `L0_REFRESH`      | a slot declares a refresh interval, which is a statement that it changes |
+| `L0_WRITTEN`      | a slot's cache tag is one some intent declares it writes — see below     |
 | `L0_BUDGET_FOR`   | a slot takes its budget from the request, so its render can vary with it |
 | `L0_OUT_OF_ORDER` | a slot streams — see below                                               |
 | `L0_GUARD`        | the route has a guard, which decides in the envelope phase               |
+
+`L0_WRITTEN` is the one refusal that comes from neither the page nor the render, but from the
+agreement between two declarations the build already has. A slot names the tags that invalidate it;
+an intent names the tags it writes. Nothing can drop a document off a disk, so a page whose tag some
+intent claims cannot be one — and both halves are known at build time, so it is derived rather than
+left to somebody remembering `static: false`.
+
+It is derived from the _intersection_, deliberately. A tag no intent writes invalidates nothing, so
+it is not a reason to refuse: an application may tag a page for an invalidation it performs from a
+deploy hook, and freezing that page is the right answer until some intent claims the tag.
+
+The demo is what found this. `/app/ordinary/:category` declares both its parameter values, reads
+nothing but the parameter, and renders identically under both probes — so every test above passed
+and it was written out as two files, with the shared cart count baked in, tagged `cart`, while
+`cart.add` declares that it writes `cart`. The page served the count from build time, and the button
+its own readout advertises as working without JavaScript did nothing you could see.
 
 **Empirical**, by rendering the route through the real kernel twice, under two requests that
 differ in everything a static document is allowed to be indifferent to — cookies, locale,
