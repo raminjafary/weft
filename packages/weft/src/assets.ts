@@ -466,6 +466,100 @@ export function browserModule(
   return out.replace(/(['"])(\.{1,2}\/[^'"]*)\.ts\1/g, '$1$2.js$1')
 }
 
+function importsOf(source: string): string[] {
+  const out: string[] = []
+  for (const match of source.matchAll(/(?:import|export)[^'"]*?from\s*['"]([^'"]+)['"]/g)) {
+    out.push(match[1] as string)
+  }
+  return out
+}
+
+/**
+ * Every module a page will fetch, in the order the browser will discover them.
+ *
+ * There is no bundler, so a browser finds this graph by *following imports*: it cannot ask for
+ * anything at depth three until the module at depth two has arrived and been parsed. That is a
+ * serial chain of round trips rather than a set of parallel fetches, and it is the cost of having
+ * no bundler — worth paying, and worth not paying twice.
+ *
+ * Walked here rather than declared because a declaration would drift. `import()` is deliberately
+ * not followed: a dynamic import is the code a page decided *not* to need yet, and preloading it
+ * would undo the reason it was written that way.
+ *
+ * One implementation, two callers. The byte budget measures exactly this set and the document
+ * preloads exactly this set; when they were two walks the first drifted from what the second
+ * served, which is the mistake this function exists to make impossible.
+ */
+export async function moduleGraph(assets: AssetTable, appClient?: string): Promise<string[]> {
+  const trees = [...assets.trees.entries()]
+  const treeFor = (href: string): { prefix: string; tree: ModuleTree } | undefined => {
+    const found = trees.find(([prefix]) => href.startsWith(prefix))
+    return found ? { prefix: found[0], tree: found[1] } : undefined
+  }
+
+  const seen = new Set<string>()
+  const order: string[] = []
+  const queue = [assets.boot, ...(appClient ? [appClient] : [])]
+
+  while (queue.length) {
+    const href = queue.shift() as string
+    if (seen.has(href)) continue
+    seen.add(href)
+    const located = treeFor(href)
+    if (!located) continue
+    order.push(href)
+    const name = href.slice(located.prefix.length)
+    let source: string
+    try {
+      source = await readFile(join(located.tree.dir, moduleFileName(name, located.tree)), 'utf8')
+    } catch {
+      throw new Error(
+        `E_MODULE_UNREADABLE: ${href} is in the module graph and could not be read from ` +
+          `${located.tree.dir}. A page would 404 on it.`,
+      )
+    }
+    for (const specifier of importsOf(source)) {
+      if (specifier.startsWith('./') || specifier.startsWith('../')) {
+        /**
+         * Normalised to the URL the browser will actually ask for.
+         *
+         * A `.ts` source imports `./infer.ts`, and `browserModule` rewrites that to `./infer.js`
+         * before it leaves — so the graph has to carry the served name, not the source's. It read
+         * the same file either way, which is why the byte figure was right and the preload list was
+         * not: a `<link rel="modulepreload">` naming `.ts` preloads a URL nothing requests, and the
+         * browser then downloads the module a second time under the name it actually imports.
+         */
+        const resolved = new URL(specifier, `file:///${href.replace(/^\//, '')}`).pathname
+        queue.push(resolved.endsWith('.ts') ? `${resolved.slice(0, -'.ts'.length)}.js` : resolved)
+        continue
+      }
+      const tree = REWRITTEN_SPECIFIERS[specifier]
+      if (!tree) continue
+      const target = trees.find(([prefix]) => prefix.endsWith(`/${tree}/`))
+      if (target) queue.push(`${target[0]}index.js`)
+    }
+  }
+  return order
+}
+
+/**
+ * The graph as `<link rel="modulepreload">`, for the head of a document.
+ *
+ * This is the whole fix for the waterfall: the browser is told the entire set at once, in the head,
+ * and fetches them in parallel instead of discovering them one hop at a time. It needs no 103 —
+ * which is worth saying because 103 Early Hints does not survive every proxy, and this does not
+ * depend on it.
+ *
+ * The boot module itself is left out: it is already a `<script src>` in the same head, and a
+ * preload for something the parser is about to request anyway is a duplicate line for no gain.
+ */
+export function modulePreloads(graph: readonly string[], boot: string): string {
+  return graph
+    .filter((href) => href !== boot)
+    .map((href) => `<link rel="modulepreload" href="${href}">`)
+    .join('')
+}
+
 /**
  * Every module file the deployment can be asked for, at the URL it answers on.
  *

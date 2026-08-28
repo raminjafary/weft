@@ -21,6 +21,16 @@ interface ShellProps {
   boot: string
   /** The framework's scroll restore, inlined so it runs before paint. See `SCROLL_PRELUDE`. */
   prelude: string
+  /**
+   * `<link rel="modulepreload">` for every module this page will fetch, supplied by the framework.
+   *
+   * With no bundler the browser discovers modules by following imports, so one three imports deep
+   * is three round trips away. Naming the whole set in the head collapses that to one: the fetches
+   * go out together instead of a hop at a time. The list is walked from the real import graph at
+   * build time — the same walk the byte budget measures — so it cannot list a module the page does
+   * not load or miss one it does.
+   */
+  preload: string
 }
 
 /**
@@ -36,7 +46,7 @@ interface ShellProps {
  * upgrades it to a ⌘K dropdown afterwards, and the form underneath it keeps working either way.
  */
 export default fragment(
-  ({ title, description, css, runtime, nav, body, versions, repo, boot, prelude }: ShellProps) => (
+  ({ title, description, css, runtime, nav, body, versions, repo, boot, prelude, preload }: ShellProps) => (
     <>
       {raw('<!doctype html>')}
       <html lang="en">
@@ -63,6 +73,7 @@ export default fragment(
           />
           <link rel="stylesheet" href={css} />
           <script type="module" src={runtime} />
+          {raw(preload)}
           {raw(boot)}
         </head>
         <body>

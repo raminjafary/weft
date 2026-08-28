@@ -57,6 +57,8 @@ import { verifyRegions, type VerifyReport } from '@weftjs/plan'
 import {
   browserModule,
   buildAssets,
+  moduleGraph,
+  modulePreloads,
   cacheControlFor,
   moduleFileName,
   revAssets,
@@ -429,6 +431,7 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     styleOf,
     store,
     runtime: () => table().boot,
+    preload: () => preloads,
     brand: basename(root) || 'weft',
   })
 
@@ -495,6 +498,16 @@ export async function createApp(root: string, options: CreateOptions = {}): Prom
     revved: mode !== 'dev',
   })
   setAssets(assets)
+
+  /**
+   * The preload list, computed once because it cannot change without a rebuild.
+   *
+   * Walking the import graph reads files, and `shellValues` is synchronous and on the render path —
+   * so it is walked here, when the table it depends on has just been built, and every page after
+   * that renders a string. It is also the honest place: a graph that could differ per request would
+   * be a graph the byte budget could not have measured.
+   */
+  const preloads = modulePreloads(await moduleGraph(assets, assets.app), assets.boot)
 
   /**
    * One region of one route, composed for a channel.

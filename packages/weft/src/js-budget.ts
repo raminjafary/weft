@@ -1,13 +1,7 @@
 import { brotliCompressSync, constants } from 'node:zlib'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import {
-  browserModule,
-  moduleFileName,
-  REWRITTEN_SPECIFIERS,
-  type AssetTable,
-  type ModuleTree,
-} from './assets.ts'
+import { browserModule, moduleFileName, moduleGraph, type AssetTable } from './assets.ts'
 import type { GeneratedRoute } from './routes.ts'
 
 /**
@@ -55,76 +49,32 @@ function compressed(source: string): { raw: number; brotli: number } {
   return { raw: bytes.byteLength, brotli: brotliCompressSync(bytes, BROTLI).byteLength }
 }
 
-function importsOf(source: string): string[] {
-  const out: string[] = []
-  for (const match of source.matchAll(/(?:import|export)[^'"]*?from\s*['"]([^'"]+)['"]/g)) {
-    out.push(match[1] as string)
-  }
-  return out
-}
-
 /**
- * What a page downloads, walked rather than declared.
+ * What a page downloads, measured over the graph the browser will actually walk.
  *
- * There is no bundle to measure, so this follows the same edges the browser will: the boot module,
- * every relative import it reaches, and the two bare specifiers the front door rewrites. Each
- * module is compressed on its own, because that is how each one arrives — a bundler's figure would
- * be smaller than the truth and this framework does not have one to be smaller with.
+ * The walk itself is `moduleGraph` in `assets.ts`, because the document preloads exactly this set
+ * and a second copy of the traversal here is how the figure and the page came to disagree once
+ * already. Each module is compressed on its own, because that is how each one arrives — a bundler's
+ * figure would be smaller than the truth and this framework has no bundler to be smaller with.
  */
 export async function measureClientJs(assets: AssetTable, appClient?: string): Promise<JsMeasurement> {
   const trees = [...assets.trees.entries()]
-  const treeFor = (href: string): { prefix: string; tree: ModuleTree } | undefined => {
-    const found = trees.find(([prefix]) => href.startsWith(prefix))
-    return found ? { prefix: found[0], tree: found[1] } : undefined
-  }
-
-  const seen = new Set<string>()
   const modules: JsMeasurement['modules'] = []
-  const queue = [assets.boot, ...(appClient ? [appClient] : [])]
 
-  while (queue.length) {
-    const href = queue.shift() as string
-    if (seen.has(href)) continue
-    seen.add(href)
-    const located = treeFor(href)
-    if (!located) continue
-    const name = href.slice(located.prefix.length)
-    let source: string
-    try {
-      // By the URL's name mapped back to the file's, because a served `.js` may be a `.ts` on disk.
-      source = await readFile(join(located.tree.dir, moduleFileName(name, located.tree)), 'utf8')
-    } catch {
-      // A module that cannot be read is a module the browser will not get either, and skipping it
-      // silently would report a page as lighter than it is. The figure is a claim, so it says so.
-      throw new Error(
-        `E_BUDGET_UNREADABLE: ${href} is in the module graph and could not be read from ` +
-          `${located.tree.dir}. The byte figure would be smaller than the truth.`,
-      )
-    }
+  for (const href of await moduleGraph(assets, appClient)) {
+    const found = trees.find(([prefix]) => href.startsWith(prefix))
+    if (!found) continue
+    const [prefix, tree] = found
+    const source = await readFile(join(tree.dir, moduleFileName(href.slice(prefix.length), tree)), 'utf8')
     /**
      * Measured through the function that serves it, rather than through a copy of what it does.
      *
      * This used to strip types here and compress the result, which was a second implementation of
      * `browserModule` and drifted from it the moment the first one gained a step: production builds
      * remove comments, this did not, and the figure reported was larger than anything a browser
-     * would ever download. A number that claims to be "what a page downloads" has to come from the
-     * bytes that are actually sent, specifier rewrites and all.
+     * would ever download.
      */
-    modules.push({
-      href,
-      ...compressed(browserModule(source, located.tree, located.prefix, { comments: 'strip' })),
-    })
-
-    for (const specifier of importsOf(source)) {
-      if (specifier.startsWith('./') || specifier.startsWith('../')) {
-        queue.push(new URL(specifier, `file:///${href.replace(/^\//, '')}`).pathname)
-        continue
-      }
-      const tree = REWRITTEN_SPECIFIERS[specifier]
-      if (!tree) continue
-      const target = trees.find(([prefix]) => prefix.endsWith(`/${tree}/`))
-      if (target) queue.push(`${target[0]}index.js`)
-    }
+    modules.push({ href, ...compressed(browserModule(source, tree, prefix, { comments: 'strip' })) })
   }
 
   return {

@@ -154,7 +154,7 @@ export class GenerateError extends Error {
 }
 
 /** The layout values the framework always supplies. A layout may use any subset of these. */
-const STANDARD = ['title', 'description', 'css', 'runtime', 'brand', 'nav', 'prelude'] as const
+const STANDARD = ['title', 'description', 'css', 'runtime', 'preload', 'brand', 'nav', 'prelude'] as const
 
 async function loadModule(file: string | undefined): Promise<RouteModule> {
   if (!file) return {}
@@ -786,6 +786,16 @@ export interface GenerateOptions {
   recorder?: Recorder
   /** The client entry the layout loads. Also a digest-bearing URL, so also resolved late. */
   runtime(): string
+  /**
+   * `<link rel="modulepreload">` for every module this page will fetch, as markup.
+   *
+   * Supplied by the framework rather than written into a layout, because the module graph is the
+   * framework's to know and a hand-written list is a list that goes stale the first time an import
+   * is added. A layout that renders it flattens the browser's discovery chain — with no bundler,
+   * a module three imports deep is otherwise three round trips away — and a layout that does not
+   * is exactly as correct as it was before, just slower.
+   */
+  preload(): string
   brand: string
 }
 
@@ -1065,6 +1075,7 @@ async function generateOne(route: DiscoveredRoute, options: OneOptions): Promise
         description: resolved.description ?? '',
         css: options.styleHref(route.pattern),
         runtime: options.runtime(),
+        preload: options.preload(),
         prelude: SCROLL_PRELUDE,
         brand: options.brand,
         nav: nav.map((item) => ({
