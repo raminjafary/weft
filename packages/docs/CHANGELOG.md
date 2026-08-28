@@ -4,7 +4,30 @@ Every commit in this repository appears here, not only `feat` and `fix`. The sec
 generated from Conventional Commit types by `scripts/release/`, and a package changelog holds
 the commits scoped to that package.
 
-## [0.2.0](https://github.com/raminjafary/weft/compare/v0.1.0...HEAD) (2026-08-28)
+## [0.3.0](https://github.com/raminjafary/weft/compare/v0.1.1...HEAD) (2026-08-28)
+
+### ✨ Features
+
+* a reference section, one page per thing you write ([b0e82d3](https://github.com/raminjafary/weft/commit/b0e82d37f75216819d4d9c15e1300f179eebfa11))
+* the tutorial is nineteen steps, because that is what it takes ([87840c6](https://github.com/raminjafary/weft/commit/87840c66884671bd70305e439a5a9eb8c3ac81da))
+
+### 🐛 Bug Fixes
+
+* the theme sweep's pause matched every figure and paused none of them ([41ad38d](https://github.com/raminjafary/weft/commit/41ad38def0ef03c26080fd9043056599fc8105eb))
+* a string preceded by a bracket is a string, not two punctuation marks ([2fd1c3e](https://github.com/raminjafary/weft/commit/2fd1c3e1d745b44fbecad7dbc86dce82c0db973a))
+* the vote count moves, and the reason it did not is now a build warning ([a324e94](https://github.com/raminjafary/weft/commit/a324e94d2a26d945ee8dc91ffcb36d01004e863d))
+* every figure on the site is read from the run that measured it ([d638af1](https://github.com/raminjafary/weft/commit/d638af1a94938aa6382062749780e7b13cb93329))
+
+### ♻️ Code Refactoring
+
+* the search page goes, and everything that existed to serve it ([657ba9e](https://github.com/raminjafary/weft/commit/657ba9e59288dea49532b4274d0aa3540050d8ab))
+
+### 📝 Documentation
+
+* the protocol, drawn — frames, epochs, and the delay a turn actually costs ([faae397](https://github.com/raminjafary/weft/commit/faae397997b6c0470e3b6b440236e98b15027518))
+* delivery and negotiation, which the site had never actually explained ([d4bf609](https://github.com/raminjafary/weft/commit/d4bf609d47a690879bcc49720a3ad56fc7ad4fcd))
+
+## [0.2.0](https://github.com/raminjafary/weft/compare/v0.1.0...v0.1.1) (2026-08-28)
 
 ### ✨ Features
 

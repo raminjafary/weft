@@ -4,7 +4,17 @@ Every commit in this repository appears here, not only `feat` and `fix`. The sec
 generated from Conventional Commit types by `scripts/release/`, and a package changelog holds
 the commits scoped to that package.
 
-## [0.1.1](https://github.com/raminjafary/weft/compare/v0.1.0...HEAD) (2026-08-28)
+## [0.2.0](https://github.com/raminjafary/weft/compare/v0.1.1...HEAD) (2026-08-28)
+
+### ✨ Features
+
+* a channel binding that holds nothing, so a host with no process can carry one ([559eb88](https://github.com/raminjafary/weft/commit/559eb88431646d0e37f993ba58157727814d1455))
+
+### 📝 Documentation
+
+* **weft:** every field a declaration has says what it is ([175218c](https://github.com/raminjafary/weft/commit/175218c8257940a6b0717b31933f615f4c6cdcc1))
+
+## [0.1.1](https://github.com/raminjafary/weft/compare/v0.1.0...v0.1.1) (2026-08-28)
 
 ### ⬆️ Workspace Dependencies
 

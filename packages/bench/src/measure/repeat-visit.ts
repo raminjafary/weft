@@ -73,8 +73,21 @@ export async function measureRepeatVisit(
   const warpDir = fileURLToPath(new URL('../../../warp/src/', import.meta.url))
   const bootFile = fileURLToPath(new URL('../client/boot.ts', import.meta.url))
 
-  let lastFrameBytes = 0
-  let lastSent = 0
+  /**
+   * Every document response, in the order the server produced them.
+   *
+   * A pair of `lastFrameBytes`/`lastSent` was two variables the handler overwrote, and whichever
+   * request wrote them last is what the measurement reported. That is fine as long as one
+   * navigation makes exactly one document request, and Firefox does not: something re-requests the
+   * document after `load`, by which time the boot script has stored the templates and set the
+   * cookie — so the *cold* visit was reported as `0 templates, 138 bytes`, which is the shape of a
+   * repeat visit and the exact opposite of what that row exists to show.
+   *
+   * Nothing failed, because a zero there is a legal value. The list is what makes attribution
+   * possible: a visit takes the length before it navigates and reads the first response after it,
+   * which is the document that navigation asked for, whatever arrives later.
+   */
+  const documents: { frameBytes: number; sent: number }[] = []
 
   const server = createServer((req, res) => {
     const path = (req.url ?? '/').split('?')[0] as string
@@ -127,8 +140,7 @@ export async function measureRepeatVisit(
     }
 
     const stream = encodeStream(frames)
-    lastFrameBytes = stream.length
-    lastSent = sent
+    documents.push({ frameBytes: stream.length, sent })
 
     send(
       `<!doctype html><html><head><meta charset="utf-8"><title>${scenario.id}</title></head><body>
@@ -158,8 +170,8 @@ export async function measureRepeatVisit(
       const context = await browser.newContext()
       const tab = await context.newPage()
       try {
-        cold.push(await visit(tab, url, () => ({ frameBytes: lastFrameBytes, sent: lastSent })))
-        repeat.push(await visit(tab, url, () => ({ frameBytes: lastFrameBytes, sent: lastSent })))
+        cold.push(await visit(tab, url, documents))
+        repeat.push(await visit(tab, url, documents))
       } finally {
         await tab.close()
         await context.close()
@@ -181,8 +193,9 @@ interface PageLike {
 async function visit(
   tab: PageLike,
   url: string,
-  response: () => { frameBytes: number; sent: number },
+  documents: readonly { frameBytes: number; sent: number }[],
 ): Promise<Visit> {
+  const before = documents.length
   await tab.goto(url, { waitUntil: 'load' })
   const measured = await tab.evaluate<{ interactive: number; boot: Record<string, number | boolean> }>(
     `(async () => {
@@ -191,7 +204,14 @@ async function visit(
       return { interactive: mark ? mark.startTime : NaN, boot: window.__boot }
     })()`,
   )
-  const { frameBytes, sent } = response()
+  const served = documents[before]
+  if (!served) {
+    throw new Error(
+      'E_NO_DOCUMENT_RESPONSE: the navigation completed and the server produced no document for ' +
+        'it, so there is no frame count to attribute to this visit',
+    )
+  }
+  const { frameBytes, sent } = served
   return {
     interactive: measured.interactive,
     decodeMs: Number(measured.boot?.decodeMs ?? NaN),

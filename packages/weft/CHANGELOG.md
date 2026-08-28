@@ -4,7 +4,29 @@ Every commit in this repository appears here, not only `feat` and `fix`. The sec
 generated from Conventional Commit types by `scripts/release/`, and a package changelog holds
 the commits scoped to that package.
 
-## [0.1.1](https://github.com/raminjafary/weft/compare/v0.1.0...HEAD) (2026-08-28)
+## [0.2.0](https://github.com/raminjafary/weft/compare/v0.1.1...HEAD) (2026-08-28)
+
+### ✨ Features
+
+* a sitemap generated from what was published, and a canonical URL per route ([00472df](https://github.com/raminjafary/weft/commit/00472df756b1f62666b4cc1792bf975a0672f21f))
+
+### 🐛 Bug Fixes
+
+* a relative root filled the asset map with keys nothing could look up ([ff66cb1](https://github.com/raminjafary/weft/commit/ff66cb17114a4a48eb8828b4d93a736f44658f78))
+* a slow route no longer paints over the one you clicked after it ([385c9de](https://github.com/raminjafary/weft/commit/385c9dea9e7cc5bdd39bae63b551cb282ffb2983))
+* a port a browser refuses is a channel that never connects and never says so ([f8d8080](https://github.com/raminjafary/weft/commit/f8d808020729b6851dd32d29af0d32382ed772bd))
+
+### ⚡️ Performance Improvements
+
+* weft start transforms a module once, not once per request ([c0d1106](https://github.com/raminjafary/weft/commit/c0d11062a3ff4f99fedc6f92d218834aeef21207))
+* a document names the modules it will fetch, so they stop arriving one hop at a time ([bc263cd](https://github.com/raminjafary/weft/commit/bc263cdcf243dd742c4283faf0d80a88f1cc2f67))
+* a production build stops shipping its own documentation ([37e803b](https://github.com/raminjafary/weft/commit/37e803b2408269a8218f790008d0deae3c25b6b1))
+
+### 📝 Documentation
+
+* **kernel:** every field a declaration has says what it is ([175218c](https://github.com/raminjafary/weft/commit/175218c8257940a6b0717b31933f615f4c6cdcc1))
+
+## [0.1.1](https://github.com/raminjafary/weft/compare/v0.1.0...v0.1.1) (2026-08-28)
 
 ### 🐛 Bug Fixes
 

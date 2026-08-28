@@ -1,6 +1,6 @@
 {
   "name": "@weftjs/docs",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "The documentation site. Every example on it is a fragment this application compiled, so an example that does not work is a build that does not pass.",
   "license": "MIT",

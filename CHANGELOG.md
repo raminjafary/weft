@@ -4,7 +4,47 @@ Every commit in this repository appears here, not only `feat` and `fix`. The sec
 generated from Conventional Commit types by `scripts/release/`, and a package changelog holds
 the commits scoped to that package.
 
-## [0.1.1](https://github.com/raminjafary/weft/compare/v0.1.0...HEAD) (2026-08-28)
+## [0.2.0](https://github.com/raminjafary/weft/compare/v0.1.1...HEAD) (2026-08-28)
+
+### ✨ Features
+
+* **bench:** the five commands that measured into a terminal now write it down ([212db33](https://github.com/raminjafary/weft/commit/212db33aa24969d2d5499cbd28d946bf0f954f2b))
+* **docs:** a reference section, one page per thing you write ([b0e82d3](https://github.com/raminjafary/weft/commit/b0e82d37f75216819d4d9c15e1300f179eebfa11))
+* **weft:** a sitemap generated from what was published, and a canonical URL per route ([00472df](https://github.com/raminjafary/weft/commit/00472df756b1f62666b4cc1792bf975a0672f21f))
+* **kernel:** a channel binding that holds nothing, so a host with no process can carry one ([559eb88](https://github.com/raminjafary/weft/commit/559eb88431646d0e37f993ba58157727814d1455))
+* **docs:** the tutorial is nineteen steps, because that is what it takes ([87840c6](https://github.com/raminjafary/weft/commit/87840c66884671bd70305e439a5a9eb8c3ac81da))
+
+### 🐛 Bug Fixes
+
+* **repo:** the three tables the sweep missed, and a claim about the harness I got wrong ([c05537b](https://github.com/raminjafary/weft/commit/c05537bc628101d9615a61dab75b70f5aa30836f))
+* **repo:** every number in every document, re-measured against the run that shipped with it ([6a4ff00](https://github.com/raminjafary/weft/commit/6a4ff00d6d72bb1e585c92443528076eed12fd1a))
+* **weft:** a relative root filled the asset map with keys nothing could look up ([ff66cb1](https://github.com/raminjafary/weft/commit/ff66cb17114a4a48eb8828b4d93a736f44658f78))
+* **docs:** the theme sweep's pause matched every figure and paused none of them ([41ad38d](https://github.com/raminjafary/weft/commit/41ad38def0ef03c26080fd9043056599fc8105eb))
+* **docs:** a string preceded by a bracket is a string, not two punctuation marks ([2fd1c3e](https://github.com/raminjafary/weft/commit/2fd1c3e1d745b44fbecad7dbc86dce82c0db973a))
+* **docs:** the vote count moves, and the reason it did not is now a build warning ([a324e94](https://github.com/raminjafary/weft/commit/a324e94d2a26d945ee8dc91ffcb36d01004e863d))
+* **repo:** every document quoting a measured size quotes the one that was measured ([b57b884](https://github.com/raminjafary/weft/commit/b57b8847c3fa1dac1e56b05c5db58339e17a38d6))
+* **weft:** a slow route no longer paints over the one you clicked after it ([385c9de](https://github.com/raminjafary/weft/commit/385c9dea9e7cc5bdd39bae63b551cb282ffb2983))
+* **docs:** every figure on the site is read from the run that measured it ([d638af1](https://github.com/raminjafary/weft/commit/d638af1a94938aa6382062749780e7b13cb93329))
+* **weft:** a port a browser refuses is a channel that never connects and never says so ([f8d8080](https://github.com/raminjafary/weft/commit/f8d808020729b6851dd32d29af0d32382ed772bd))
+
+### ⚡️ Performance Improvements
+
+* **weft:** weft start transforms a module once, not once per request ([c0d1106](https://github.com/raminjafary/weft/commit/c0d11062a3ff4f99fedc6f92d218834aeef21207))
+* **weft:** a document names the modules it will fetch, so they stop arriving one hop at a time ([bc263cd](https://github.com/raminjafary/weft/commit/bc263cdcf243dd742c4283faf0d80a88f1cc2f67))
+* **weft:** a production build stops shipping its own documentation ([37e803b](https://github.com/raminjafary/weft/commit/37e803b2408269a8218f790008d0deae3c25b6b1))
+
+### ♻️ Code Refactoring
+
+* **docs:** the search page goes, and everything that existed to serve it ([657ba9e](https://github.com/raminjafary/weft/commit/657ba9e59288dea49532b4274d0aa3540050d8ab))
+
+### 📝 Documentation
+
+* **weft, kernel:** every field a declaration has says what it is ([175218c](https://github.com/raminjafary/weft/commit/175218c8257940a6b0717b31933f615f4c6cdcc1))
+* **spec:** the specs catch up, and "a folder is an application" says what it means ([9bec7b3](https://github.com/raminjafary/weft/commit/9bec7b3da9f8e3a974ac1d78b837162830b0908c))
+* **docs:** the protocol, drawn — frames, epochs, and the delay a turn actually costs ([faae397](https://github.com/raminjafary/weft/commit/faae397997b6c0470e3b6b440236e98b15027518))
+* **docs:** delivery and negotiation, which the site had never actually explained ([d4bf609](https://github.com/raminjafary/weft/commit/d4bf609d47a690879bcc49720a3ad56fc7ad4fcd))
+
+## [0.1.1](https://github.com/raminjafary/weft/compare/v0.1.0...v0.1.1) (2026-08-28)
 
 ### ✨ Features
 
