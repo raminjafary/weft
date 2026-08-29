@@ -1,18 +1,6 @@
 import { collectMarkers, elementAt, soleText, textAfter } from './adopt.ts'
 
-/**
- * The `patch` form, applied.
- *
- * A delta needs the client's binding table, which means the template. A patch needs the DOM and
- * nothing else: every write carries its own address — an element path, and a marker ordinal for a
- * text node that is not its element's only child — so a region whose values are not projectable
- * still updates one node at a time instead of being replaced whole.
- *
- * Two consequences worth naming. Addresses are resolved before anything is written, because a
- * markup write moves the nodes a later address would have counted. And a patch is applied on
- * arrival or not at all: staging one would mean holding positions that another epoch's commit can
- * move, so a PATCH naming an epoch is refused rather than held. See `spec/kernel/surgical.md`.
- */
+/** The `patch` form, applied — the DOM and nothing else, no binding table needed. See `spec/kernel/surgical.md`. */
 export type PatchOp = 'text' | 'markup' | 'replace' | 'append' | 'truncate' | 'attr' | 'bool' | 'presence'
 
 /** One hole's new markup, addressed by path rather than by value. */
@@ -129,10 +117,7 @@ function header(
   return value === undefined ? undefined : String(value)
 }
 
-/**
- * The channel handler, registered through `onFrame` — the extension point a capability that owns
- * a frame kind uses, so a page that never receives a `PATCH` carries none of this.
- */
+/** The channel handler, registered through `onFrame`. See `spec/kernel/budgets.md`. */
 export function patchFrames(
   target: (slot: string) => PatchTarget | undefined,
   onPatched?: (slot: string, writes: number, next: string) => void,

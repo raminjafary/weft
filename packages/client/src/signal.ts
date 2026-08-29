@@ -15,14 +15,7 @@ export interface Signal<T> extends Readable<T> {
 /** A value derived from others. Readable, never writable — the expression is the definition. */
 export type Computed<T> = Readable<T>
 
-/*
- * The graph is doubly linked in both directions: every dependency edge is one `Link`
- * that sits in the dependency's subscriber list and in the subscriber's dependency list
- * at the same time. That is the whole reason this is not a `Set` per node — removing an
- * edge is four pointer writes with no hashing and no allocation, and re-running a
- * subscriber walks its existing links in order and reuses them rather than rebuilding a
- * collection per run.
- */
+// Edges are doubly linked in both directions. See `spec/client/signals.md`.
 interface Link {
   dep: Node
   sub: Node
@@ -44,10 +37,7 @@ interface Node {
   fn?: () => unknown
 }
 
-/*
- * Status is bitflags on one integer field rather than booleans or a string, so a node's
- * whole state is one machine word and a check is a mask.
- */
+// Status is bitflags on one integer field. See `spec/client/signals.md`.
 const MUTABLE = 1 << 0 /* recomputes its own value: a computed */
 const WATCHING = 1 << 1 /* runs an effect when it settles dirty */
 const DIRTY = 1 << 2 /* a direct dependency changed */
@@ -60,10 +50,7 @@ let batchDepth = 0
 let flushing = false
 const queue: Node[] = []
 
-/**
- * A value and its edges. Built on the shape of the TC39 Signals proposal so it can be
- * deleted rather than migrated when that ships.
- */
+/** A value and its edges. Built on the shape of the TC39 Signals proposal so it can be deleted rather than migrated when that ships. */
 export function signal<T>(initial: T): Signal<T> {
   const node: Node = {
     flags: 0,
@@ -90,11 +77,7 @@ export function signal<T>(initial: T): Signal<T> {
   return read
 }
 
-/**
- * A value derived from other values. Lazy: it recomputes on read, and only after a pull
- * up its own dependencies establishes that something it reads actually changed. Two
- * writes that cancel out cost one recompute here and zero writes downstream.
- */
+/** A value derived from other values. Lazy: recomputes on read, only after a pull confirms something it reads changed. See `spec/client/signals.md`. */
 export function computed<T>(fn: () => T): Computed<T> {
   const node: Node = {
     flags: MUTABLE | DIRTY,
@@ -119,10 +102,7 @@ export function computed<T>(fn: () => T): Computed<T> {
   return read
 }
 
-/**
- * Runs now, tracking whatever it reads, and again whenever any of it changes. Returns
- * the disposer. This is the auto-tracking front door; `subscribe` is the narrow one.
- */
+/** Runs now, tracking whatever it reads, and again whenever any of it changes. The auto-tracking front door; `subscribe` is the narrow one. */
 export function effect(fn: () => void): () => void {
   const node: Node = {
     flags: WATCHING | TRACKED,
@@ -158,11 +138,7 @@ export function untrack<T>(fn: () => T): T {
   }
 }
 
-/*
- * A watcher bound to exactly one dependency and tracking nothing. Adoption wires one
- * binding to one node, and the value is already in the DOM, so a watcher that ran on
- * creation would rewrite what the server just rendered.
- */
+// A watcher bound to exactly one dependency, tracking nothing, that does not run on creation. See `spec/client/signals.md`.
 function watch(dep: Node, run: Subscriber): () => void {
   const node: Node = {
     flags: WATCHING,
@@ -185,8 +161,6 @@ function dispose(node: Node): void {
 function link(dep: Node, sub: Node): void {
   const prevDep = sub.depsTail
   if (prevDep !== undefined && prevDep.dep === dep) return
-  // A re-run that reads the same dependencies in the same order walks this list and
-  // allocates nothing.
   const nextDep = prevDep === undefined ? sub.deps : prevDep.nextDep
   if (nextDep !== undefined && nextDep.dep === dep) {
     sub.depsTail = nextDep
@@ -226,12 +200,7 @@ function unlink(edge: Link, sub: Node): Link | undefined {
   return nextDep
 }
 
-/*
- * Push. A write marks its direct subscribers dirty and everything further downstream
- * merely pending — pending means "a dependency of a dependency moved", which is a
- * question, not an answer. Answering it is the pull half, and it happens at most once,
- * at flush, rather than once per edge crossed.
- */
+// Push. See `spec/client/signals.md`: "Propagation is push, then pull".
 function propagate(from: Link, mark: number): void {
   let edge: Link | undefined = from
   do {
@@ -255,11 +224,7 @@ function enqueue(node: Node): void {
   queue.push(node)
 }
 
-/*
- * Pull. Walks up the pending edges recomputing only the computeds that claim to have
- * moved, and stops at the first one that actually did. A computed whose recompute lands
- * on the same value ends the propagation there — the effect below it never runs.
- */
+// Pull. See `spec/client/signals.md`: "Propagation is push, then pull".
 function checkDirty(node: Node): boolean {
   if (node.flags & DIRTY) {
     node.flags &= ~(DIRTY | PENDING)

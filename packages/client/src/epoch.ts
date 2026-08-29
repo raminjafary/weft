@@ -2,33 +2,8 @@ import type { Adopted } from './adopt.ts'
 import { applyDelta, type DeltaPayload } from './delta.ts'
 import { batch } from './signal.ts'
 
-/**
- * The client half of epochs: data that has arrived and resolved but has not been painted.
- *
- * Everywhere else, fetching implies committing — a background revalidation repaints, and
- * prefetching a route can flicker the one you are looking at. Here a frame naming an epoch
- * lands in staging and paints nothing; a commit flips every slot staged in that epoch at
- * once, so the page never shows a half-updated state.
- *
- * Three things fall out rather than being built: prefetch cannot disturb the present,
- * revalidation can sit staged through a half-typed form, and an optimistic update is a
- * staged epoch committed immediately, so rollback is discarding an epoch rather than
- * reconstructing prior state.
- */
-/**
- * A change held for a slot, in one of the two forms a slot's next state can arrive in.
- *
- * A delta is the interesting one and the one everything else is built for: the client holds the
- * template and the base render, so what travels is the values that differ. Markup is the floor —
- * the server could not send a delta, or the region is on a route this client has never rendered —
- * and it has to be stageable for the same reason a delta does: a route staged for a navigation
- * arrives as a mixture of the two, and a commit that painted the markup on arrival and the deltas
- * later would show half a page.
- *
- * `paint` is the caller's, because replacing a region's nodes is not something this module can do
- * correctly on its own: the bindings adopted inside them have to be adopted again, and only the
- * layer that owns adoption knows how.
- */
+/** The client half of epochs: data that has arrived and resolved but has not been painted. See `spec/kernel/transport.md`: "Epochs, over the wire". */
+/** A change held for a slot, in one of the two forms a slot's next state can arrive in. See `spec/kernel/transport.md`. */
 export interface StagedWrite {
   slot: string
   adopted: Adopted
@@ -66,13 +41,7 @@ export interface CommitResult {
   animated: boolean
 }
 
-/**
- * Staged values, committed atomically or discarded.
- *
- * Rollback is discarding an epoch: nothing was painted, so there is nothing to un-paint and no
- * prior state to reconstruct. That is the whole of it, and it is why an ACK carries the outcome
- * rather than needing a frame of its own.
- */
+/** Staged values, committed atomically or discarded. See `spec/kernel/transport.md`. */
 export interface Epochs {
   stage(epoch: string, write: Staged): void
   commit(epoch: string, options?: CommitOptions): Promise<CommitResult>

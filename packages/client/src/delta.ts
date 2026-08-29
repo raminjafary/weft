@@ -11,11 +11,7 @@ export interface DeltaPayload {
   changed: Record<string, Json>
 }
 
-/**
- * The delta form, applied where it was always supposed to be applied: into the DOM the
- * server already rendered, one write per changed value. No region is re-projected and no
- * markup is parsed, which is only possible because every hole carries its own addressing.
- */
+/** The delta form, applied: one write per changed value, no region re-projected. See `spec/kernel/surgical.md`. */
 export function applyDelta(adopted: Adopted, delta: DeltaPayload): number {
   let writes = 0
   batch(() => {
@@ -41,8 +37,7 @@ function resolve(adopted: Adopted, path: string): { node: Adopted; binding: stri
 
     if (index === undefined) {
       if (last) return { node: current, binding: key }
-      // A component instance is named rather than indexed, and descending into one is
-      // how a value the parent never held reaches the node that shows it.
+      // Named rather than indexed. See `spec/ir/template-ir-2.md`: Payloads.
       const instance = current.instances[key]
       if (!instance) return undefined
       current = instance

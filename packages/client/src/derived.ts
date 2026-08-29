@@ -57,12 +57,7 @@ function binary(op: string, a: Json, b: Json): Json {
   }
 }
 
-/**
- * Turns the template's derived table into readables, in declaration order so one may
- * read another. Only the decls that reach a signal are bound: the rest are server-owned,
- * and a computed over bindings the client does not hold would evaluate to null and
- * overwrite a perfectly good server render.
- */
+/** Turns the template's derived table into readables. Only the decls that reach a signal are bound. See `spec/client/adoption.md`. */
 export function bindDerived(
   decls: readonly ClientDerived[] | undefined,
   signals: Record<string, Readable<unknown>> | undefined,

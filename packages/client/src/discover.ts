@@ -1,19 +1,4 @@
-/**
- * The part of the plan this client did not have, and what it is for.
- *
- * A staged navigation asks the server to render a route the reader has not clicked — and the answer
- * can be "you cannot have this as regions, fetch the document": a different shell has different
- * holes. That answer costs a round trip and a whole server render to arrive at, and it is knowable
- * in advance from one fact about the target, which is which document it renders into.
- *
- * So the client keeps what it has been told. `WARM plan=<prefix>` asks about a subtree; a `PLAN`
- * frame also arrives unasked when a channel opens, carrying this page's own route and the routes
- * readers of it go to next — the profile's transitions, reaching a page that arrived by an ordinary
- * document request rather than only one that already staged something.
- *
- * Deliberately not a router. Nothing here decides what a click does or touches the DOM: it answers
- * "what do I know about this URL", and every use of the answer is somewhere else.
- */
+/** The part of the plan this client did not have, and what it is for. See `spec/client/navigation.md`: "What the client knows before it asks". */
 export interface KnownRoute {
   pattern: string
   /** The shell template's version. The client's only question is whether it matches its own. */
@@ -24,18 +9,7 @@ export interface KnownRoute {
   css?: string
   tpl?: readonly string[]
   next?: readonly string[]
-  /**
-   * Whether staging this route from the page the client is on is worth the request.
-   *
-   * `false` only when a recording says so: readers of this page were described this route and did
-   * not follow it. Absent means unmeasured, and unmeasured stages — the same rule delivery and
-   * discovery follow, so a recording of last Tuesday cannot quietly turn staging off for a route it
-   * never saw.
-   *
-   * The decision is the server's because only the server has the recording, and it is per *source*
-   * page rather than per target: readers of a product page go to the cart, and readers of the cart
-   * do not go back.
-   */
+  /** Whether staging this route from the page the client is on is worth the request. See `spec/client/navigation.md`. */
   stage?: boolean
 }
 
@@ -94,14 +68,7 @@ export function createKnown(): Known {
   }
 }
 
-/**
- * How specifically a pattern matches a path, or -1 for no match.
- *
- * The server's matcher decides by specificity rather than by declaration order, and a client that
- * decided differently would answer a click on the strength of a route the server would not have
- * chosen. So the same rule, in the smallest form that produces the same answer: a static segment
- * beats a param, a param beats the wildcard, compared left to right.
- */
+/** How specifically a pattern matches a path, or -1 for no match. Re-implements the router's specificity rule. See `spec/kernel/routing.md`. */
 export function rankOf(pattern: string, path: string): number {
   const want = segments(pattern)
   const have = segments(path)
@@ -141,13 +108,7 @@ export interface PlanArrival {
   complete: boolean
 }
 
-/**
- * Discovery's own frame handler, passed to the channel as part of `onFrame`.
- *
- * Here rather than in the channel's switch for the reason `navFrames` is: a frame kind belongs to
- * the capability that introduced it, so a page that never discovers anything carries neither the
- * parse nor the registry.
- */
+/** Discovery's own frame handler, passed to the channel as part of `onFrame`. See `spec/kernel/budgets.md`. */
 export function planFrames(
   known: Known,
   onPlan?: (arrival: PlanArrival) => void,
@@ -159,8 +120,7 @@ export function planFrames(
       try {
         routes = JSON.parse(new TextDecoder().decode(frame.body)) as KnownRoute[]
       } catch {
-        // A body this build cannot read is a hint, and a hint that cannot be read is not an error
-        // worth breaking a page over: every path that uses this works without it.
+        // A hint that cannot be read is not an error worth breaking a page over.
         return
       }
     }

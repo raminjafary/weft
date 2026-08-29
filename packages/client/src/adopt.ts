@@ -24,14 +24,7 @@ export interface Adopted {
   template: ClientTemplate
 }
 
-/**
- * The markup a call site wrote between a component's tags, carried down to the instance that
- * has to hold it. It stays in the *caller's* binding namespace, so `into` points back at the
- * caller's tables — a value that appears only inside children content is still addressed by
- * the caller's name for it. `outer` is the frame that was open where the markup was written,
- * which is what makes `<Card><Panel>{children}</Panel></Card>` mean the caller's children
- * rather than Card's.
- */
+/** The markup a call site wrote between a component's tags, carried down to the instance that has to hold it. See `spec/client/adoption.md`. */
 export interface ChildrenFrame {
   template: ClientTemplate
   signals?: Record<string, Readable<unknown>> | undefined
@@ -65,20 +58,12 @@ export interface AdoptOptions {
   into?: Tables | undefined
 }
 
-/**
- * Adoption, which is the whole bet: no component code runs. One pass collects the marker
- * comments, element paths are followed by index, and the result is a table from binding
- * to the node that holds it. Cost is a function of the number of bindings, not of the
- * number of components, and none of it is repeated on a later visit if the template is
- * already resident.
- */
+/** Adoption, which is the whole bet: no component code runs. See `spec/client/adoption.md`. */
 export function adopt(options: AdoptOptions): Adopted {
   const { root, template } = options
   const origin = options.origin ?? 'container'
 
-  // A nested template owns its own markers and its own addressing, so the parent's walk
-  // stops at the boundary. Without this a component's comments would shift every anchor
-  // that follows it.
+  // A nested template owns its own markers; the parent's walk stops at the boundary. See `spec/client/adoption.md`.
   const opaque = new Set<Element>()
   for (const hole of template.holes) {
     if (hole.kind !== 'list' && hole.kind !== 'component' && hole.kind !== 'children') continue
@@ -89,8 +74,6 @@ export function adopt(options: AdoptOptions): Adopted {
   const markers = collectMarkers(root, opaque)
   const targets = new Map<string, Target[]>()
   const own: Tables = { targets, rows: [], instances: {} }
-  // Children markup shares the namespace of the template that wrote it, so what this pass
-  // finds belongs in that template's tables rather than in a set of its own.
   const into = options.into ?? own
 
   for (const hole of template.holes) {
@@ -115,9 +98,6 @@ export function adopt(options: AdoptOptions): Adopted {
       continue
     }
 
-    // The caller's markup, adopted where the instance put it and filed under the caller's
-    // names. `frame.outer` goes down with it so that a component forwarding its own children
-    // finds its caller's markup and not its own.
     if (hole.kind === 'children') {
       const frame = options.frame
       const host = frame ? elementAt(root, hole.path, origin) : undefined
@@ -139,11 +119,7 @@ export function adopt(options: AdoptOptions): Adopted {
       const host = elementAt(root, hole.path, origin)
       const nested = hole.nested ? options.resident?.[hole.nested] : undefined
       if (!host || !nested) continue
-      // The instance renders one root element, so it is adopted exactly as a row is. What
-      // crosses the boundary is renamed on the way: the parent's signal arrives under the
-      // name the child declared it as. Its targets are deliberately not folded into the
-      // parent's table — a delta addresses the instance by name, and merging them would
-      // make one changed value two writes.
+      // Adopted exactly as a row is. See `spec/client/adoption.md`: Instances.
       const content = hole.children ? options.resident?.[hole.children] : undefined
       const instance = adopt({
         ...options,
@@ -151,8 +127,6 @@ export function adopt(options: AdoptOptions): Adopted {
         template: nested,
         origin: 'element',
         into: undefined,
-        // A component with no children opens no frame: an inner `{children}` would then be
-        // this instance's own, and it has none.
         frame: content
           ? { template: content, signals: options.signals, into, outer: options.frame }
           : undefined,
@@ -184,19 +158,12 @@ export function adopt(options: AdoptOptions): Adopted {
   return adopted
 }
 
-/**
- * A row is addressed relative to itself, so a single-element template's root is the row
- * element. Element children only: text nodes come and go with the values.
- *
- * Exported because the `patch` form addresses the DOM the same way and must arrive at the same
- * node. Two walks over one address would be two things to keep in agreement.
- */
+/** A row is addressed relative to itself. Exported because the `patch` form addresses the DOM the same way. See `spec/client/adoption.md`. */
 export function elementAt(
   root: Element,
   path: number[],
   origin: 'container' | 'element',
 ): Element | undefined {
-  // With `element` origin the leading index names the root itself, so it is consumed.
   const segments = origin === 'element' ? path.slice(1) : path
   let node: Element | undefined = root
   for (const index of segments) {
@@ -206,13 +173,7 @@ export function elementAt(
   return node
 }
 
-/**
- * Marker comments in document order, skipping list-hole subtrees because each row is its
- * own template instance with its own markers.
- *
- * Exported for the same reason `elementAt` is: a patch counts markers with no copy of the
- * template, so it has to count them the way adoption did.
- */
+/** Marker comments in document order, skipping list-hole subtrees. Exported for the same reason `elementAt` is. See `spec/client/adoption.md`. */
 export function collectMarkers(root: Element, listRoots: Set<Element>): Comment[] {
   const out: Comment[] = []
   const walker = root.ownerDocument.createTreeWalker(root, 128 /* SHOW_COMMENT */)
@@ -311,8 +272,6 @@ function writeTarget(target: Target, value: Json): void {
 }
 
 function wire(adopted: Adopted, options: AdoptOptions, markers: Comment[]): void {
-  // A derived value is a binding like any other by the time wiring resolves it; what
-  // makes it derived is that its readable was built from the wire, not handed in.
   const sources = bindDerived(options.template.derived, options.signals)
 
   for (const entry of options.template.wiring) {

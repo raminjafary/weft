@@ -1,51 +1,15 @@
-/**
- * A route fetched, resolved, and painting nothing — an epoch, one level up.
- *
- * An epoch stages values into slots of the page you are on: any number of them coexist with
- * what is live, and one commit flips them together. The thing it cannot stage is a *different*
- * page, because a staged write names a region and a region only exists once its route has been
- * rendered. So the same separation is made again over whole routes: the answer for a route you
- * have not gone to yet is held here, keyed by its URL, and committing it is what a navigation
- * is.
- *
- * Three properties are the same ones epochs have, and for the same reason. Staging cannot
- * disturb the present, because nothing here touches the document. A staged route that is never
- * committed costs a request and no paint. And a commit is one step rather than a fetch and a
- * render, which is the whole of what makes a navigation instant rather than fast.
- *
- * Deliberately not a router and deliberately not DOM-aware. What a staged route *is* — a parsed
- * document, a set of frames, a value set — is the caller's, so the same model serves a document
- * prefetch, a channel that answers with slots, and a test with strings.
- */
+/** A route fetched, resolved, and painting nothing — an epoch, one level up. See `spec/client/navigation.md`. */
 export type StageState = 'none' | 'fetching' | 'ready' | 'failed'
 
 /** What staging needs: how to fetch a route, and how much to keep. */
 export interface StagingOptions<T> {
-  /**
-   * Fetch the route's answer. Given an `AbortSignal` because a staged route that is evicted,
-   * discarded, or superseded is one nobody is going to look at, and a request nobody will read
-   * is bytes taken from the page that is on screen.
-   */
+  /** Fetch the route's answer. Given an `AbortSignal` since an evicted or superseded staged route is one nobody will read. */
   load(url: string, signal: AbortSignal): Promise<T | null>
-  /**
-   * How many routes may be staged at once. Every one of them is a render the server performed
-   * for a page that may never be asked for, so the ceiling is low on purpose and the oldest
-   * goes first.
-   */
+  /** How many routes may be staged at once. See `spec/client/navigation.md`. */
   max?: number
-  /**
-   * How long a resolved answer may be committed after it arrived. A staged route is a render
-   * from a moment in the past; past this it is discarded and re-staged rather than painted,
-   * because a page that shows a five-minute-old answer instantly is worse than one that waits.
-   */
+  /** How long a resolved answer may be committed after it arrived. See `spec/client/navigation.md`. */
   ttlMs?: number
-  /**
-   * Called for an answer that is dropped without being committed — evicted, expired, discarded.
-   *
-   * A staged route can hold more than the object handed back: over a channel it holds a staged
-   * epoch on the client and a base render on the server. Dropping the answer and keeping that is
-   * how a prefetch that nobody clicked becomes a leak, so the caller gets told.
-   */
+  /** Called for an answer dropped without being committed — evicted, expired, discarded. May need to release more than the value itself. */
   release?(value: T): void
   now?(): number
 }
@@ -66,12 +30,7 @@ export interface Claimed<T> {
   how: 'staged' | 'awaited' | 'cold'
 }
 
-/**
- * Routes fetched and painted nowhere.
- *
- * An epoch one level up: an epoch stages values into the slots of the page you are on, and this
- * stages a whole page. Keyed by URL, capped, and claimed by a click.
- */
+/** Routes fetched and painted nowhere. An epoch one level up: keyed by URL, capped, claimed by a click. */
 export interface Staging<T> {
   /** Begin staging, or join the staging already in flight for this URL. Paints nothing. */
   stage(url: string): Promise<T | null>
@@ -147,7 +106,7 @@ export function createStaging<T>(options: StagingOptions<T>): Staging<T> {
         return null
       })
     open.set(url, entry)
-    // Oldest first, because the newest is the one the reader is most likely on their way to.
+    // Oldest first. See `spec/client/navigation.md`.
     while (open.size > max) {
       const first = open.keys().next().value
       if (first === undefined || first === url) break
@@ -236,15 +195,7 @@ export interface ClickFacts {
   button?: number
 }
 
-/**
- * Whether this framework may answer a link itself, decided on the markup rather than on a
- * heuristic.
- *
- * Every no here is a case where taking the click would do something the reader did not ask for:
- * another origin is not this application's to render, a `target` or a `download` is a request
- * for a different destination entirely, and `rel="external"` is an author saying so in as many
- * words. A hash on the same path is the browser's own scrolling and is left alone.
- */
+/** Whether this framework may answer a link itself, decided on the markup rather than on a heuristic. See `spec/client/navigation.md`. */
 export function navigable(link: LinkFacts, here: string): boolean {
   if (link.download) return false
   if (link.target && link.target !== '_self') return false
@@ -277,13 +228,7 @@ export function stagingKey(href: string, here: string): string {
   return url.href
 }
 
-/**
- * What a `NAV` frame says: whether a route can be staged as regions, and what those regions are.
- *
- * `form: 'document'` is the server refusing — a different shell has different holes, so its regions
- * cannot be swapped into the ones on screen — and the caller then stages the route the way it would
- * have without a channel. That decision is the server's because only the server knows both shells.
- */
+/** What a `NAV` frame says: whether a route can be staged as regions, and what those regions are. See `spec/client/navigation.md`. */
 export interface StagedNav {
   at: string
   route: string
@@ -303,14 +248,7 @@ export function warmFrame(at: string, epoch: string): { kind: string; header: Re
   return { kind: 'WARM', header: { at, epoch } }
 }
 
-/**
- * Navigation's own frame handler, passed to the channel as `onFrame`.
- *
- * Here rather than in the channel's own switch for two reasons that agree. A frame kind belongs to
- * the capability that introduced it, so the channel does not grow a case per feature; and routing
- * this in the channel took its byte entry 86 bytes past a watermark, which a page that never
- * navigates should not be paying.
- */
+/** Navigation's own frame handler, passed to the channel as `onFrame`. See `spec/kernel/budgets.md`. */
 function header(
   frame: { header: Record<string, string | number | boolean> },
   key: string,

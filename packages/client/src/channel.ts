@@ -4,20 +4,7 @@ import type { Epochs } from './epoch.ts'
 import type { StagedNav } from './navigate.ts'
 import type { ClientTemplate, Json } from './template.ts'
 
-/**
- * The client half of the channel. A frame arrives, and it lands somewhere specific: a delta
- * becomes one DOM write per changed value, a COMMIT flips a staged epoch, a STALE is handed
- * to the application to decide about, and a TPL joins the resident set.
- *
- * The decision worth naming is that nothing here paints on arrival unless the frame says to.
- * A frame carrying an epoch is staged and invisible; only COMMIT paints. That is what makes
- * a background revalidation unable to disturb a half-typed form, and it is a property of
- * where the frames are routed rather than of anything the application remembers to do.
- *
- * Deliberately not a transport. This takes decoded frames and returns what it did with them,
- * so the same code path is exercised by a socket, by an SSE stream, and by a test — and the
- * ~700 bytes of socket plumbing is not paid for by a page that only reads.
- */
+/** The client half of the channel. See `spec/kernel/transport.md`: "Epochs, over the wire". */
 export type FrameKindText = string
 
 /** A frame as the client sees it: the kind, its header, and an already-decoded body. */
@@ -44,14 +31,7 @@ export interface ChannelClientOptions {
   onTemplate?(template: ClientTemplate): void | Promise<void>
   /** A region the server says is stale. The client decides: now, on focus, or never. */
   onStale?(slot: string, reason: string): void
-  /**
-   * A frame this build does not route.
-   *
-   * The extension point a capability that owns a frame kind uses, rather than this file growing a
-   * case per feature — which is also a byte decision: routing `NAV` here took the channel entry 86
-   * bytes past a watermark, and a page that never navigates should not carry navigation's handler.
-   * `navFrames` in `navigate.ts` is the one that exists.
-   */
+  /** A frame this build does not route. The extension point a capability that owns a frame kind uses. See `spec/kernel/budgets.md`. */
   onFrame?(frame: ChannelFrame, applied: Applied): void
   /** Markup for a slot the server could not send a delta for. */
   onHtml?(slot: string, html: string, base: string): void
@@ -101,34 +81,12 @@ function text(frame: ChannelFrame, key: string): string | undefined {
   return value === undefined ? undefined : String(value)
 }
 
-/**
- * The client half of the protocol, and deliberately not a transport.
- *
- * It takes frames rather than a URL, so one code path serves a socket, an event stream with posts
- * up, and a test. Opening a connection is the front door's job.
- */
+/** The client half of the protocol, and deliberately not a transport. Opening a connection is the front door's job. */
 export interface ChannelClient {
   apply(frames: readonly ChannelFrame[]): Promise<Applied>
-  /**
-   * The HELD header the server needs: what this client is showing, per slot.
-   *
-   * `only` says this is the whole of it, which is what a client that has navigated has to say —
-   * slot names belong to a page, so without it the previous page's regions stay in the server's
-   * map and are refreshed and invalidated as though somebody were still looking at them.
-   */
+  /** The HELD header the server needs: what this client is showing, per slot. See `spec/warp/warp-1.md`: HELD, `$only`. */
   held(options?: { only?: boolean }): Record<string, string | boolean>
-  /**
-   * The INTENT frame to send, and — when `epoch` is given — the client's own guess staged into
-   * that epoch first.
-   *
-   * The order matters and is the whole mechanism. The guess is staged, so it paints nothing and
-   * the page is undisturbed. If the server agrees it stages the real values into the same epoch
-   * and commits, and the guess is replaced by the truth in one paint. If it refuses, the ACK
-   * says so and `apply` discards the epoch — nothing painted, so nothing has to be un-painted.
-   *
-   * Sending the frame is the application's: this module takes decoded frames and returns frames
-   * to send, so the same code path serves a socket, an SSE stream with POSTs up, and a test.
-   */
+  /** The INTENT frame to send, and — when `epoch` is given — the client's own guess staged into that epoch first. See `spec/kernel/transport.md`. */
   intent(id: string, input: unknown, options?: OptimisticOptions): ChannelFrame
   /** Stage a locally-computed change without an intent. A guess with nothing to confirm it. */
   stage(epoch: string, slot: string, changed: Record<string, Json>): void
@@ -175,8 +133,7 @@ export function createChannelClient(options: ChannelClientOptions): ChannelClien
       for (const region of options.regions()) {
         out[region.slot] = `${region.adopted.template.version}-${region.base}`
       }
-      // Warp's `HELD_ONLY`, written out rather than imported: this package depends on nothing,
-      // which is what lets a page carry the runtime without carrying the codec.
+      // Warp's `HELD_ONLY`, written out rather than imported: this package has no dependencies.
       if (opts.only) out.$only = true
       return out
     },
@@ -210,9 +167,7 @@ export function createChannelClient(options: ChannelClientOptions): ChannelClien
               base: text(frame, 'base') ?? '',
               changed: (frame.body ? JSON.parse(decoder.decode(frame.body)) : {}) as Record<string, Json>,
             }
-            // A delta is a function of two specific states. Applied against a third it would
-            // write plausible values into the wrong render, so a base mismatch is refused
-            // rather than best-efforted.
+            // See `spec/kernel/transport.md`: "What the client refuses".
             if (!baseMatches(region.base, delta)) {
               result.refused.push({ slot, reason: `holds ${region.base}, delta is from ${delta.base}` })
               break
@@ -234,14 +189,7 @@ export function createChannelClient(options: ChannelClientOptions): ChannelClien
             const base = text(frame, 'base') ?? ''
             const html = frame.body ? decoder.decode(frame.body) : ''
             const epoch = text(frame, 'epoch')
-            /**
-             * Markup for a slot, and the epoch that decides when it is painted.
-             *
-             * Without an epoch this is the floor of the surgical ladder: the server could not send
-             * a delta, so the region is replaced now. With one it is a route being staged — a
-             * navigation's regions arrive as a mixture of deltas and markup, and painting the
-             * markup on arrival while the deltas waited for a commit would show half a page.
-             */
+            // Without an epoch, this paints now. With one, it's staged like the deltas. See `spec/kernel/transport.md`.
             if (epoch) {
               const region_ = regions.get(slot)
               options.epochs.stage(epoch, {
@@ -287,9 +235,7 @@ export function createChannelClient(options: ChannelClientOptions): ChannelClien
               ...(text(frame, 'detail') ? { detail: text(frame, 'detail') as string } : {}),
             }
             result.acked.push(ack)
-            // The whole of the rollback. An optimistic update is a staged epoch, so undoing it
-            // is discarding that epoch rather than reconstructing what was there before — and
-            // nothing painted, so there is nothing to un-paint.
+            // The whole of the rollback: discard the epoch. See `spec/kernel/transport.md`.
             if (!ack.ok && ack.epoch) {
               options.epochs.discard(ack.epoch)
               result.discarded.push(ack.epoch)

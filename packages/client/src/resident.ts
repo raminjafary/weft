@@ -13,15 +13,7 @@ const DB = 'weft'
 const STORE = 'templates'
 const PREFIX = 8
 
-/**
- * Where a resident template lives between visits. IndexedDB rather than a service worker,
- * because WKWebView gates service workers behind app-bound domains and in-app browsers
- * often suppress them entirely — the storage tier a repeat-visit claim rests on has to be
- * one that generic webviews actually have.
- *
- * When there is none, the store degrades to memory: correctness is unaffected and the
- * second visit simply pays what the first one did.
- */
+/** Where a resident template lives between visits. IndexedDB rather than a service worker. See `spec/client/adoption.md`. */
 export async function openResident(): Promise<ResidentStore> {
   const memory = new Map<string, ClientTemplate>()
   const fallback: ResidentStore = {
@@ -71,12 +63,7 @@ export async function openResident(): Promise<ResidentStore> {
   }
 }
 
-/**
- * A precise list of held template versions is an identifying surface, so only a prefix of
- * each is advertised. This is still not coarse enough for production — the design calls
- * for something probabilistic and bucketed — and the only cost of sending nothing at all
- * is that every visit is a first visit.
- */
+/** A precise list of held template versions is an identifying surface, so only a prefix of each is advertised. See `spec/client/adoption.md`. */
 export function digest(versions: string[]): string {
   return versions
     .map((version) => version.slice(0, PREFIX))
