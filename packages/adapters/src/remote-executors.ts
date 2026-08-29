@@ -15,20 +15,11 @@ import type { Frame } from '@weftjs/warp'
 
 /**
  * The three executor kinds that were declared and had nothing behind them: `isolate`, `binding`
- * and `svc`.
- *
- * All three share the constraint the pool already made unavoidable. `ExecutorPort.run` takes a
- * closure and a closure does not cross a crash domain, so a slot without a `JobAddress` is refused
- * by name — `E_JOB_NOT_ADDRESSABLE` — rather than quietly run on the request thread, which would
- * give a budget that looks enforced and is not. Props must survive serialisation for the same
- * reason, and that is a real constraint on what a fragment may take rather than an inconvenience
- * to work around.
- *
- * What differs between them is what the other side *is*, and each difference costs something
- * stated rather than discovered.
+ * and `svc`. All three refuse a slot with no `JobAddress` — `E_JOB_NOT_ADDRESSABLE` — since a
+ * closure does not cross a crash domain. See `spec/kernel/locus.md`.
  */
-// The same entry the pool uses, resolved the same way — by what is actually next to this file,
-// because running from source and running from a build are two different files.
+// The same entry the pool uses, resolved the same way: running from source and from a build are
+// two different files.
 const ENTRY = workerEntry(import.meta.url)
 
 function addressed(job: RenderJob, kind: string): JobAddress {
@@ -55,18 +46,9 @@ export interface IsolateExecutorOptions {
 }
 
 /**
- * One render, one isolate, and nothing carried between them.
- *
- * The difference from the pool is entirely in what is *not* shared: a fresh thread has an empty
- * module registry, so the first import of a template is paid on every render. That is the cost of
- * the guarantee — no state can leak from one render to the next, because there is nowhere for it
- * to live — and it is why this is the wrong default and the right answer for a fragment rendering
- * somebody else's untrusted template.
- *
- * Measured on this machine, same trivial render, fifteen samples each: a warm pool worker answers
- * in under a tenth of a millisecond, because the round trip is a `postMessage` and the module is
- * already loaded. A fresh isolate costs a p50 of **27.8 ms** (min 15.1) before it renders
- * anything. That is what the guarantee costs, and a slot on `isolate` is choosing to pay it.
+ * One render, one isolate, and nothing carried between them: a fresh thread has an empty module
+ * registry, so the first import is paid on every render — the cost of a guarantee that nothing
+ * can leak between renders. Measured p50 27.8 ms. See `spec/kernel/locus.md`.
  */
 export function isolateExecutor(options: IsolateExecutorOptions = {}): KernelExecutor {
   const root = options.root ?? new URL('./', import.meta.url).href
@@ -75,8 +57,8 @@ export function isolateExecutor(options: IsolateExecutorOptions = {}): KernelExe
   return {
     name: 'isolate',
     kind: 'isolate',
-    // A thread of its own, terminated when the budget is spent: the strongest thing an executor
-    // can say, and it can only be said by something with its own stack.
+    // A thread of its own, terminated when the budget is spent — the strongest thing an executor
+    // can say.
     preemption: 'always',
     async run(job) {
       const address = addressed(job, 'isolate')
@@ -98,9 +80,7 @@ export function isolateExecutor(options: IsolateExecutorOptions = {}): KernelExe
           }, budget)
 
           worker.on('message', (message: { bytes?: Uint8Array; error?: string; phase?: string }) => {
-            // The worker says when the render starts, which the pool uses to place a CPU budget's
-            // baseline. An isolate is one render on a fresh thread and has no baseline to place, so
-            // this is the announcement of work rather than the end of it.
+            // The worker says when the render starts; an isolate has no baseline to place from it.
             if (message.phase) return
             clearTimeout(timer)
             const ms = performance.now() - started
@@ -123,8 +103,7 @@ export function isolateExecutor(options: IsolateExecutorOptions = {}): KernelExe
         })
         return outcome
       } finally {
-        // Unconditional: an isolate is per render by definition, so keeping one alive for a second
-        // job would quietly turn this into a pool of one with none of a pool's accounting.
+        // Unconditional: an isolate is per render by definition.
         await worker.terminate()
       }
     },
@@ -136,11 +115,7 @@ export type BoundFetch = (request: Request) => Promise<Response> | Response
 
 /** A region over a platform binding — a real crash domain with no network in it. */
 export interface BindingExecutorOptions {
-  /**
-   * The binding. On Workers this is `env.RENDERER.fetch`, on a mesh it is a client for the
-   * sidecar, and in a test it is a function. It is a `fetch` because that is the one shape all of
-   * them already have.
-   */
+  /** The binding — `env.RENDERER.fetch` on Workers, a sidecar client on a mesh. A `fetch` because that is the one shape all of them share. */
   binding: BoundFetch
   /** Where the job is posted. Only meaningful to the other side. */
   path?: string
@@ -150,13 +125,9 @@ export interface BindingExecutorOptions {
 }
 
 /**
- * A render on the other side of a binding: same datacentre, no network hop the deployment can
- * see, and a separate crash domain all the same.
- *
- * The honest limits are two. This cannot terminate the other side — a binding is a call, not a
- * thread — so the budget here is a deadline on *waiting*, and a render that ignores it goes on
- * running where it lives. And the wire is JSON, so what a slot may take is what survives it,
- * which is the same constraint the pool has for the same reason.
+ * A render on the other side of a binding: same datacentre, no visible network hop, a separate
+ * crash domain. Cannot terminate the other side, so the budget is a deadline on *waiting*. See
+ * `spec/kernel/locus.md`.
  */
 export function bindingExecutor(options: BindingExecutorOptions): KernelExecutor {
   return remoteExecutor({
@@ -189,12 +160,8 @@ export interface SvcExecutorOptions {
 }
 
 /**
- * A render on another pod, over the network.
- *
- * Identical in shape to a binding and different in every failure mode: a network exists, so the
- * deadline is doing real work, and a slot on `svc` has to be one the page is honestly complete
- * without — the executor degrades cleanly, and a degraded region is what a reader sees when the
- * other end is having a bad afternoon.
+ * A render on another pod, over the network. Identical in shape to a binding, different in every
+ * failure mode: a network exists, so the deadline does real work.
  */
 export function svcExecutor(options: SvcExecutorOptions): KernelExecutor {
   const call = options.fetch ?? globalThis.fetch
@@ -223,12 +190,8 @@ interface RemoteOptions {
 
 /**
  * The half a binding and a service share, which is all of it except what `post` does.
- *
- * `preemption: 'at-await'` and not `'always'`, which is the whole reason this is written once and
- * carefully: the other side is a separate crash domain, so a *failure* there cannot take this
- * process down — but this end cannot stop it either. Aborting the request stops the waiting, not
- * the work. Claiming `'always'` would tell the plan that a CPU budget on such a slot is a limit,
- * and it is a limit on latency only.
+ * `preemption: 'at-await'`, not `'always'`: aborting the request stops the waiting, not the work.
+ * See `spec/kernel/locus.md`.
  */
 function remoteExecutor(options: RemoteOptions): KernelExecutor {
   const timeoutMs = options.timeoutMs ?? 2_000
@@ -282,22 +245,16 @@ function remoteExecutor(options: RemoteOptions): KernelExecutor {
 }
 
 /**
- * The other side of a binding or a service, so a deployment does not have to write one to use
- * either — and so this repository can test both against something real rather than a mock.
- *
- * It is the worker entry's contract over HTTP: resolve a module and an export by name, call it
- * with the props, answer with bytes. Anything a `fetch` can reach can host it.
+ * The other side of a binding or a service, so this repository can test both against something
+ * real. The worker entry's contract over HTTP: resolve a module and export by name, call it,
+ * answer with bytes.
  */
 export interface RenderServiceOptions {
   /** Resolves a relative module specifier. Defaults to the adapters directory. */
   root?: string
 }
 
-/**
- * Modules resolved by name and kept, because both services below answer many requests and the
- * first import is the expensive one. A fresh registry per render is what `isolate` is for, and it
- * is deliberately not what a service does.
- */
+/** Modules resolved by name and kept: both services below answer many requests, and the first import is the expensive one. */
 function loader(root: string): (module: string) => Promise<Record<string, unknown>> {
   const loaded = new Map<string, Promise<Record<string, unknown>>>()
   return (module) => {
@@ -332,45 +289,31 @@ export function renderService(options: RenderServiceOptions = {}): (request: Req
       const bytes = typeof result === 'string' ? utf8.encode(result) : (result as Uint8Array)
       return new Response(bytes as BodyInit, { headers: { 'content-type': 'text/html' } })
     } catch (error) {
-      // 500 rather than a thrown error: the caller degrades a slot on a bad status and hangs on a
-      // socket that closed without one.
+      // 500 rather than a thrown error: the caller degrades a slot on a bad status.
       return new Response((error as Error).message, { status: 500 })
     }
   }
 }
 
 /**
- * What a module has to export to be a region: the name it serves, and how to render it.
- *
- * `region` is here rather than taken from the request, and that is the whole security property.
- * The composer checks the name a region announces against the name it asked for, so a registry
- * entry pointing `search` at the recommendations deployment is refused — `E_REGION_ESCAPE` — by
- * the shell rather than rendered into the wrong hole. A service that echoed back whatever it was
- * asked would make that check unfalsifiable, which is the same class of mistake as a manifest
- * that spelled its own intent ids.
+ * What a module has to export to be a region: the name it serves, and how to render it. `region`
+ * is here rather than taken from the request — the whole security property, since a service that
+ * echoed back whatever it was asked would make `E_REGION_ESCAPE` unfalsifiable. See `spec/kernel/composition.md`.
  */
 export interface RegionRenderer {
   region: string
   contract?: RegionContract
   /**
-   * Frames for a client, or markup — which is announced as one `HTML` frame for this region.
-   *
-   * A region that composed regions of its own returns `RegionAnswer` instead, and what it puts in
-   * `composed` is what its *own* composer reported. That is the difference between a hop count a
-   * service was configured with and one it measured: the number below used to be an option on this
-   * service, which meant a nested tier that degraded to a fallback still announced the boundary it
-   * turned out not to cross.
+   * Frames for a client, or markup, announced as one `HTML` frame. A region that composed regions
+   * of its own returns `RegionAnswer` instead, with `composed` from its own composer — measured
+   * rather than the hop count it was configured with.
    */
   render(
     request: RegionRequest,
   ): Promise<Frame[] | Uint8Array | string | RegionAnswer> | Frame[] | Uint8Array | string | RegionAnswer
   /**
-   * What this region composes, answered without rendering it.
-   *
-   * The recursive half of `weft verify --probe`: a tier is asked what it is serving, and a tier that
-   * is itself a composite has to ask the tiers below it before it can answer. It is given the depth
-   * it has left to spend, and `probeRegions` in `@weftjs/plan` is this for a deployment whose regions
-   * come from a registry — which is every deployment running this framework.
+   * What this region composes, answered without rendering it. The recursive half of
+   * `weft verify --probe`. See `spec/kernel/composition.md`.
    */
   probe?(depth: number): Promise<readonly RegionNode[]> | readonly RegionNode[]
 }
@@ -391,25 +334,17 @@ export interface RegionServiceOptions {
   /** The build answering, announced on every region it serves. */
   revision?: string
   /**
-   * Boundaries this service crosses on its own account, for a region that reaches something this
-   * framework did not resolve — a fetch to another service, an upstream gateway.
-   *
-   * A region whose own regions go through a composer should return them in `composed` instead and
-   * let the count come from what happened. This is the declared fallback, and it is declared rather
-   * than measured, which is the thing a graph exists to make visible.
+   * Boundaries this service crosses on its own account, for a region reaching something this
+   * framework did not resolve. Declared rather than measured — the fallback for a region whose own
+   * regions don't go through a composer.
    */
   hops?: number
 }
 
 /**
- * The other side of a composed region: the design's render tier, as something a `fetch` can reach.
- *
- * It is the same handler shape as `renderService` and answers a different thing — frames rather
- * than bytes — because a region is not markup. A region that only had markup to send could not
- * tell a client which templates it needs, which module to load, or that the client already holds
- * the template and should be given the changed values instead. The frames are the protocol the
- * composite already speaks to its client, which is the claim the design makes about tier
- * boundaries: there is no translation layer, because the internal protocol *is* the wire protocol.
+ * The other side of a composed region: the render tier, as something a `fetch` can reach. Same
+ * handler shape as `renderService`, answering frames rather than bytes — the claim that the
+ * internal protocol *is* the wire protocol. See `spec/kernel/composition.md`.
  */
 export function regionService(options: RegionServiceOptions = {}): (request: Request) => Promise<Response> {
   const root = options.root ?? new URL('./', import.meta.url).href
@@ -441,14 +376,8 @@ export function regionService(options: RegionServiceOptions = {}): (request: Req
         ...(options.revision ? { revision: options.revision } : {}),
       }
 
-      /**
-       * Asked what it is rather than for a page, which is a different answer and not a cheaper one.
-       *
-       * A probe that rendered would report a topology *and* run every loader behind it against a
-       * deployment nobody is serving traffic to yet — and a region that composes regions would
-       * compose them, which is a fan-out per verification. So this path renders nothing and asks the
-       * tier below the same question, one depth cheaper.
-       */
+      // Asked what it is rather than for a page: a probe that rendered would run every loader
+      // behind it against a deployment nobody is serving traffic to yet. See `spec/kernel/composition.md`.
       if (incoming.probe) {
         const tree = renderer.probe ? await renderer.probe(incoming.probe.depth) : []
         return new Response(regionProbeStream({ ...identity, hops: treeHops(tree) }, tree) as BodyInit, {
@@ -472,15 +401,8 @@ export function regionService(options: RegionServiceOptions = {}): (request: Req
           bodyIsText: typeof answer.html === 'string',
         },
       ]
-      /**
-       * The count and not the shape, on this path.
-       *
-       * Measured when there is something to measure from and declared when there is not — a service
-       * that composed regions announces the boundaries this render crossed rather than the number it
-       * was configured with. The *shape* is deliberately not here: a composite reading a page has no
-       * parser for a subtree and would be forwarding bytes nobody opens, so a graph travels when
-       * somebody asks for one, which is the branch above.
-       */
+      // The count and not the shape: a composite reading a page has no parser for a subtree, so a
+      // graph only travels when the branch above asked for one.
       const composed = answer.composed ?? []
       return new Response(
         regionStream(
@@ -490,9 +412,8 @@ export function regionService(options: RegionServiceOptions = {}): (request: Req
         { headers: { 'content-type': 'application/weft-warp' } },
       )
     } catch (error) {
-      // A region that failed says so in its own frames rather than in a status, because the
-      // composite degrades a region on a named reason and can only guess at a 500. The status is
-      // 200 for the same reason an ERROR frame is not an exception: this answer is well-formed.
+      // A region that failed says so in its own frames rather than in a status: the composite
+      // degrades on a named reason and can only guess at a 500.
       return new Response(
         regionStream({ region: asked, hops: options.hops ?? 0 }, [
           {
