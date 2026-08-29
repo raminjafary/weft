@@ -11,12 +11,7 @@ export const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'))
 /** Written back with a trailing newline, because that is what Prettier leaves and the diff should be one line. */
 export const writeJson = (path, value) => writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`)
 
-/**
- * Every package in `packages/`, with the workspace dependencies each one declares.
- *
- * Only `packages/*` is scanned. `demo/` and `benchmarks/*` are workspace members too, but they are
- * applications with a version of 0.0.0 that nothing installs — a release has no opinion about them.
- */
+/** Every package in `packages/`, with its workspace dependencies. `demo/` etc. are workspace members too, but 0.0.0 applications nothing installs. */
 export function loadWorkspace() {
   const packages = new Map()
   for (const entry of readdirSync(join(ROOT, 'packages'), { withFileTypes: true })) {
@@ -56,12 +51,9 @@ function workspaceDependencies(manifest) {
 }
 
 /**
- * The published packages, in an order where a package always follows what it depends on.
- *
- * Publishing in this order means a consumer resolving `weft` can always resolve the `@weftjs/*`
- * versions its manifest pins, even mid-release. `devDependencies` are excluded from the edges —
- * they form cycles here (`@weftjs/kernel` dev-depends on `@weftjs/adapters`, which depends on the
- * kernel) and they are not part of what an installer has to resolve.
+ * The published packages, in an order where a package always follows what it depends on, so a
+ * consumer can always resolve pinned versions even mid-release. `devDependencies` are excluded from
+ * the edges — they form cycles here and aren't part of what an installer resolves.
  */
 export function publishOrder(packages) {
   const runtimeEdges = new Map()
@@ -122,10 +114,5 @@ export function manifestAt(ref, relativeDirectory) {
   }
 }
 
-/**
- * A package's commit scope.
- *
- * It is the directory name everywhere but `create-weft`, whose scope is `create` — the commitlint
- * scope list is written for typing, not for matching directories.
- */
+/** A package's commit scope: the directory name, except `create-weft` (scope `create`, for typing). */
 export const scopeOf = (pkg) => (pkg.directory === 'create-weft' ? 'create' : pkg.directory)

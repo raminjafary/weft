@@ -1,13 +1,7 @@
 import { commitsIn, releaseTags, tagDate } from './commits.mjs'
 import { manifestAt } from './workspace.mjs'
 
-/**
- * Every release this repository has cut, plus the one being cut now.
- *
- * Boundaries are the `v*` tags, in creation order. There are no per-package tags: a package's
- * version at a release is read out of the tagged tree, which means the tag list stays one entry per
- * release and `release:undo` has exactly one thing to delete.
- */
+/** Every release this repository has cut, plus the one being cut now. No per-package tags: a version is read out of the tagged tree. */
 export function releaseBoundaries(pending) {
   const tags = releaseTags()
   const boundaries = tags.map((tag, index) => ({
@@ -25,34 +19,19 @@ export function releaseBoundaries(pending) {
       date: pending.date,
       previousTag,
       range: previousTag ? `${previousTag}..HEAD` : undefined,
-      // `pnpm changelog --unreleased` heads its entry "Unreleased" rather than a number nobody has
-      // released. Every package's entry has to say the same thing, or the root file and the package
-      // files disagree about whether the work has shipped.
+      // "Unreleased" rather than a number nobody has released — root and package files must agree.
       unversioned: !/^\d+\.\d+\.\d+/.test(pending.version),
     })
   }
   return boundaries
 }
 
-/**
- * The root changelog's entries, newest first.
- *
- * Each boundary's commits are read from git rather than carried forward from a previous run, so a
- * regeneration reproduces the file exactly and a hand edit to it is simply lost — which is the
- * property that lets the generator be the repair tool as well as the release step.
- */
+/** The root changelog's entries, newest first. Read from git each time, so regeneration is also the repair tool. */
 export function rootEntries(boundaries) {
   return boundaries.map((boundary) => ({ ...boundary, commits: commitsIn(boundary.range) })).toReversed()
 }
 
-/**
- * One package's changelog entries, newest first.
- *
- * An entry exists for a release only where that release changed the package's version. A release
- * that changed it without any commit scoped to the package is a propagated bump, and the note says
- * which dependency caused it — computed by diffing the versions at the two boundaries, so it is the
- * truth about the tree rather than a guess.
- */
+/** One package's changelog entries, newest first. A version change with no scoped commit is a propagated bump, noted by diffing dependency versions. */
 export function packageEntries(pkg, boundaries, versionsAt) {
   const entries = []
   for (const [index, boundary] of boundaries.entries()) {

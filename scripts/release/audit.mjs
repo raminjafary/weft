@@ -9,13 +9,7 @@ ${bold('pnpm pack:audit')}   pack every published package and check what came ou
   --verbose   list every file in every tarball
 `
 
-/**
- * The tarball check, on its own.
- *
- * A release runs this, but the answer is worth having before a release: `files` is the only thing
- * between the registry and the whole working directory, and it fails silently in the one direction
- * that matters — an entry matching nothing is not an error, so a rename can quietly drop `dist`.
- */
+/** The tarball check, on its own — worth having before a release runs it. See `lib/pack.mjs`. */
 function main() {
   const { flags } = parseArgs(process.argv.slice(2), FLAGS)
   if (flags.help) return say(USAGE)

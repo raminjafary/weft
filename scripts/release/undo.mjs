@@ -56,14 +56,12 @@ async function main() {
   const subject = run('git', ['log', '-1', '--format=%s', sha]).stdout.trim()
   say(bold(`\nundo ${tag}${dryRun ? ` ${dim('(plan only — add --yes to run it)')}` : ''}`))
   say(dim(`  ${repository.owner}/${repository.name} — ${sha.slice(0, 9)} ${subject}`))
-  // A tag that does not sit on a release commit is a tag somebody moved, or a tag on the wrong
-  // commit. Reverting it would revert real work, so it is named before anything is planned.
+  // A tag not on a release commit is named before anything is planned — reverting it would revert real work.
   if (!subject.startsWith('chore(release):')) {
     warn(`${tag} is not on a \`chore(release):\` commit. Reverting it would revert ${subject.slice(0, 60)}.`)
   }
 
-  // What that release put on the registry, read from the tagged tree rather than from the current
-  // manifests: the point of undoing is that the current tree may already have moved on.
+  // Read from the tagged tree, not the current manifests: the point of undoing is that the tree may have moved on.
   const onRegistry = []
   for (const pkg of packages.values()) {
     const manifest = manifestAt(tag, pkg.relativeDirectory)

@@ -13,14 +13,7 @@ ${bold('pnpm changelog')}              regenerate every changelog from the git h
   --check        write nothing; exit non-zero if any changelog is out of date
 `
 
-/**
- * Rebuild every changelog from the commit history.
- *
- * This is the repair tool. The changelog in this repository had drifted from git — it carried commit
- * links pointing at shas that no longer existed, because it had been generated before a history
- * rewrite. Regenerating from the tags is the only way that stays true, and it makes the release
- * step and the repair step the same code.
- */
+/** Rebuild every changelog from the commit history. The repair tool: this repo's changelog once drifted, carrying links to shas a history rewrite had erased. */
 function main() {
   const { flags } = parseArgs(process.argv.slice(2), FLAGS)
   if (flags.help) return say(USAGE)

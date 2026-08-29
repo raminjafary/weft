@@ -30,20 +30,13 @@ export function fail(message) {
   throw new ReleaseError(message)
 }
 
-/**
- * Run a command and return its output, or throw with the command's own error text.
- *
- * Release steps fail for boring reasons — a missing binary, an expired token, a tag that already
- * exists — and a stack trace pointing into this file hides the line that actually explains it.
- */
+/** Run a command and return its output, or throw with the command's own error text — a stack trace into this file would hide the real reason. */
 export function run(command, args, options = {}) {
   const result = spawnSync(command, args, { encoding: 'utf8', ...options })
   if (result.error) fail(`${command}: ${result.error.message}`)
   const stdout = (result.stdout ?? '').trim()
   const stderr = (result.stderr ?? '').trim()
-  // Both, for a message a human reads; `stdout` alone for anything parsed. Merging them is what
-  // broke a release: run under pnpm, npm warns on stderr about an env config pnpm sets, and that
-  // line then arrived inside every JSON.parse and every `whoami` this file feeds a comparison.
+  // `stdout` alone for parsing; merged `output` broke a release once when npm's stderr warning about a pnpm env config leaked into a JSON.parse.
   const output = [stdout, stderr].filter(Boolean).join('\n')
   if (result.status !== 0) {
     if (options.allowFailure) return { ok: false, stdout, stderr, output, status: result.status }
@@ -64,13 +57,7 @@ export function runVisible(command, args, options = {}) {
 
 export const git = (...args) => run('git', args).stdout
 
-/**
- * Flags, without a parser dependency.
- *
- * `--flag` is true, `--key=value` is a string, everything else is a positional. An unrecognised
- * flag is an error rather than a no-op, because `--dryrun` silently publishing to the registry is
- * the one mistake this tooling exists to prevent.
- */
+/** Flags, without a parser dependency. An unrecognised flag is an error rather than a no-op — `--dryrun` silently publishing is the mistake to prevent. */
 export function parseArgs(argv, known) {
   const flags = {}
   const positional = []

@@ -3,11 +3,7 @@ import { copyFileSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-/**
- * Built in dependency order, because a package's exports map points at its declarations and a
- * dependent cannot typecheck against a `.d.ts` that does not exist yet. The order is the DAG in
- * `pnpm-workspace.yaml`, stated once here rather than inferred on every run.
- */
+/** Built in dependency order — a dependent can't typecheck against a `.d.ts` that doesn't exist yet. The DAG, stated once rather than inferred per run. */
 const ORDER = [
   'ir',
   'warp',
@@ -16,8 +12,7 @@ const ORDER = [
   'kernel',
   'plan',
   'adapters',
-  // `weft` before `bench`: the benchmark measures the framework's own build and start paths, so
-  // it typechecks against `weft`'s declarations and cannot be built before they exist.
+  // `weft` before `bench`: the benchmark typechecks against `weft`'s declarations.
   'weft',
   'bench',
   'create-weft',
@@ -31,15 +26,8 @@ for (const name of ORDER) {
   if (only.length && !only.includes(name)) continue
   const cwd = join(root, 'packages', name)
   process.stdout.write(`  ${name} … `)
-  /**
-   * `dist` is emptied first, because `tsc` writes and never prunes.
-   *
-   * A file it emitted once stays until something deletes it, and `files: ["dist"]` publishes the
-   * whole directory — so an artifact that stopped being generated goes on shipping. That is not
-   * hypothetical: turning `sourceMap` and `declarationMap` off left 378 stale `.map` files behind,
-   * every one of them a map pointing at a `src` the tarball does not carry, and the pack audit found
-   * them rather than a reader of this script. Rebuilding from empty costs about a second.
-   */
+  // `dist` emptied first: `tsc` writes and never prunes. Turning off sourceMap/declarationMap once
+  // left 378 stale `.map` files shipping in tarballs — the pack audit found them, not a reader here.
   rmSync(join(cwd, 'dist'), { recursive: true, force: true })
   const result = spawnSync('pnpm', ['run', 'build'], { cwd, encoding: 'utf8' })
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim()
@@ -55,14 +43,8 @@ for (const name of ORDER) {
   break
 }
 
-/**
- * Nothing may be emitted beside a source file.
- *
- * `rootDir` already refuses a program that reaches outside `src`, but it refuses it *after*
- * writing what it had — so a build that failed once can leave a `.js` next to a `.ts` that then
- * shadows it for every tool that resolves extensions. Checking is cheap and the failure is silent
- * otherwise.
- */
+// Nothing may be emitted beside a source file: `rootDir` refuses this, but only *after* writing
+// what it had, so a failed build can leave a `.js` shadowing its `.ts` for every resolver.
 const stray = []
 for (const name of ORDER) {
   const src = join(root, 'packages', name, 'src')
@@ -85,13 +67,7 @@ if (stray.length) {
   process.exit(1)
 }
 
-/**
- * The licence, beside every package that is published.
- *
- * npm shows the `license` field but a tarball with no LICENSE in it makes the terms something you
- * have to go and look up. Copying beats twelve identical committed files: there is one licence in
- * this repository, and `packages/*\/LICENSE` is gitignored so it cannot drift from it.
- */
+// The licence, beside every published package. Copied rather than committed per-package, so it can't drift.
 const licence = join(root, 'LICENSE')
 for (const name of ORDER) {
   const directory = join(root, 'packages', name)

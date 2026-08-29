@@ -10,13 +10,7 @@ export function parseVersion(version) {
   return { major: Number(match[1]), minor: Number(match[2]), patch: Number(match[3]), prerelease: match[4] }
 }
 
-/**
- * Apply a bump level.
- *
- * Below 1.0.0 a breaking change is a minor bump, which is what semver says the leading zero is for:
- * anything may change and the minor is the compatibility signal. Promoting to 1.0.0 is a decision,
- * not something a commit footer should be able to make on its own.
- */
+/** Apply a bump level. Below 1.0.0 a breaking change is a minor bump (semver's leading-zero rule); promoting to 1.0.0 is a deliberate decision. */
 export function bump(version, level) {
   const { major, minor, patch } = parseVersion(version)
   if (major === 0) {
@@ -34,13 +28,10 @@ const highest = (a, b) => (LEVELS.indexOf(b) > LEVELS.indexOf(a ?? 'patch') ? b 
 const levelOf = (commit) => (commit.breaking ? 'major' : commit.type === 'feat' ? 'minor' : 'patch')
 
 /**
- * What to release, from the commits in a range.
- *
- * Two things happen here that a single-package tool cannot do. A commit's scopes are resolved to
- * packages, so `feat(ir,kernel,client)` bumps three. And every dependent of a bumped package is
- * bumped too, at least a patch — because pnpm rewrites `workspace:*` to the exact local version at
- * pack time, so a dependent left behind would either fail to publish over its own existing version
- * or ship a manifest pinning a dependency that did not exist when it was tested.
+ * What to release, from the commits in a range. A multi-scope commit bumps every named package, and
+ * every dependent of a bumped package is bumped too (at least a patch) — pnpm rewrites
+ * `workspace:*` to the exact local version at pack time, so a dependent left behind ships a manifest
+ * pinning a dependency it was never tested against.
  */
 export function buildPlan({ packages, commits, firstRelease }) {
   const directLevels = new Map()

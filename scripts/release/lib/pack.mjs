@@ -6,14 +6,7 @@ import { TARBALL_ALLOWED, TARBALL_FORBIDDEN, TARBALL_TEMPLATES } from '../config
 import { run } from './shell.mjs'
 import { ROOT } from './workspace.mjs'
 
-/**
- * Pack a package for real and check what came out.
- *
- * `files` is the only thing standing between the registry and everything in the directory, and it
- * is silently wrong in one direction: an entry that matches nothing is not an error, so a rename can
- * drop `dist` out of the tarball and the only symptom is `Cannot find module` for whoever installs.
- * Packing and listing catches that, and the export checks below catch it precisely.
- */
+/** Pack a package for real and check what came out. `files` matching nothing is not an error, so a rename can silently drop `dist` from the tarball. */
 export function auditPack(pkg) {
   const destination = mkdtempSync(join(tmpdir(), 'weft-pack-'))
   try {

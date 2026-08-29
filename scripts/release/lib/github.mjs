@@ -1,11 +1,6 @@
 import { fail, run } from './shell.mjs'
 
-/**
- * The repository, from the remote rather than a constant.
- *
- * A hardcoded owner/name is a thing that silently keeps working after a fork, publishing releases
- * and changelog links to somebody else's repository.
- */
+/** The repository, from the remote rather than a constant — a hardcoded owner/name silently survives a fork. */
 export function repositoryFromRemote() {
   const url = run('git', ['remote', 'get-url', 'origin']).stdout.trim()
   const match = /github\.com[:/]([^/]+)\/(.+?)(?:\.git)?$/.exec(url)
@@ -15,12 +10,7 @@ export function repositoryFromRemote() {
 
 export const token = () => process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN
 
-/**
- * The GitHub REST API, over fetch.
- *
- * `gh` is not installed on this machine and a release should not require it. A token with `contents:
- * write` on this repository is the whole dependency.
- */
+/** The GitHub REST API, over fetch — `gh` isn't installed and a release shouldn't require it. */
 async function api(path, { method = 'GET', body, repository } = {}) {
   const authorization = token()
   if (!authorization) fail('no GITHUB_TOKEN (or GH_TOKEN) in the environment.')
@@ -60,13 +50,7 @@ export async function releaseByTag(repository, tag) {
   return response.ok ? response.body : undefined
 }
 
-/**
- * Create or update the release for a tag.
- *
- * Updating rather than failing on a second run matters: publishing to npm happens before this step,
- * so a release that got as far as the registry and then hit a network error has to be finishable by
- * re-running, not by hand-editing GitHub.
- */
+/** Create or update the release for a tag. Updates rather than fails on a second run, so a network error after publishing is finishable by re-running. */
 export async function upsertRelease(repository, { tag, name, body, prerelease }) {
   const existing = await releaseByTag(repository, tag)
   const payload = {

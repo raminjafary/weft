@@ -5,10 +5,7 @@ import { README_MARKERS } from '../config.mjs'
 import { fail } from './shell.mjs'
 import { ROOT } from './workspace.mjs'
 
-/**
- * What each package is. The release script owns the version column and nothing else, so this is the
- * one place a new package has to be described — the table is otherwise generated.
- */
+/** What each package is — the one place a new package has to be described; the rest of the table is generated. */
 const DESCRIPTIONS = {
   '@weftjs/core': 'The framework. The CLI, the conventions, and what an application imports',
   'create-weft': '`npm create weft` — a shim over the templates that ship inside `@weftjs/core`',
@@ -49,8 +46,7 @@ export function renderVersionTable(packages, versions) {
     const pkg = packages.get(name)
     if (!pkg) continue
     const version = versions.get(name) ?? pkg.version
-    // The literal version on the registry, not a badge: this table is what the last release
-    // published, and a badge would keep reading as current after a publish that failed halfway.
+    // The literal version, not a badge — a badge would keep reading as current after a publish that failed halfway.
     const cell = pkg.isPrivate ? '_not published_' : `[\`${version}\`](https://www.npmjs.com/package/${name})`
     rows.push([`\`${name}\``, cell, DESCRIPTIONS[name] ?? pkg.manifest.description ?? ''])
   }
@@ -68,13 +64,7 @@ export function renderVersionTable(packages, versions) {
   ].join('\n')
 }
 
-/**
- * Replace the table between the markers.
- *
- * The markers have to already be there. Guessing where a table belongs in a README is how a release
- * script ends up rewriting prose, so a missing marker is a failure with an instruction rather than a
- * best effort.
- */
+/** Replace the table between the markers. They must already be there — guessing where it belongs would mean rewriting prose. */
 export function writeVersionTable(table) {
   const path = join(ROOT, 'README.md')
   const contents = readFileSync(path, 'utf8')

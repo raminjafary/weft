@@ -16,39 +16,24 @@ const TOKEN_ADVICE =
 /**
  * Whether this account can publish, unattended, every name this release needs.
  *
- * `auth-and-writes` means npm demands a fresh code for every publish. Nine packages is nine codes
- * inside a thirty-second window each, and the publish step runs *after* the commit, the tag and the
- * push — so the release that cannot answer the prompt is also the one that has already made itself
- * irreversible.
- *
- * The first version of this check exempted anything with a token in the environment, on the
- * assumption that a token bypasses the prompt. That assumption cost a release: the token was a
- * granular one with `bypass_2fa: false`, scoped to `@weftjs` alone, so eight packages stopped on the
- * prompt and the ninth — unscoped `create-weft` — came back 403. Both facts were sitting in
- * `npm token list --json` the whole time. Nothing is assumed here now: a token has to say it bypasses
- * the code, and it has to say it covers every name.
- *
- * The token itself is read from the environment rather than from `~/.npmrc`, because a token this
- * could parse is a token it could also print.
+ * `auth-and-writes` means npm demands a fresh code per publish, after the commit/tag/push already
+ * happened — so a release that can't answer the prompt has already made itself irreversible. This
+ * used to exempt anything with a token present, assuming a token bypasses the prompt; that cost a
+ * release when a `bypass_2fa: false` token scoped to `@weftjs` let 8 packages stop on the prompt and
+ * the 9th (unscoped `create-weft`) come back 403 — both facts were in `npm token list --json` the
+ * whole time. Now a token must say it bypasses the code and covers every name.
  */
 export function canPublishUnattended(names = [], otp) {
   if (otp) return { ok: true, why: 'a one-time password was supplied with --otp' }
 
-  /**
-   * A terminal can answer the prompt, so there is nothing here to refuse.
-   *
-   * This check exists because `pnpm publish` fails with `ERR_PNPM_OTP_NON_INTERACTIVE` when nothing
-   * can type a code — and it was refusing the ordinary case too, where somebody is sitting in front
-   * of it and npm is about to open a browser. Whether a code can be answered is a question about
-   * the terminal, not about the account, and `isTTY` is the whole of it.
-   */
+  // A terminal can answer the prompt. `pnpm publish` fails with `ERR_PNPM_OTP_NON_INTERACTIVE`
+  // otherwise, so this used to also wrongly refuse the ordinary interactive case.
   if (process.stdin.isTTY) return { ok: true, why: 'a terminal is attached, so npm can ask' }
 
   const token = process.env.NPM_TOKEN ?? process.env.NODE_AUTH_TOKEN
 
-  // The account's own setting, asked only when there is no token. `npm profile get` needs a login
-  // session and fails under a token, so reading it first and treating the failure as "nothing to
-  // worry about" is how a token with `bypass_2fa: false` sailed through this check.
+  // Asked only when there is no token: `npm profile get` fails under a token, so checking it first
+  // and treating the failure as "fine" is how a `bypass_2fa: false` token sailed through before.
   if (!token) {
     const profile = run('npm', ['profile', 'get'], { allowFailure: true })
     const mode = profile.ok ? /two-factor auth:\s*(\S+)/.exec(profile.stdout)?.[1] : undefined
@@ -91,10 +76,9 @@ export function canPublishUnattended(names = [], otp) {
 /**
  * What the token in use is allowed to do, or undefined if npm will not say.
  *
- * `npm token list --json` masks the token itself, so a row cannot be matched to the configured value
- * by comparing them. The human listing does print a truncated form, and both commands return rows in
- * the same order — so the truncation is matched there and the capability read from the row at the
- * same index.
+ * `npm token list --json` masks the token, so a row can't be matched by comparing values directly.
+ * The human listing prints a truncated form and both commands return rows in the same order, so the
+ * truncation is matched there and the capability read off the row at that index.
  */
 function tokenCapability(token) {
   const listed = run('npm', ['token', 'list', '--json'], { allowFailure: true })
@@ -157,15 +141,11 @@ export function publishedVersions(name) {
 /**
  * Whether this account may publish under a scope.
  *
- * `npm access list packages <scope>` is not this check, though it looks like it: it is a public
- * listing that answers for `@babel` as readily as for your own, so an unpublished scope somebody else
- * holds comes back as an empty success. That read is what told this repository `@weft/*` was free
- * when it was not, through a rename, a release rehearsal and a push.
- *
- * `npm org ls` does distinguish the three cases, because membership is the thing it reports: it fails
- * for a scope that names no organisation, succeeds with the roster for one you belong to, and
- * succeeds empty for one you do not. A scope equal to your own username needs no organisation at all,
- * so it is answered before any of that.
+ * Not `npm access list packages <scope>` — that's a public listing that answers for `@babel` as
+ * readily as for your own, so a scope somebody else already holds comes back an empty success. That
+ * read told this repo `@weft/*` was free when it wasn't, through a rename, a rehearsal and a push.
+ * `npm org ls` distinguishes the three cases instead: fails for no such org, succeeds with a roster
+ * for one you belong to, succeeds empty for one you don't.
  */
 function claimScope(scope, user) {
   if (user && scope === user) return { ok: true, why: 'your own user scope' }
@@ -186,14 +166,7 @@ function claimScope(scope, user) {
   return { ok: true, why: `a member of @${scope}` }
 }
 
-/**
- * Whether this account could publish this name at all.
- *
- * Worth its own check because the failure it catches is the worst one available: a release that has
- * already bumped, committed, tagged and pushed, and then discovers halfway through publishing that
- * somebody else owns the name. The registry answers in two different ways depending on whether the
- * name exists, so both are asked.
- */
+/** Whether this account could publish this name at all — catches "somebody else owns it" before the release becomes irreversible. */
 export function claim(name, user) {
   if (name.startsWith('@')) {
     const scope = claimScope(name.slice(1).split('/')[0], user)
@@ -217,14 +190,7 @@ export function claim(name, user) {
   }
 }
 
-/**
- * Publish one package.
- *
- * `--no-git-checks` because the release commit and tag are already made by the time this runs, and
- * pnpm's own check would otherwise refuse on the tag it is being asked to publish. The tag it
- * refuses on is the one we created; the checks that matter — clean tree, right branch, in sync with
- * the remote — ran in the preflight, before anything was written.
- */
+/** Publish one package. `--no-git-checks`: the checks that matter (clean tree, branch, in sync) already ran in preflight, before anything was written. */
 export function publish(pkg, { dryRun, otp }) {
   return runVisible(
     'pnpm',
@@ -233,8 +199,7 @@ export function publish(pkg, { dryRun, otp }) {
       '--no-git-checks',
       '--access',
       'public',
-      // A code the operator read off their phone. npm accepts the same one for every request inside
-      // its window, which is the only reason publishing nine packages on one code works at all.
+      // npm accepts the same OTP for every request inside its window — why one code publishes all nine packages.
       ...(otp ? ['--otp', otp] : []),
       ...(dryRun ? ['--dry-run'] : []),
     ],
@@ -242,27 +207,16 @@ export function publish(pkg, { dryRun, otp }) {
   )
 }
 
-/**
- * Whether this version is the only one the registry serves for this package.
- *
- * The answer changes what unpublishing means. Removing one of several versions leaves the package;
- * removing the only one removes the package itself, and npm asks for `--force` before it will. That
- * is the case for a first release, which is exactly when an undo is most likely to be needed.
- */
+/** Whether this version is the only one the registry serves — removing it removes the package, and npm needs `--force` for that. */
 export function isOnlyVersion(name, version) {
   const versions = publishedVersions(name)
   return versions.length === 1 && versions[0] === version
 }
 
 /**
- * Remove a version from the registry.
- *
- * npm allows this for 72 hours after publishing, and only if nothing depends on it. It does not
- * free the version number: npm refuses to ever publish `name@version` again once that pair has
- * existed, so the next release has to be a new number. `release:undo` says so before it runs.
- *
- * `--force` is passed only when this is the package's last version, because that is the one case
- * npm protects and the protection is against something the caller has already been told about.
+ * Remove a version from the registry. npm allows this for 72 hours and only if nothing depends on
+ * it; it does not free the number — `name@version` can never be published again once it existed, so
+ * the next release needs a new one. `--force` only for the package's last version, npm's one protected case.
  */
 export function unpublish(name, version, { dryRun }) {
   const last = isOnlyVersion(name, version)

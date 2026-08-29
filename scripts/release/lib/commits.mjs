@@ -11,17 +11,11 @@ const HEADER = /^(?<type>[a-z]+)(?:\((?<scope>[^)]*)\))?(?<breaking>!)?:\s*(?<su
 const DIRECTORIES = [...new Set(Object.values(SCOPE_DIRECTORIES))].sort((a, b) => b.length - a.length)
 
 /**
- * Which packages a commit changed files in, asked of git rather than of its subject line.
- *
- * A scope is what the author wrote and the files are what they did, and the two can disagree: a fix
- * to the client's framing that also hardens the decoder it talks to is one change with one subject,
- * and `fix(weft)` is an honest way to write it. But the plan bumped packages from scopes alone, so
- * the decoder half was committed, tagged, and never published — the release said nothing, because
- * from its point of view nothing in `packages/warp` had happened.
- *
- * So both are asked and the answer is the union. A scope may still name a package this commit did
- * not touch, which is deliberate: an author saying `fix(kernel)` about a change made elsewhere is
- * making a claim about who is affected, and that claim is not this function's to overrule.
+ * Which packages a commit changed files in, asked of git rather than of its subject line. A scope
+ * is what the author wrote and the files are what they did, and the two can disagree — bumping from
+ * scopes alone once left a touched-but-unscoped package committed, tagged, and never published. So
+ * the answer is the union: a scope naming an untouched package is still kept, as the author's claim
+ * about who is affected.
  */
 function touched(sha) {
   const { output } = run('git', ['show', '--pretty=format:', '--name-only', sha])
@@ -33,10 +27,7 @@ function touched(sha) {
   for (const file of changed) {
     const directory = DIRECTORIES.find((dir) => file === dir || file.startsWith(`${dir}/`))
     if (!directory) continue
-    // Only what the package publishes. A commit that touches `test/` alone changes nothing anybody
-    // installs — every manifest here ships `dist` — so bumping for it would be version churn with a
-    // changelog entry attached, and the whole point of asking git is to catch a *shipped* change
-    // nobody named.
+    // Only what the package publishes — a test/-only commit changes nothing anybody installs.
     const within = file.slice(directory.length + 1)
     if (/^(test|tests)\//.test(within)) continue
     found.add(directory)
@@ -44,14 +35,7 @@ function touched(sha) {
   return [...found]
 }
 
-/**
- * Every commit in a range, parsed.
- *
- * The pre-conventional commits — the twelve before `build(repo): enforce conventional commits` —
- * do not match the header pattern. They are kept, typed `foundations`, rather than dropped: they
- * are the project's first month and a 0.1.0 changelog that begins after them is a changelog that
- * lies about when the work started.
- */
+/** Every commit in a range, parsed. Pre-conventional commits are kept, typed `foundations`, rather than dropped. */
 export function commitsIn(range) {
   const format = ['%H', '%h', '%s', '%b', '%aI', '%P'].join('%x1f') + '%x1e'
   const { output } = run('git', ['log', '--no-merges', `--format=${format}`, ...(range ? [range] : [])])

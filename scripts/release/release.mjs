@@ -55,9 +55,7 @@ async function main() {
   const firstRelease = Boolean(flags['first-release']) || tags.length === 0
   const range = tags.length ? `${tags.at(-1)}..HEAD` : undefined
 
-  // In a dry run a failed check is reported and the run continues, because the answer to "what
-  // would this release do" is worth having from a branch that is not ready to cut one. The same
-  // check aborts a real release.
+  // In a dry run a failed check is reported and the run continues; the same check aborts a real release.
   const blockers = []
   const refuse = (message) => {
     if (dryRun) {
@@ -121,17 +119,12 @@ async function main() {
     fail(`no ${FRAMEWORK_PACKAGE} in packages/. Update FRAMEWORK_PACKAGE in scripts/release/config.mjs.`)
 
   /**
-   * The tag is the framework's version, not a number of the repository's own.
-   *
-   * It used to be the latter, bumped by the highest level any commit asked for — so a `feat` scoped
-   * `repo` moved the tag a minor while every published package moved a patch, and a release where
-   * nothing shipped a feature came out as `v0.2.0` over nine packages at `0.1.1`. A tag that
-   * disagrees with every version under it is a tag nobody can read.
-   *
-   * `@weftjs/core` depends on the whole graph, so anything published moves it and the two agree by
-   * construction. The exception is a release that touches only `create-weft`, which depends on the
-   * framework rather than the other way round: there the framework is added to the release at a
-   * patch, because a release has to have a number and this is the one it means.
+   * The tag is the framework's version, not a number of the repository's own. It used to be the
+   * latter, bumped by the highest level any commit asked for — a `feat` scoped `repo` once moved
+   * the tag a minor while every published package moved a patch, tagging `v0.2.0` over nine packages
+   * at `0.1.1`. `@weftjs/core` depends on the whole graph, so anything published moves it and the two
+   * agree by construction; the exception is a release touching only `create-weft`, where the
+   * framework is added at a patch so the release has a number to mean.
    */
   let frameworkRelease = plan.releases.find((entry) => entry.name === FRAMEWORK_PACKAGE)
   if (!firstRelease && !frameworkRelease) {
@@ -184,18 +177,12 @@ async function main() {
       `${broken.length} package(s) would publish something this repository does not intend to. Fix \`files\` or scripts/release/config.mjs.`,
     )
 
-  // Asked here, after the audit and before anything is written, because the answer is the one that
-  // cannot be recovered from mid-release: the commit, tag and push would already have happened.
   /**
-   * A package nothing changed is still a package the registry has to have.
-   *
-   * The plan only holds what moved, which is right for versioning and wrong for publishing: after a
-   * release that tagged and pushed and then failed to publish, the next one bumps what changed since
-   * the tag and leaves everything else at a version that is on no registry. `@weftjs/core@0.1.1`
-   * pinning `@weftjs/ir@0.1.0` is uninstallable, and npm accepts it without complaint.
-   *
-   * So anything whose current version is missing is added at that version, unbumped. It makes the
-   * release self-healing rather than dependent on the last one having finished.
+   * A package nothing changed is still a package the registry has to have. The plan only holds what
+   * moved — right for versioning, wrong for publishing: after a tagged-and-pushed release that failed
+   * to publish, the next one bumps only what changed since, leaving `@weftjs/core@0.1.1` pinning an
+   * unpublished `@weftjs/ir@0.1.0` — uninstallable, and npm accepts it without complaint. So anything
+   * whose current version is missing is added unbumped, making the release self-healing.
    */
   step('Already on the registry')
   const planned = new Set(plan.published.map((release) => release.name))
@@ -213,8 +200,7 @@ async function main() {
     if (claim.ok) ok(`${release.name} — ${claim.why}`)
     else refuse(`${release.name}: ${claim.why}`)
   }
-  // Asked with the names in hand, because "can this account publish" is a different question per
-  // name: a token scoped to one organisation answers yes for eight of these and 403 for the ninth.
+  // Asked with the names in hand: a token scoped to one organisation answers yes for eight of these and 403 for the ninth.
   const unattended = registry.canPublishUnattended(
     plan.published.map((release) => release.name),
     flags.otp,
@@ -296,9 +282,7 @@ async function main() {
   run('git', ['tag', '-a', tag, '-m', `${tag}\n\n${section}`], { cwd: ROOT })
   ok(`${run('git', ['rev-parse', '--short', 'HEAD']).stdout.trim()} chore(release): ${tag}`)
 
-  // Push before publishing. A push that lands with the registry not yet updated is fixed by
-  // publishing again; a publish that lands with the push lost has burned version numbers npm will
-  // never accept a second time.
+  // Push before publishing: a lost push after a real publish burns version numbers npm never accepts again.
   step('Push')
   runVisible('git', ['push', 'origin', `${RELEASE_BRANCH}`, '--follow-tags'], { cwd: ROOT })
   ok(`${RELEASE_BRANCH} and ${tag} are on origin. The documentation site deploys from this push.`)
@@ -313,12 +297,7 @@ async function main() {
   say(dim(`\n  If any of this is wrong: pnpm release:undo ${tag}\n`))
 }
 
-/**
- * Everything that must be true before a release writes anything.
- *
- * The order is cheapest-first and each check names its own fix. A release that fails here has
- * changed nothing, which is the only state a half-finished release is easy to recover from.
- */
+/** Everything that must be true before a release writes anything. Cheapest-first; a failure here has changed nothing. */
 function preflight({ dryRun, publishOnly, refuse }) {
   const branch = run('git', ['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim()
   if (branch === RELEASE_BRANCH) ok(`branch: ${branch}`)
@@ -346,12 +325,7 @@ function preflight({ dryRun, publishOnly, refuse }) {
   else ok('lockfile matches the manifests')
 }
 
-/**
- * The plan, with the reason each package is in it.
- *
- * Whether a bump was asked for by a commit or forced by a dependency is the one thing an operator
- * cannot work out from the version numbers, and it is the thing most likely to be a surprise.
- */
+/** The plan, with the reason each package is in it — whether a bump was asked for or forced by a dependency, which the version numbers alone don't say. */
 function printPlan(plan, { version, firstRelease }) {
   step(`Plan — ${bold(`v${version}`)}`)
   if (!firstRelease) say(dim(`  the tag is ${FRAMEWORK_PACKAGE}'s version, and the repository follows it`))

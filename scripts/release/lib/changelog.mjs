@@ -13,23 +13,12 @@ const PREAMBLE = [
   '',
 ]
 
-/**
- * The commits that predate `build(repo): enforce conventional commits` carry no type, so nothing
- * can classify them. Saying so once at the top of the entry beats a reader wondering why one
- * section is written in a different voice from the rest.
- */
+/** Said once at the top of the foundations section, so a reader isn't left wondering why it reads differently. */
 const FOUNDATIONS_NOTE =
   "The commits below predate this repository's Conventional Commits rule. They are the work the " +
   'convention was adopted in the middle of, kept here because 0.1.0 contains them.'
 
-/**
- * A changelog file, rendered whole.
- *
- * Regenerating the entire file on every release rather than prepending to it is deliberate: the
- * changelog then has one source of truth — the git history — and a changelog that has drifted from
- * it (this one had, with commit links pointing at rewritten shas) is repaired by running the
- * generator rather than by hand.
- */
+/** A changelog file, rendered whole rather than prepended to — one source of truth, the git history, so drift repairs by regenerating. */
 export function renderChangelog({ entries, repository, scopeless }) {
   const lines = [...PREAMBLE]
   for (const entry of entries) lines.push(...renderEntry(entry, repository, scopeless), '')
@@ -86,11 +75,7 @@ function bullet(item, repository, scopeless) {
   return `* ${scope(item, scopeless)}${item.subject} (${link(item, repository)})`
 }
 
-/**
- * A package's own changelog drops the scope prefix — every line in it is that package by
- * definition, and `**compiler:**` on every bullet of `@weftjs/compiler/CHANGELOG.md` is noise. A
- * multi-scope commit keeps the other scopes, because knowing what moved with it is the point.
- */
+/** A package's own changelog drops its own scope prefix (noise, since every line is that package) but keeps the others in a multi-scope commit. */
 function scope(commit, scopeless) {
   if (!commit.scopes?.length) return ''
   const shown = scopeless ? commit.scopes.filter((name) => name !== scopeless) : commit.scopes
