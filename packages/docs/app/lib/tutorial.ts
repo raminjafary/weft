@@ -5,19 +5,11 @@ import { figure } from './bench.ts'
 import { raceFigure } from './measured.ts'
 
 /**
- * One page, built from nothing, one step at a time.
+ * One page, built from nothing, one step at a time. The guide explains a mechanism; this shows
+ * what it costs by having you add it — every step says what changed, what the framework then knew,
+ * and what command shows it.
  *
- * The tutorial's job is different from the guide's: the guide explains a mechanism, and this shows
- * what a mechanism costs by having you add it. Every step says what changed, what the framework then
- * knew, and what command shows it — because "run `weft why /` and look at the plan" is the habit
- * worth teaching, and no amount of prose replaces it.
- */
-/**
- * The four parts, and what each one is for.
- *
- * A tutorial with no parts is a list, and a list of six is already long enough that a reader on
- * step four has no idea whether they are near the end. The parts are the answer to "where am I",
- * which is the question a step count on its own does not answer: `4 of 6` is a position and
+ * The four parts answer "where am I", which a step count alone doesn't: `4 of 6` is a position,
  * `Change it` is a place.
  */
 export interface Part {
@@ -63,13 +55,7 @@ export interface Step {
   lede: string
   /** Which part of the tutorial this step is in. One of `PARTS`. */
   part: string
-  /**
-   * What this step is for, in one sentence, above the work.
-   *
-   * A tutorial step is a list of edits, and a reader part-way down one has usually lost the thread
-   * of why they are making them. The goal sits between the lede and the first edit so that thread
-   * is one glance away rather than a scroll back up.
-   */
+  /** What this step is for, in one sentence, between the lede and the first edit — a reminder one glance away rather than a scroll up. */
   goal: string
   body: () => string
 }
@@ -1121,17 +1107,7 @@ npx weft start                          # the rest, wherever you run Node`,
 
 export const STEP_BY_SLUG: Record<string, Step> = Object.fromEntries(STEPS.map((step) => [step.slug, step]))
 
-/**
- * `Part two · Step 6 of 19`, counted rather than written.
- *
- * No step's title carries its own number and none should: a title is what the step is about and a
- * number is where it currently sits. Those were the same thing while there were six of them, and
- * stopped being the same thing the moment thirteen were inserted between them. Everything that
- * shows a number — this line, the index cards, the rail — counts it from the position instead.
- *
- * The part is in front of it because a position needs somewhere to be a position in: `6 of 19` says
- * how far and the part says where.
- */
+/** `Part two · Step 6 of 19`, counted from position rather than written into a title that would drift the moment a step was inserted. */
 export function stepKicker(slug: string): string {
   const at = STEPS.findIndex((step) => step.slug === slug)
   if (at < 0) return ''
@@ -1139,14 +1115,7 @@ export function stepKicker(slug: string): string {
   return `${part ? `${part.ordinal} · ` : ''}Step ${at + 1} of ${STEPS.length}`
 }
 
-/**
- * What a step actually has you run, and what it has you hit.
- *
- * Read out of the step's own markup rather than listed beside it: a step that gains a command gains
- * a line here, and a step whose command is renamed cannot go on advertising the old one. The codes
- * are the same bargain — a step that shows a refusal is a step whose card should say which one,
- * because that is what somebody scanning for the answer to an error is scanning for.
- */
+/** What a step actually has you run, and what it has you hit — read from the step's own markup so a renamed command can't go on advertising the old one. */
 export function stepMentions(slug: string): string[] {
   const step = STEP_BY_SLUG[slug]
   if (!step) return []
@@ -1160,15 +1129,9 @@ export function stepMentions(slug: string): string[] {
 }
 
 /**
- * How long a step takes, in whole minutes, from the step itself.
- *
- * The design puts a time under each step's progress count, and a time somebody typed is a time that
- * is wrong the first time the step grows. So it is counted from the step.
- *
- * Not reading time — this is a tutorial, and the reader is typing and running things. Prose at 200
- * words a minute, plus three minutes for every block they have to type and watch the result of,
- * which is where a tutorial step's time actually goes. On the step the design costed, that comes
- * out at the eight minutes the design says.
+ * How long a step takes, in whole minutes, counted from the step itself rather than typed by hand.
+ * Not reading time — the reader is typing and running things — so prose at 200 wpm plus three
+ * minutes per block to type and watch run.
  */
 const READING = 200
 const PER_BLOCK = 3
@@ -1211,14 +1174,8 @@ export function stepTime(slug: string): string {
 }
 
 /**
- * What the reader's application looks like at the end of each step.
- *
- * The design puts this in the rail, and it earns its place: a tutorial adds a file at a time and by
- * step four the reader has six of them, with no single view of what they now have. The files a step
- * *touched* are marked, so the rail also answers "what did I just change".
- *
- * Cumulative by construction — each step names only what it adds, and the tree is the union of
- * every step up to and including this one. A step cannot forget to list a file it added earlier.
+ * What the reader's application looks like at the end of each step — cumulative by construction,
+ * since each step names only what it adds and the tree unions every step up to this one.
  */
 const ADDS: Record<string, readonly string[]> = {
   'a-page': ['app/', 'app/routes/', 'app/routes/index.tsx'],
@@ -1261,14 +1218,7 @@ export function appSoFar(slug: string): TreeRow[] {
   })
 }
 
-/**
- * The tutorial's front page: what it costs, then the parts, then the steps in each.
- *
- * Every number on it is counted from the steps — the count, the minutes, the files the reader ends
- * with — because a tutorial index is exactly the page where an estimate somebody typed goes stale
- * first. A part is a row: what it is for on the left, and the steps in it on the right, so the
- * shape of the whole tutorial is one screen rather than a list of six titles.
- */
+/** The tutorial's front page. Every number is counted from the steps, since a hand-typed estimate here is the first thing to go stale. */
 export function tutorialIndexBody(): string {
   const minutes = STEPS.reduce((sum, step) => sum + stepMinutes(step.slug), 0)
   const last = STEPS.at(-1)
@@ -1312,13 +1262,7 @@ export function tutorialIndexBody(): string {
   )
 }
 
-/**
- * What the three capabilities this step added actually cost, from the recorded gate.
- *
- * One row per client entry the reader has now reached for, in the order the steps introduced them.
- * An entry the gate has not measured in this checkout prints its ceiling and says so, which is more
- * use than a page that fails to render because nobody ran the bench.
- */
+/** What the three capabilities this step added actually cost, from the recorded gate. An unmeasured entry prints its ceiling instead of failing to render. */
 const asBytes = (n: number) => `${n.toLocaleString('en-US')} B`
 
 function clientEntries(): string {

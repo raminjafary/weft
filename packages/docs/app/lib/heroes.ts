@@ -6,20 +6,10 @@ import { raceFigure, stagedClick } from './measured.ts'
 import { graph, type GraphEdge, type GraphNode } from './graph.ts'
 
 /**
- * The figure at the top of each guide page: the mechanism, moving.
- *
- * Twenty-two pages, twenty-two figures, and one vocabulary between them — a row that arrives when
- * its turn comes, a box, a pill, a bar drawn to scale, a mark travelling an edge, one label swapped
- * for another. A reader who has read one figure has read how the next one speaks, which is worth
- * more than each being individually clever.
- *
- * The rule for whether a figure moves at all is that the movement has to *be* the idea: an order of
- * arrival, a size against another size, a value swapped, something refused. Where the idea is a
- * shape rather than a sequence — a nested layout, a file tree — the rows still arrive in turn, and
- * the order is the order to read them in.
- *
- * Every animated element carries `data-wf`, and every keyframe ends at the state that makes the
- * point, so the reduced-motion version is the finished diagram rather than a blank box.
+ * The figure at the top of each guide page: the mechanism, moving. Twenty-two pages share one
+ * vocabulary — a row arriving in turn, a box, a pill, a scaled bar, a travelling mark, a label
+ * swap — moving only where movement *is* the idea. Every animated element carries `data-wf` and
+ * every keyframe ends at the meaningful state, so reduced-motion is the finished diagram.
  */
 
 const enc = escapeHtml
@@ -29,13 +19,7 @@ const CYCLE = 4.6
 
 /* ── the kit ──────────────────────────────────────────────────────────────── */
 
-/**
- * A row that arrives when its turn comes.
- *
- * The base is 16% rather than 0: a row at 16% is still legible as a row, so a figure reads as a
- * diagram filling in rather than as content appearing out of nowhere — and a reader arriving
- * mid-cycle sees the shape of the whole thing immediately.
- */
+/** A row that arrives when its turn comes. Base opacity is 16%, not 0, so a mid-cycle arrival still reads as a diagram filling in, not content appearing from nowhere. */
 function step(at: number, body: string, extra = ''): string {
   return `<div data-wf class="hs"${extra} style="animation:wf-step ${CYCLE}s linear ${at.toFixed(
     2,
@@ -85,13 +69,7 @@ function wire(at = 0): string {
   )}s infinite"></span></div>`
 }
 
-/**
- * One label in the place of another.
- *
- * Both sit in the same grid cell rather than being positioned absolutely, so the pair takes the
- * width of the wider of the two and the row around it does not move when they trade places. A swap
- * that resized its own row would read as two things happening.
- */
+/** One label in the place of another. Both sit in the same grid cell so the row doesn't resize when they trade places. */
 function swap(before: string, after: string): string {
   return `<span class="hswap">
     <span data-wf class="hswap-a" style="animation:wf-swap-a ${CYCLE}s linear infinite">${before}</span>
@@ -211,13 +189,7 @@ function anApplication(): string {
   return frame('an-application', graph(nodes, edges, { height: 246, cycle: 5.4, baselines: [26, 42, 56] }))
 }
 
-/**
- * A template as what it actually is: finished bytes, with gaps.
- *
- * The constant runs are drawn wide and flat and never move; only the holes arrive. That is the
- * whole claim of the page in one picture — the bytes are already decided, and a render is what
- * lands in the spaces between them.
- */
+/** A template as what it actually is: finished bytes, with gaps. Constant runs never move; only the holes arrive. */
 function fragments(): string {
   const strip: readonly (number | 'hole')[] = [2, 'hole', 1.4, 'hole', 1.4, 'hole', 1.4]
   let hole = 0
@@ -323,14 +295,7 @@ function effectsAndCache(): string {
   )
 }
 
-/**
- * The two delivery orders, raced on one clock.
- *
- * Both lanes settle at the same instant and carry identical DOM; the only difference is when the
- * fast region became visible, which is the entire claim and the only thing that moves. Each region
- * is a dashed outline that is filled when it lands — so the space a region will occupy is visible
- * from the first frame, which is what a placeholder is.
- */
+/** The two delivery orders, raced on one clock — identical DOM, only the arrival timing differs. Each region is a dashed outline filled on landing. */
 function slotsAndStreaming(): string {
   const lane = (
     kind: string,
@@ -671,15 +636,7 @@ function liveRegions(): string {
   )
 }
 
-/**
- * What a page actually downloads: one mark per module, and what they weigh together.
- *
- * The count is `weft.budget.json` — the file the growth cap is a diff of — so it is this site's own
- * walk over HTTP rather than a figure about the demo. The marks are the same height on purpose:
- * there is no per-module breakdown in that file, and bars of varying height would draw a
- * distribution nothing measured. The claim is how many responses a page fetches; the weight is the
- * number beside them.
- */
+/** What a page actually downloads: one mark per module, from `weft.budget.json`. Marks are equal height on purpose — that file has no per-module breakdown to draw varying ones from. */
 function whatShips(): string {
   const site = siteWeight()
   return frame(
@@ -832,12 +789,7 @@ const HEROES: Record<string, () => string> = {
   cli,
 }
 
-/**
- * The figure for one page, drawn on demand.
- *
- * `declarations` is the one that needs a number from outside itself — how many pages this build
- * wrote out — so it is not in the table and is called with it.
- */
+/** The figure for one page, drawn on demand. `declarations` needs an outside number (pages written), so it's called directly rather than through the table. */
 export function hero(slug: string, files = 0): string {
   if (slug === 'declarations') return declarations(files)
   const draw = HEROES[slug]
