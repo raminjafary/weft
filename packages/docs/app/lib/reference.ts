@@ -1,19 +1,11 @@
 import { declarationOf, defaultsOf, type Declaration, type Field } from './declared.ts'
 
 /**
- * The declaration surfaces, as a section.
- *
- * The guide explains a mechanism and shows the two or three fields that make the point. That is
- * what a guide is for, and it is not what somebody has in front of them at four in the afternoon
- * with a config file open and a question about one key. Neither was the API page: an interface
- * reaches it as a single signature, so `WeftConfig` arrived truncated at 880 characters with an
- * ellipsis where twenty-nine options should have been, and `RouteModule`'s twenty-eight the same.
- *
- * So this is the other half: one page per thing you write, one entry per field, with the type as
- * written, the default the loader actually applies, and the doc comment its author left above it.
- * Nothing here is prose about the framework — every sentence in an entry came out of the source
- * that implements it, which is what makes the section's claim ("these are all the options") a gate
- * `test/docs.test.ts` can check rather than a promise.
+ * The declaration surfaces, as a section — one page per thing you write, one entry per field, with
+ * its type, its actual default, and its doc comment. Neither the guide (two or three fields to make
+ * a point) nor the API page (an interface as one truncated signature — see `declared.ts`) answers
+ * "what's this one key". Every entry's prose comes from source, which is what makes "these are all
+ * the options" a gate `docs.test.ts` can check.
  */
 export interface Group {
   /** The interface, in the file that declares it. */
@@ -30,14 +22,7 @@ export interface Group {
 export interface Reference {
   /** URL segment under `/reference`. */
   id: string
-  /**
-   * What the page is made of.
-   *
-   * `declaration` is an interface exploded into its members, which is five of the six. The other
-   * two are the same section for the same reason — a reader with a config file open wants them —
-   * but their source is not an interface: the folder convention is a doc comment the discovery
-   * reads out of, and the ports are a walk of two packages.
-   */
+  /** What the page is made of. `declaration` is an interface exploded into members (five of six); `directories`/`ports` have no interface behind them. */
   kind: 'declaration' | 'directories' | 'ports'
   title: string
   /** What you write, for the rail: `weft.config.ts`, `defineRoute`. */

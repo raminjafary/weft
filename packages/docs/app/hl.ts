@@ -1,22 +1,14 @@
 import { escapeHtml } from './escape.ts'
 
 /**
- * Syntax highlighting for the four languages this site prints, and nothing else.
+ * Syntax highlighting for the four languages this site prints, and nothing else. Sits beside
+ * `client.ts`, not `lib/`, since the playground's editor re-highlights in the browser too — one
+ * module, served as written like any client module. Hand-written rather than a dependency: four
+ * fixed languages don't need a hundred-language grammar engine, and a highlighter's correctness is
+ * binary enough for a test to check.
  *
- * It sits beside `client.ts` rather than in `lib/` because the browser needs it too: the
- * playground's editor re-highlights what you type, and a second implementation of a highlighter is
- * a second set of rules for which word is a keyword. One module, stripped of its types by Node and
- * served as written — which is what the framework does with every client module.
- *
- * Hand-written rather than a dependency, for two reasons that both point the same way. The site
- * prints `tsx`, `ts`, `sh` and `json` and will not grow a fifth without somebody deciding to, so a
- * general grammar engine would be carrying a hundred languages to serve four. And a highlighter is
- * the one thing on a documentation site that cannot be wrong in an interesting way: it either bolds
- * the right word or it does not, and a test can say which.
- *
- * The one rule that matters for correctness: the scanners run over the *raw* source and every token
- * is escaped as it is emitted. Running a regex over already-escaped HTML is how a highlighter starts
- * matching `&quot;` as a string delimiter and emitting tags inside attribute values.
+ * Correctness rule: scanners run over the *raw* source and every token is escaped on emission.
+ * Running a regex over already-escaped HTML matches `&quot;` as a string delimiter.
  */
 
 type Kind =
@@ -112,13 +104,7 @@ const PRIMITIVES = new Set([
   'unknown',
 ])
 
-/**
- * One pass, longest-plausible-token-first.
- *
- * Order is the whole specification. A comment has to be tried before the division operator or `//`
- * is two punctuation marks; a template literal before a string; a number before an identifier, or
- * `1e9` becomes a number followed by a name.
- */
+/** One pass, longest-plausible-token-first. Order is the spec: comment before division (`//`), number before identifier (`1e9`). */
 const TS = new RegExp(
   [
     '(?<comment>//[^\\n]*|/\\*[\\s\\S]*?\\*/)',
@@ -128,10 +114,7 @@ const TS = new RegExp(
     '(?<open><\\s*[A-Za-z][\\w.-]*)',
     '(?<word>[A-Za-z_$][\\w$]*)',
     '(?<space>\\s+)',
-    // Quotes are excluded from the run, and the second alternative is what catches an unterminated
-    // one. Greedy punctuation that could swallow a quote is how `['cart']` highlighted as a punct
-    // token `['`, a plain `cart` and a punct `']` — every string on this site preceded directly by
-    // a bracket, a brace or a paren, which is most of them.
+    // Quotes excluded from punct's run (greedy punct once swallowed the quote in `['cart']`, e.g. `['` as one punct token).
     '(?<punct>[^\\sA-Za-z_$\\d\'"`]+|[\'"`])',
   ].join('|'),
   'gy',
@@ -185,13 +168,7 @@ const SH = new RegExp(
   'gy',
 )
 
-/**
- * Shell, where the only distinctions worth drawing are the comment, the command and its flags.
- *
- * The command is the first word of a line, which is what `fresh` tracks. Highlighting shell as if it
- * were a programming language — keywords, operators, types — reads as noise on a page whose shell
- * blocks are all one line of `weft something --flag`.
- */
+/** Shell: only the comment, command, and flags are worth distinguishing. `fresh` tracks the first word of a line as the command. */
 function scanSh(source: string): Token[] {
   const out: Token[] = []
   let at = 0
@@ -269,15 +246,9 @@ function scan(language: string, source: string): Token[] {
 }
 
 /**
- * Source into highlighted HTML, escaped.
- *
- * `plain` gets no element at all rather than a `<span class="t-plain">`, which is most of the bytes
- * on a page of code: wrapping whitespace and punctuation-free identifiers in an element that styles
- * nothing is how a highlighter doubles the size of a document for no visible difference. Adjacent
- * tokens of the same kind are merged for the same reason.
- *
- * An unknown language falls through to escaped text, so a block is never worse than it was before
- * this file existed.
+ * Source into highlighted HTML, escaped. `plain` gets no element at all — wrapping whitespace in a
+ * span that styles nothing would double the document's size for no visible difference. Adjacent
+ * same-kind tokens merge for the same reason. An unknown language falls through to escaped text.
  */
 export function highlight(language: string, source: string): string {
   const tokens = scan(language, source)
