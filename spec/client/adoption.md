@@ -173,6 +173,13 @@ Firefox and WebKit report `performance.now()` in far coarser steps than Chromium
 figures here are quantised to about a millisecond. The ratios are directional; the
 protocol-byte counts are exact.
 
+Firefox also needed the harness to record every document response rather than only the last one:
+it re-requests the document after `load`, by which time the boot script has already stored the
+templates and set the cookie, so a naive "last response wins" reading reported the _cold_ visit as
+`0 templates, 138 bytes` — the shape of a repeat visit, and the opposite of what that row exists to
+show. Attribution is by request order instead: a visit records the response length before it
+navigates and reads the first one after, which is the document that navigation actually asked for.
+
 ### Not measured
 
 Time to the interactive mark is reported alongside but is not the headline, because it is

@@ -36,11 +36,7 @@ function firstDifference(a: Uint8Array, b: Uint8Array): string {
   return `identical for ${len} bytes, lengths differ: ${a.length} vs ${b.length}`
 }
 
-/**
- * Differential testing is not optional here: negotiated wire forms are only safe if
- * every form of a fragment produces identical bytes. The runner refuses to publish
- * numbers for a scenario whose forms disagree.
- */
+/** Differential testing: negotiated wire forms are only safe if every form produces identical bytes. See `spec/ir/template-ir-2.md`. */
 export async function checkScenario(scenario: Scenario, candidates: Candidate[]): Promise<EquivalenceReport> {
   const checks: Check[] = []
   const compiled = await compileScenario(scenario)
@@ -75,8 +71,6 @@ export async function checkScenario(scenario: Scenario, candidates: Candidate[])
     const delta = JSON.parse(
       decoder.decode(segmentsCandidate.updateForms?.(scenario, values, rows, nextRows).delta as Uint8Array),
     ) as DeltaPayload
-    // The template goes in with it: a delta addresses the client's tables, and rebuilding the
-    // values means undoing the projections it addressed through.
     const rebuilt = applyDelta(rooted, delta, compiled.root, compiled.resolve)
     const reconstructed = render(compiled.root, rebuilt, compiled.resolve)
     const ok = reconstructed.length === expected.length && reconstructed.every((b, i) => b === expected[i])
@@ -92,12 +86,7 @@ export async function checkScenario(scenario: Scenario, candidates: Candidate[])
     })
   }
 
-  /**
-   * The one property that makes `.incremental()` safe to turn on. A memoised render reuses row
-   * bytes and skips derived values a change cannot reach, and if it produced anything other
-   * than what a full render produces it would be a correctness bug with a performance
-   * justification — the worst kind. So it is checked the same way the wire forms are.
-   */
+  /** The one property that makes `.incremental()` safe to turn on. See `spec/kernel/surgical.md`. */
   if (compiled.rowBinding) {
     const memo = createSegmentMemo()
     const cold = renderIncremental({ ir: compiled.root, values: rooted, memo, resolve: compiled.resolve })
@@ -137,11 +126,7 @@ function same(a: Uint8Array, b: Uint8Array): boolean {
   return a.length === b.length && a.every((byte, i) => byte === b[i])
 }
 
-/**
- * The measured path is the served one, and a streaming server assembles its response
- * separately from the in-process renderer. Byte equality in memory does not imply byte
- * equality on the wire, so both are checked.
- */
+/** The measured path is the served one. Byte equality in memory does not imply byte equality on the wire, so both are checked. */
 export async function checkServed(scenario: Scenario, candidates: Candidate[]): Promise<Check[]> {
   const checks: Check[] = []
   const servers = candidates.filter((c) => c.serve && !c.thirdParty)

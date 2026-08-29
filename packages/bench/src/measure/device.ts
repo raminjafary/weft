@@ -1,28 +1,7 @@
 import { readFileSync } from 'node:fs'
 import type { BrowserLike, ContextLike, EngineName, PageLike } from './browser.ts'
 
-/**
- * The device lane: how a real phone gets driven by this harness.
- *
- * `spec/baseline/devices.md` names three things that need hardware, and until now the harness's
- * answer was to refuse `--engines ios` by name. That refusal is still right — but it was refusing
- * for two reasons at once, and only one of them is about hardware. The other was that there was no
- * way to point the harness at a device even if you had one. This is that way.
- *
- * Nothing here measures anything. It is a transport: a descriptor, two clients, and a rule for how
- * the device reaches a server bound to this machine's loopback. Plugging in a phone is config.
- *
- * Two transports, because the two platforms genuinely differ:
- *
- * - **`cdp`** — Android WebView and remote Chrome. `adb forward tcp:9222
- *   localabstract:webview_devtools_remote_<pid>` exposes the DevTools socket, and Playwright's
- *   `connectOverCDP` then drives it with the full API. Every axis works, unchanged.
- * - **`webdriver`** — WKWebView on iOS, through Appium and XCUITest. There is no CDP on that
- *   platform and Playwright cannot reach it, so this is a plain W3C client. It can navigate,
- *   evaluate, wait, click and hover. It cannot subscribe to browser events, because the protocol
- *   has none — so an axis that counts documents or listens for page errors refuses by name rather
- *   than reporting a number with a hole in it.
- */
+/** The device lane: how a real phone gets driven by this harness. See `spec/baseline/devices.md`. */
 export type DeviceTransport = 'cdp' | 'webdriver'
 
 export interface DeviceDescriptor {
@@ -31,25 +10,13 @@ export interface DeviceDescriptor {
   /** Which `--engines` name this device answers to. */
   engine: EngineName
   transport: DeviceTransport
-  /**
-   * Where the driver listens. A CDP lane wants the DevTools endpoint (`http://127.0.0.1:9222`);
-   * a WebDriver lane wants the server's base URL (`http://127.0.0.1:4723`).
-   */
+  /** Where the driver listens. A CDP lane wants the DevTools endpoint; a WebDriver lane wants the server's base URL. */
   endpoint: string
   /** W3C capabilities, merged into `alwaysMatch`. Ignored by the CDP lane. */
   capabilities?: Record<string, unknown>
-  /**
-   * The Appium context to switch into after the session opens, typically `WEBVIEW_1`. Without one
-   * the session stays in whatever context the driver opened, which for a native app is not the
-   * webview and where every script would fail.
-   */
+  /** The Appium context to switch into after the session opens, typically `WEBVIEW_1`. See `spec/baseline/devices.md`. */
   context?: string
-  /**
-   * The host the *device* uses to reach this machine. The harness serves on 127.0.0.1, which on a
-   * phone means the phone — so this is either a reverse tunnel (`adb reverse tcp:P tcp:P`, which
-   * makes `127.0.0.1` correct as-is) or this machine's LAN address. Absent means loopback, which is
-   * right for an emulator sharing the host network and wrong for anything plugged in.
-   */
+  /** The host the *device* uses to reach this machine. Absent means loopback. See `spec/baseline/devices.md`. */
   reachHost?: string
   /** What this device is, in the words the report prints. Required: an unlabelled device is a claim. */
   label: string
@@ -110,15 +77,7 @@ export function loadDevices(path: string | undefined): DeviceDescriptor[] {
   return parsed
 }
 
-/**
- * The URL to hand a device for a server bound to this machine.
- *
- * Every measurement here serves on 127.0.0.1 and then tells a browser to go there. On a desktop
- * engine that is the same machine. On a phone it is the phone, which is serving nothing — the
- * failure is a connection refused deep inside a measurement, and it looks like a broken harness.
- * So the rewrite happens once, here, and a lane with no `reachHost` says out loud that it is
- * assuming a tunnel.
- */
+/** The URL to hand a device for a server bound to this machine. See `spec/baseline/devices.md`. */
 export function reachableUrl(engine: EngineName, url: string): string {
   const lane = LANES.get(engine)
   if (!lane?.device.reachHost) return url
@@ -127,13 +86,7 @@ export function reachableUrl(engine: EngineName, url: string): string {
   return rewritten.href
 }
 
-/**
- * The page surface a device lane offers, which is the subset the browser axes actually use.
- *
- * Playwright's page has hundreds of methods and these are the six that get called. Naming them is
- * what makes a second transport possible at all: a lane is judged against this and not against
- * Playwright.
- */
+/** The page surface a device lane offers: the subset the browser axes actually use. A lane is judged against this, not Playwright. */
 export interface DevicePage extends PageLike {
   waitForFunction(expression: string, arg?: unknown, options?: { timeout?: number }): Promise<unknown>
   waitForTimeout(ms: number): Promise<void>
@@ -148,13 +101,7 @@ interface Response_<T> {
   value: T
 }
 
-/**
- * A driver that is not there is named, not reported as `fetch failed`.
- *
- * The whole argument for this lane's refusals is that a missing thing should say what is missing.
- * A `--devices` entry pointing at a port nothing is listening on is the commonest way to get one
- * wrong, and the raw connect error reads as a broken harness rather than a driver that is down.
- */
+/** A driver that is not there is named, not reported as `fetch failed`. See `spec/baseline/devices.md`. */
 async function reach(url: string, init: RequestInit): Promise<Response> {
   try {
     return await fetch(url, init)
@@ -215,12 +162,7 @@ class WebDriverPage implements DevicePage {
     return call<T>(this.base, 'POST', this.at('/execute/sync'), { script: scriptOf(fn), args: [] })
   }
 
-  /**
-   * Polled here rather than in the page, because `execute/async` needs the page to call a callback
-   * and a page that has just navigated has no callback to call. The poll interval is the protocol's
-   * floor: a round trip to the driver is tens of milliseconds on a device, so a tighter loop buys
-   * nothing and a looser one is what the caller's timeout is for.
-   */
+  /** Polled here, not via `execute/async`: a page that just navigated has no callback to call. 50ms matches the protocol's own round-trip floor. */
   async waitForFunction(
     expression: string,
     _arg?: unknown,
@@ -283,11 +225,7 @@ class WebDriverPage implements DevicePage {
     })
   }
 
-  /**
-   * W3C WebDriver has no event stream, so there is nothing to subscribe to. It throws rather than
-   * silently dropping the handler: an axis whose document count came back zero because nobody was
-   * listening is worse than one that refused.
-   */
+  /** W3C WebDriver has no event stream. See `spec/baseline/devices.md`: `E_LANE_CANNOT`. */
   on(event: string): void {
     throw new Error(
       `E_LANE_CANNOT: the webdriver lane cannot deliver '${event}' — W3C WebDriver has no event stream. ` +
@@ -295,10 +233,7 @@ class WebDriverPage implements DevicePage {
     )
   }
 
-  /**
-   * Nothing to close. A W3C session is the page, so closing the page would end the session the
-   * context still owns; the context closes it.
-   */
+  /** Nothing to close: a W3C session is the page, and the context closes the session. */
   async close(): Promise<void> {}
 }
 
@@ -320,14 +255,7 @@ class WebDriverContext implements ContextLike {
   }
 }
 
-/**
- * One W3C session per context, because a session is the only isolation the protocol offers.
- *
- * A desktop `newContext()` is a fresh profile in a running browser and costs milliseconds. An
- * Appium session is a fresh app launch and costs seconds. That difference is real, it is the
- * device's, and an axis that opens a context per iteration will be slow on this lane — which is
- * information about the lane and not a reason to reuse a dirty one.
- */
+/** One W3C session per context — a session is the only isolation the protocol offers. See `spec/baseline/devices.md`. */
 class WebDriverBrowser implements BrowserLike {
   private label = 'webdriver'
   private readonly device: DeviceDescriptor
@@ -369,13 +297,7 @@ export interface CdpConnector {
   connectOverCDP(endpoint: string): Promise<BrowserLike>
 }
 
-/**
- * Open the device this engine name points at.
- *
- * The CDP lane needs Playwright's chromium namespace, which the caller already has — passing it in
- * keeps this module free of the optional dependency, and keeps the failure ("playwright is not
- * installed") in the one place that already says it.
- */
+/** Open the device this engine name points at. Playwright's connector is passed in to keep this module free of the optional dependency. */
 export async function openDevice(lane: DeviceLane, cdp: CdpConnector | null): Promise<BrowserLike> {
   if (lane.device.transport === 'webdriver') return new WebDriverBrowser(lane.device)
   if (!cdp) {

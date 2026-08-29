@@ -2,23 +2,7 @@ import { build, createApp, discover, loadBuild, loadConfig, serveApp } from '@we
 import { measureHttp, type HttpSample } from './http.ts'
 import { summarize, type Summary } from '../stats.ts'
 
-/**
- * What the kernel costs for a document whose bytes are already known.
- *
- * L0 is the one tier whose claim is an absence: the file is served and nothing else happens. An
- * absence is easy to assert and easy to overstate, so this measures the pair a deployment could
- * actually serve — the same process, the same document, the same connection — and the only
- * difference between the two runs is whether the document is in the table.
- *
- * Removing it is not a simulation of a kernel path, it *is* the kernel path: the request falls
- * through to `serve()`, matches the route, resolves the keys, dispatches the waves and streams
- * the result. The bytes are asserted identical across both runs, because a saving measured
- * against a different document is not a saving.
- *
- * The store is warm for the kernel run — the same slots have been rendered by the warmup — so
- * this is the *best* case for the kernel rather than a cold-cache comparison that would flatter
- * L0. Cold, the gap is the render.
- */
+/** What the kernel costs for a document whose bytes are already known. See `spec/kernel/static.md`. */
 export interface L0Report {
   root: string
   path: string

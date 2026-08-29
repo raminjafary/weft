@@ -21,17 +21,7 @@ interface Config {
   batch: number
 }
 
-/**
- * Batches are sized so that a batch's elapsed time clears the coarsest clock in the
- * engine set: WebKit reports performance.now() in far bigger steps than Chromium, and a
- * batch that lands inside one step reads as zero.
- */
-
-/**
- * DOM equality, not string equality. A marker comment written as `<!>` is serialised back
- * as `<!---->`, so comparing innerHTML compares serialisation syntax; the claim is about
- * the tree the browser ends up with.
- */
+/** DOM equality, not string equality. See `spec/client/adoption.md`: a marker comment's serialisation. */
 function sameDom(html: string, host: HTMLElement): boolean {
   const reference = document.createElement('div')
   reference.innerHTML = html
@@ -83,12 +73,7 @@ function checks(): Check[] {
     detail: `${writes} writes for ${Object.keys(config.delta.changed).length} paths`,
   })
 
-  /**
-   * The patch form, and the property that makes it a rung rather than a second delta: it is
-   * applied to a region **nothing has adopted**, so it needs no template, no wiring table and no
-   * binding names — only the DOM the server rendered. Two encodings of one transition have to
-   * reach one DOM, or the negotiated set is not a negotiated set.
-   */
+  // The patch form applies to a region nothing has adopted. See `spec/kernel/surgical.md`.
   const patched = region(config.html)
   const patchWrites = applyPatch(patched, config.patch)
   const patchOk = sameDom(config.expected, patched)
@@ -102,14 +87,7 @@ function checks(): Check[] {
     ok: patchWrites > 0 && patchWrites === config.patch.writes.length,
     detail: `${patchWrites} writes for ${config.patch.writes.length} addressed holes`,
   })
-  /**
-   * The ordering the ladder claims, checked rather than assumed — and only the half that is a
-   * claim. A patch carries its own addresses where a delta carries a binding name, so a delta is
-   * always the smaller of the two. Against markup it is *usually* smaller and not always: a
-   * transition that rewrites every row of a list sends every row's markup plus its addresses. The
-   * reason to prefer it there is not bytes, it is that the nodes around the write survive, so the
-   * number is reported and not gated on.
-   */
+  // The ordering the ladder claims, checked rather than assumed. See `spec/kernel/surgical.md`.
   const sizes = {
     delta: JSON.stringify(config.delta.changed).length,
     patch: JSON.stringify({ opaque: config.patch.opaque, writes: config.patch.writes }).length,
@@ -195,9 +173,7 @@ function checks(): Check[] {
     }
   }
 
-  // A control's attribute and its property stop agreeing the moment a user types. Writing
-  // the attribute after that changes nothing anyone can see, which is the whole reason the
-  // IR carries a `prop` op.
+  // See `spec/compiler/supported-subset.md`: Controls, the `prop` op.
   const propEntry = config.template.wiring.find((w) => w.op === 'prop')
   if (propEntry) {
     const editedHost = region(config.html)

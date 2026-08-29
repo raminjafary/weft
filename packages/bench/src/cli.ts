@@ -63,18 +63,7 @@ function p50(values: number[]): number {
   return sorted[Math.floor(sorted.length / 2)] ?? NaN
 }
 
-/**
- * Engine names, with the ones this harness cannot reach refused by name.
- *
- * `spec/baseline/devices.md` says no claim about iOS is honest until it runs on a device, and until
- * now that was a paragraph. Asking for `--engines ios` fell through to Playwright and failed with a
- * message about a browser type — which reads like a missing dependency rather than a missing device.
- * It refuses here instead, saying what is actually absent.
- *
- * `--devices` is what makes the refusal answerable rather than final: a device named there is
- * registered before this runs, so `ios` stops being a name with nothing behind it. Without one the
- * refusal is unchanged, which is the point — the gate is the hardware, not the vocabulary.
- */
+/** Engine names, with the ones this harness cannot reach refused by name. See `spec/baseline/devices.md`. */
 function enginesFrom(value: string | undefined, fallback: EngineName[]): EngineName[] {
   const asked = csv(value) ?? fallback
   for (const engine of asked) {
@@ -301,15 +290,7 @@ async function main(): Promise<number> {
         `${size.within ? 'within' : 'OVER  '}  ${size.id.padEnd(14)} ${String(size.brotli).padStart(6)} B brotli  (${String(size.gzip).padStart(6)} gzip, ${String(size.raw).padStart(6)} raw)  limit ${size.limit}  ${size.limitNote}\n`,
       )
     }
-    /**
-     * The run is written down, because a number that only reaches a terminal reaches nobody.
-     *
-     * `--write` rather than always, so a check on a branch does not dirty the tree — the file is
-     * committed, and a gate that edits the repository every time it runs is a gate people start
-     * passing `--no-verify` to. Written after the report, so a run that goes over still records
-     * what it measured: the number is the fact, and whether it is under the line is a judgement
-     * about it.
-     */
+    // `--write` rather than always, so a check on a branch does not dirty the tree. Written after the report, so a run that goes over still records what it measured.
     if (flags.write !== undefined) {
       writeFileSync(MEASURED, `${JSON.stringify(recordBudgets(sizes), null, 2)}\n`)
       process.stdout.write(`\nwrote ${MEASURED}\n`)
@@ -339,14 +320,7 @@ async function main(): Promise<number> {
   }
 
   if (command === 'l0') {
-    /**
-     * `--route` takes a list, because the specification's table is a list.
-     *
-     * `spec/kernel/static.md` prints a row per document the build wrote, and one invocation could
-     * only ever measure one of them — so the second row was measured once by hand and then stayed
-     * where it was while the document under it changed size. Measuring the set in one run is what
-     * makes the table a record of a run rather than of two runs a month apart.
-     */
+    // `--route` takes a list, so the whole table in `spec/kernel/static.md` comes from one run rather than several a month apart.
     const routes = csv(flags.route) ?? [undefined]
     const reports: L0Report[] = []
     for (const path of routes) {
@@ -384,15 +358,7 @@ async function main(): Promise<number> {
       process.stdout.write(formatNavigation(report))
     }
     if (flags.write !== undefined) {
-      /**
-       * A shaped run and a loopback run are both kept, because the table has both columns.
-       *
-       * `spec/client/navigation.md` reports each route on loopback and at 100 ms RTT, and those are
-       * two invocations by necessity — one link cannot be two. Replacing the record wholesale meant
-       * whichever ran last erased the other, which is why that page carried one column from a run
-       * months older than the rest of it. Merged by engine and injected latency instead: running
-       * either one updates that one.
-       */
+      // Merged by engine and latency, not replaced wholesale — a loopback run and a shaped run are two invocations, and one must not erase the other's column.
       const held = (readMeasured().nav?.measured ?? []) as NavReport[]
       const kept = held.filter(
         (one) => !navs.some((fresh) => fresh.engine === one.engine && fresh.latencyMs === one.latencyMs),

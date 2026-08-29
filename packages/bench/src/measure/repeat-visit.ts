@@ -54,11 +54,7 @@ function cookieValue(header: string | undefined, name: string): string {
   return ''
 }
 
-/**
- * A visit, served the way the design describes: the document carries the first frames, and
- * a TPL frame is sent only for a template the client does not already hold. What a repeat
- * visit avoids is therefore visible in the response itself, not only in a timer.
- */
+/** A visit, served the way the design describes. See `spec/client/adoption.md`: "Residency, and what a repeat visit actually saves". */
 export async function measureRepeatVisit(
   scenario: Scenario,
   engine: EngineName,
@@ -73,20 +69,7 @@ export async function measureRepeatVisit(
   const warpDir = fileURLToPath(new URL('../../../warp/src/', import.meta.url))
   const bootFile = fileURLToPath(new URL('../client/boot.ts', import.meta.url))
 
-  /**
-   * Every document response, in the order the server produced them.
-   *
-   * A pair of `lastFrameBytes`/`lastSent` was two variables the handler overwrote, and whichever
-   * request wrote them last is what the measurement reported. That is fine as long as one
-   * navigation makes exactly one document request, and Firefox does not: something re-requests the
-   * document after `load`, by which time the boot script has stored the templates and set the
-   * cookie — so the *cold* visit was reported as `0 templates, 138 bytes`, which is the shape of a
-   * repeat visit and the exact opposite of what that row exists to show.
-   *
-   * Nothing failed, because a zero there is a legal value. The list is what makes attribution
-   * possible: a visit takes the length before it navigates and reads the first response after it,
-   * which is the document that navigation asked for, whatever arrives later.
-   */
+  /** Every document response, in order, not just the last. See `spec/client/adoption.md`: Firefox re-requests after `load`. */
   const documents: { frameBytes: number; sent: number }[] = []
 
   const server = createServer((req, res) => {

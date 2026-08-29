@@ -47,26 +47,7 @@ export const BUDGETS: ByteBudget[] = [
     id: 'kernel',
     label: 'Server kernel: the document request path',
     entry: kernelSrc('entry-request.ts'),
-    /**
-     * Moved from 8,192 — the design's "target under 8 KB server-side" — to 8,320.
-     *
-     * This is the only ceiling here that came from a design figure rather than a watermark, and
-     * `spec/FINDINGS.md` says a third redrawing should be treated as a rationalisation. So the
-     * argument is written down rather than assumed.
-     *
-     * What spent it: `cond` in the derived-expression union, which is what lets a template hold
-     * `a ? b : c` and the `??` and `||` the compiler lowers to it. 14 B against 7 B of headroom, and
-     * the whole of it is one arm in `evalDerived` — five encodings were measured (a coalesce flag, a
-     * separate concat node, an operator lookup table, hoisting the shared operand, selecting the
-     * node rather than the arms) and every one came out larger than the plain form.
-     *
-     * Why it was worth redrawing: without it a fragment cannot express a conditional value at all,
-     * so every one becomes a string concatenated in a loader — which is the state the documentation
-     * site was in, and the reason it had 476 lines of markup outside the compiler's sight.
-     *
-     * The design figure said *target*, and 8,320 B is 8.125 KB. That is a real move and not a
-     * rounding, which is why the number here is not 8 KB any more and this comment exists.
-     */
+    // Moved from 8,192 to 8,320. See `spec/kernel/budgets.md`: "The third redrawing".
     limit: 8320,
     limitNote: 'the design\'s "target under 8 KB server-side", moved from 8,192 for conditional values',
   },
@@ -143,17 +124,7 @@ export const BUDGETS: ByteBudget[] = [
     id: 'kernel-render',
     label: 'Server kernel plus a catalogue of fragments a client can ask for by opaque id',
     entry: kernelSrc('entry-render.ts'),
-    /**
-     * Moved from 14,336 to 14,592, in two steps and for two capabilities.
-     *
-     * 14,336 → 14,464 for `cond` (conditional values); → 14,592 for a row naming its position or
-     * interpolating its item. Both are watermarks moving under a capability, which is the rule this
-     * table already applies to `entry-transport`, `entry-region` and `entry-region-channel`.
-     *
-     * The second step is deliberately larger than the 2 B that forced it. Bumping a watermark by the
-     * exact overage makes the next commit do it again, which turns a gate into a ritual; ~126 B of
-     * room means the next addition here argues with a number instead.
-     */
+    // Moved from 14,336 to 14,592, in two steps. See `spec/kernel/budgets.md`.
     limit: 14592,
     limitNote:
       'no design figure; its own entry, because a deployment whose clients cannot name a renderable should not carry the dispatch. Moved from 14,336 via 14,464',
@@ -185,21 +156,7 @@ export const BUDGETS: ByteBudget[] = [
     id: 'channel-route',
     label: 'Channel route: an app route plus arriving frames',
     entry: src('entry-channel.ts'),
-    /**
-     * Raised from 4 KB, which is the argument the previous note asked the next addition to make.
-     *
-     * What spent it: `cond` in the derived-expression union, so a template may hold `a ? b : c` and
-     * the `??` and `||` the compiler lowers to it. Measured at 4121 B against the old 4096 — 25 B,
-     * for value-level branching evaluated identically on both sides.
-     *
-     * It was 108 B before three passes at the encoding: the coalesce flag went (the compiler emits a
-     * `!== null` test instead), the `cat` node went (a template literal lowers to a `+` chain, and
-     * `+` on a string already concatenates), the operands became `a`/`b`/`c` so the evaluator lines
-     * are byte-identical to the binary case, and `reaches` became structural rather than a case per
-     * kind. The remaining 25 B is the `cond` arm itself.
-     *
-     * Still a watermark rather than a design figure, and still tight on purpose: ~380 B of room.
-     */
+    // Raised from 4,096 to 4,608 for `cond`. See `spec/kernel/budgets.md`.
     limit: 4608,
     limitNote: 'no design figure; a watermark with ~380 B of room, so the next addition argues with a number',
   },
@@ -228,22 +185,7 @@ export const BUDGETS: ByteBudget[] = [
       'no design figure; its own entry, because a page that links nowhere should not pay for staging',
   },
   {
-    /**
-     * The front door's own code, bundled — and **not** what a page downloads.
-     *
-     * This entry claimed to be the download figure and it was wrong by 3.6×. It bundles with
-     * Rolldown and minifies, and this framework has no bundler and no minifier: a page fetches the
-     * boot module and every module it imports as separate responses, served as written with their
-     * types stripped. Walking that graph and compressing each response the way it arrives gives
-     * **25,835 B** for the demo against the 14,031 B below — it was 44,716 against 13,033 when this
-     * was written, and closed to under 2× when a production build stopped shipping its comments.
-     *
-     * The entry stays, because a gate on how much code there *is* is worth having and this is a
-     * good one — minified bytes are a proxy for logic that comments and formatting do not move. It
-     * stops claiming to be the number a reader on a phone pays. That number is measured by
-     * `measureClientJs` in `@weftjs/core`, gated by `budget({ js, grow })`, and reported by
-     * `weft build`.
-     */
+    // The front door's own code, bundled — not what a page downloads. See `spec/kernel/budgets.md`.
     id: 'front-door',
     label: 'The front door’s code, bundled and minified — not what a page downloads',
     entry: front('boot.ts'),
@@ -306,16 +248,9 @@ export async function measureBudgets(budgets = BUDGETS): Promise<BundleSize[]> {
 }
 
 /**
- * Where a measured run is written, so something other than a terminal can read it.
- *
- * `weft.budget.json` beside the documentation site already does this for that site's own weight,
- * and the note in it is the argument for both: *commit this — a growth cap is a diff*. The same
- * holds here. These numbers come out of a bundler and a compressor, which is twenty seconds of work
- * and two dependencies a documentation page cannot take on to render a line; measured once and
- * committed, the number on the page is the number the gate last saw.
- *
- * What is deliberately not recorded is a timestamp or a commit. Either would make every run a diff
- * even when no size moved, which is the thing that trains people to stop reading the diff.
+ * Where a measured run is written, so something other than a terminal can read it. See
+ * `spec/kernel/budgets.md`. Deliberately no timestamp or commit recorded: either would make every
+ * run a diff even when no size moved.
  */
 export const MEASURED = fileURLToPath(new URL('../budgets.json', import.meta.url))
 

@@ -9,25 +9,7 @@ import {
   serveApp,
 } from '@weftjs/core/server'
 
-/**
- * What a page downloads, fetched rather than computed — and the same figure computed, beside it.
- *
- * `weft build` already reports what a page downloads: `measureClientJs` walks the import graph, and
- * `budget({ js, grow })` is enforced against it. That walk is done over files on disk, which is the
- * right way to gate a build and is not proof that a browser receives those bytes. Between the two
- * sit specifier rewrites, type stripping, comment stripping and whatever a host adds — every one of
- * them a place where the number a build reports and the number a reader pays could part company.
- *
- * So this asks the running server. It fetches the document, takes the module the document names,
- * follows every relative specifier in what comes back, and compresses each response on its own —
- * which is how each one arrives, there being no bundler to share a window between them.
- *
- * The agreement is the point rather than either number. `spec/FINDINGS.md` has said "the same walk
- * over HTTP agrees within 0.3%" since the reversal that put it there, and until now that sentence
- * was the only record of a measurement nobody could re-run: it was made once, by hand, and the
- * figure beside it went stale twice while the claim about it did not move. A cross-check that
- * cannot be re-run is a memory of a cross-check.
- */
+/** What a page downloads, fetched rather than computed — and the same figure computed, beside it. See `spec/FINDINGS.md`. */
 export interface DownloadReport {
   root: string
   /** The document whose modules were walked. */
@@ -53,14 +35,7 @@ function compressed(body: string): { raw: number; brotli: number } {
   return { raw: bytes.byteLength, brotli: brotliCompressSync(bytes, BROTLI).byteLength }
 }
 
-/**
- * Every relative specifier in a module, which is the whole of what a browser follows.
- *
- * Bare specifiers are not followed because they are not fetched: the build rewrites the two this
- * framework has into paths, so anything still bare at this point is not something the browser will
- * ask for. `import()` is not followed either — a dynamic import is code the page decided not to
- * need yet, and counting it would report a download that has not happened.
- */
+/** Every relative specifier in a module — the whole of what a browser follows. Bare and dynamic specifiers are excluded. */
 function specifiers(source: string): string[] {
   const found: string[] = []
   for (const match of source.matchAll(/(?:^|[\s;}])(?:from|import)\s*['"]([^'"]+)['"]/g)) {

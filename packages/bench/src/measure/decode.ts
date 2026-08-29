@@ -7,28 +7,7 @@ import { summarize, type Summary } from '../stats.ts'
 import { launchEngine, type EngineName } from './browser.ts'
 import { reachableUrl } from './device.ts'
 
-/**
- * Whether decoding a batch of frames is worth moving off the main thread.
- *
- * The last line of phase 3 that is honestly absent says nothing runs in a worker on the client, and
- * the obvious candidate is the byte-walking half of the frame router: `applyDelta` writes the DOM
- * and cannot leave the main thread by nature, but length prefixes, headers and JSON bodies could be
- * parsed anywhere. So this measures the two paths against each other before anything is built on
- * either — because the interesting outcome is not "it works", it is which one is faster and by how
- * much, and a worker has a floor that decoding might well be under.
- *
- * What is measured, in a real engine:
- *
- * - **main** — `createBinaryDecoder().push(bytes)` on the main thread, then `JSON.parse` of every
- *   text body, which is exactly what the channel does today.
- * - **worker** — the same bytes transferred to a module worker, decoded and parsed there, and the
- *   frames structured-cloned back. The transfer is a real transfer, so the copy out is free and the
- *   copy back is not, which is the shape any real version of this would have.
- *
- * The batch is a `DELTA` whose changed-value set scales with `--rows`, which is the frame this
- * question is actually about: a feed of hundreds of rows is where a decode is large enough to be
- * worth an argument.
- */
+/** Whether decoding a batch of frames is worth moving off the main thread. See `spec/FINDINGS.md`. */
 export interface DecodeRun {
   engine: EngineName
   engineVersion: string
@@ -97,8 +76,7 @@ window.measure = async (base64, iterations) => {
   const bytes = new Uint8Array(raw.length)
   for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i)
 
-  // Warm both paths: a first decode pays for the decoder's own module evaluation and a first
-  // postMessage pays for the worker's, and neither is what a page in steady state is doing.
+  // Warm both paths: a first decode and a first postMessage each pay a one-time cost.
   decodeHere(bytes)
   await decodeThere(bytes)
 
@@ -125,8 +103,7 @@ self.addEventListener('message', (event) => {
   for (const f of frames) {
     if (f.body && f.bodyIsText) JSON.parse(decoder.decode(f.body))
   }
-  // Cloned back rather than transferred: the frames are objects, and this is the cost any real
-  // version pays — the decode leaves the main thread and the result has to come back to it.
+  // Cloned back, not transferred: the frames are objects. See spec/FINDINGS.md.
   self.postMessage({ id: event.data.id, frames })
 })
 `
@@ -191,19 +168,7 @@ export async function measureDecode(
   }
 }
 
-/**
- * The comparison, or the reason there is not one.
- *
- * A browser's `performance.now()` is deliberately coarse — 100 µs in Chromium, and coarser still
- * where cross-origin isolation is off — so a decode this small lands on zero often enough to be
- * the median. Dividing by that median printed `Infinity× slower off-thread`, which is not a
- * measurement of anything: the honest reading is that the main-thread decode is under the clock,
- * and the worker's floor is not.
- *
- * So the ratio is only stated when both halves are above the resolution the samples reveal. Below
- * it, the sentence says what the numbers actually support — the cost of moving the work is
- * measurable and the work itself is not, which is the same conclusion, arrived at honestly.
- */
+/** The comparison, or the reason there is not one — a zero-median decode must not print `Infinity×`. See `spec/FINDINGS.md`. */
 function verdict(run: DecodeRun): string {
   if (run.main.p50 === 0) {
     return (

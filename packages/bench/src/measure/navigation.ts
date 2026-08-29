@@ -4,35 +4,7 @@ import { summarize, type Summary } from '../stats.ts'
 import { laneDeliversEvents, launchEngine, type EngineName, type PageLike } from './browser.ts'
 import { reachableUrl } from './device.ts'
 
-/**
- * What a link costs, staged against not staged.
- *
- * The comparison is between two paths through the *same* application and the same product code.
- * A staged click is answered by the framework: the document was fetched on hover, so the click is
- * a DOM swap. An unstaged click is handed back to the browser, which is what a link has always
- * cost — and the way it is made unstaged is `data-weft-prefetch="off"` on the document, which is
- * the escape hatch the framework already offers rather than a switch invented for the harness.
- *
- * Both numbers are the page's own clock, and both mean the same thing: from the moment the
- * navigation begins to the moment the target route is interactive. The staged figure is the
- * runtime's `nav.lastMs`, timed from the click to the swapped-in regions being adopted. The
- * browser figure is `readyAt` in the new document, which `performance.now()` measures from that
- * document's navigation start — so it contains the request, the response, the parse and the boot.
- *
- * Timed inside rather than outside because outside does not work: driving a click and polling for
- * a condition over the automation protocol costs tens of milliseconds, the two paths end on
- * different signals, and the overhead was larger than the thing being measured. Neither figure is
- * a first-contentful-paint number and neither should be quoted as one.
- *
- * What it does not measure: bytes. A staged navigation transfers the same document as an
- * unstaged one, on the same route, from the same kernel. The saving is *when*, never *how much*.
- *
- * On loopback the two paths differ by a render and a parse, which is real and small. What the
- * staged path actually removes is a round trip, and loopback has no round trip in it — so
- * `--latency` puts one back through the same TCP proxy the streaming axes use, and `--bandwidth`
- * and `--loss` put a rate and a hole in it. What is still absent is the handshake, ack clocking,
- * and every competing flow; all of those make a real link worse than this one.
- */
+/** What a link costs, staged against not staged. See `spec/client/navigation.md`: "What it buys, and where it buys nothing". */
 export interface NavSample {
   /** Click to the target route being interactive, in milliseconds. */
   ms: number
@@ -92,29 +64,7 @@ interface Driver extends PageLike {
 
 const READY = "window.weft && window.weft.stage === 'running'"
 
-/**
- * Arrived, and finished arriving.
- *
- * The two paths finish differently and a fair comparison has to wait for the same thing on both.
- * A staged commit never reloads, so the document is `complete` throughout and what says the page
- * is done is the runtime's own navigation counter ticking — which it does after the regions of
- * the new page have been adopted. A browser navigation is a new document, so it is `complete`
- * plus that document's runtime having finished booting, which is also where its figure comes from.
- *
- * A route whose layout carries no client runtime cannot be measured this way and is skipped by
- * name rather than compared against a different clock. The demo's race pages are that case, and
- * waiting for a `window.weft` that will never exist is how this measurement first hung.
- */
-/**
- * Arrived, and finished arriving — told apart by a marker rather than by a timer.
- *
- * A staged commit and a fallback both end with the same URL in the address bar, and the pathname
- * changes at `pushState`, which is *before* the new regions are adopted. Waiting on "the URL is
- * right and the page looks loaded" therefore stops in the middle of a commit and reads a counter
- * that has not been written yet — which is how a working navigation was reported as one the
- * framework had refused. So a marker is set on the document before the click: it survives a swap
- * and cannot survive a navigation, and the two cases are then separable at all.
- */
+/** Arrived, and finished arriving — told apart by a marker rather than a timer. See `spec/client/navigation.md`. */
 const MARKER = 'window.__weftSample'
 
 function arrived(path: string, staged: number | null): string {
@@ -150,8 +100,7 @@ async function sample(
   const selector = `a[href="${href}"]`
   if (stage) {
     await page.hover(selector)
-    // Hover intent is 65ms and the document has to arrive; the wait is for the answer to be
-    // *held*, so a slow route is measured as staged rather than as a click that raced it.
+    // Waits for the answer to be *held*, so a slow route is measured as staged rather than a click that raced it.
     await page.waitForFunction(
       `window.weft.staged.some((u) => new URL(u).pathname === ${JSON.stringify(at(new URL(href, origin).href))})`,
       undefined,
@@ -164,9 +113,7 @@ async function sample(
   await page.evaluate(`${MARKER} = true`)
   await page.click(selector)
   await page.waitForFunction(arrived(at(new URL(href, origin).href), ticks), undefined, { timeout })
-  // A staged click the framework did not answer is not a staged sample. It happens when the
-  // click and the staging race each other, so it is retried rather than averaged in — and
-  // counted, because a route that keeps doing it is telling the reader of this report something.
+  // A staged click the framework did not answer is retried, not averaged in. See `spec/client/navigation.md`.
   if (stage && ((await page.evaluate<number>('window.weft.nav.staged')) as number) !== ticks) {
     return null
   }
@@ -197,9 +144,7 @@ async function sampled(
 }
 
 export async function measureNavigation(options: NavOptions): Promise<NavReport> {
-  // The documents count is not decoration: it is what separates a staged click from one the
-  // framework handed back to the browser. A lane that cannot deliver the request event cannot
-  // tell those apart, so it refuses rather than reporting a ratio between two unknowns.
+  // Document count is what separates a staged click from an unstaged one. See `spec/baseline/devices.md`.
   if (!laneDeliversEvents(options.engine)) {
     throw new Error(
       `E_LANE_CANNOT: the ${options.engine} lane cannot deliver browser events, and a staged click is ` +
@@ -207,8 +152,7 @@ export async function measureNavigation(options: NavOptions): Promise<NavReport>
     )
   }
 
-  // The build path rather than dev: `weft dev` serves TypeScript with its types stripped, and a
-  // navigation measured against unminified modules is a number about this repository's checkout.
+  // The build path, not dev: dev serves unminified modules, which would make this a number about the checkout.
   await build(options.root)
   const config = await loadConfig(options.root, {})
   const discovered = await discover(options.root, config.srcDir)
@@ -236,9 +180,7 @@ export async function measureNavigation(options: NavOptions): Promise<NavReport>
     if (request.resourceType() === 'document') documents.count++
   }) as never)
 
-  // Every wait scales with the injected link: a page that streams four slow slots pays the round
-  // trip several times over, a rate-limited one pays for its bytes as well, and a timeout that
-  // does not know about either looks like a hang.
+  // Scales with the injected link, or a slow one looks like a hang.
   const timeout = 20_000 + latencyMs * 60 + (options.bandwidthKbps ? 60_000 : 0)
 
   try {
@@ -258,15 +200,7 @@ export async function measureNavigation(options: NavOptions): Promise<NavReport>
     const pairs: NavPair[] = []
     const skipped: string[] = []
     const raced = { count: 0 }
-    /**
-     * Progress, because this is the one measurement here that runs for minutes without a sound.
-     *
-     * Every sample is a page load, a hover, a wait for the answer to be held, a click and a wait
-     * for the arrival — and each of those waits is allowed twenty-six seconds. On an injected link
-     * a run is minutes long by construction, and a run that has stopped looks exactly like a run
-     * that is working. It cost an afternoon to tell those apart once; a line per sample is cheaper
-     * than doing it again.
-     */
+    // Progress line: this run can be minutes long under an injected link. See `spec/client/navigation.md`.
     const total = targets.length * options.iterations * 2
     let done = 0
     const tick = (label: string): void => {
@@ -281,8 +215,7 @@ export async function measureNavigation(options: NavOptions): Promise<NavReport>
       }
       const staged: NavSample[] = []
       const plain: NavSample[] = []
-      // Alternated rather than run in blocks, so a server that warms up or a machine that
-      // throttles moves both figures instead of one.
+      // Alternated, not run in blocks, so warmup or throttling moves both figures instead of one.
       for (let i = 0; i < options.iterations; i++) {
         staged.push(await sampled(page, origin, from, href, true, documents, timeout, raced))
         tick(`${href} staged`)

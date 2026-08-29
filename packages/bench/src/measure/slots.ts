@@ -89,11 +89,7 @@ async function visit(engine: EngineName, url: string, iterations: number) {
   }
 }
 
-/**
- * Streams the same route twice, once in document order and once fastest-first, and records
- * when each region actually appears. The slow region is first, so in-order has to hold the
- * fast one behind it and out-of-order does not.
- */
+/** Streams the same route twice, in document order and fastest-first, and records when each region appears. */
 export async function measureSlots(engine: EngineName, iterations = 5): Promise<SlotRun> {
   const ir = await template()
   const results: Record<Order, { times: RegionTimes[]; markup: string; version: string }> = {} as never
@@ -129,12 +125,7 @@ export interface DsdProbe {
   closedMs: number
 }
 
-/**
- * The platform risk the design calls its largest: declarative shadow DOM is Baseline, but
- * attaching the shadow root *while the host is still streaming* is tracked separately and
- * may differ by engine. If it does not work, zero-JavaScript hole filling is not available
- * and the inline filler is the primary path rather than a fallback.
- */
+/** The platform risk the design calls its largest. See `spec/kernel/streaming.md`. */
 export async function probeIncrementalDsd(engine: EngineName): Promise<DsdProbe> {
   const head = `<!doctype html><html><head><meta charset="utf-8"><script>
 window.__p={shadow:null,slotted:null,rendered:false};

@@ -162,24 +162,7 @@ function shapedPipe(from: Socket, to: Socket, options: LinkOptions, seedOffset: 
     })
   }
 
-  /**
-   * A closed source does not cancel bytes already on the wire.
-   *
-   * This used to clear every pending timer when `from` closed, and that is what a shaped link is
-   * least able to survive: the delayed writes *are* the bytes in flight. A socket emits `end` and
-   * then `close` within the same turn, so a response whose last chunk was scheduled half a
-   * millisecond out had that chunk — and the `end` behind it — thrown away before either ran. The
-   * receiver was left waiting for a body that had been handed to a timer and then deleted.
-   *
-   * It survived the HTTP axes because those measure over a warm keep-alive connection that does not
-   * close between samples. A browser closes connections constantly, so `nav --latency` hung on the
-   * first module fetch that finished — at any latency, including 1 ms, which is what showed that
-   * the delay was never the problem.
-   *
-   * So the timers are left to run. Each already checks `to.destroyed` before writing, they are
-   * bounded by one link delay, and the set exists for the error path, where there is no stream left
-   * to be faithful to.
-   */
+  // A closed source does not cancel bytes already on the wire. See `spec/client/navigation.md`.
   from.on('error', () => {
     for (const timer of timers) clearTimeout(timer)
     timers.clear()

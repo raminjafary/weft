@@ -4,37 +4,7 @@ import { deltaKey, recordBase, recoverBase } from '@weftjs/kernel'
 import { compileScenario, withRows } from '../compiled.ts'
 import type { Scenario } from '../workloads/index.ts'
 
-/**
- * The claim phase 6 exists to make, measured.
- *
- * LiveView is the strongest prior art and the one thing it structurally cannot do is the whole
- * opportunity: it keeps the previous render in a process per connected user, so a diff is
- * computed per connection and can never be shared. Ten thousand users watching one price list
- * produce ten thousand identical diffs.
- *
- * Keeping the render state on the client inverts that. The client names the base render it
- * holds, so a delta is a pure function of two content-addressed states — which makes it
- * cacheable by exactly the machinery that already exists, and one computation can serve every
- * client making the same transition.
- *
- * **What is being compared, precisely.** Both strategies use the same differ over the same
- * templates and the same transition. The only variable is where the previous state lives and
- * therefore whether a diff can be shared. That is the architectural difference and it is the
- * whole of what this measures.
- *
- * **What is not being compared.** Phoenix is not running here. This does not measure BEAM
- * scheduling, Phoenix's wire encoding, its own tracked-comprehension optimisation, or any
- * constant factor of a real LiveView deployment — those need Elixir on the machine. The
- * per-connection number is a real per-connection differ implemented in this harness, and the
- * claim it supports is structural: a per-connection differ does N diffs where a shared one does
- * one, and no amount of tuning changes the N.
- *
- * **Both arrival patterns are reported**, because only one of them favours us. When every
- * client holds the same base — a broadcast, a feed, a price list — the shared strategy is N:1.
- * When every client holds a different base, there is nothing to share and the shared strategy
- * does the same N diffs *plus* a store read and write for each, so it is slightly worse than
- * per-connection. Reporting only the first number would be advocacy.
- */
+/** The claim phase 6 exists to make, measured. See `spec/kernel/surgical.md`: "Why the shared delta is the point". */
 export interface DeltaStrategyResult {
   strategy: 'per-connection' | 'shared'
   /** Arrivals on the same base render, or each on its own. */
@@ -59,11 +29,7 @@ export interface SharedDeltaReport {
   results: DeltaStrategyResult[]
 }
 
-/**
- * A per-connection differ, which is what LiveView's architecture is: state per connection, a
- * diff per connection, and no way for two connections to share one. Implemented rather than
- * modelled so the comparison is between two running things.
- */
+/** A per-connection differ, which is what LiveView's architecture is. See `spec/kernel/surgical.md`. */
 function perConnection(
   clients: number,
   prev: Values,
@@ -73,8 +39,6 @@ function perConnection(
   arrival: 'aligned' | 'staggered',
   bases: string[],
 ): DeltaStrategyResult {
-  // Each connection holds its own copy of the previous render. That is the memory cost this
-  // architecture pays and the reason a diff cannot be shared.
   const held = Array.from({ length: clients }, (_, i) => (arrival === 'aligned' ? prev : stagger(prev, i)))
   const started = performance.now()
   let computations = 0
@@ -97,11 +61,7 @@ function perConnection(
   }
 }
 
-/**
- * The shared strategy: the client names its base, the server recovers it, and the delta is
- * memoized under the transition it encodes. The second client to make a transition pays a store
- * read; so does the ten-thousandth.
- */
+/** The shared strategy: the client names its base, the server recovers it, and the delta is memoized under the transition. */
 async function shared(
   clients: number,
   prev: Values,
@@ -138,8 +98,6 @@ async function shared(
       bytes += cached.value.length
       continue
     }
-    // The base comes out of the store rather than out of a per-connection process, which is
-    // the whole point: any stateless isolate can serve this client.
     reads++
     const base = await recoverBase(store, ir.version, bases[i] as string)
     const payload = deltaPayload(ir, bases[i] as string, base as Values, next, resolve)

@@ -2,20 +2,7 @@ import { build, createApp, discover, loadBuild, loadConfig, serveApp } from '@we
 import { laneDeliversEvents, launchEngine, type EngineName } from './browser.ts'
 import { reachableUrl } from './device.ts'
 
-/**
- * Which binding a real browser actually opens, and what happens when it cannot open the one it
- * wants.
- *
- * The transport spec said there was no browser-side socket, and the reason was sound: the runtime
- * takes frames rather than a URL, so one code path serves a socket, an SSE stream with POSTs up, and
- * a test. What that left is a front door that never opened one — every live page ran on a POST per
- * uplink frame and a chunked response no proxy is obliged to keep open.
- *
- * A socket is not something you can assert from a unit test. `WebSocket` reports failure as a late
- * event, an upgrade dies in a proxy rather than in a library, and the answer differs by engine. So
- * this asks the server which binding it actually got, in each engine, and then breaks the upgrade on
- * purpose to find out whether the page still works.
- */
+/** Which binding a real browser actually opens, and what happens when it cannot open the one it wants. See `spec/kernel/transport.md`. */
 export interface ChannelCheck {
   name: string
   ok: boolean
@@ -48,9 +35,7 @@ export async function measureChannel(root: string, engine: EngineName): Promise<
     )
   }
 
-  // The build path rather than dev, for the reason the navigation measurement uses it: what a
-  // reader loads is the built module graph, and a socket that only opens against source is not a
-  // socket anybody has.
+  // The build path, not dev — same reason as the navigation measurement.
   await build(root)
   const config = await loadConfig(root, {})
   const discovered = await discover(root, config.srcDir)
@@ -96,13 +81,7 @@ export async function measureChannel(root: string, engine: EngineName): Promise<
     })
     await page.close()
 
-    /**
-     * The same page with the upgrade broken, which is the case the fallback exists for.
-     *
-     * Not an old browser: a proxy that buffers, a middlebox that eats upgrades, a platform that
-     * terminates them. `routeWebSocket` closing every connection is that, and the assertion is that
-     * the page still connects — on the two fetches, and the server says which.
-     */
+    // The same page with the upgrade broken, which is the case the fallback exists for. See `spec/kernel/transport.md`.
     const blocked = (await context.newPage()) as Driver
     const failures: string[] = []
     blocked.on('pageerror', ((error: { message: string }) => failures.push(error.message)) as never)

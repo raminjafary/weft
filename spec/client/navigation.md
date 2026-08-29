@@ -327,6 +327,29 @@ kernel, on the same route; what changes is when it is asked for. That is also wh
 does not move this table much and moves the byte axes a great deal: the link proxy prices bytes,
 and these two paths carry the same ones.
 
+### How the harness tells the two paths apart
+
+Both figures are the page's own clock — a staged commit never reloads, so the document stays
+`complete` throughout and what marks it done is the runtime's own navigation counter ticking after
+the new regions are adopted; a browser navigation is a new document, `complete` plus that
+document's own runtime finishing its boot. Timed inside the page rather than outside it, because
+outside does not work: driving a click and polling for a condition over the automation protocol
+costs tens of milliseconds on its own, which was larger than the thing being measured.
+
+Telling a staged commit from a fallback needed a marker rather than a timer. Both end with the same
+URL in the address bar, and the pathname changes at `pushState` — _before_ the new regions are
+adopted — so waiting on "the URL is right and the page looks loaded" stops in the middle of a
+commit and reads a counter that has not been written yet, which is how a working navigation was
+once reported as one the framework had refused. A flag set on the document before the click
+survives a swap and cannot survive a navigation, which is what makes the two cases separable at
+all. A click that beats the staging it was meant to use is retried rather than averaged in, and
+counted: a route that keeps doing it is telling the reader of the report something.
+
+Every sample here is a page load, a hover, a wait for the answer to be held, a click and a wait for
+arrival, each allowed twenty-six seconds — so a run under an injected link is minutes long by
+construction and looks exactly like a run that has stopped, which cost an afternoon to tell apart
+before the harness started printing a progress line per sample.
+
 ## What the client knows before it asks
 
 Staging a route is a request and a render. Knowing _about_ a route is neither, and the two are worth
