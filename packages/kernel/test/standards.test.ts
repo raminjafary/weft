@@ -4,13 +4,8 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 /**
- * The rule that makes portability a property rather than a porting exercise: the kernel
- * imports nothing but the WinterTC Minimum Common Web API. Anything outside it — a
- * filesystem, a socket, `process`, `Buffer`, Node timer semantics — reaches the kernel
- * through a port and lives in an adapter.
- *
- * This is a gate rather than a paragraph, because a rule stated in a design document and
- * not checked in CI is a rule that lasts until the first inconvenient afternoon.
+ * The rule that makes portability a property rather than a porting exercise: the kernel imports
+ * nothing but the WinterTC Minimum Common Web API. See `spec/kernel/ports.md`.
  */
 const SRC = fileURLToPath(new URL('../src/', import.meta.url))
 
@@ -37,12 +32,8 @@ test('the kernel imports no host runtime', () => {
 })
 
 /**
- * Code, with comments removed — because this gate is about what the kernel *touches*, and a
- * sentence naming `Buffer` to say the kernel does not use it touches nothing.
- *
- * It fired on exactly that: a base64url helper whose comment explained why it was not using the
- * Node global. The line-count check in this file already learned this lesson the same way, and a
- * check that fires when somebody explains the rule teaches people to stop explaining it.
+ * Code, with comments removed — this gate is about what the kernel *touches*, and it once fired
+ * on a comment explaining why a helper was not using `Buffer`.
  */
 function stripComments(text: string): string {
   return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
@@ -80,89 +71,24 @@ test('the kernel only reaches sideways into the two versioned wire packages', ()
 })
 
 /**
- * The line count is a smell detector for the kernel absorbing work that belongs in a port. It
- * is not the byte budget — that is in `@weftjs/bench` — and it has now been re-derived three
- * times, each time because it was measuring something other than what it claims to.
- *
- * First it summed every file in `src/`, so routing appeared to blow it and the ceiling was
- * moved from 2,500 to 2,900. That was the gross-versus-marginal mistake the byte budget had
- * already made and fixed, so it became per entry by reachability.
- *
- * Then it fired on backpressure and a pair of TTLs — and 30% of what it was counting was
- * documentation. A detector meant to catch absorbed work that fires when somebody explains
- * the work is not measuring absorbed work. So it counts **code** lines: comments and blank
- * lines are stripped before counting.
- *
- * The honest position after three of these: the byte budget is the gate and this is a weak
- * heuristic that has cost more attention than it has earned. It survives because a kernel that
- * doubles in code with no byte change is still worth being told about. **If it needs a fourth
- * re-derivation it should be deleted rather than fixed**, and that is a commitment, not a
- * caveat.
+ * A smell detector for the kernel absorbing work that belongs in a port — not the byte budget,
+ * which is in `@weftjs/bench`. Counts **code** lines only. See `spec/kernel/budgets.md` for why
+ * this exists and the commitment that a fourth re-derivation means deleting it rather than
+ * fixing it again.
  */
 const LINE_CEILINGS: Record<string, number> = {
-  // Three lines, for a correctness fix the request path could not do without: cutting a shell at
-  // its slots now resolves derived values first and renders a component instance through the arm
-  // that knows how to project its props. Before it, every conditional and every composed component
-  // in a layout wrote nothing — silently, because a hole that writes no bytes looks exactly like a
-  // hole whose value was empty. See `splitAtSlots`.
   'entry-request.ts': 1850,
-  // Nested layouts: the request path plus the splice that assembles a chain of layouts into one
-  // cut document. Its own entry because the chain walk did not fit in the 8 KB path — see
-  // `spec/kernel/budgets.md`.
   'entry-nested.ts': 1900,
-  // The surgical ladder grew a second rung — `patch`, for a region whose values are not
-  // projectable — and the *choice* lives where every other form choice lives, so 31 lines landed
-  // in the refresh path and moved this ceiling and the three below it. The encoder itself is not
-  // here: it arrives through `SurgicalInput.patch` and is measured under `entry-patch.ts`,
-  // because written into this path it took four byte watermarks past their ceilings.
   'entry-channel.ts': 2200,
-  // The same 31 lines, once per entry that carries the refresh path.
   'entry-patch.ts': 2200,
-  // Rate limiting took this past 2,100, and the ceiling moves rather than the code. The design puts
-  // rate limiting in the authority tier and this is the one piece of that tier the intent path has
-  // to carry anyway: it is a gate on *every* intent, so the branch lives where the dispatch is, and
-  // the port it calls through is declared beside the other thirteen. Both alternatives are worse —
-  // a second dispatch site in the authority entry, or a port declared somewhere ports are not. The
-  // byte figure moved 9,457 → 9,643 with 597 left, which is the number that actually gates.
   'entry-intent.ts': 2200,
-  // Five lines, for the hook that tells whatever this process cannot reach. `notify` walks the
-  // connections *this* hub holds, which is all of push invalidation on one instance, half of it on
-  // more than one, and none of it for a client that holds no connection — and both gaps are filled
-  // from outside, by a fanout and by a journal. The hub carries one optional call and no knowledge
-  // of which it got; naming them here would have been a branch per capability in the path every
-  // deployment pays for. Moved 2,600 → 2,650 rather than by the five, so the next addition argues
-  // with a number instead of repeating this.
   'entry-transport.ts': 2650,
-  // A route staged over the channel: the transport plus `stage.ts`, and its own entry for the same
-  // reason the transport has one — it went past a watermark set before it existed.
   'entry-stage.ts': 2750,
-  // The journal: the transport plus somewhere an invalidation waits for a client that is not
-  // connected. Its own entry twice over — a capability pays for itself, and the hub does not import
-  // it, so nothing else here would ever have counted it.
   'entry-journal.ts': 2700,
-  // Authority: the intent path plus a capability model and signed intents. The tier the design
-  // calls separable, so it gets a ceiling it can be reviewed against rather than a share of the
-  // intent path's. 2,500 was set before delegation, which is 43 lines of narrowing rules and their
-  // refusals — the byte figure moved 11,308 → 11,631 against a ceiling of 12,288, which is the
-  // number that actually gates.
   'entry-authority.ts': 2600,
-  // Lazy plan extension, on top of route staging. The whole capability is one module.
   'entry-discover.ts': 2800,
-  // Composition: regions resolved through the registry and checked on arrival. The document path
-  // plus `region.ts`, and its own ceiling because a deployment that composes nothing has no
-  // business carrying it. 2,100 was set before the contract carried a region's reads, which is
-  // what makes a composed page cacheable rather than uniformly private; it went one line over.
-  // Render intents: the transport plus the catalogue. The gates it applies are the intent path's, so
-  // the growth here is the catalogue and the dispatch and not a second authority tier. Moved
-  // 2,800 → 2,850 for the three lines that ask the stale registry what one connection is holding:
-  // the connection that ran an intent is excluded from the `STALE` on the grounds that it is being
-  // handed the new values, and until those three lines that was only true when the author listed
-  // the slots in `refresh` as well as declaring the writes.
   'entry-render.ts': 2850,
   'entry-region.ts': 2200,
-  // The transport plus composition: what a gateway that serves both a channel and composed
-  // documents imports. Neither of the two entries above covers it, and charging it to either would
-  // mean a deployment paying for a capability it does not have.
   'entry-region-channel.ts': 3100,
 }
 
@@ -176,13 +102,9 @@ function codeLines(text: string): number {
 }
 
 /**
- * The request path is what the 8 KB claim is measured against, so what may enter it is a rule
- * and not a preference. Three kinds of module are excluded, each with its reason recorded next
- * to it: work that has no request to do it for, checks the design specifies as dev-time, and
- * policy the kernel deliberately does not have an opinion about.
- *
- * Reachability, not a grep. A module three imports deep is in the request path exactly as
- * much as one imported directly, and that is the mistake this catches.
+ * The request path is what the 8 KB claim is measured against, so what may enter it is a rule and
+ * not a preference. Reachability, not a grep — a module three imports deep is in the request path
+ * exactly as much as one imported directly. See `spec/kernel/budgets.md`.
  */
 const OFF_THE_REQUEST_PATH: Record<string, string> = {
   'plugin-graph.ts': 'build-time: plugin ordering is inferred from static declarations',

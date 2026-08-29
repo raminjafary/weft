@@ -292,25 +292,27 @@ on that basis. Three re-derivations is enough evidence that the check's design i
 So the ceiling is back at 2,500 and each entry has its own, by the same reachability walk the
 byte budget uses:
 
-| Entry                     | Ceiling |
-| ------------------------- | ------- |
-| `entry-request.ts`        | 1,800   |
-| `entry-channel.ts`        | 2,100   |
-| `entry-intent.ts`         | 2,200   |
-| `entry-authority.ts`      | 2,500   |
-| `entry-transport.ts`      | 2,500   |
-| `entry-stage.ts`          | 2,600   |
-| `entry-discover.ts`       | 2,700   |
-| `entry-render.ts`         | 2,800   |
-| `entry-region.ts`         | 2,200   |
-| `entry-region-channel.ts` | 3,100   |
+| Entry                     | Ceiling | Last moved for                                                                 |
+| ------------------------- | ------- | ------------------------------------------------------------------------------ |
+| `entry-request.ts`        | 1,850   | Cutting a shell at its slots resolving derived values before it projects props |
+| `entry-nested.ts`         | 1,900   | No move yet                                                                    |
+| `entry-channel.ts`        | 2,200   | The `patch` rung's form choice, which lives in the refresh path                |
+| `entry-patch.ts`          | 2,200   | The same 31 lines, once per entry carrying the refresh path                    |
+| `entry-intent.ts`         | 2,200   | Rate limiting — a gate on every intent, so the branch lives at the dispatch    |
+| `entry-authority.ts`      | 2,600   | Delegation: 43 lines of narrowing rules and their refusals                     |
+| `entry-transport.ts`      | 2,650   | The fanout/journal hook, one optional call with no knowledge of which it got   |
+| `entry-stage.ts`          | 2,750   | Tracks the transport above it                                                  |
+| `entry-journal.ts`        | 2,700   | No move yet since its own entry was cut                                        |
+| `entry-discover.ts`       | 2,800   | No move yet since its own entry was cut                                        |
+| `entry-render.ts`         | 2,850   | Excluding a connection from its own `STALE` on a write it just requested       |
+| `entry-region.ts`         | 2,200   | The contract carrying a region's reads, which is what makes it cacheable       |
+| `entry-region-channel.ts` | 3,100   | No move yet since its own entry was cut                                        |
 
-`entry-intent.ts` moved from 2,100 to 2,200 when rate limiting landed, and the ceiling moved rather
-than the code. The limit is a gate on _every_ intent, so its branch lives where the dispatch is, and
-the port it calls through is declared beside the other thirteen. Both alternatives are worse: a second
-dispatch site in the authority entry, or a port declared somewhere ports are not. The number that
-actually gates moved 9,457 → 9,643 with 597 bytes left, which is the check doing its job — telling you
-the intent path absorbed something, and letting you decide it belonged there.
+`entry-intent.ts`'s move is the fullest example: rate limiting put it a gate on _every_ intent, so
+its branch lives where the dispatch already is rather than a second dispatch site in the authority
+entry or a port declared somewhere ports are not. The byte figure that actually gates moved
+9,457 → 9,643 with 597 bytes left — the check doing its job, telling you the intent path absorbed
+something and letting you decide it belonged there.
 
 The measured figures are deliberately not repeated here. Three re-derivations went into making this
 check measure something, and a table of numbers in prose is a fourth one waiting to happen: the
