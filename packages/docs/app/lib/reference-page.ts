@@ -21,13 +21,9 @@ import {
 } from './reference.ts'
 
 /**
- * The reference section, as blocks.
- *
- * Every page here has the same four movements — what this is, a whole file to copy, a summary
- * table, then one entry per field — and they are in that order because it is the order somebody
- * uses them in. The table is for the reader who knows the name and wants the default; the entries
- * are for the reader who does not know the name yet, which is why the outline column lists every
- * one of them.
+ * The reference section, as blocks. Every page: what this is, a file to copy, a summary table,
+ * then one entry per field. The table is for a reader who knows the name; the entries are for one
+ * who doesn't, which is why the outline lists every field.
  */
 
 const REPO = 'https://github.com/raminjafary/weft/blob/main'
@@ -53,14 +49,7 @@ function codeOrDash(text: string): Cell {
   return text === '—' ? cell.hint(text) : cell.code(text)
 }
 
-/**
- * A field with no doc comment of its own.
- *
- * Said rather than left blank, and said the same way the API page says it: the type and the file
- * are what the page can honestly show, and a sentence invented here would be a sentence nothing
- * checks. Every one of these is a doc comment somebody could write in the framework, and writing
- * it there is what puts it here.
- */
+/** A field with no doc comment of its own — said rather than left blank, since an invented sentence here would be one nothing checks. */
 const UNDOCUMENTED =
   'No doc comment on the declaration. The type and the default above are all this page can ' +
   'honestly show — and a sentence invented here would be one nothing checks.'
@@ -267,13 +256,7 @@ export function referenceBody(id: string): Block[] {
   return [...body, ...sequence(reference)]
 }
 
-/**
- * Previous and next, at the foot of the page.
- *
- * The guide has had this since it was a sequence; the reference is one too — the six pages are in
- * the order somebody meets them, from the folder to the file to the deployment — and a reader who
- * finishes one should not have to go back to the rail to find the next.
- */
+/** Previous and next, at the foot of the page — the six reference pages are in the order somebody meets them, folder to file to deployment. */
 function sequence(reference: Reference): Block[] {
   const at = REFERENCES.indexOf(reference)
   const previous = REFERENCES[at - 1]

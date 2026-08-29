@@ -4,19 +4,10 @@ import { fileURLToPath } from 'node:url'
 import { declarationOf, extendsOf, functionsIn, interfacesIn, typeAliasesIn } from './declared.ts'
 
 /**
- * Every seam the kernel refuses to know about, and what fills it.
- *
- * Three facts, and none of them is typed here. The ports are the `*Port` interfaces the kernel
- * declares, with the doc comment above each. The implementations are the exported functions in
- * `@weftjs/adapters` whose return type is one — resolved through a branded alias where there is one,
- * because `redisLeases` returns a `LeasedStore` and a reader looking for "what can be a store"
- * should find it. And the config key is the `WeftConfig` option whose own type names that port, so
- * the column saying which of them a deployment can take over is derived from the config rather than
- * from somebody remembering to keep a list beside it.
- *
- * The count is a claim the guide makes — fourteen declared, fourteen implemented — and it is the
- * kind of claim that goes stale the first time a fifteenth arrives. `test/docs.test.ts` holds the
- * page to the source instead.
+ * Every seam the kernel refuses to know about, and what fills it. Three facts, none typed here:
+ * the `*Port` interfaces the kernel declares, the `@weftjs/adapters` functions returning one
+ * (resolved through a branded alias where there is one), and the `WeftConfig` key naming that
+ * port. `docs.test.ts` holds the page's counts to the source.
  */
 export interface Implementation {
   name: string
@@ -92,13 +83,7 @@ export function ports(): Port[] {
   }
   for (const port of found) port.implementations.sort((a, b) => a.name.localeCompare(b.name))
 
-  /**
-   * Which option binds which port, from the option's own type.
-   *
-   * `limits?: LimitPort | { counted: CountedAgainst }` names its port in a union, so the match is on
-   * the name appearing rather than on the type being exactly it — which is what makes the column
-   * right for the option that takes a port *or* the two words the framework needs to count itself.
-   */
+  // Matches on the port's name appearing in the type, not being exactly it — `limits?: LimitPort | { counted: CountedAgainst }` names its port inside a union.
   for (const field of declarationOf(CONFIG, 'WeftConfig').fields) {
     for (const port of found) {
       if (!port.key && new RegExp(`\\b${port.name}\\b`).test(field.type)) port.key = field.name
