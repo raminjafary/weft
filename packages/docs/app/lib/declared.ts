@@ -5,18 +5,11 @@ import { parseSync } from 'oxc-parser'
 import { escapeHtml } from './escape.ts'
 
 /**
- * The declaration surfaces, read out of the source rather than written beside them.
- *
- * `surface.ts` already walks every package's exports, and that answers "what is exported". It does
- * not answer the question somebody configuring a deployment actually has, which is "what may I put
- * in `weft.config.ts`, what does it accept, and what happens if I leave it out" — because an
- * interface reaches the API page as one signature, and `WeftConfig` is seven thousand characters of
- * it. The page truncated it at 880 and put an ellipsis where twenty-nine options used to be.
- *
- * So this reads the members instead: one entry per property, with the doc comment its author wrote
- * above it, the type as written, and — for the config — the default the loader actually applies.
- * `test/docs.test.ts` asserts every member appears on the page, which is what makes "every option
- * is documented" a gate rather than a claim.
+ * The declaration surfaces, read out of the source: one entry per property, its doc comment, its
+ * type as written, and (for the config) the default the loader actually applies. `surface.ts`
+ * already answers "what is exported"; this answers "what may I put in `weft.config.ts`" — a whole
+ * interface as one signature once truncated `WeftConfig` at 880 characters, dropping 29 options.
+ * `docs.test.ts` asserts every member appears on the page.
  */
 export interface Field {
   name: string
@@ -84,13 +77,7 @@ function node(value: unknown): Node_ | undefined {
   return value && typeof value === 'object' ? (value as Node_) : undefined
 }
 
-/**
- * The block comment immediately above a node: nothing but whitespace between them.
- *
- * Line comments are not doc comments, and skipping them is not tidiness. `ports.ts` separates its
- * fourteen interfaces with `// ── session ──` banners, so a walk that took the nearest comment of
- * any kind gave three ports a row of box-drawing characters where their description should be.
- */
+/** The block comment immediately above a node. Line comments are excluded deliberately — `ports.ts`'s `// ── section ──` banners once leaked in as descriptions. */
 function docFor(file: Parsed, start: number): string {
   let best: Comment | undefined
   for (const comment of file.comments) {
@@ -116,13 +103,7 @@ function oneLine(text: string): string {
     .trim()
 }
 
-/**
- * A member's type, as written.
- *
- * A method signature has no type annotation to slice — `roles?(subject: string): string[]` is the
- * whole declaration — so it is rebuilt as the arrow a reader would write instead, which is also the
- * form the other half of these interfaces uses for the same thing.
- */
+/** A member's type, as written. A method signature has no type annotation to slice, so it's rebuilt as the arrow form a reader would write instead. */
 function typeOf(file: Parsed, member: Node_): string {
   if (member.type === 'TSMethodSignature') {
     const args = nodes(member.params)
@@ -139,14 +120,7 @@ function typeOf(file: Parsed, member: Node_): string {
   return inner ? renderType(file, inner) : 'unknown'
 }
 
-/**
- * A type as one line.
- *
- * An object literal is rebuilt from its members rather than sliced, because the source separates
- * them with newlines where a reader writing one on a line separates them with `;` — and collapsing
- * the newlines away would produce `{ kid: string privateKey?: string }`, which is not a type
- * anybody could paste.
- */
+/** A type as one line. An object literal is rebuilt from its members rather than sliced, since collapsing its newlines would drop the `;` separators a one-line type needs. */
 function renderType(file: Parsed, type: Node_): string {
   if (type.type === 'TSTypeLiteral') {
     const members = nodes(type.members).map((member) => {
@@ -189,13 +163,7 @@ function fieldOf(file: Parsed, member: Node_, deep: boolean): Field | undefined 
   }
 }
 
-/**
- * One interface, as its members.
- *
- * `export interface X` and a bare `interface X` are both found, because the two halves of a
- * declaration surface are not always both exported — `HeadDeclaration` is a field's type and not a
- * name an application imports, and it is still a thing somebody writes.
- */
+/** One interface, as its members. Finds both `export interface X` and a bare `interface X` — not every declared shape is also exported. */
 export function declarationOf(file: string, name: string): Declaration {
   const source = parsed(file)
   for (const statement of nodes(source.program.body)) {
@@ -215,15 +183,9 @@ export function declarationOf(file: string, name: string): Declaration {
 }
 
 /**
- * What the loader falls back to, keyed by the path in the config file that would have decided it.
- *
- * Read out of the `??` expressions in the function that resolves the config, rather than typed into
- * a table beside them. A table would be a second copy of every default, and a default is exactly
- * the kind of number somebody changes without looking for the page that quotes it.
- *
- * `config.session?.cookie ?? 'sid'` is `session.cookie` → `'sid'`. A fallback that is itself
- * computed from the config — `stale`, which is an hour of any non-zero `shared` — comes back with
- * `config` still in it, and the page says "derived" rather than printing an expression.
+ * What the loader falls back to, keyed by the config path — read from the `??` expressions in the
+ * resolver rather than typed into a table nobody updates when a default changes. A fallback that's
+ * itself computed from the config comes back with `config` still in it; the page says "derived".
  */
 export function defaultsOf(file: string, variable = 'config'): Map<string, string> {
   const { source } = parsed(file)
@@ -236,13 +198,7 @@ export function defaultsOf(file: string, variable = 'config'): Map<string, strin
     if (expression && !out.has(path)) out.set(path, expression)
   }
 
-  /**
-   * The other shape a default is written in: a comparison, where the falsy side is the default.
-   *
-   * `config.navigation?.scroll === 'preserve' ? 'preserve' : 'top'` has no `??` to read, and it is
-   * not an oddity — it is how a loader narrows a union to the one value it recognises. Scanned
-   * rather than listed beside it, because a default listed by hand is one nobody updates.
-   */
+  // The other shape: a comparison narrowing a union, with no `??` to read — e.g. `config.x === 'a' ? 'a' : 'b'`.
   const narrowed = new RegExp(
     `\\b${variable}((?:\\??\\.[A-Za-z0-9_$]+)+)\\s*===\\s*'[^']*'\\s*\\?[^:]+:\\s*('[^']*')`,
     'g',
@@ -280,12 +236,7 @@ function expressionAt(source: string, from: number): string {
   return ''
 }
 
-/**
- * A doc comment as inline HTML: backticks become code, and nothing else is interpreted.
- *
- * A doc comment is prose, not markdown. Escaping first is what makes it safe to hand to a `raw()`
- * hole — the only markup that survives is the `<code>` this function puts there.
- */
+/** A doc comment as inline HTML: backticks become `<code>`, nothing else is interpreted. Escaped first, so it's safe for a `raw()` hole. */
 export function docHtml(text: string): string {
   return escapeHtml(text.replace(/\s+/g, ' ')).replace(/`([^`]+)`/g, '<code>$1</code>')
 }

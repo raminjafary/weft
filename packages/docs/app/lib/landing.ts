@@ -6,15 +6,9 @@ import { demoWeight } from './budgets.ts'
 import { SECTIONS } from './sections.ts'
 
 /**
- * The landing page's body.
- *
- * It is the one page on this site that is not a document page, so it is the one page with a builder
- * of its own rather than headings and prose: a hero over a tabbed panel, a band of measurements, one
- * figure drawn to scale, and two card decks. Its stylesheet is `routes/index.css`, linked only here.
- *
- * Every number on it is counted rather than typed — the caller passes what it walked out of the
- * source — because a landing page that quotes a figure somebody has to remember to update is a
- * landing page that lies within a month.
+ * The landing page's body — the one page on this site with its own builder rather than headings
+ * and prose. Every number on it is counted, not typed, since a quoted figure nobody updates lies
+ * within a month.
  */
 
 const enc = escapeHtml
@@ -40,13 +34,7 @@ interface Tab {
   code: string
 }
 
-/**
- * Four tabs, because there are four things worth seeing before deciding: what a page declares, what
- * a fragment compiles to, what actually travels, and the one thing allowed to write.
- *
- * Radio inputs and `:has(:checked)`, so the panel switches with no script at all. That is not a
- * stunt — it is the claim the page is making, made by the page.
- */
+/** Four tabs: what a page declares, what a fragment compiles to, what travels, what may write. Radio inputs + `:has(:checked)`, no script. */
 const TABS: readonly Tab[] = [
   {
     id: 'route',
@@ -197,13 +185,7 @@ function bytes(value: number): string {
   return value.toLocaleString('en-US')
 }
 
-/**
- * Each row's share of the longest bar in its own chart, which is the only scale a bar can carry.
- *
- * Measured on the rounded figure rather than the raw one, so the bar and the number beside it agree:
- * two rows printed as 84.67 and 95.40 should draw the ratio those two printed numbers have, not the
- * one four hidden decimal places have.
- */
+/** Each row's share of the longest bar in its own chart. Measured on the rounded figure, so the bar agrees with the printed number. */
 function shares<T>(rows: readonly T[], of: (row: T) => number, places = 0): number[] {
   const at = (row: T) => Number(of(row).toFixed(places))
   const top = Math.max(...rows.map(at))
@@ -228,15 +210,9 @@ const CANDIDATES: readonly { id: string; label: string; note: string; lit?: bool
 ]
 
 /**
- * The band, and it is one measurement rather than four boasts.
- *
- * A row of headline multiples is the shape a landing page reaches for and the shape that says least:
- * a number with nothing beside it is a number a reader has to trust. This is the axis the framework's
- * central claim lives on — when the first byte leaves, with a slow query behind a slot — drawn for
- * every candidate the run measured, including the two configurations of this framework that lose.
- * The row that wins is labelled, not emphasised into being the only one visible.
- *
- * Every figure is read out of `results/`. Nothing here is typed.
+ * The band: one measurement, not four boasts. Every figure read from `results/`, nothing typed —
+ * including the two configurations of this framework that lose. The winning row is labelled, not
+ * the only one shown.
  */
 function band(): string {
   const measured = CANDIDATES.map((entry) => ({ ...entry, row: candidate(entry.id) }))
@@ -289,12 +265,9 @@ const LAST_ROWS: readonly { id: string; label: string; note: string; lit?: boole
 ]
 
 /**
- * The two axes the band does not carry, and the admissions that belong beside them.
- *
- * Bytes, because the first byte leaving early says nothing about how many follow it; and time to
- * last byte, because streaming moves the first byte and a reader is owed the number it does *not*
- * move. The card headed "what is not fair" is not modesty — the two applications cannot be made
- * byte-identical, and a benchmark that did not say so would be one worth less than no benchmark.
+ * The two axes the band doesn't carry: bytes (an early first byte says nothing about how many
+ * follow), and time to last byte (the number streaming does not move). "What is not fair" names
+ * that the two applications can't be made byte-identical.
  */
 function benchmarks(): string {
   const meta = run()
@@ -402,15 +375,7 @@ function wire(): string {
   </section>`
 }
 
-/**
- * The way in, as a card per section.
- *
- * The bodies say a number where there is one worth saying, and fall back to the section's own
- * blurb where there is not — so a section added to `sections.ts` appears here rather than being
- * added twice. The line under the heading counts what it is describing for the same reason: it
- * read "nine sections; four generated" for as long as there were eight, because a sentence about a
- * list is a copy of the list.
- */
+/** The way in, as a card per section — falls back to the section's own blurb, so a new section in `sections.ts` appears here without being added twice. */
 const DECK: Record<string, (counts: Counts) => string> = {
   '/guide': (counts) =>
     `${counts.pages} pages in order: fragments, layouts, effects, streaming, the client, intents, live regions, composition, operating it.`,
@@ -520,12 +485,7 @@ export function landingBody(counts: Counts): string {
   </div>`
 }
 
-/**
- * What another framework's stream markers cost in bytes, against ours on the same page.
- *
- * Both numbers are rows of the run this chart already draws, so the percentage was the one figure
- * in the block that was not read from it — and it had drifted from 18% to 22%.
- */
+/** What another framework's stream markers cost, against ours — a hand-typed version of this drifted from 18% to 22%. */
 function markerCost(): string {
   const ours = candidate('segments')?.bytes
   const theirs = candidate('rr7-stream')?.bytes
@@ -533,12 +493,7 @@ function markerCost(): string {
   return `+${Math.round((theirs / ours - 1) * 100)}%`
 }
 
-/**
- * A wire form's size, from the run that measured it.
- *
- * `6,289 B · 605 brotli` and `371 B · 187 brotli` were typed, and the delta's compressed figure had
- * drifted to 190 in the file sitting three directories away. Both halves are read now.
- */
+/** A wire form's size, from the run that measured it — hand-typed values had drifted (190 vs 187 for the delta). */
 function wireSize(id: string): string {
   const found = benchRow('update-bytes', id, undefined, 'feed')
   if (!found) return 'not measured'
@@ -553,13 +508,7 @@ function deltaShare(): number {
   return html && delta && html.p50 ? delta.p50 / html.p50 : 0.059
 }
 
-/**
- * How much cheaper a delta is to apply than the parse it replaces, across the engines measured.
- *
- * A range and not an average, because the three engines disagree by a factor of three and an
- * average would hide the slowest one. It said `20–93×` for long enough to stop being either bound
- * of what the current run measures.
- */
+/** How much cheaper a delta is to apply than the parse it replaces. A range, not an average — the three engines disagree by 3×. */
 const ENGINES = ['chromium', 'firefox', 'webkit'] as const
 
 function applyRange(): string {
