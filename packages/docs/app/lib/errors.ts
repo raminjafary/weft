@@ -3,16 +3,9 @@ import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
- * The error reference, read out of the source that throws.
- *
- * Every refusal in this framework is a named code with a sentence attached, and the sentence is
- * already the best available explanation — it was written to be read by whoever hit it. So this page
- * is not a second set of prose about those codes: it is the codes, the messages, and the file that
- * raises each one, extracted. A code added to the framework appears here without anybody
- * remembering to add it, which is the only way a reference of this size stays true.
- *
- * `test/docs.test.ts` scans the same tree independently and fails when a code exists in `src/` and
- * not on the page. That is what makes "every error is documented" a gate.
+ * The error reference, read out of the source that throws — the codes, their messages, and the
+ * file raising each one, extracted rather than restated. `docs.test.ts` independently scans the
+ * same tree and fails when a code exists in `src/` and not on the page.
  */
 export interface ErrorSite {
   /** Repository-relative file, and the line the code appears on. */
@@ -22,15 +15,7 @@ export interface ErrorSite {
   message?: string
 }
 
-/**
- * How much this code says when it is raised.
- *
- * Three states rather than two, because "no literal message" and "no message" are different things.
- * A code that forwards an underlying failure — `${(error as Error).message}`, `reasonOf(error)`, a
- * parsed reply's own error — does have a sentence at runtime; it just is not in the source to
- * extract. Calling that bare would be a complaint about the extractor dressed as a complaint about
- * the framework, and the count that matters is the third state.
- */
+/** How much this code says when raised. Three states because "no literal message" and "no message" differ — a forwarded failure has a sentence at runtime, just not in the source. */
 export type ErrorDetail = 'prose' | 'wrapped' | 'none'
 
 export interface ErrorCode {
@@ -67,16 +52,9 @@ function walk(dir: string, out: string[]): string[] {
 }
 
 /**
- * The message a code is raised with.
- *
- * The call around the code is found by balancing parentheses rather than by matching a pattern,
- * because this codebase raises codes four different ways — `new Error(`E_X: …`)`, a named error
- * class taking the code and the message apart, a `fail(code, path, message)` collector, and an issue
- * pushed onto a diagnostics array. All four put the sentence in a string inside the same call, so the
- * longest string in that call is the message, and no fifth spelling has to be anticipated.
- *
- * Interpolations become an ellipsis and concatenations are joined. That is a reconstruction, and the
- * page says so rather than presenting it as the literal runtime text.
+ * The message a code is raised with. Found by balancing parentheses rather than matching a
+ * pattern, since this codebase raises codes four different ways, all putting the sentence in a
+ * string inside the same call. Interpolations become an ellipsis; the page says it's a reconstruction.
  */
 function enclosing(source: string, index: number, open: string, close: string): string | undefined {
   let depth = 0
@@ -120,13 +98,9 @@ interface Literal {
 }
 
 /**
- * One string or template literal, read from its opening quote.
- *
- * Scanned rather than matched, because an interpolation may hold another template literal — this
- * repository writes one wherever a message names both halves of what it refused — and a pattern
- * that stopped at the first backtick it met read the tail of the inner one as a message of its own.
- * That is how `E_ETAG_STREAMS` came to be published as ": 'declares out-of-order delivery' }. An
- * entity tag is a digest…", which is the middle of a sentence whose beginning was thrown away.
+ * One string or template literal, read from its opening quote. Scanned rather than matched, since
+ * an interpolation may hold another template literal — a naive pattern once published
+ * `E_ETAG_STREAMS` as the middle of a sentence, having read an inner literal's tail as its own.
  */
 function literalAt(source: string, start: number): Literal | undefined {
   const quote = source[start]
@@ -191,23 +165,7 @@ function stringsIn(call: string): string[] {
   return out
 }
 
-/**
- * Where the sentence is, given four spellings of the same thing.
- *
- * A code is raised as `new Error(`E_X: …`)`, as a named error class taking the code and the message
- * apart, as `fail(code, path, message)`, and as an object with `code` and `message` beside each
- * other. The first three put it in the enclosing *call*; the fourth in the enclosing *object*, and
- * a structured failure names its field — so a `message:`, `reason:` or `detail:` property wins over
- * the longest string, because the longest string in an object literal is often something else.
- */
-/**
- * A scope that hands an underlying failure onward rather than writing its own sentence.
- *
- * `.errors`/`.issues` are here because a collector forwards a *list* rather than one cause —
- * `E_INVALID_DOCUMENT` prints every complaint the template validator made — and at runtime that
- * says a great deal. It is the cause's sentence rather than one written in the source, which is the
- * same bargain the single-cause spellings make, so it belongs in the same state as them.
- */
+/** A scope that hands an underlying failure onward rather than writing its own sentence — `.errors`/`.issues` forward a *list* (e.g. `E_INVALID_DOCUMENT`). */
 const FORWARDS =
   /\b(?:error|err|cause)\s*(?:as\s+Error)?\s*\)?\.message|String\(\s*error|reasonOf\(|parsed\.error|lastError|\.stack\b|\.(?:errors|issues)\b/
 
@@ -219,6 +177,7 @@ function forwardsAt(source: string, index: number): boolean {
   return false
 }
 
+/** Where the sentence is, given four spellings: a `message:`/`reason:`/`detail:` property wins over the longest string in an object literal. */
 function messageAt(source: string, index: number): string | undefined {
   const scopes = [enclosing(source, index, '{', '}'), enclosing(source, index, '(', ')')].filter(
     (text): text is string => Boolean(text),
@@ -245,11 +204,7 @@ function clean(text: string): string {
     .trim()
 }
 
-/**
- * A message whose prose is short because most of it is interpolated still explains something:
- * `known: …` is a sentence and `${JSON.stringify(magic)}` alone is not. So the floor is on the words
- * rather than on the length, which is what tells those two apart.
- */
+/** A floor on words, not length: `known: …` is a sentence, `${JSON.stringify(magic)}` alone is not. */
 function usable(text: string): boolean {
   return text.replace(/…/g, '').trim().length >= 6 && /[a-z]{3}/.test(text)
 }

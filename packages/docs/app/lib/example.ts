@@ -2,24 +2,9 @@ import { readsOf, render, type Values } from '@weftjs/ir'
 import { adoptScript, fragmentIR, type CompiledFragment } from '@weftjs/core'
 
 /**
- * A live example: a fragment this application compiled, rendered with values this page supplies.
- *
- * The roadmap line this site exists to close asked for "a documentation site whose every example
- * is live", and the load-bearing word is *this*. An example here is not a code block that was
- * pasted from something that worked once — it is a real file under `app/fragments/examples/`, so:
- *
- * - The repository's own `tsc` type-checks it, which is what makes the escape-elision examples
- *   honest: elision is a type question, and a snippet nobody checked has no types to elide by.
- * - `weft build` compiles it. An example that does not compile is a build that does not pass, so a
- *   broken example cannot ship.
- * - `fragmentIR` hands back the *same* sealed template the renderer beside it used. The holes, the
- *   escape decisions, the read set and the version on the page are that template's, not a second
- *   compilation's that could disagree with it.
- * - The source shown is `CompiledFragment.source` — the bytes that produced those holes, carried by
- *   the build rather than re-read from a path that may have changed since.
- *
- * There is no separate compile step and no snapshot to keep in sync. The page is a view over the
- * application it is part of.
+ * A live example: a real file under `app/fragments/examples/`, not a pasted code block. Type-checked
+ * by the repo's own `tsc`, compiled by `weft build`, and `fragmentIR` hands back the exact sealed
+ * template the page's renderer used — no separate compile step or snapshot to keep in sync.
  */
 export interface Example {
   /** The fragment's convention name: `examples/badge` is `app/fragments/examples/badge.tsx`. */
@@ -27,14 +12,7 @@ export interface Example {
   title: string
   /** What the example is for, in one sentence. */
   shows: string
-  /**
-   * What to render it with. A fragment with no props takes none.
-   *
-   * A thunk where the values are a function of something live. It was a plain object until the
-   * feedback example needed the real vote tally: with a literal, that example rendered `count: 0`
-   * for ever while the intent behind the button incremented a counter nobody could see, so the one
-   * live control on the site looked broken every time somebody pressed it.
-   */
+  /** What to render it with. A thunk for values that are a function of something live — a plain object once froze the feedback example's vote count at 0. */
   values?: Values | (() => Values)
   /** What to look at in the output. Optional, and usually worth writing. */
   note?: string
@@ -51,19 +29,7 @@ export interface RenderedExample {
   source: string
   /** What it rendered, as markup. */
   html: string
-  /**
-   * The payload that binds this example's template to the markup above, or null.
-   *
-   * Null for the fourteen examples that are constant — `adoptScript` returns null for a template
-   * with no wiring and no signals, because a static region has nothing for a client to attach to.
-   * Non-null for the one that does, and until this field existed that example was dead: the signals
-   * example rendered an input bound to a signal, and nothing on the page ever bound it, so typing
-   * into it did nothing on every page it appeared on.
-   *
-   * These examples are markup inside a `body` slot rather than slots of their own, so the framework
-   * has no hole to hang a payload on and cannot emit one. `adoptScript` is exported for exactly this
-   * — it takes a `selector`, so the payload can name the element the example was rendered into.
-   */
+  /** The payload binding this example's template to the markup, or null for a constant template with nothing to attach to. Before this field existed, the signals example rendered a dead input. */
   adopt: string | null
   facts: ExampleFacts
 }
@@ -79,13 +45,7 @@ export interface ExampleFacts {
   reads: string[]
   /** The wire forms this template can serve, derived rather than declared. */
   forms: string[]
-  /**
-   * What the client attaches on adoption, one row per entry.
-   *
-   * This is the cost model made visible: not "how many components", but how many places in this
-   * template a value reaches. An `event` row names an intent by its opaque id rather than by the
-   * export it came from, which is the property that keeps server code off the wire.
-   */
+  /** What the client attaches on adoption, one row per entry — an `event` row names an intent by its opaque id, never the export it came from. */
   wiring: { op: string; binding: string; target: string }[]
   /** Client-owned state this template declares, and its initial value as rendered. */
   signals: { id: string; type: string; init: string }[]
@@ -126,15 +86,10 @@ function resolveValues(values: Example['values']): Values {
 }
 
 /**
- * A signal's declared initial value, seeded into the render.
- *
- * `render` takes a value per binding and does not know that some of those bindings are signals, so
- * a signal the caller does not supply renders as nothing. On a page that adopts, the client fills it
- * a moment later and nobody sees the gap. These examples never adopt — they are markup inside a
- * `body` slot — so the gap was permanent: the signals example rendered `value=""` for a signal
- * declared `signal(1)`, and the total derived from it came out `0` instead of the unit price.
- *
- * An explicit value wins, so an example can still render a signal at something other than its init.
+ * A signal's declared initial value, seeded into the render. `render` doesn't know a binding is a
+ * signal, so an unsupplied one renders empty — invisible on an adopting page but permanent here,
+ * since these examples never adopt: the signals example once rendered a `signal(1)` as `value=""`
+ * with its derived total at `0`. An explicit value still wins.
  */
 function withSignals(entry: CompiledFragment['entry'], values: Values): Values {
   const seeded: Record<string, unknown> = {}
@@ -144,13 +99,7 @@ function withSignals(entry: CompiledFragment['entry'], values: Values): Values {
   return { ...seeded, ...(values as Record<string, unknown>) } as Values
 }
 
-/**
- * Render one example.
- *
- * It throws rather than degrading, and `test/docs.test.ts` renders every example in the registry
- * for exactly that reason: an example page that swallowed a failure would print an empty box, and
- * an empty box is the one thing a documentation site must not be able to do quietly.
- */
+/** Render one example. Throws rather than degrading — `docs.test.ts` renders every example in the registry so a broken one fails the build, not a silent empty box. */
 export function renderExample(example: Example): RenderedExample {
   const fragment = fragmentIR(example.id)
   const values = withSignals(fragment.entry, resolveValues(example.values))
