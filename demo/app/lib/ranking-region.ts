@@ -1,17 +1,6 @@
 import type { RegionRenderer, RegionRequest } from '@weftjs/core'
 
-/**
- * The third tier: a region composed by a region.
- *
- * It exists to make one number falsifiable. A page composing `search` used to report the boundaries
- * it could see, and a region that reached a further deployment of its own said so with a hop count
- * nobody could check — a tree in the numbers and not in the resolution. `search` composes this, so
- * `weft verify --probe` has something to draw: two tiers under one route, each resolved by its own
- * registry, spliced into one graph.
- *
- * It is deliberately trivial otherwise. What is being demonstrated is the topology, and a ranking
- * model would be a second thing to explain.
- */
+/** The third tier: a region composed by a region, so `weft verify --probe` has a real tree to draw. See `spec/kernel/composition.md`. */
 const WEIGHTS: Record<string, number> = {
   sumac: 3,
   'barhi dates': 5,

@@ -3,13 +3,7 @@ import { cartValues } from '../../lib/data.ts'
 import { field, panel, pick } from '../../lib/controls.ts'
 import { LOG } from '../../lib/showcase.ts'
 
-/**
- * A cart, which is the hard case: one private fragment inside a shared document.
- *
- * The three buttons are the three ways to write. `data-weft-intent` goes over the channel with an
- * optimistic guess staged into an epoch; the plain form posts to the same intent and gets a 303;
- * and the failing one is there so the rollback path is something you can press.
- */
+/** A cart: one private fragment inside a shared document. Three write paths — optimistic channel, plain form, and a deliberate failure to press. */
 const PANEL =
   panel(
     [
@@ -46,15 +40,8 @@ export default defineRoute({
       'Add a line three ways: over the channel, deliberately failing, and with no JavaScript at all. Then check out, which is gated by a capability and a signature.',
     status: 'live',
   },
-  /**
-   * Runs in phase A, where the envelope is still open — so this redirect is a real redirect.
-   *
-   * The second half is not decoration. Nothing in this demo signs you in, so a guard that only
-   * asked for the cookie sent every visitor to a URL whose guard asked for it again: the page was
-   * an infinite redirect for anyone arriving without one, which is every first visit. The point
-   * being demonstrated is that a guard decides before a byte is rendered, and it survives being
-   * demonstrated once.
-   */
+  // Runs in phase A, a real redirect. `?anonymous` matters: without it, a guard that only checks the
+  // cookie sends every first visitor (nothing here signs you in) into an infinite redirect loop.
   guard: (ctx) => Boolean(ctx.cookie('sid') ?? ctx.query('anonymous')),
   redirect: '/app/cart?anonymous=1',
   slots: {

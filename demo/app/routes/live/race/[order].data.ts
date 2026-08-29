@@ -2,16 +2,9 @@ import { defineRoute } from '@weftjs/core'
 import { lane, laneName, lanesFrom, type RaceLane } from '../../../lib/race.ts'
 
 /**
- * The streaming race: the same three regions, the same three latencies, served in both orders.
- *
- * The order is a route parameter rather than a query string, and that is the fix for the one place
- * the old hand-written server admitted it was reaching around the framework. A `RouteResolver`
- * receives params, so an order that is a param is something the plan can be resolved for; an order
- * that was a query string was something the server had to smuggle past the router in a
- * module-level variable.
- *
- * Nothing here animates. Each region reports the millisecond it was rendered at, so the arrival
- * order is still legible after the page has finished loading.
+ * The streaming race: the same three regions and latencies, served in both orders. The order is a
+ * route param rather than a query string — the old hand-written server smuggled it past the router
+ * in a module-level variable instead. Nothing animates: each region reports its own render time.
  */
 const NOTE: Record<'in-order' | 'out-of-order', string> = {
   'out-of-order':

@@ -1,12 +1,4 @@
-/**
- * The showcases' form widgets.
- *
- * A framework renders pages, not sliders — so an application that wants a control panel writes
- * its own markup, and this is the demo's. The one convention worth noticing is `data-weft-control`
- * and `data-weft-apply`: those are the framework's, and they are the whole of wiring a control.
- * The framework puts the value in the URL, updates the address bar, and either patches the live
- * regions or navigates. Nothing here or in the browser knows an element id.
- */
+/** The showcases' form widgets. `data-weft-control` and `data-weft-apply` are the framework's own convention — the whole of wiring a control. */
 function paramOf(id: string): string {
   const dash = id.indexOf('-')
   return dash < 0 ? id : id.slice(dash + 1)

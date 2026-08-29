@@ -8,17 +8,7 @@ interface Controls {
   query(key: string): string | undefined
 }
 
-/**
- * A dashboard with slow panels, and the one route in the demo that needs a different document.
- *
- * `layout: 'dash'` picks `app/layouts/dash.tsx`, whose slot holes are four panels rather than one
- * body. The plan is generated per route, so nothing else in the application has to know that this
- * page has a different shape.
- *
- * `slowest` needs `traffic`, so the scheduler puts it in a later wave: watch the waves, not the
- * sum. Its budget is advisory and says so — the demo binds no pool, so `inline` is the only
- * executor there is.
- */
+/** A dashboard with slow panels: `layout: 'dash'` gives four panel holes instead of one body. See `spec/kernel/locus.md`. */
 const slow = (ms: number): Promise<void> =>
   ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve()
 
@@ -33,13 +23,7 @@ const num = (ctx: Controls, key: string, fallback: number): number => {
   return Number.isFinite(value) ? value : fallback
 }
 
-/**
- * The panel, as a function of the request.
- *
- * A slider that does not render at the value in the URL snaps back to its default on every reload,
- * which makes it look like the control did nothing. The control *is* the query parameter, so the
- * markup has to read it.
- */
+/** The panel, as a function of the request — the control *is* the query parameter, so the markup has to read it. */
 const PANEL = (ctx: Controls): string =>
   panel(
     [

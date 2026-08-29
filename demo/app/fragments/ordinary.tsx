@@ -28,17 +28,9 @@ interface OrdinaryProps {
 }
 
 /**
- * The ordinary case, which most pages are.
- *
- * No streaming, no channel, no deltas, no epochs. One route, one component imported from another
- * module and rendered three times, props passed down, and a page that arrives in one piece. Every
- * region here buffers, so the plan lowers to `in-order` and the ~1 KB out-of-order filler is not
- * on the wire at all — the streaming machinery is opt-in per slot rather than the price of using
- * the framework.
- *
- * The three instances are written out rather than mapped because a component inside a list row is
- * `E_COMPONENT_IN_LIST` today. That is a real limitation and it is on the roadmap; writing them out
- * is also what makes the “one sealed template, three instances” count checkable.
+ * The ordinary case, which most pages are: no streaming, no channel, no deltas, no epochs — a page
+ * that arrives in one piece. Written out rather than mapped because a component inside a list row
+ * is `E_COMPONENT_IN_LIST` today, a real limitation on the roadmap.
  */
 export default fragment(
   ({

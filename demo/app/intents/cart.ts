@@ -1,16 +1,7 @@
 import { defineIntent } from '@weftjs/core'
 import { CATALOGUE_SKUS, cartOf, catalogue } from '../lib/data.ts'
 
-/**
- * The demo's mutations, and the module the compiler derives their ids from.
- *
- * `interactive.tsx` imports `setQuantity` from this file, so `onInput={setQuantity}` lowers to a
- * wiring entry naming the same six hex characters the intent manifest generated from
- * `app/intents/cart.ts#setQuantity`. Nothing states the id twice — that agreement is the whole
- * reason the client can carry an opaque id rather than the name of server code.
- *
- * Moving this file changes those ids, deliberately: an intent's location is part of the wire.
- */
+/** The demo's mutations. Moving this file changes their ids, deliberately — an intent's location is part of the wire. See `spec/kernel/intents.md`. */
 function skuOf(raw: unknown): string {
   const body = raw as { sku?: unknown }
   const sku = String(body.sku ?? '')
@@ -21,18 +12,7 @@ function skuOf(raw: unknown): string {
 export const addToCart = defineIntent<{ sku: string; qty: number; fail?: boolean }>({
   name: 'cart.add',
   writes: ['cart'],
-  /**
-   * How much of this the deployment can take, and deliberately not from whom.
-   *
-   * An intent knows what it costs — this one is cheap, a mutation that called a payment provider
-   * would not be — and that knowledge belongs next to the code that spends it. What a call is
-   * counted against is the other half and it is not here: an address, a session and a subject are
-   * all wrong in some deployment, so `weft.config.ts` decides and this file cannot.
-   *
-   * Delete the `limits` line in the config and every call becomes `E_NO_RATE_LIMIT` with the
-   * missing port named, which is the same shape as deleting a grant: the framework refuses, and the
-   * config is where the answer lives.
-   */
+  /** How much of this the deployment can take, deliberately not from whom — that's `weft.config.ts`'s call. See `spec/kernel/authority.md`. */
   limit: { max: 20, windowMs: 10_000 },
   input: (raw) => {
     const body = raw as { qty?: unknown; fail?: unknown }
@@ -69,21 +49,7 @@ export const setQuantity = defineIntent<{ sku: string; qty: number }>({
   },
 })
 
-/**
- * The one intent here that has to prove who is asking, and that this deployment asked for it.
- *
- * Two gates, and they answer different questions. `cart:checkout` is a capability: the demo's
- * config grants it to everybody, which is the point — the grant is a row an operator can see and
- * change rather than a branch in the framework, and taking the row out turns every checkout into a
- * named 403. `signed` is the other question: the call has to carry a token this process minted for
- * this reader and this payload, minutes ago, and once.
- *
- * What that costs is visible on the page. The button fetches a token first, so a signed intent is
- * one round trip slower than an unsigned one — and the plain form beside it, which cannot fetch
- * anything, is refused with `E_INTENT_UNSIGNED`. That is not a gap in the progressive-enhancement
- * story so much as the price of the strongest gate, paid only by the intent that asked for it: a
- * token cannot be rendered into a page, because a page can be cached and a token cannot.
- */
+/** The one intent here that has to prove who is asking and that this deployment asked for it. See `spec/kernel/authority.md`. */
 export const checkout = defineIntent<{ sku: string }>({
   name: 'cart.checkout',
   writes: ['cart'],

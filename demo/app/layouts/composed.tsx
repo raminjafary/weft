@@ -19,17 +19,7 @@ interface ComposedProps {
   body: string
 }
 
-/**
- * A document with a hole that another deployment fills.
- *
- * Nothing here says so, and that is the claim. `<slot name="search">` is the same element as the
- * three holes in `layout.tsx` — the compiler cuts the document at the same kind of point, the kernel
- * streams everything before the cut without knowing what fills it, and the client finds the region
- * by the same `data-weft-slot` wrapper. Which deployment renders it is a line in `weft.config.ts`.
- *
- * So this file is evidence rather than decoration: if composing a region needed anything of a
- * layout, it would be visible here.
- */
+/** A document with a hole that another deployment fills. `<slot name="search">` is the same element as any other hole. See `spec/kernel/composition.md`. */
 export default fragment(
   ({ title, description, css, runtime, heading, shows, nav, panel, search, body }: ComposedProps) => (
     <>

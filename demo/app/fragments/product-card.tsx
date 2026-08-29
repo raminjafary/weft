@@ -12,17 +12,9 @@ interface CardProps {
 }
 
 /**
- * An ordinary component. Props in, markup out, no ceremony.
- *
- * It is sealed once. Rendering it three times on a page adds three cards of content and not one
- * byte of template, and it is not re-parsed, re-evaluated or re-mounted per instance — the parent
- * projects the values into the child's holes. Nothing about that requires the page to stream.
- *
- * The button is a form rather than a click handler, and that is the demonstration rather than a
- * shortcut. This page has no channel and no client-side state; the intent it posts to is the same
- * one the cart page dispatches over a socket, reached at the name its author gave it, and the
- * answer is a 303 back to here. It works with JavaScript disabled, which is the property the
- * framework claims for every write and the one nothing else in this demo lets you press.
+ * An ordinary component, sealed once — three instances cost three cards of content and no extra
+ * template. See `spec/ir/template-ir-2.md`. The button is a plain form post, working with
+ * JavaScript disabled, to the same intent the cart page dispatches over a socket.
  */
 export default fragment(({ sku, name, price, unit, badge, available, cart }: CardProps) => (
   <article class="product">

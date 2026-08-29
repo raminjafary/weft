@@ -1,12 +1,4 @@
-/**
- * The streaming race's regions.
- *
- * This used to build a whole `KernelRoute` by hand — a template, a shell descriptor, a slot array
- * with hand-written ids and versions, and a `render` per lane. All of that is the plan layer's
- * now: `app/routes/live/race/[order].data.ts` declares three streaming slots and
- * `app/layouts/race.tsx` is the document. What is left is the one thing that was ever specific to
- * this page — a region that waits for real and then says when it was rendered.
- */
+/** The streaming race's regions. What's left after the plan layer took over building the route: a region that waits for real and reports when. */
 export interface RaceLane {
   name: 'slow' | 'fast' | 'medium'
   ms: number

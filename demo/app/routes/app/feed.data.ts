@@ -4,13 +4,7 @@ import { field, panel, press, slider } from '../../lib/controls.ts'
 import { LOG } from '../../lib/showcase.ts'
 import { fragmentIR, listHole } from '@weftjs/core'
 
-/**
- * A content-heavy feed, authored the way the design says an application is authored — except that
- * the plan is now generated from this file rather than written beside it.
- *
- * There is no `.tsx` here. The body is `app/fragments/feed.tsx`, which the stations also read, so
- * the fragment has one home and the route names it.
- */
+/** A content-heavy feed. No `.tsx` here — the body is `app/fragments/feed.tsx`, which the stations also read. */
 /** A function of the request, so the slider renders at the value that is actually in the URL. */
 const PANEL = (ctx: { query(key: string): string | undefined }): string =>
   panel(
@@ -33,8 +27,7 @@ export default defineRoute({
   },
   slots: {
     panel: { fragment: 'markup', stream: false, html: (ctx) => PANEL(ctx) },
-    // Reads the clock, so a policy with no ttl is a build error. That is the compiler
-    // contradicting the declaration, and the declaration losing.
+    // Reads the clock, so a policy with no ttl is a build error. See `spec/plan/plan.md`: E_TTL_REQUIRED.
     body: {
       fragment: 'feed',
       stream: { prio: 1 },
@@ -43,15 +36,7 @@ export default defineRoute({
       incremental: true,
       live: true,
       placeholder: '<p class="skeleton"></p>',
-      /**
-       * The rows, fetched through the data port rather than called directly.
-       *
-       * There is no database here — `feedItems` is a generator — and that is the point of showing
-       * it on the page that has none: what the port adds is a *name* for the access, a deadline
-       * somebody chose, and the tags this render depended on recorded where an invalidation can
-       * be checked against them. All three are missing from a plain function call, and all three
-       * are what you want at 3am. `feed` is the same tag `feed.tick` declares it writes.
-       */
+      /** The rows, fetched through the data port rather than called directly: a name, a deadline, and tags an invalidation can check against. */
       load: async (ctx) => {
         const rows = Number(ctx.query('rows') ?? 120)
         const items = await ctx.data({ name: 'feed.rows', tags: ['feed'], timeoutMs: 250 }, async () =>

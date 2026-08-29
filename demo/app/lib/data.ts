@@ -1,12 +1,6 @@
 import type { Values } from '@weftjs/core'
 
-/**
- * The demo's data, generated deterministically from a seed.
- *
- * Deterministic on purpose: a content-addressed delta memo only shares work between clients that
- * are genuinely on the same base render, so a feed built from `Math.random()` would make every
- * visitor their own cache entry and quietly turn the shared-delta station into a lie.
- */
+/** The demo's data, generated deterministically from a seed — `Math.random()` would make every visitor their own cache entry. */
 function seeded(seed: number): () => number {
   let state = seed >>> 0
   return () => {
@@ -39,11 +33,7 @@ export interface FeedItem {
   updated: string
 }
 
-/**
- * `tick` is what changes. Everything else is a pure function of the index, so two ticks differ in
- * exactly the rows the tick touched — which is what makes the incremental station's arithmetic
- * checkable rather than assertable.
- */
+/** `tick` is what changes; everything else is a pure function of the index, so two ticks differ only in the rows the tick touched. */
 export function feedItems(count: number, tick = 0, changeEvery = 8): FeedItem[] {
   const random = seeded(count * 7919 + 13)
   return Array.from({ length: count }, (_, i) => {

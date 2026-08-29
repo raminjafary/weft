@@ -25,23 +25,9 @@ interface RaceProps {
 }
 
 /**
- * The streaming race, as its own document so it can be loaded in a frame and watched.
- *
- * Three slots with three different latencies. In `out-of-order` the shell goes out with an anchor
- * at each slot and whichever region resolves first is sent first — the pipe is filled with whatever
- * is ready. In `in-order` each region streams where it sits, so the fast one waits behind the slow
- * one purely because of where it is in the document.
- *
- * Nothing here animates. Each region reports the millisecond it was rendered at, relative to the
- * start of the request, so the arrival order is still legible after the page has finished loading.
- *
- * It carries the same chrome as every other page, from the same `nav` the framework supplies to
- * any layout that asks for it. A document with its own layout is a document with no navigation
- * unless it grows some, and a page you can arrive at and not leave is worse than a page nothing
- * links to.
- *
- * Below it, both orders, with the one you are looking at marked: this page is a comparison, and a
- * comparison whose other half is invisible is half a page.
+ * The streaming race, as its own document so it can be loaded in a frame and watched. Three slots,
+ * three latencies, `out-of-order` vs `in-order`. See `spec/kernel/streaming.md`. Nothing animates:
+ * each region reports the millisecond it rendered at, so arrival order stays legible after load.
  */
 export default fragment(({ title, css, nav, order, note, modes, fast, medium, slow }: RaceProps) => (
   <>
@@ -66,8 +52,7 @@ export default fragment(({ title, css, nav, order, note, modes, fast, medium, sl
           </nav>
         </header>
         <nav class="race-top">
-          {/* Its own element, because a list has to be the only child of one: a sibling beside it
-              would shift position with the row count, and adoption addresses nodes by index. */}
+          {/* Its own element: a list must be the only child of one. See `spec/compiler/supported-subset.md`. */}
           <span class="race-modes">
             {modes.map((mode) => (
               <a href={mode.href} data-current={mode.current}>
