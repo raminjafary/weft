@@ -1,6 +1,8 @@
 # Weft
 
-**A TypeScript fullstack framework that negotiates how UI reaches the browser.**
+🚧 **Under active development.** APIs may change without notice.
+
+**A fullstack framework that negotiates how UI reaches the browser.**
 
 It runs wherever you deploy it. On a host that keeps a process — Fly, Railway, Render, a container,
 a bare pod — the channel is a WebSocket. On one that keeps none, a serverless function on Vercel or
