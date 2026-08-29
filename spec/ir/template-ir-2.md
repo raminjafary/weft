@@ -56,26 +56,49 @@ why `data` was cut; the short version is that measurement did not support it.
 { index, kind, escape, binding, path, attr?, provenance?, nested?, props?, children?, isolated? }
 ```
 
-| kind            | Position                                   | Renders                                            |
-| --------------- | ------------------------------------------ | -------------------------------------------------- |
-| `text`          | Between nodes or inside an element         | the escaped value                                  |
-| `attr`          | Inside an attribute value                  | the escaped value, quote-escaped                   |
-| `attr-bool`     | Where an attribute name would go           | the name if truthy, nothing otherwise              |
-| `attr-presence` | Where a whole `name="value"` pair would go | the pair, or nothing                               |
-| `list`          | Between nodes                              | each item, projected through `nested` if named     |
-| `node`          | Between nodes                              | a pre-rendered subtree                             |
-| `slot`          | A streaming hole                           | **nothing** — the content arrives in a later frame |
-| `component`     | One element position                       | a sealed child template, fed by `props`            |
-| `children`      | The whole content of its element           | the markup the caller wrote between the tags       |
+| kind            | Position                                   | Renders                                              |
+| --------------- | ------------------------------------------ | ---------------------------------------------------- |
+| `text`          | Between nodes or inside an element         | the escaped value                                    |
+| `attr`          | Inside an attribute value                  | the escaped value, quote-escaped                     |
+| `attr-bool`     | Where an attribute name would go           | the name if truthy, nothing otherwise                |
+| `attr-presence` | Where a whole `name="value"` pair would go | the pair, or nothing                                 |
+| `list`          | Between nodes                              | each item, projected through `nested` if named       |
+| `node`          | Between nodes                              | a pre-rendered subtree                               |
+| `slot`          | A streaming hole                           | **nothing** — the content arrives in a later frame   |
+| `component`     | One element position                       | a sealed child template, fed by `props`              |
+| `children`      | The whole content of its element           | the markup the caller wrote between the tags         |
+| `variant`       | One element position                       | a sealed nested template, when its binding is truthy |
 
 Where these come from in source, and every construct the compiler refuses, is in
 [the compiler's supported subset](../compiler/supported-subset.md).
+
+`variant` is the one way a sealed template holds a choice of markup without its byte layout
+depending on a value: the hole is always there and always costs the same, and what varies is
+only whether the nested template is written into it. `{on && <A/>}` is one of these; `{on ? <A/>
+: <B/>}` is two adjacent ones, over `on` and `!on`. Both shapes are sealed, both travel, and
+exactly one renders — so neither the layout nor the version depends on the value, which is what
+keeps the delta addressable.
 
 `escape` is the compiler's escape-elision decision: `escape` escapes, `proven-safe`
 skips because the value's type makes escaping a no-op, `trusted-raw` skips and must say
 who vouched. The renderer additionally scans a value it was told to escape and skips
 the work when the scan proves it unnecessary, so elision that the compiler missed still
 costs nothing at runtime.
+
+### A list row naming its own item: `rowValue` and `rowIndex`
+
+A row's holes are normally filled from the item's fields, which is why an item has to be an
+object — `names.map((n) => <li>{n}</li>)` over a `string[]` is refused, for no reason a reader of
+that line would guess without this. `rowValue` records the binding when a row names the item
+directly, so whatever renders the rows knows to wrap each one; absent is the fast path, same as
+`rowIndex`.
+
+`rowIndex` is absent unless the row callback names a second parameter, and absent is the fast
+path too: a row that does not ask for its index is rendered against the item object with no
+per-row allocation. Only a list that asks pays, which matters because the row loop is the hot
+one — the feed scenario renders fifty of them per request. The index is supplied by whatever
+renders the rows rather than carried in the item, because it is a fact about position, not value:
+two identical items at different positions are still one row template and one cache entry.
 
 ## Wiring table
 
@@ -103,8 +126,8 @@ wire and a stale client gets a clean rejection instead of a silent mismatch.
 }
 ```
 
-A value computed from other bindings, encoded rather than compiled. Four node shapes —
-`ref`, `lit`, `un`, `bin` — and a closed operator set: `! - + ~` and
+A value computed from other bindings, encoded rather than compiled. Five node shapes —
+`ref`, `lit`, `un`, `bin`, `cond` — and a closed operator set: `! - + ~` and
 `+ - * / % ** < > <= >= === !== == !=`. Every one of them is total over JSON values and
 free of effects, so the server's evaluator and the client's are the same switch, and a
 `ref` to a binding that is not there reads as `null` rather than throwing. Half a render
@@ -114,6 +137,18 @@ A `ref` may name a prop the render supplies, which the document never sees, so a
 read is not an error. What is an error is naming a derived value declared at or after
 this one: declaration order is evaluation order, and that is what keeps the table acyclic
 without a graph walk.
+
+`cond` is `a ? b : c`, with `a ?? b` and `a || b` lowered to it — a _value_, not a shape, which
+is what makes it expressible at all: a sealed template's byte layout is fixed, so
+`on ? <b/> : <i/>` cannot be a hole, but `on ? 'yes' : 'no'` is one value arriving in one hole
+and costs the layout nothing. There is no separate coalesce flag: `a || b` is already this node
+over plain truthiness, and `a ?? b` is this node over a `!== null` test, since a `ref` to an
+absent binding already reads as `null` on both sides — naming the operand twice in the tree
+saves an arm in two evaluators whose byte budgets fail the build over less. Operands are
+`a`/`b`/`c` rather than `test`/`then`/`else` for the same reason `bin` uses `a` and `b`: the
+keys are the encoding and they travel on every frame. Evaluation is lazy in the branches — the
+one not taken must not touch bindings the render never read — but `readsOf` still walks both,
+because whether a value is client-owned is a property of the expression, not of one evaluation.
 
 **Ownership follows the reads.** A derived value that reaches a signal is the client's.
 The server renders it once from the signal's initial value, and a delta must never carry
@@ -232,6 +267,14 @@ deployment's, so no property of these holes could prove an equivalence about the
 renders on the other side of a tier boundary and answers in its own forms. What stands in for the
 proof is the check on arrival — see [the composition spec](../kernel/composition.md).
 
+## What a client is sent
+
+A `TPL` frame carries only addressing and wiring — `{ version, holes, wiring, derived }` — never
+the segments or the effect set. The segments are markup the client already holds in its DOM, and
+the effects are a server concern: a client that received them would be paying bytes for a read set
+it cannot act on, and would be handed a description of the server's own cache keys. `clientView(ir)`
+is that projection, written once because three call sites had each been building it by hand.
+
 ## Payloads
 
 ```jsonc
@@ -276,3 +319,38 @@ markup because of it.
 2.1.0 put `anchor` on holes as well as wiring entries. Applied through per-hole
 addressing, a delta is 20-93x cheaper than the parse it replaces, and the harness checks
 in every engine that one changed path is one DOM write.
+
+## Rendering: two entry points, not one
+
+`renderHole(hole, value)` renders one hole from a single value. It is not enough for a
+`component`, `variant` or `children` hole — none of those has a single value to render from, so
+its arms write nothing at all, correctly, because `writeTemplate` has already handled them by the
+time a normal render reaches there. A caller that walks a template _itself_, rather than calling
+`render`, has to use `renderHoleIn(hole, values)` instead, which is given the whole value set and
+takes the same three arms `writeHole` does.
+
+Using the wrong one is how every `<Mark/>` in a layout once rendered nothing: the component arm of
+`renderHole` returned zero bytes, the shell was sent without it, and nothing anywhere refused,
+because a hole that writes nothing is indistinguishable from a hole whose value was empty.
+
+## Version history
+
+Every step below is a minor, so an older reader accepts it and simply lacks the field; each
+migration function restamps and otherwise leaves the document alone unless noted.
+
+- **2.5.0 → 2.6.0** narrowed `forms`: `patch` is derived rather than unconditional, because a
+  `raw()` value that is not its element's only child produces nodes with no boundary a structural
+  write can address. A 2.5.0 document may advertise `patch` for a template that cannot serve it —
+  `validate` names it `E_FORM_UNPROVABLE`, refusing the form where it is declared rather than
+  declining later, in a refresh.
+- **2.4.0 → 2.5.0** added the `children` hole kind and the `children` field on a component hole:
+  the markup a call site wrote between the tags, sealed as its own template in the caller's
+  binding namespace.
+- **2.3.0 → 2.4.0** added `isolated` on a component hole: the instance is its own cache unit and
+  the parent does not render it.
+- **2.2.0 → 2.3.0** added the `component` hole kind, projecting a parent's values through a sealed
+  child template.
+- **2.1.0 → 2.2.0** added `derived`, the table of values computed from other bindings. A 2.1.0
+  document simply has none, so the migration is a default rather than a rewrite.
+- **2.0.0 → 2.1.0** put `anchor` on holes as well as wiring entries — see "Closed in 2.1.0" above.
+  The 1.x chain went with the major, because a migration may not cross one.

@@ -11,10 +11,7 @@ export function canonicalJson(value: Json | undefined): string {
   return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalJson(value[k] as Json)}`).join(',')}}`
 }
 
-/**
- * The bytes a template version is a hash of. `meta` is excluded on purpose: it is
- * documentation, and a doc edit must not invalidate every resident client's copy.
- */
+/** The bytes a template version is a hash of. `meta` is excluded on purpose. See `spec/ir/template-ir-2.md`. */
 export function templateFingerprint(ir: TemplateIR): Uint8Array {
   const head = utf8.encode(
     canonicalJson({
@@ -53,11 +50,7 @@ function hex(bytes: Uint8Array): string {
   return s
 }
 
-/**
- * Template versions are cache keys, compression-dictionary ids, and the thing a
- * client claims to hold in RESIDENT, so they get a real digest: SHA-256 truncated
- * to 128 bits.
- */
+/** Template versions get a real digest: SHA-256 truncated to 128 bits. See `spec/ir/template-ir-2.md`. */
 export async function templateVersion(ir: TemplateIR): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', templateFingerprint(ir) as unknown as ArrayBuffer)
   return hex(new Uint8Array(digest).subarray(0, 16))
@@ -68,10 +61,7 @@ export async function seal(ir: TemplateIR): Promise<TemplateIR> {
   return { ...ir, version: await templateVersion(ir) }
 }
 
-/**
- * FNV-1a over two 32-bit lanes. Used only where a collision is cheap: a base-render
- * id that misses simply degrades the delta form to data.
- */
+/** FNV-1a over two 32-bit lanes. Used only where a collision is cheap. See `spec/ir/template-ir-2.md`. */
 export function fastHash(input: string): string {
   let a = 0x811c9dc5
   let b = 0x01000193

@@ -28,42 +28,16 @@ export const BINARY_OPS: readonly BinaryOp[] = [
   '!=',
 ]
 
-/**
- * A computed value, encoded rather than compiled to a function. The client evaluates the
- * same tree the server did, which is what lets a derived value be reactive without a
- * component: the wire carries the expression, not code.
- *
- * The operator set is closed on purpose. Everything in it is total over JSON values and
- * free of effects, so an evaluator on either side is a switch with no escape hatch.
- */
+/** A computed value, encoded rather than compiled to a function. See `spec/ir/template-ir-2.md`. */
 export type DerivedExpr =
   | { k: 'ref'; id: BindingId }
   | { k: 'lit'; v: Json }
   | { k: 'un'; op: UnaryOp; a: DerivedExpr }
   | { k: 'bin'; op: BinaryOp; a: DerivedExpr; b: DerivedExpr }
-  /**
-   * A choice between two values — `a ? b : c`, with `a ?? b` and `a || b` lowered to it.
-   *
-   * A *value*, not a shape, which is what makes it expressible: a sealed template's byte layout is
-   * fixed, so `on ? <b/> : <i/>` cannot be a hole, but `on ? 'yes' : 'no'` is one value arriving in
-   * one hole and costs the layout nothing.
-   *
-   * Just truthiness, with no coalesce flag: `a || b` is already this node, and `a ?? b` is this node
-   * over a `!== null` test, since a `ref` to an absent binding reads as `null` on both sides. That
-   * names the operand twice in the tree and saves an arm in two evaluators that sit inside bundles
-   * whose byte budgets fail the build.
-   *
-   * Operands are `a`/`b`/`c` rather than `test`/`then`/`else` for the same reason `bin` uses `a` and
-   * `b`: the keys are the encoding and they travel on every frame.
-   */
+  /** A choice between two values — `a ? b : c`, with `a ?? b` and `a || b` lowered to it. See `spec/ir/template-ir-2.md`. */
   | { k: 'cond'; a: DerivedExpr; b: DerivedExpr; c: DerivedExpr }
 
-/**
- * A value computed from other bindings, as a tree rather than as code.
- *
- * Which is the whole point: a client can evaluate a tree without the component that wrote it, so a
- * derived value costs no closure on the wire and needs no hydration to recompute.
- */
+/** A value computed from other bindings, as a tree rather than as code — no closure on the wire, no hydration to recompute. */
 export interface DerivedDecl {
   id: BindingId
   expr: DerivedExpr
@@ -79,9 +53,7 @@ export function readsOf(expr: DerivedExpr, out: BindingId[] = []): BindingId[] {
     readsOf(expr.a, out)
     readsOf(expr.b, out)
   } else if (expr.k === 'cond') {
-    // Every branch, not the one that would be taken: this set decides whether a value is
-    // client-owned and what it taints, and both are properties of the expression rather than of one
-    // evaluation of it. A branch not taken this time is still a read.
+    // Every branch, not just the one taken. See `spec/ir/template-ir-2.md`.
     readsOf(expr.a, out)
     readsOf(expr.b, out)
     readsOf(expr.c, out)
@@ -89,16 +61,12 @@ export function readsOf(expr: DerivedExpr, out: BindingId[] = []): BindingId[] {
   return out
 }
 
-/**
- * Total: a binding that is not there reads as null rather than throwing, because a
- * derived value is markup, and half a render is worse than a wrong number.
- */
+/** Total: a binding that is not there reads as null rather than throwing. See `spec/ir/template-ir-2.md`. */
 export function evalDerived(expr: DerivedExpr, read: (id: BindingId) => Json | undefined): Json {
   if (expr.k === 'lit') return expr.v
   if (expr.k === 'ref') return read(expr.id) ?? null
   if (expr.k === 'un') return unary(expr.op, evalDerived(expr.a, read))
-  // Lazy in the arms, and it has to be: a branch not taken must not be evaluated, or a `??` would
-  // touch bindings the render never read.
+  // Lazy: a branch not taken must not be evaluated, or a `??` would touch bindings the render never read.
   if (expr.k === 'cond')
     return evalDerived(expr.a, read) ? evalDerived(expr.b, read) : evalDerived(expr.c, read)
   return binary(expr.op, evalDerived(expr.a, read), evalDerived(expr.b, read))
@@ -146,12 +114,7 @@ function binary(op: BinaryOp, a: Json, b: Json): Json {
   }
 }
 
-/**
- * Fills every derived binding into the value set, in declaration order so that one
- * derived value may read another. The expression is the source of truth, so a value
- * already sitting under a derived id is recomputed rather than trusted — otherwise a
- * reused value set would carry a stale answer into the next render.
- */
+/** Fills every derived binding into the value set, in declaration order. Always recomputed, never trusted from a reused value set. */
 export function resolveDerived(decls: readonly DerivedDecl[], values: Values): Values {
   if (decls.length === 0) return values
   const out: Values = { ...values }
@@ -159,12 +122,7 @@ export function resolveDerived(decls: readonly DerivedDecl[], values: Values): V
   return out
 }
 
-/**
- * The derived ids the client owns: those that reach a signal, directly or through
- * another derived value. The server renders them once from the signal's initial value
- * and then never speaks about them again — a delta that carried one would overwrite
- * whatever the user had already done to it.
- */
+/** The derived ids the client owns: those that reach a signal, directly or through another derived value. See `spec/ir/template-ir-2.md`. */
 export function clientOwned(
   decls: readonly DerivedDecl[],
   signals: readonly { id: BindingId }[],

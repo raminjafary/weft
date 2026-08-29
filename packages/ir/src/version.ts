@@ -30,13 +30,7 @@ export function compareVersions(a: string, b: string): number {
   return x.major - y.major || x.minor - y.minor || x.patch - y.patch
 }
 
-/**
- * How a document was accepted: unchanged, migrated up, or read as-is by a newer reader.
- *
- * `forward` is the interesting one — a reader on 2.6 reading a 2.4 document with no migration
- * registered — and it is reported rather than silent, because a field a reader does not know about
- * is a field it will not preserve.
- */
+/** How a document was accepted: unchanged, migrated up, or read as-is by a newer reader. See `spec/VERSIONING.md`. */
 export type AcceptMode = 'exact' | 'upgrade' | 'forward'
 
 /** Whether this reader can read that document, and if not, which refusal applies. */
@@ -44,11 +38,7 @@ export type AcceptResult =
   | { ok: true; mode: AcceptMode; from: string; to: string }
   | { ok: false; code: 'E_SPEC_MISMATCH' | 'E_MAJOR_UNSUPPORTED' | 'E_VERSION_MALFORMED'; reason: string }
 
-/**
- * The compatibility contract, which is the reason this package exists before any
- * framework code does. Major is a hard wire break. Minor is additive: an older
- * reader accepts a newer minor and must round-trip fields it does not understand.
- */
+/** The compatibility contract. Major is a hard wire break; minor is additive. See `spec/VERSIONING.md`. */
 export function accepts(
   doc: { spec?: unknown; irVersion?: unknown },
   reader = {
@@ -91,12 +81,7 @@ export type Migration = (doc: Record<string, unknown>) => Record<string, unknown
 
 const migrations = new Map<string, { to: string; run: Migration }>()
 
-/**
- * Register a step from one minor to the next.
- *
- * Refuses a step that does not go forward and one that crosses a major, because a major is a wire
- * break rather than a shape somebody can convert.
- */
+/** Register a step from one minor to the next. Refuses a step that does not go forward, or crosses a major. */
 export function registerMigration(from: string, to: string, run: Migration): void {
   if (compareVersions(from, to) >= 0) {
     throw new Error(`E_MIGRATION_DIRECTION: ${from} -> ${to} is not forward; downgrades are undefined`)
@@ -140,33 +125,7 @@ export function migrate(
   return { doc: current, applied }
 }
 
-/**
- * 2.5.0 -> 2.6.0 narrowed `forms`: `patch` is derived rather than unconditional, because a `raw()`
- * value that is not its element's only child produced nodes with no boundary a structural write can
- * address. A 2.5.0 document may therefore advertise `patch` for a template that cannot serve it —
- * the migration restamps and `validate` names it `E_FORM_UNPROVABLE`, which is the honest outcome:
- * the form is refused where it is declared rather than declining later, in a refresh.
- *
- * 2.4.0 -> 2.5.0 added the `children` hole kind and the `children` field on a component hole:
- * the markup a call site wrote between the tags, sealed as its own template in the *caller's*
- * binding namespace. A 2.4.0 document has neither, so the migration restamps.
- *
- * 2.3.0 -> 2.4.0 added `isolated` on a component hole: the instance is its own cache unit
- * and the parent does not render it. A 2.3.0 document has none, so the migration restamps.
- *
- * 2.2.0 -> 2.3.0 added the `component` hole kind, which projects a parent's values through
- * a sealed child template. A 2.2.0 document has none, so the migration restamps and changes
- * nothing else.
- *
- * 2.1.0 -> 2.2.0 added `derived`, the table of values computed from other bindings. A
- * 2.1.0 document simply has none, so the migration is a default rather than a rewrite.
- *
- * 2.0.0 -> 2.1.0 put `anchor` on holes as well as wiring entries, so a consumer can
- * locate any text hole rather than only the ones a signal writes to. A 2.0.0 document is
- * already valid: its text holes simply carry no anchor, and a client falls back to the
- * region-level path. The 1.x chain went with the major, because a migration may not
- * cross one.
- */
+/** The built-in migration chain. See `spec/ir/template-ir-2.md`: Version history. */
 function installBuiltIns(): void {
   registerMigration('2.0.0', '2.1.0', (doc) => doc)
   registerMigration('2.1.0', '2.2.0', (doc) => ({ ...doc, derived: doc.derived ?? [] }))

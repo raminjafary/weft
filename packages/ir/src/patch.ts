@@ -6,23 +6,7 @@ import { PAYLOAD_SPEC, PAYLOAD_VERSION } from './version.ts'
 
 const decoder = new TextDecoder()
 
-/**
- * The rung between `delta` and `html`, and the one the ladder was missing.
- *
- * A delta is the smallest thing that can travel, and it is unavailable to any template whose
- * values are not projectable — a `raw()` value, an isolated instance, a `slot` hole. Those
- * regions fell all the way to `html` on every refresh, which meant the most surgical mechanism
- * in the design was refused by the templates that most needed it.
- *
- * A patch addresses the DOM the way adoption does: an element path, and a marker ordinal for a
- * text node that is not its element's only child. Nothing about a *value* has to be provable,
- * because nothing is projected — what travels is the markup or the text a hole produced this
- * time, written through a DOM API rather than parsed as a region.
- *
- * What it gives up against a delta is the client's binding table, which is why it is the second
- * rung and not the first: two writes to one value are two entries here and one there, and a patch
- * cannot be applied to a DOM that has moved under it. See `spec/kernel/surgical.md`.
- */
+/** The rung between `delta` and `html`, and the one the ladder was missing. See `spec/kernel/surgical.md`. */
 export type PatchOp =
   /** Write text into a text node: `.data`, so what travels is unescaped. */
   | 'text'
@@ -57,11 +41,7 @@ export interface PatchPayload {
   form: 'patch'
   tpl: string
   base: string
-  /**
-   * Paths of the holes whose subtree owns its own markers. The client counts marker comments to
-   * find a text node, and adoption skips these subtrees when it counts; a patch carries them so
-   * that a client with no copy of the template arrives at the same ordinals.
-   */
+  /** Paths of the holes whose subtree owns its own markers, so a client with no template arrives at the same ordinals. */
   opaque: number[][]
   writes: PatchWrite[]
 }
@@ -79,12 +59,7 @@ function opaquePaths(ir: TemplateIR): number[][] {
   return out
 }
 
-/**
- * What changed between two renders of one template, as writes into the DOM the first one
- * produced. Value holes are compared as the text they contribute, so a change that only differs
- * in escaping is not a change; template holes are compared as the bytes they produced, which is
- * exact and needs no dependency analysis to be right.
- */
+/** What changed between two renders of one template, as writes into the DOM the first one produced. */
 export function patchPayload(
   ir: TemplateIR,
   base: string,
@@ -110,9 +85,6 @@ export function patchPayload(
       if (same(was, now)) return
       writes.push({
         path: hole.path,
-        // An instance renders one root element, so it is replaced; the markup a call site wrote
-        // is the whole content of the element holding it, which `E_CHILDREN_NOT_SOLE_CHILD`
-        // is what guarantees.
         op: hole.kind === 'component' ? 'replace' : 'markup',
         value: decoder.decode(now),
       })
@@ -160,10 +132,7 @@ export function patchPayload(
       return
     }
 
-    // A raw value is markup, so it replaces the content of the element holding it — which is
-    // only addressable when the value is that element's whole content. `derivableForms` refuses
-    // `patch` for a template where it is not, so reaching one here means a document that
-    // declared a form it cannot serve.
+    // Reaching here for an unaddressable raw value means a document declared a form `derivableForms` should have refused.
     if (rawValue(hole)) {
       if (hole.anchor !== undefined) {
         throw new Error(
@@ -193,15 +162,7 @@ export function patchPayload(
   }
 }
 
-/**
- * A list, row by row rather than host and all.
- *
- * The first version of this replaced the host's children whenever anything in the list changed,
- * and the measurement said what that was worth: on the cart scenario a one-row edit came out
- * **1,663 B against the region's own 1,582** — a patch bigger than the thing it patches. Rows are
- * addressable, because adoption already treats the host's element children as exactly the rows,
- * so a changed row is one `replace` and a changed length is one `append` or one `truncate`.
- */
+/** A list, row by row rather than host and all. See `spec/kernel/surgical.md` for the measurement that killed the host-replace version. */
 function rows(
   hole: Hole,
   was: Json | undefined,

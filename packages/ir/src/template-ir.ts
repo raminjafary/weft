@@ -4,32 +4,16 @@ import { PAYLOAD_SPEC, PAYLOAD_VERSION, TEMPLATE_IR_SPEC, TEMPLATE_IR_VERSION } 
 /** What can be a hole's value. A template is data, so its values have to be data too. */
 export type Json = string | number | boolean | null | Json[] | { [k: string]: Json }
 
-/**
- * How a fragment's update can be encoded.
- *
- * Every form of a fragment must produce identical bytes, which is what makes negotiating between
- * them safe — the harness refuses to publish a number until it has checked that they do. `data` was
- * cut on the evidence; see `spec/VERSIONING.md`.
- */
+/** How a fragment's update can be encoded. Every form must produce identical bytes. See `spec/ir/template-ir-2.md`. */
 export type WireForm = 'html' | 'bundle' | 'split' | 'patch' | 'delta' | 'remote'
 
 /** Every form, in the order the spec lists them. A template declares the subset it can serve. */
 export const ALL_FORMS: readonly WireForm[] = ['html', 'bundle', 'split', 'patch', 'delta', 'remote']
 
-/**
- * `escape` is applied at render time; `proven-safe` is the escape-elision class the
- * compiler assigns when a value's type makes escaping a no-op. `trusted-raw` must
- * name its provenance, so an audit can ask who vouched for it.
- */
+/** The compiler's escape-elision decision. `trusted-raw` must name its provenance. See `spec/ir/template-ir-2.md`. */
 export type EscapeClass = 'escape' | 'proven-safe' | 'trusted-raw'
 
-/**
- * What a hole is, which decides who produces its bytes.
- *
- * `slot` and an isolated `component` are the two this render does *not* own — one left for slow
- * work, one for work with a different cache class — which is why the plan layer treats them as one
- * list of boundaries.
- */
+/** What a hole is, which decides who produces its bytes. See `spec/ir/template-ir-2.md`. */
 export type HoleKind =
   | 'text'
   | 'attr'
@@ -40,16 +24,7 @@ export type HoleKind =
   | 'slot'
   | 'component'
   | 'children'
-  /**
-   * A shape that renders only when its binding is truthy.
-   *
-   * The one way a sealed template can hold a choice of markup without its byte layout depending on a
-   * value. The hole is always there and always costs the same; what varies is whether the nested
-   * template is written into it. `{on && <A/>}` is one of these, and `{on ? <A/> : <B/>}` is two
-   * adjacent ones over `on` and `!on` — so both shapes are sealed, both travel, and exactly one
-   * renders. Neither the layout nor the version depends on the value, which is what keeps the
-   * template sealed and the delta addressable.
-   */
+  /** A shape that renders only when its binding is truthy. See `spec/ir/template-ir-2.md`. */
   | 'variant'
 
 /** A value's name inside a template. Holes and wiring entries both address values by it. */
@@ -64,71 +39,19 @@ export interface Hole {
   path: number[]
   attr?: string
   provenance?: string
-  /**
-   * For a `list` hole: the template version each item's values are projected through.
-   * For a `component` hole: the template version the instance is rendered through.
-   * For a `variant` hole: the template version written when the binding is truthy.
-   */
+  /** For `list`: the version items project through. For `component`/`variant`: the version rendered/written. See `spec/ir/template-ir-2.md`. */
   nested?: string
-  /**
-   * For a `component` hole: child prop name to the parent binding that supplies it. An
-   * instance is a projection of the parent's values, never a value of its own, which is
-   * what keeps a component transparent to a delta — a change to the parent binding is a
-   * change to the child's hole, with no path syntax to invent.
-   *
-   * For a `variant` hole: the same projection, for the same reason. The markup inside a
-   * branch reads the enclosing fragment's bindings, so the branch is sealed as its own
-   * template and every binding it reads is projected in by name.
-   */
+  /** For `component`/`variant`: child prop name to the parent binding that supplies it. See `spec/ir/template-ir-2.md`. */
   props?: Record<string, BindingId>
-  /**
-   * For a `component` hole: the template version holding the markup the call site wrote
-   * between the tags. It is named here rather than in the child because the child is shared
-   * — one `<Card/>` used five times is one sealed template, and each of the five call sites
-   * writes different children. The content is lowered in the *caller's* binding namespace,
-   * so it reads the caller's props and signals directly and needs no projection.
-   */
+  /** For `component`: the template version holding the markup the call site wrote between the tags. See `spec/ir/template-ir-2.md`. */
   children?: string
-  /**
-   * For a `component` hole: the instance is its own cache unit and the parent does not
-   * render it. Set when the child is private and the parent is not — containment, so that
-   * one private fragment does not make a whole shared route private. The parent leaves a
-   * boundary the kernel fills, exactly as it does for a `slot`.
-   */
+  /** For `component`: the instance is its own cache unit and the parent does not render it. See `spec/ir/template-ir-2.md`. */
   isolated?: boolean
-  /**
-   * For a `list` hole: the binding each item is supplied as, when a row interpolates the item itself.
-   *
-   * A row's holes are normally filled from the item's *fields*, which is why an item has to be an
-   * object — and made `names.map((n) => <li>{n}</li>)` over a `string[]` refuse, for no reason a
-   * reader of that line would guess. When the row names the item directly this records the binding,
-   * and whatever renders the rows wraps each one.
-   *
-   * Absent is the fast path, the same as `rowIndex`: a row that reads fields is handed the item
-   * object with no wrapping at all.
-   */
+  /** For `list`: the binding each item is supplied as, when a row interpolates the item itself. See `spec/ir/template-ir-2.md`. */
   rowValue?: BindingId
-  /**
-   * For a `list` hole: the binding each row's zero-based position is supplied as.
-   *
-   * Absent unless the row callback names a second parameter, and absent is the fast path — a row
-   * that does not ask for its index is rendered against the item object itself, with no per-row
-   * allocation. Only a list that asks pays, which matters because the row loop is the hot one: the
-   * feed scenario renders fifty of them per request.
-   *
-   * The index is supplied by whatever renders the rows rather than carried in the item, because it
-   * is a fact about the position and not about the value. Two identical items at different
-   * positions are still one row template and one cache entry.
-   */
+  /** For `list`: the binding each row's zero-based position is supplied as. See `spec/ir/template-ir-2.md`. */
   rowIndex?: BindingId
-  /**
-   * For a `text` hole: the ordinal of the marker comment its value follows, counted in
-   * document order within the fragment and skipping list-hole subtrees. Absent means the
-   * value is the only text child of the element at `path`.
-   *
-   * This is on the hole, not only on the wiring entry, because every value has to be
-   * locatable — a delta writes server-owned values, not only signal-owned ones.
-   */
+  /** For `text`: the ordinal of the marker comment its value follows. Absent means the only text child at `path`. */
   anchor?: number
 }
 
@@ -148,11 +71,7 @@ export interface WiringEntry {
   attr?: string
   event?: string
   intent?: string
-  /**
-   * For a `text` op: the ordinal of the marker comment this binding writes after,
-   * counted in document order within the fragment and skipping list-hole subtrees.
-   * Absent means the target is the parent element's only text child.
-   */
+  /** For `text`: the ordinal of the marker comment this binding writes after. Absent means the only text child. */
   anchor?: number
 }
 
@@ -163,13 +82,7 @@ export interface SignalDecl {
   init?: Json
 }
 
-/**
- * What a fragment reads, writes and does to the envelope, inferred by the compiler.
- *
- * `reads` is the input to every cache decision — the key, the class and the `Vary` header all come
- * from it. `writes` and `envelope` stay empty on a fragment, and deliberately: a render cannot
- * write, so there is nothing in one to infer a write from.
- */
+/** What a fragment reads, writes and does to the envelope, inferred by the compiler. See `spec/kernel/cache.md`. */
 export interface EffectSet {
   reads: string[]
   writes: string[]
@@ -177,14 +90,7 @@ export interface EffectSet {
   residency: 'server' | 'client' | 'either'
 }
 
-/**
- * A sealed template: pre-encoded UTF-8 segments with holes between them, and a version that is a
- * hash of its own content.
- *
- * Sealed because nothing can change it after compilation — so two renders of the same template with
- * the same values are the same bytes by construction, which is what lets a client hold one and be
- * sent only values.
- */
+/** A sealed template: pre-encoded UTF-8 segments with holes between them, and a version that is a hash of its own content. See `spec/ir/template-ir-2.md`. */
 export interface TemplateIR {
   spec: typeof TEMPLATE_IR_SPEC
   irVersion: string
@@ -194,10 +100,7 @@ export interface TemplateIR {
   holes: Hole[]
   wiring: WiringEntry[]
   signals: SignalDecl[]
-  /**
-   * Values computed from other bindings. A decl whose expression reads a signal is
-   * reactive on the client; one that reads only props is resolved once, at render.
-   */
+  /** Values computed from other bindings. See `spec/ir/template-ir-2.md`: ownership follows the reads. */
   derived: DerivedDecl[]
   forms: WireForm[]
   effects: EffectSet
@@ -266,58 +169,23 @@ export function rawValue(h: Hole): boolean {
   return h.escape === 'trusted-raw' && !fromTemplate(h)
 }
 
-/**
- * Which wire forms this template can serve, derived rather than declared.
- * `html` is unconditional — it is the floor that needs nothing resident on the client.
- * `delta` requires every hole to be value-projectable through a template the client
- * already holds, which a structural `slot` hole is not.
- */
+/** Which wire forms this template can serve, derived rather than declared. See `spec/ir/template-ir-2.md`. */
 export function derivableForms(holes: Hole[]): WireForm[] {
   const forms: WireForm[] = ['html', 'bundle', 'split']
-  // A patch addresses the DOM structurally rather than by binding, so a slot hole and a
-  // non-projectable value are both fine — what it cannot address is markup with no boundary.
-  // A raw value that is not its element's only child produced an unknown number of nodes after a
-  // marker comment, and nothing in the template says where they end.
   if (holes.every((h) => !(rawValue(h) && h.anchor !== undefined))) forms.push('patch')
-  const projectable = holes.every(
-    (h) =>
-      // An isolated instance is structurally a hole this render does not fill, which is what
-      // a slot is. Neither can be projected from values the parent holds.
-      h.kind !== 'slot' &&
-      !h.isolated &&
-      // A `raw()` hole's *value* is markup, and a delta is applied by writing values into nodes —
-      // where the only thing a node can be written is text. Projecting one therefore displays the
-      // markup escaped, which is worse than sending the region again.
-      //
-      // `list`, `component` and `children` holes are trusted-raw as well and are not this case:
-      // their markup comes from a nested template the client already holds, and a delta projects
-      // values into it. The distinction is where the markup comes from — a template, or the
-      // value set.
-      !rawValue(h),
-  )
+  const projectable = holes.every((h) => h.kind !== 'slot' && !h.isolated && !rawValue(h))
   if (projectable) forms.push('delta')
   return forms
 }
 
-/**
- * The values a component instance is rendered with: its props, read out of the parent's
- * value set. A prop the parent does not supply is null rather than absent, so the child
- * renders a hole rather than the string "undefined".
- */
+/** The values a component instance is rendered with. A missing prop is null rather than absent, so the child renders a hole, not "undefined". */
 export function componentValues(hole: Hole, values: Values): Values {
   const out: Values = {}
   for (const [prop, binding] of Object.entries(hole.props ?? {})) out[prop] = values[binding] ?? null
   return out
 }
 
-/**
- * The markup a call site wrote between a component's tags, and the value set it reads.
- *
- * It is a frame rather than a value on the hole because a component may hand its own children
- * on to another one — `<Card><Panel>{children}</Panel></Card>` — and the inner `{children}`
- * has to mean the caller's markup, not Card's. `outer` is the frame that was active where the
- * children markup was written, which is what makes the scoping lexical rather than dynamic.
- */
+/** The markup a call site wrote between a component's tags, and the value set it reads. A frame, not a hole value — see `spec/ir/template-ir-2.md`. */
 export interface ChildrenFrame {
   ir: TemplateIR
   values: Values
@@ -337,13 +205,7 @@ export function childrenFrame(
   return { ir, values, ...(outer ? { outer } : {}) }
 }
 
-/**
- * The delta between two value sets for one template.
- *
- * `base` is the render the client named, and naming it is what makes this memoisable: a delta is a
- * pure function of two content-addressed states, so one computation serves every client making the
- * same transition.
- */
+/** The delta between two value sets for one template. See `spec/kernel/surgical.md`: a pure function of two content-addressed states. */
 export function deltaPayload(
   ir: TemplateIR,
   base: string,
@@ -367,11 +229,7 @@ function changesFor(
   next: Values,
   resolve: ((version: string) => TemplateIR | undefined) | undefined,
   prefix: string,
-  /**
-   * Props a caller fed from a signal. The child declared them as ordinary props and has
-   * no way to know, so ownership has to be carried across the boundary rather than
-   * rediscovered on the other side.
-   */
+  /** Props a caller fed from a signal, carried across since the child has no way to rediscover it. */
   fromSignal: Set<BindingId>,
 ): Values {
   const before = resolveDerived(ir.derived, prev)
@@ -380,9 +238,7 @@ function changesFor(
   const addressable = addressableIn(ir, resolve, new Set())
   const sources = [...ir.signals, ...[...fromSignal].map((id) => ({ id }))]
   const owned = clientOwned(ir.derived, sources)
-  // A row is its own template, so the rule about holes applies one level down as well. Without
-  // this, a row field that only feeds an instance inside the row would travel twice: once
-  // under a name the row has nothing to write it into, and once through the instance.
+  // A row is its own template; without this a field feeding only an instance inside it would travel twice.
   const rowFields = new Map<BindingId, Set<BindingId>>()
   for (const hole of ir.holes) {
     if (hole.kind !== 'list' || !hole.nested) continue
@@ -411,13 +267,7 @@ function changesFor(
   return out
 }
 
-/**
- * The changes that live behind a nested template rather than in this one's value set: a
- * component instance, the children a call site handed one, and the instances inside a list
- * row. Everything here is addressed by walking down from the caller — `c0.label`,
- * `rows[3].c0.label` — because the client adopted each of them as its own table and a value
- * the parent never held has no name at the parent's level.
- */
+/** The changes behind a nested template: a component instance, handed-down children, instances inside a list row. See `spec/ir/template-ir-2.md`. */
 function instanceChanges(
   ir: TemplateIR,
   before: Values,
@@ -430,22 +280,17 @@ function instanceChanges(
 ): Values {
   const out: Values = {}
   for (const hole of ir.holes) {
-    // Children are the caller's markup rendered somewhere else, so they share the caller's
-    // value set and its prefix: nothing about them is renamed on the way in.
     if (hole.children) {
       const content = resolve?.(hole.children)
       if (!content) throw new Error(`E_NESTED_UNRESOLVED: hole ${hole.index} needs ${hole.children}`)
       Object.assign(out, instanceChanges(content, before, after, resolve, prefix, owned, signals, fromSignal))
     }
 
-    // A row is its own template, so an instance inside one is reached through the row. The
-    // row's own values are already diffed by path; this is the part no path can express.
     if (hole.kind === 'list' && hole.nested) {
       const row = resolve?.(hole.nested)
       const prevRows = before[hole.binding]
       const nextRows = after[hole.binding]
       if (!row || !Array.isArray(prevRows) || !Array.isArray(nextRows)) continue
-      // A length change is structural and sends the list whole, so there is nothing to address.
       if (prevRows.length !== nextRows.length) continue
       if (!row.holes.some((h) => h.kind === 'component' || h.children)) continue
       const at = prefix ? `${prefix}.${hole.binding}` : hole.binding
@@ -494,11 +339,7 @@ function instanceChanges(
   return out
 }
 
-/**
- * Which bindings of this value set have somewhere to land. Children content is included
- * because it is written in this template's namespace and rendered inside the instance: a
- * value used only there is still this template's to send.
- */
+/** Which bindings of this value set have somewhere to land, including children content. */
 function addressableIn(
   ir: TemplateIR,
   resolve: ((version: string) => TemplateIR | undefined) | undefined,
@@ -515,10 +356,7 @@ function addressableIn(
   return out
 }
 
-/**
- * Path-keyed diff (`rows[3].qty`), so a change to one row of a list costs one entry
- * rather than the whole list. A length change is structural and sends the list whole.
- */
+/** Path-keyed diff (`rows[3].qty`). A length change is structural and sends the list whole. See `spec/ir/template-ir-2.md`. */
 export function diffValues(prev: Values, next: Values, prefix = ''): Values {
   const changed: Values = {}
   const at = (key: string) => (prefix ? `${prefix}.${key}` : key)

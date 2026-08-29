@@ -12,35 +12,7 @@ import {
   type Values,
 } from './template-ir.ts'
 
-/**
- * The design's second and third memoisation levels. The first — a whole fragment, keyed by its
- * effect signature — is `StorePort` and has existed since the plan layer. These two are the
- * opt-in part, and the reason they are opt-in is that the literature is explicit about the hard
- * case: a structural change to the computation graph invalidates the reasoning that makes
- * incremental cheap, so it is per-slot rather than a mode.
- *
- * **Level two, derived values.** A derived expression whose inputs did not change does not need
- * re-evaluating. The dependency graph is already on the wire — `readsOf` walks it — so the set
- * of derived ids a change can reach is computable rather than guessable.
- *
- * **Level three, template segments.** A rendered nested template is a pure function of its
- * template version and its values, so it is content-addressed and shareable by exactly the
- * argument the delta memo uses: one computation, many deliveries. A list of 500 rows where
- * three changed costs three row renders.
- *
- * Two scoping decisions are deliberate and stated rather than discovered later.
- *
- * Only **nested** templates are memoised — list rows and component instances. A text hole is
- * one escape scan and one encode, and a hash of its value costs more than rendering it. A memo
- * that loses is worse than no memo, so the line is where the work is.
- *
- * The memo is **process-local**, because `render` is synchronous. It writes into a buffer and
- * returns a byte count, and a memo it consults has to answer synchronously — which rules out a
- * shared tier. Sharing row bytes between isolates would mean making rendering async, and that
- * would cost every render more than it saves any. So this is an isolate-local LRU, which for a
- * hot list is where the win is anyway, and the honest statement is that the sharing stops at
- * the isolate boundary.
- */
+/** The design's second and third memoisation levels — opt-in, per-slot. See `spec/kernel/surgical.md`. */
 export interface SegmentMemo {
   get(key: string): Uint8Array | undefined
   set(key: string, bytes: Uint8Array): void
@@ -55,13 +27,7 @@ export interface SegmentMemoOptions {
   maxBytes?: number
 }
 
-/**
- * A content-addressed memo over nested templates — list rows and component instances.
- *
- * Two lines drawn deliberately: only nested templates are memoised, because hashing a text hole
- * costs more than rendering it; and the memo is process-local, because `render` is synchronous and
- * a shared tier could not answer it.
- */
+/** A content-addressed memo over nested templates — list rows and component instances. See `spec/kernel/surgical.md`. */
 export function createSegmentMemo(options: SegmentMemoOptions = {}): SegmentMemo {
   const maxBytes = options.maxBytes ?? 4 * 1024 * 1024
   const entries = new Map<string, Uint8Array>()
@@ -120,11 +86,7 @@ export interface DerivedPlan {
   readonly order: readonly DerivedDecl[]
 }
 
-/**
- * Which derived values a change can reach, computed once per template rather than per render.
- * Transitive, because one derived value may read another, and declaration order is what makes
- * a single forward pass enough.
- */
+/** Which derived values a change can reach, computed once per template rather than per render. See `spec/kernel/surgical.md`. */
 export function derivedPlan(decls: readonly DerivedDecl[]): DerivedPlan {
   const reads = decls.map((decl) => ({ id: decl.id, reads: readsOf(decl.expr) }))
   return {
@@ -149,11 +111,7 @@ export interface IncrementalDerived {
   reused: BindingId[]
 }
 
-/**
- * Resolve derived values against a previous resolved set. Everything a change cannot reach is
- * carried over; everything it can is recomputed. The result is identical to a full
- * `resolveDerived`, and there is a gate asserting exactly that.
- */
+/** Resolve derived values against a previous resolved set. Identical to a full `resolveDerived`, gated by a fixture. */
 export function resolveDerivedFrom(
   plan: DerivedPlan,
   previousResolved: Values,
@@ -195,12 +153,7 @@ export interface IncrementalStats {
   /** Nested templates served from the memo, and rendered. */
   segments: { reused: number; rendered: number }
   derived: { reused: number; recomputed: number }
-  /**
-   * Holes whose shape changed rather than whose values did — a list that grew, a hole that is
-   * suddenly not an array. Nothing is reused for one of these, and naming them is the point:
-   * a slot that reports structural change every time is a slot for which `.incremental()` is
-   * costing rather than saving.
-   */
+  /** Holes whose shape changed rather than whose values did. See `spec/kernel/surgical.md`. */
   structural: string[]
 }
 
@@ -224,11 +177,7 @@ export interface IncrementalInput {
   plan?: DerivedPlan
 }
 
-/**
- * A render that consults the memo for every nested template and recomputes only the derived
- * values a change can reach. Byte-identical to `render()` for the same inputs, which is the one
- * property that makes it safe to turn on: there is a gate over the fixtures asserting it.
- */
+/** A render that consults the memo for nested templates and recomputes only reachable derived values. Byte-identical to `render()`, gated. */
 export function renderIncremental(input: IncrementalInput): IncrementalRender {
   const stats: IncrementalStats = {
     segments: { reused: 0, rendered: 0 },
@@ -277,9 +226,7 @@ function writeSegments(
     }
 
     if (hole.kind === 'children') {
-      // Children are the caller's markup and the caller's values, so the memo key that
-      // would address them is the caller's — not anything this template can name. Rendered
-      // in place, exactly as `render` does it.
+      // Rendered in place, exactly as `render` does it — the memo key is the caller's, not this template's.
       if (frame) writeSegments(frame.ir, frame.values, input, stats, parts, frame.outer)
       continue
     }
@@ -309,10 +256,7 @@ function nestedBytes(
   stats: IncrementalStats,
   frame: ChildrenFrame | undefined,
 ): Uint8Array {
-  // An instance's bytes are a function of its props *and* of the markup its call site put
-  // between the tags. Two call sites can hand the same props to one template and different
-  // children, so the frame is part of the address or the memo would answer with the wrong
-  // markup — a content-addressed cache whose key is not the content.
+  // The frame is part of the key: two call sites can hand the same props to one template with different children.
   const key = segmentKey(nested.version, values) + frameKey(frame)
   const cached = input.memo.get(key)
   if (cached) {
@@ -320,8 +264,6 @@ function nestedBytes(
     return cached
   }
   stats.segments.rendered++
-  // A nested template's own derived values are resolved inside its own pass, and its own
-  // nested templates get their own memo lookups.
   const parts: Uint8Array[] = []
   const own = derivedPlan(nested.derived)
   const resolved = resolveDerivedFrom(own, {}, values, new Set(Object.keys(values)))

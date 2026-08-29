@@ -3,11 +3,7 @@ import type { EffectSet } from './template-ir.ts'
 /** What a read set makes a fragment. Derived, never declared — a class you can assert is one you can assert wrongly. */
 export type CacheClass = 'static' | 'shared' | 'private'
 
-/**
- * What a fragment reads includes what the fragments it renders read. A component that
- * reads identity makes its caller private, which is the whole reason the sets compose
- * rather than being recorded per template and compared later.
- */
+/** What a fragment reads includes what the fragments it renders read. See `spec/compiler/effects.md`. */
 export function unionEffects(sets: readonly EffectSet[]): EffectSet {
   const reads = new Set<string>()
   const writes = new Set<string>()
@@ -26,11 +22,7 @@ export function unionEffects(sets: readonly EffectSet[]): EffectSet {
   }
 }
 
-/**
- * Everything about cacheability is derived from what a render read. Nothing here is
- * declared by an author, which is the point: a cache class that can be asserted can be
- * asserted wrongly.
- */
+/** Everything about cacheability is derived from what a render read, never declared by an author. */
 export function cacheClassOf(effects: EffectSet): CacheClass {
   if (effects.reads.length === 0 && effects.envelope.length === 0) return 'static'
   if (effects.reads.some(isPrivate)) return 'private'
@@ -65,11 +57,7 @@ function header(name: string): string {
     .join('-')
 }
 
-/**
- * The reads a cache key has to include the *values* of. A flag is an axis rather than a
- * key component — the losing branch is unreachable, not cached separately — and time is a
- * TTL rather than a key.
- */
+/** The reads a cache key has to include the *values* of. See `spec/kernel/cache.md`. */
 export function keyComponents(effects: EffectSet): string[] {
   return effects.reads.filter((read) => read !== 'time' && !read.startsWith('flag:')).sort()
 }

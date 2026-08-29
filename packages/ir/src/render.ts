@@ -13,11 +13,7 @@ function needsEscape(s: string, attr: boolean): boolean {
   return false
 }
 
-/**
- * Escapes only when a scan proves it necessary — the runtime half of escape elision. The
- * escaping itself goes through the string form: replacing in a string and encoding once is
- * one allocation, where splicing pre-encoded entities into a byte array was one per run.
- */
+/** Escapes only when a scan proves it necessary — the runtime half of escape elision. See `spec/ir/template-ir-2.md`. */
 export function escapeBytes(s: string, attr: boolean): Uint8Array {
   return utf8.encode(needsEscape(s, attr) ? escapeString(s, attr) : s)
 }
@@ -55,11 +51,7 @@ export function concat(parts: Uint8Array[]): Uint8Array {
   return out
 }
 
-/**
- * The text a value contributes, before escaping. Exported because a consumer that writes a
- * value through a DOM API rather than into markup needs the same string this renderer would
- * have escaped — the `patch` form's text and attribute writes are exactly that.
- */
+/** The text a value contributes, before escaping. Exported for a consumer writing through a DOM API — the `patch` form's writes. */
 export function valueText(v: Json | undefined): string {
   if (v === null || v === undefined) return ''
   if (typeof v === 'string') return v
@@ -75,13 +67,7 @@ export function isTruthy(v: Json | undefined): boolean {
 /** Resolves a nested template by version, which is how a list of fragments is projected. */
 export type Resolver = (version: string) => TemplateIR | undefined
 
-/**
- * One hole's bytes, for a consumer that walks a template itself rather than rendering it —
- * the kernel cutting a shell at its slots, or the incremental renderer filling in around a
- * memoised region. It is the buffer writer with a copy on the end rather than a second
- * implementation of the same switch: two of those would eventually disagree, and the one
- * they disagreed about would be the wire form nobody was testing.
- */
+/** One hole's bytes, for a consumer that walks a template itself rather than rendering it. See `spec/ir/template-ir-2.md`. */
 export function renderHole(hole: Hole, value: Json | undefined, resolve?: Resolver): Uint8Array {
   for (;;) {
     try {
@@ -94,23 +80,9 @@ export function renderHole(hole: Hole, value: Json | undefined, resolve?: Resolv
 }
 
 /**
- * One hole's bytes, given the template's **whole** value set.
- *
- * The difference from `renderHole` is the holes that cannot be rendered from a single value. A
- * component instance projects several of the parent's bindings through its props; a variant is
- * gated on one binding and renders a nested template; `children` is the caller's markup, held in a
- * frame rather than in the values. `renderHole` reaches `writeValue`, whose arms for those three
- * write nothing at all — correctly, because `writeTemplate` has already handled them by the time it
- * is called.
- *
- * So a caller that walks a template *itself* — the kernel cutting a shell at its slot boundaries —
- * has to use this one. Using the other is how every `<Mark/>` in a layout came to render nothing:
- * the component arm returned zero bytes, the shell was sent without it, and nothing anywhere
- * refused, because a hole that writes nothing is indistinguishable from a hole whose value was
- * empty.
- *
- * The values must already have been through `resolveDerived`. A caller that walks the template is
- * also the caller that owns that step; `render` does it once at the top of `writeTemplate`.
+ * One hole's bytes, given the template's **whole** value set — unlike `renderHole`, this also
+ * handles `component`, `variant` and `children` holes. See `spec/ir/template-ir-2.md`. The values
+ * must already have been through `resolveDerived`; a caller that walks the template owns that step.
  */
 export function renderHoleIn(
   hole: Hole,
@@ -128,15 +100,7 @@ export function renderHoleIn(
   }
 }
 
-/**
- * The one rendering function. The server calls it to produce the `html` form and the
- * client calls it to project the `data` form, which is what makes the two provably
- * equal for a given template version and value set.
- *
- * Segments are already UTF-8, so they are copied rather than encoded, and hole values
- * are encoded straight into the destination buffer. Nothing intermediate is allocated
- * per render except the escaped form of a value that actually needed escaping.
- */
+/** The one rendering function, called by both server (`html`) and client (`data`) — what makes the two provably equal. See `spec/kernel/surgical.md`. */
 export function render(ir: TemplateIR, values: Values, resolve?: Resolver): Uint8Array {
   for (;;) {
     try {
@@ -188,13 +152,10 @@ function writeValue(
   resolve?: Resolver,
 ): number {
   switch (hole.kind) {
-    // Nothing this render owns. A slot is left for a later frame; a component is projected
-    // from the whole value set and children are the caller's markup, and both are written by
-    // `writeTemplate` before it ever reaches here.
+    // Handled by writeHole/writeTemplate before this is ever reached. See `spec/ir/template-ir-2.md`.
     case 'slot':
     case 'component':
     case 'children':
-    // A variant is written by `writeHole` before it reaches here, the same as a component.
     case 'variant':
       return off
     case 'attr-bool':
@@ -264,12 +225,7 @@ function writeTemplate(
   return off
 }
 
-/**
- * One hole's bytes, given the template's already-resolved values. Split out of the render
- * loop rather than duplicated for the second consumer that needs it — the `patch` encoder
- * asks what a single hole produced before and after, and two implementations of this switch
- * would eventually disagree about the hole nobody was testing.
- */
+/** One hole's bytes, given the template's already-resolved values. Split out so the `patch` encoder shares this switch rather than duplicating it. */
 function writeHole(
   hole: Hole,
   values: Values,
@@ -279,8 +235,7 @@ function writeHole(
   frame: ChildrenFrame | undefined,
 ): number {
   if (hole.kind === 'component') {
-    // An isolated instance is not this render's to produce: it has its own cache entry,
-    // and the kernel composes it in the same pass that fills a slot.
+    // An isolated instance has its own cache entry; the kernel composes it in.
     if (hole.isolated) return off
     return writeTemplate(
       child(hole, resolve),
@@ -291,35 +246,18 @@ function writeHole(
       childrenFrame(hole, values, resolve, frame),
     )
   }
-  /**
-   * A branch: the nested template, but only when the binding says so.
-   *
-   * Everything a component hole does, gated. Writing nothing when the test is falsy is what makes a
-   * choice of markup expressible without the byte layout varying — the hole is in the template
-   * either way, and an empty one costs no bytes at all rather than costing a placeholder.
-   */
+  // A branch: the nested template, only when the binding is truthy. See `spec/ir/template-ir-2.md`.
   if (hole.kind === 'variant') {
     if (!isTruthy(values[hole.binding])) return off
-    // The parent's values, not a projection: a branch's markup was written inside this fragment, so
-    // it is lowered in this fragment's binding namespace and reads its props and signals directly —
-    // the same rule a component's children follow, and for the same reason.
     return writeTemplate(child(hole, resolve), values, resolve, out, off, frame)
   }
   if (hole.kind === 'children') {
-    // The caller's markup, rendered against the caller's values and under the frame that
-    // was open where it was written — so a component that passes its children on gets its
-    // caller's children, not its own.
     return frame ? writeTemplate(frame.ir, frame.values, resolve, out, off, frame.outer) : off
   }
   return writeValue(hole, values[hole.binding], out, off, resolve)
 }
 
-/**
- * The markup one hole of a template produced, including a nested template's — a list's rows, a
- * component instance, or the children a call site wrote. It is what the `patch` form sends for a
- * hole whose content comes from a template rather than from a value, and what the encoder compares
- * to decide the hole changed at all.
- */
+/** The markup one hole produced, including a nested template's. What the `patch` form sends and compares. */
 export function renderSubtree(
   ir: TemplateIR,
   index: number,
@@ -357,17 +295,7 @@ export function assertSameTemplate(ir: TemplateIR, payload: { tpl: string }): vo
 
 const PATH_TOKEN = /^([^[.]+)(?:\[(\d+)\])?$/
 
-/**
- * Undoes the projections a delta addresses through, so a path written for the client's tables
- * becomes a path into the caller's value set. `c0.tone` names a hole inside an instance; the
- * caller knows that value by whatever binding feeds the prop, and the component hole says
- * which. A list is not a projection — a row keeps its own names — so it only moves the walk
- * into the row template.
- *
- * A child hole with no prop behind it is a value the child *computed*, and the caller's value
- * set has no name for it at all. That is refused rather than dropped: a reconstruction that
- * quietly ignored one changed value would produce a plausible wrong render.
- */
+/** Undoes the projections a delta addresses through, so a client-table path becomes a caller value-set path. See `spec/ir/template-ir-2.md`. */
 function invertPath(path: string, ir: TemplateIR, resolve: Resolver | undefined): string {
   const out: string[] = []
   let current: TemplateIR | undefined = ir
@@ -410,13 +338,7 @@ function holeFor(ir: TemplateIR, binding: string, resolve: Resolver | undefined)
   return undefined
 }
 
-/**
- * Applies a path-keyed delta (`rows[3].qty`) onto a base value set. Given the template it also
- * inverts the projections the delta addressed through, which is what makes "apply the delta to
- * the base and render again" comparable to rendering the new values. Without one, a path into
- * an instance lands under the instance's binding and is inert — right for a client writing into
- * the DOM it already has, wrong for anybody rebuilding the values.
- */
+/** Applies a path-keyed delta (`rows[3].qty`) onto a base value set, inverting projections given a template. See `spec/ir/template-ir-2.md`. */
 export function applyDelta(base: Values, delta: DeltaPayload, ir?: TemplateIR, resolve?: Resolver): Values {
   const next = structuredClone(base) as Values
   for (const [addressed, value] of Object.entries(delta.changed)) {

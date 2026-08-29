@@ -149,16 +149,7 @@ export function parse(text: string): ParseResult {
   return fromJSON(JSON.parse(text))
 }
 
-/**
- * What a TPL frame carries: addressing and wiring, and deliberately not the segments or the
- * effect set. The segments are markup the client already holds in its DOM, and the effects
- * are a server concern — a client that received them would be paying bytes for a read set
- * it cannot act on.
- *
- * This is the shape three places had each written for themselves. One of them is now the
- * definition, because a projection copied three times is a projection that will disagree
- * with itself the first time a hole grows a field.
- */
+/** What a `TPL` frame carries: addressing and wiring, deliberately not the segments or the effect set. See `spec/ir/template-ir-2.md`. */
 export interface ClientView {
   version: string
   holes: Hole[]
@@ -166,12 +157,7 @@ export interface ClientView {
   derived: DerivedDecl[]
 }
 
-/**
- * The template as a client needs it, and no more.
- *
- * Effects, provenance and the build's own metadata stay on the server: a client that received the
- * read set would be receiving a description of the server's cache keys.
- */
+/** The template as a client needs it, and no more. See `spec/ir/template-ir-2.md`. */
 export function clientView(ir: TemplateIR): ClientView {
   return { version: ir.version, holes: ir.holes, wiring: ir.wiring, derived: ir.derived }
 }
