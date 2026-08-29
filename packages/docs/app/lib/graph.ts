@@ -1,20 +1,10 @@
 import { escapeHtml } from './escape.ts'
 
 /**
- * The one diagram primitive the architecture page draws everything with.
- *
- * Five of the six figures on that page are the same picture — labelled boxes with lines between
- * them — and drawing each one by hand would mean five chances for a stroke width, a radius or a
- * text baseline to drift apart. So there is one renderer, and a figure is a list of nodes and a
- * list of edges.
- *
- * Every edge is drawn twice: a hairline that *draws itself* from source to target, and a short
- * accent dash that runs the same path a beat later. The hairline says the dependency exists; the
- * dash says which way it points, which is the thing an arrowhead says badly at this scale and a
- * moving mark says exactly. Both are `data-wf`, so reduced motion leaves the finished graph.
- *
- * Coordinates are a viewBox, not pixels — the figure scales to whatever column it lands in, and a
- * node's position is the only thing a caller has to think about.
+ * The one diagram primitive the architecture page draws everything with: a figure is a list of
+ * nodes and edges, one renderer. Every edge draws twice — a hairline for existence, a moving accent
+ * dash for direction, since an arrowhead reads badly at this scale. Coordinates are a viewBox, so a
+ * node's position is the only thing a caller thinks about.
  */
 
 const enc = escapeHtml
@@ -39,13 +29,7 @@ export interface GraphEdge {
   to: string
   /** `down` leaves the source's bottom edge instead of its right — a fall, not a hand-off. */
   down?: boolean
-  /**
-   * `back` leaves the source's *left* edge and arrives at the target's right — a return.
-   *
-   * Three of these figures are cycles rather than pipelines: the client tells the server what it
-   * holds and the server answers it. Drawn as a forward edge the return would cross every node
-   * between the two; drawn as a back edge it bows out to the left and reads as the answer it is.
-   */
+  /** `back` leaves the source's left edge, arrives at the target's right — a return, bowing left instead of crossing every node between. */
   back?: boolean
   /** Seconds into the cycle at which the hairline starts drawing. */
   at: number
@@ -64,26 +48,10 @@ export interface GraphOptions {
   noteMono?: boolean
 }
 
-/**
- * The margin around the drawing, in viewBox units.
- *
- * The viewBox is computed from where the nodes actually are rather than fixed at 1320 wide, so the
- * graph sits the same distance from both edges of the figure. Fixing the width instead left the
- * figures whose last column is narrow — the packages, the tiers — visibly shoved against the left
- * edge with a gap on the right, because a node's x is where it belongs relative to the *others* and
- * says nothing about where the drawing should sit in its box.
- */
+/** The margin around the drawing. The viewBox is computed from the nodes' actual extent, not fixed at 1320, or narrow-last-column figures shove left with a gap on the right. */
 const MARGIN = 12
 
-/**
- * How far the widest note in a node reaches past its own box.
- *
- * A note is set at 11.5px and is not clipped, so `a station per mechanism` runs past the 168-unit
- * box `@weftjs/inspector` sits in. Ignoring that put the drawing's boxes on centre and its *text*
- * against the edge; adding a fixed allowance to the right instead made the margins visibly unequal.
- * So the reach is estimated from the text — an average advance width per character, which is close
- * enough at this size — and the viewBox grows only when a note actually needs it.
- */
+/** How far the widest note in a node reaches past its own box — notes aren't clipped, so this is estimated from character count and the viewBox grows only when needed. */
 const ADVANCE = { mono: 6.9, sans: 5.75 }
 
 function noteReach(spec: GraphNode, mono: boolean): number {
@@ -126,14 +94,7 @@ function pathOf(from: GraphNode, to: GraphNode, spec: GraphEdge): string {
   return `M${x1} ${y1} C${x1 + reach} ${y1} ${x2 - reach} ${y2} ${x2} ${y2}`
 }
 
-/**
- * One edge, as its two strokes.
- *
- * `pathLength="600"` normalises every path to the same length whatever its real geometry, which is
- * what lets one keyframe pair drive a 24-unit hop and a 420-unit sweep at the same apparent speed.
- * Without it a long edge would draw slowly and a short one would snap, and the figure would read as
- * though distance meant duration.
- */
+/** One edge, as its two strokes. `pathLength="600"` normalises every path to the same length, so one keyframe pair drives any hop at the same apparent speed. */
 function edge(from: GraphNode, to: GraphNode, spec: GraphEdge, cycle: number): string {
   const d = enc(pathOf(from, to, spec))
   return (
@@ -166,12 +127,7 @@ function node(spec: GraphNode, options: GraphOptions): string {
   )
 }
 
-/**
- * The figure.
- *
- * Edges are emitted before nodes so the boxes paint over the lines that arrive at them, which is
- * the whole of the z-ordering this needs — SVG has no z-index, and document order is the control.
- */
+/** The figure. Edges emit before nodes so boxes paint over the lines that arrive at them — SVG's only z-ordering is document order. */
 export function graph(
   nodes: readonly GraphNode[],
   edges: readonly GraphEdge[],
@@ -191,16 +147,7 @@ export function graph(
   const right = Math.max(...nodes.map((each) => Math.max(each.x + each.w, noteReach(each, mono))))
   const x = left - MARGIN
   const width = right - left + MARGIN * 2
-  /**
-   * The drawing decides its own size, because only the drawing knows what it is.
-   *
-   * `max-width` is the natural width: a 740-unit figure in a 786px column should be 740px, not
-   * stretched to fill it — the labels are 13px at 1:1 and a figure scaled up past that reads as a
-   * mistake. Below the floor it stops shrinking and scrolls inside `overflow-x` instead, because
-   * 13px text at half scale is not a smaller diagram, it is an unreadable one. A single rule in the
-   * stylesheet could not express either: one sheet serves a 740-unit hero and a 1320-unit
-   * architecture figure, and their floors are different numbers.
-   */
+  // The drawing decides its own size: `max-width` is the natural width (not stretched to fill), and below a per-figure floor it scrolls rather than shrinking to unreadable text.
   const floor = Math.min(width, 620)
   return (
     `<svg class="gx" viewBox="${x} 0 ${width} ${options.height}" width="100%"` +
