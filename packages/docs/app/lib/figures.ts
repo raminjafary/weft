@@ -3,22 +3,10 @@ import { highlight } from './highlight.ts'
 import { raceFigure } from './measured.ts'
 
 /**
- * The figures, and the small motion language they share.
- *
- * The design's rule for this site is that a figure moves only where the movement *is* the idea —
- * an order of arrival, a size against another size, a value being swapped, a declaration being
- * refused. So the vocabulary is deliberately five things and not fifty: a sweep, a sequence, a bar
- * that grows, a swap, a refusal. A reader who has understood one figure has understood how the next
- * one speaks, which is worth more than each figure being individually clever.
- *
- * Every animated element carries `data-wf`. That is the whole of the reduced-motion contract: one
- * rule in `styles.css` switches the animations off and pins each element to its settled state, and
- * because every keyframe here *ends* at the state that makes the point, the still version is the
- * diagram rather than a blank box.
- *
- * These build markup rather than being fragments, because they appear inside authored prose. The
- * pieces that are the same on every page of a section — the contents rail — are fragments, for the
- * opposite reason: a sealed template is worth having exactly when it is reused byte for byte.
+ * The figures, and the small motion language they share: five kinds — sweep, sequence, growing bar,
+ * swap, refusal — each moving only where movement *is* the idea. Every animated element carries
+ * `data-wf`, the whole reduced-motion contract: one CSS rule pins each to its settled (meaningful)
+ * end state. These build markup rather than being fragments because they sit inside authored prose.
  */
 
 const enc = escapeHtml
@@ -28,13 +16,7 @@ function cap(text: string, extra = ''): string {
   return text ? `<figcaption>${enc(text)}${extra}</figcaption>` : ''
 }
 
-/**
- * A terminal block with a tab per package manager.
- *
- * The tabs are radio inputs and the panels are chosen by `:has(:checked)`, so this is a real
- * control with no script behind it — the same trick the design system's segmented control uses, and
- * the reason the quick start still works with the runtime switched off.
- */
+/** A terminal block with a tab per package manager — radio inputs and `:has(:checked)`, no script needed. */
 export function terminal(
   id: string,
   tabs: readonly { label: string; lines: readonly string[] }[],
@@ -71,12 +53,7 @@ function shellLine(line: string): string {
   return `<span class="in"><span class="prompt">$</span> ${highlight('sh', line.slice(2))}</span>`
 }
 
-/**
- * A file tree beside the file that matters, which is the shape the route table wants explaining in.
- *
- * `lit` is the path the prose is about. Marking it is the whole reason this is a component and not
- * two figures side by side: the point of the pair is *which* file in the tree the code belongs to.
- */
+/** A file tree beside the file that matters. `lit` marks which path the prose is about — the whole point of the pairing. */
 export function tree(
   paths: readonly string[],
   lit: readonly string[],
@@ -104,14 +81,7 @@ export function tree(
   </figure>`
 }
 
-/**
- * The two delivery orders, raced.
- *
- * Both tracks are the same width and the same duration; the only difference is when each region's
- * band appears, which is the entire claim. The playhead is one element per track rather than one
- * shared, so the tracks stay independent under `prefers-reduced-motion` — where the settled state
- * is both regions painted and no head at all.
- */
+/** The two delivery orders, raced — same width and duration, only the arrival timing differs. One playhead per track, so they stay independent under reduced motion. */
 export function streamRace(
   slow = `fast region visible at ${raceFigure('chromium', 'in-order')}`,
   fast = `fast region visible at ${raceFigure('chromium', 'out-of-order')}`,
@@ -142,15 +112,9 @@ export interface WireRow {
 }
 
 /**
- * Three ways one region reaches the browser, drawn to scale.
- *
- * The bars grow from the left on a stagger, which is the one place a delay carries meaning here:
- * they arrive in the order the kernel would consider them, cheapest last.
- *
- * The stagger is nearly half a second, which is long for a figure this small and is the point: the
- * three bars are 17× apart in length, and a stagger short enough to read as one gesture would draw
- * them as one gesture. Held for most of a 4.4s cycle, so a reader who arrives mid-hold still finds
- * the comparison rather than an animation.
+ * Three ways one region reaches the browser, drawn to scale. Bars grow on a stagger in the order
+ * the kernel would consider them (cheapest last) — deliberately long (~0.5s) since the three bars
+ * are 17× apart in length and a short stagger would read as one gesture instead of three.
  */
 export function wireBars(rows: readonly WireRow[], caption = ''): string {
   return `<figure class="wire">
@@ -172,12 +136,7 @@ export function wireBars(rows: readonly WireRow[], caption = ''): string {
   </figure>`
 }
 
-/**
- * A sequence of stages that light up in order — the shape every "and then" in this framework has.
- *
- * The stagger is computed from the count rather than written per stage, so inserting a stage does
- * not mean retiming the four after it.
- */
+/** A sequence of stages that light up in order. Stagger is computed from the count, so inserting a stage never means retiming the rest. */
 export function sequence(stages: readonly { label: string; note?: string }[], caption = ''): string {
   const step = 5.6 / Math.max(stages.length, 1)
   return `<figure class="seq">
@@ -209,14 +168,7 @@ export function stats(items: readonly { value: string; note: string; lit?: boole
     .join('')}</div>`
 }
 
-/**
- * The same numbers as `stats`, in one bar, with the sentence that qualifies them beside it.
- *
- * A separate component and not a variant, because the two answer different questions. Tiles are for
- * figures a reader compares — three measurements of one run — and each gets its own box. A strip is
- * a header: it says what the page below it is made of, so it reads as one line and carries the
- * caveat on the same line rather than as a paragraph underneath that nobody joins up to it.
- */
+/** The same numbers as `stats`, in one line with its qualifying sentence beside it — a header, not a set of comparison tiles. */
 export function strip(items: readonly { value: string; note: string; lit?: boolean }[], aside = ''): string {
   return `<div class="strip">${items
     .map(
@@ -228,12 +180,7 @@ export function strip(items: readonly { value: string; note: string; lit?: boole
     .join('')}${aside ? `<p class="strip-note">${aside}</p>` : ''}</div>`
 }
 
-/**
- * A diff, as the two lines that changed rather than as a file.
- *
- * A tutorial step that shows a whole file again to change two lines of it makes the reader do the
- * diffing, which is the job this figure exists to do for them.
- */
+/** A diff, as the two lines that changed rather than the whole file — the reader shouldn't have to diff it themselves. */
 export function diff(lines: readonly string[], caption = '', badge = ''): string {
   const changed = lines.filter((line) => /^[-+]/.test(line)).length
   return `<figure class="code diff">
@@ -261,22 +208,10 @@ export interface BarRow {
 }
 
 /**
- * A measurement chart: one row per candidate, bar length carrying the number.
- *
- * The bars grow on a 0.16s stagger and the values fade in behind them, so a reader watches the
- * comparison assemble rather than arriving at a finished picture — and `wf-val` holds the number
- * for most of the cycle, because the number is what a reader came for and a figure that flashes it
- * is a figure that has to be waited for twice.
- *
- * The cycle is 3.4s rather than the 6.4s it was, and the bar spends far more of it growing: three
- * of these sit on the landing page one under the other, and a reader scrolling past the second
- * should not have to wait out a hold to see the third draw. What is measured is a response crossing
- * a network, so the bar travels rather than snapping — the easing is close to linear with a settle,
- * which is what a transfer looks like.
- *
- * Bar length is share-of-longest within one chart and never across charts: three of these sit on
- * the landing page measuring milliseconds, bytes and milliseconds again, and a bar that meant the
- * same width in all three would be comparing a byte to a millisecond.
+ * A measurement chart: one row per candidate, bar length carrying the number. Bars grow on a
+ * stagger and hold their value for most of the 3.4s cycle (shortened from 6.4s so three stacked on
+ * the landing page don't make a scrolling reader wait out a hold). Share-of-longest is scoped per
+ * chart, never across charts — three charts can measure ms, bytes, and ms again.
  */
 export function barChart(rows: readonly BarRow[], scale = ''): string {
   return `<div class="chart">${rows
@@ -322,19 +257,10 @@ export interface Refusal extends Verdict {
 }
 
 /**
- * What the page's mechanism accepts, and what it refuses — side by side, at the top.
- *
- * Every page in this guide is about one mechanism, and every mechanism here is defined as much by
- * what it will not do as by what it does. Putting the refusal beside the acceptance at the *top* of
- * the page rather than in a footnote at the bottom is the whole point: a reader deciding whether
- * this framework will fight them wants the constraint first, not after a page of prose.
- *
- * The refusal carries three chips — what you wrote, the rule it met, what came back — because a
- * refusal a reader cannot trace is indistinguishable from a bug. They light in order, which is the
- * order the compiler reaches them in.
- *
- * The tick pulses and the cross does not. A refusal is a settled fact and should sit still; the
- * accepted case is the live one.
+ * What the page's mechanism accepts, and what it refuses — side by side, at the top, since a reader
+ * deciding whether the framework will fight them wants the constraint first. The refusal's three
+ * chips (what you wrote, the rule, what came back) light in compiler order. The tick pulses; the
+ * cross doesn't — a refusal is a settled fact.
  */
 export function verdictPair(ok: Verdict, no: Refusal): string {
   return `<div class="verdicts">
@@ -365,13 +291,7 @@ export function verdictPair(ok: Verdict, no: Refusal): string {
   </div>`
 }
 
-/**
- * The page in four sentences, before the page.
- *
- * This site's prose is precise and therefore dense, and a reader meeting a mechanism for the first
- * time is owed the plain version before the exact one. It sits above the detail rather than below
- * it so that somebody who only reads this block has still read something true.
- */
+/** The page in four sentences, before the page — the plain version, above the precise-and-dense prose it precedes. */
 export function plainTerms(text: string): string {
   return `<div class="plain">
     <p class="plain-kicker">In plain terms</p>

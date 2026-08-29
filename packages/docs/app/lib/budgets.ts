@@ -3,17 +3,9 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
- * The byte budgets, read out of the module that measures them.
- *
- * `packages/bench/src/budget.ts` declares one entry per real module a deployment can import on its
- * own, each with a ceiling and a sentence saying where that ceiling came from. Quoting those numbers
- * by hand here would be quoting a number that moves, so this parses the declaration — and the
- * ceiling on the page is the one the gate compares against.
- *
- * What this deliberately does not do is run the bundler. Measuring is `pnpm bench budget`, which
- * takes rolldown and a minifier; a documentation page that shelled out to that would be a page that
- * takes twenty seconds to render. The ceilings are static, the measurement is a command, and the
- * page says which is which.
+ * The byte budgets, read out of `packages/bench/src/budget.ts` rather than quoted by hand, so the
+ * ceiling on the page is the one the gate compares against. Deliberately does not run the bundler —
+ * that's `pnpm bench budget`, and a page that shelled out to it would take twenty seconds to render.
  */
 export interface Budget {
   id: string
@@ -24,14 +16,7 @@ export interface Budget {
   note: string
   /** Whether the design stated this number, or the repository measured it and drew a line. */
   stated: boolean
-  /**
-   * The package the entry lives in.
-   *
-   * `budget.ts` reaches its entries through two helpers — `src()` for `packages/client/src` and
-   * `kernelSrc()` for `packages/kernel/src` — so which package an entry belongs to is written into
-   * the call rather than needing a table here. Those are the only two: nothing else in this
-   * workspace is shipped to a browser or measured against a ceiling.
-   */
+  /** The package the entry lives in — read from which of `budget.ts`'s two helpers (`src`/`kernelSrc`) the call used. */
   module: string
 }
 
@@ -41,25 +26,15 @@ const SITE = fileURLToPath(new URL('../../weft.budget.json', import.meta.url))
 const DEMO = join(ROOT, 'demo/weft.budget.json')
 
 /**
- * One declared entry, pulled out of the array by splitting on `id:` rather than by one long regex.
- *
- * The regex this replaced required `entry:` and `limit:` to be adjacent and the limit to be written
- * `N * 1024`. Four of the twenty-one entries are neither — three carry a JSDoc block between the
- * two fields explaining where their ceiling moved from, and three state a limit that is not a whole
- * number of kibibytes. So the page quietly showed seventeen budgets and no one could tell, which
- * included dropping the one ceiling on this page that came from a design figure rather than a
- * watermark. Splitting first and reading fields out of each chunk tolerates both.
+ * One declared entry, pulled out by splitting on `id:` rather than one long regex. The regex this
+ * replaced required `entry:`/`limit:` adjacent and `N * 1024`; four of twenty-one entries weren't,
+ * so the page silently showed seventeen budgets and nobody noticed. Splitting first tolerates both.
  */
 const ID = /\n\s*id: '([^']+)',/g
 const LABEL = /label:\s*'([^']+)'/
 const REACH = /entry:\s*([a-zA-Z]+)\(/
 const LIMIT = /limit:\s*([0-9]+)(?:\s*\*\s*([0-9]+))?\s*,/
-/**
- * A note, which is one single-quoted string or several concatenated.
- *
- * Escapes are part of the literal: one of them is `'the design\'s "target under 8 KB…"'`, and a
- * pattern that stopped at the first quote read four words of it and called that the note.
- */
+/** A note: one single-quoted string or several concatenated. Must handle escapes — a pattern stopping at the first quote truncated one to four words. */
 const NOTE = /limitNote:\s*('(?:[^'\\]|\\.)*'(?:\s*\+\s*'(?:[^'\\]|\\.)*')*)/
 
 /** Which package an entry's helper reaches into. The call says it, so no table has to. */
@@ -83,13 +58,7 @@ function joined(literal: string): string {
     .trim()
 }
 
-/**
- * Every declared entry, in the order the module lists them.
- *
- * The count is checked against the number of `id:` fields in the file, so an entry this cannot
- * parse fails the page rather than going missing from it — which is the failure that already
- * happened once and was invisible for as long as it lasted.
- */
+/** Every declared entry. Count is checked against the `id:` fields found, so an unparseable entry fails the page rather than silently vanishing (as it once did). */
 export function budgets(): Budget[] {
   const source = readFileSync(SOURCE, 'utf8')
   const starts = [...source.matchAll(ID)]
@@ -128,25 +97,12 @@ export interface SiteWeight {
   modules: number
 }
 
-/**
- * What this site's own client actually weighs, from the file the growth cap is a diff of.
- *
- * It is the honest counterpart to the table above: those ceilings are measured bundled and minified,
- * and this framework has no bundler — a page fetches the boot module and every module it imports as
- * its own response. This number is that walk, compressed the way it arrives.
- */
+/** What this site's own client actually weighs — the real per-module walk (no bundler), not the bundled-and-minified ceilings above. */
 export function siteWeight(): SiteWeight {
   return weightOf(SITE)
 }
 
-/**
- * The same question about the demo, which is the application every published figure is about.
- *
- * Three pages named the demo's download in prose — a hero figure, a guide opener and a paragraph on
- * the architecture page — and all three had it as 46,698 B, which was true until a production build
- * stopped shipping its own comments and took it to 25,835. A number typed into three files is a
- * number that goes stale in three files, so it is read from the file the build writes.
- */
+/** The same question about the demo. Three pages once hand-typed this as 46,698 B; it moved to 25,835 and only one of the three noticed. Read from the build's own file now. */
 export function demoWeight(): SiteWeight {
   return weightOf(DEMO)
 }
@@ -156,30 +112,14 @@ function weightOf(file: string): SiteWeight {
   return { brotli: parsed.brotli, raw: parsed.raw, modules: parsed.modules }
 }
 
-/**
- * How far the bundled front-door entry is from what a page actually downloads.
- *
- * Both halves are measured and neither is typed: the numerator is the walk the browser makes,
- * recorded by `weft build`; the denominator is the same code through Rolldown, recorded by
- * `pnpm bench budget --write`. The ratio was published as 3.5× and is now under 2×, because a
- * production build stopped shipping its own comments — which is exactly the kind of movement a
- * derived figure should follow on its own.
- */
+/** How far the bundled front-door entry is from what a page actually downloads. Both halves measured, neither typed — the ratio moved from 3.5× to under 2× on its own when comment-stripping shipped. */
 export function downloadRatio(): string {
   const bundled = entryFor('front-door')?.brotli
   if (!bundled) return 'not measured'
   return (demoWeight().brotli / bundled).toFixed(1)
 }
 
-/**
- * One entry by the id it declares, with what the gate last measured it at.
- *
- * `ceilingFor` answers a module page's question — what is the tightest thing this package is held
- * to — and cannot answer a page that names three specific entries. The tutorial's last step does
- * exactly that: it has the reader add a signal, a live region and a navigation, and then prints
- * what each of those three cost. Those figures were typed by hand and were wrong by a factor of
- * four, which is the argument for this function existing rather than for typing them more carefully.
- */
+/** One entry by id, with what the gate last measured. Needed because the tutorial's last step names three specific entries — hand-typed, those figures were once off by 4×. */
 export function entryFor(
   id: string,
 ): { id: string; label: string; limit: number; brotli?: number } | undefined {
@@ -189,13 +129,7 @@ export function entryFor(
   return { id: found.id, label: found.label, limit: found.limit, ...(brotli === undefined ? {} : { brotli }) }
 }
 
-/**
- * The tightest ceiling declared for a package, and how many entries it has.
- *
- * A package with entries has several — the client has nine, one per capability a page can import —
- * and the interesting one for a module page is the smallest, because that is the entry a deployment
- * pays for at minimum. Packages with none get nothing rather than a zero.
- */
+/** The tightest ceiling declared for a package, and how many entries it has — the smallest is what a deployment pays for at minimum. */
 export function ceilingFor(
   module: string,
 ): { limit: number; entries: number; label: string; brotli?: number } | undefined {
@@ -212,16 +146,9 @@ export function ceilingFor(
 }
 
 /**
- * What the last recorded run measured, per entry.
- *
- * `pnpm bench budget --write` bundles each entry with rolldown, compresses it, and writes the
- * result to `packages/bench/budgets.json` — which is committed, on the same argument as the file
- * beside this site: a growth cap is a diff. Reading it here is why a page can print a measured
- * figure without taking on a bundler and twenty seconds to render, and a test in `packages/bench`
- * holds the specification's own table to the same file.
- *
- * A missing file is not an error. It means nobody has run the gate in this checkout, and a page
- * that prints the ceiling and names the command is more use than one that fails to render.
+ * What the last recorded run measured, per entry, from the committed `packages/bench/budgets.json`
+ * — reading it is what lets a page print a measured figure without a bundler and twenty seconds to
+ * render. A missing file isn't an error: it means nobody ran the gate in this checkout.
  */
 const RECORDED = join(ROOT, 'packages/bench/budgets.json')
 
