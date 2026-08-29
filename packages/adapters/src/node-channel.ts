@@ -14,30 +14,9 @@ import type { ChannelBinding, ChannelHub, ChannelSink } from '@weftjs/kernel'
 import { acceptWebSocket, type WebSocketConnection } from './node-websocket.ts'
 
 /**
- * The four bindings the design names, over a real socket — and the one that needs no socket.
- *
- * The first three differ in exactly two things — how a frame becomes bytes, and whether the
- * same connection can carry frames back — and nothing else. So each is a `ChannelSink` and the
- * state machine above them does not know which one it is talking to.
- *
- * | Binding  | Down                        | Up               | Framing |
- * | -------- | --------------------------- | ---------------- | ------- |
- * | `stream` | one long-lived GET response | discrete POSTs   | binary  |
- * | `sse`    | `text/event-stream`         | discrete POSTs   | text    |
- * | `socket` | WebSocket                   | the same socket  | binary  |
- * | `turn`   | the POST's own response     | the same POST    | binary  |
- *
- * The costs worth stating rather than discovering. SSE cannot carry binary at all, so it
- * uses the text framing and pays base64 on every non-text body — which is why it is not the
- * default. The two half-duplex bindings answer an upstream POST down the *other*
- * connection, so a POST arriving after the downstream has dropped is `E_NO_DOWNSTREAM`: the
- * frames were understood and there was nowhere to put the answer.
- *
- * `turn` is the one that cannot have that failure, because there is no other connection to have
- * dropped: the answer goes back in the response to the request that asked. Which is also the whole
- * of what it gives up — a binding with no held downstream cannot be spoken to first, so `STALE`
- * arrives on the next turn or not at all. Everything the client asks for it gets, on any host that
- * can serve an HTTP POST and outlive nothing.
+ * The four bindings the design names, over a real socket — and the one that needs no socket. Each
+ * is a `ChannelSink`; the state machine above them does not know which it is talking to. See
+ * `spec/kernel/transport.md`.
  */
 export function streamSink(res: ServerResponse): ChannelSink {
   let open = true
@@ -45,7 +24,7 @@ export function streamSink(res: ServerResponse): ChannelSink {
   res.writeHead(200, {
     'content-type': 'application/warp',
     'cache-control': 'no-store',
-    // Otherwise a reverse proxy buffers the whole thing and the channel is a slow poll.
+    // Otherwise a reverse proxy buffers the whole thing.
     'x-accel-buffering': 'no',
   })
   res.flushHeaders()
@@ -53,8 +32,8 @@ export function streamSink(res: ServerResponse): ChannelSink {
   res.on('close', () => {
     open = false
   })
-  // `write` returning false means the socket buffer is above its watermark: the peer is not
-  // reading. Recording it is what lets the hub close a slow consumer instead of buffering for it.
+  // `write` returning false means the peer is not reading: recording it lets the hub close a
+  // slow consumer instead of buffering for it.
   res.on('drain', () => {
     saturated = false
   })
@@ -68,8 +47,7 @@ export function streamSink(res: ServerResponse): ChannelSink {
     },
     send(frames) {
       if (!open) return
-      // No preamble per frame: it went out with the headers, and this is one stream for the
-      // channel's whole life.
+      // No preamble per frame: it went out with the headers, one stream for the channel's whole life.
       for (const f of frames) {
         if (!res.write(encodeBinaryFrame(f))) saturated = true
       }
@@ -77,8 +55,7 @@ export function streamSink(res: ServerResponse): ChannelSink {
     close() {
       if (!open) return
       open = false
-      // A response the peer already abandoned is destroyed, and ending it again is what produces
-      // ERR_INCOMPLETE_CHUNKED_ENCODING in the console of the tab that navigated away.
+      // Ending an already-abandoned response produces ERR_INCOMPLETE_CHUNKED_ENCODING.
       if (!res.writableEnded && !res.destroyed) res.end()
     },
   }
@@ -112,8 +89,7 @@ export function sseSink(res: ServerResponse): ChannelSink {
     },
     send(frames) {
       if (!open) return
-      // One frame per event. The text framing already guarantees no interior newline, which
-      // is what makes an SSE `data:` line able to carry a frame at all.
+      // One frame per event: the text framing guarantees no interior newline.
       for (const f of frames) {
         if (!res.write(`data: ${encodeTextFrame(f)}\n\n`)) saturated = true
       }
@@ -128,8 +104,7 @@ export function sseSink(res: ServerResponse): ChannelSink {
 
 /** A sink over a WebSocket. Reports saturation, which is what makes backpressure a close. */
 export function socketSink(connection: WebSocketConnection): ChannelSink {
-  // One preamble per connection, as its own message: a WebSocket delivers whole messages, so
-  // the decoder on the other side sees exactly the stream the other two bindings produce.
+  // One preamble per connection, as its own message: a WebSocket delivers whole messages.
   connection.send(preamble())
   return {
     binding: 'socket',
@@ -151,18 +126,9 @@ export function socketSink(connection: WebSocketConnection): ChannelSink {
 
 /**
  * A sink that holds frames instead of writing them, for a binding whose downstream is a response
- * body that has not been written yet.
- *
- * Everything a turn has to answer with arrives through the sink rather than through `receive`'s
- * return value, and the difference is not cosmetic: `onOpen` frames, and anything a `notify`
- * triggered by this turn's own intent produces, are sent on the channel without passing through
- * the frames `receive` collected. Taking the buffer rather than the return value is what makes a
- * turn carry the same set a socket would have seen.
- *
- * No `saturated`, and its absence is honest here rather than a gap. Saturation means the peer is
- * not reading as fast as the server is writing, and the peer of a turn is not reading at all yet —
- * it is waiting for a response. What bounds this is the size of one answer, which is the same
- * bound the document path already lives under.
+ * body not yet written. Taking the buffer rather than `receive`'s return value is what makes a
+ * turn carry the same set a socket would have seen. No `saturated`: the peer of a turn is not
+ * reading yet at all. See `spec/kernel/transport.md`.
  */
 export function turnSink(): ChannelSink & { taken(): readonly Frame[] } {
   const held: Frame[] = []
@@ -205,8 +171,7 @@ function channelId(url: URL): string | null {
 
 /**
  * The bindings as a pair of handlers rather than a server, so an application can mount them
- * beside its own routes on one port. `mountChannel` is this plus a `createServer` call — a
- * deployment that already has a server should not have to run a second one to have a channel.
+ * beside its own routes. `mountChannel` is this plus a `createServer` call.
  */
 export interface ChannelHandlers {
   /** True when the request was a channel request and has been answered. */
@@ -234,11 +199,7 @@ export function channelHandlers(options: ChannelRouteOptions): ChannelHandlers {
   }
 }
 
-/**
- * Mounts every binding on one path, which is the arrangement that makes the honest
- * comparison possible: the same hub, the same slot source, the same store, and the only
- * variable is how the bytes moved.
- */
+/** Mounts every binding on one path: the same hub, slot source and store, with only the bytes' path varying. */
 export async function mountChannel(options: ChannelRouteOptions): Promise<{
   url: string
   channelUrl(id: string, binding?: ChannelBinding): string
@@ -329,8 +290,7 @@ async function handle(
 
   try {
     const sent = await options.hub.receive(id, frames)
-    // 202, not 200: the answer went down the other connection, and saying 200 here would
-    // suggest this response carried it.
+    // 202, not 200: the answer went down the other connection.
     res.writeHead(202, { 'content-type': 'text/plain' }).end(String(sent.length))
   } catch (error) {
     res.writeHead(409, { 'content-type': 'text/plain' }).end(message(error))
@@ -338,19 +298,10 @@ async function handle(
 }
 
 /**
- * One turn: frames up in the request body, frames down in its own response.
- *
- * The channel is opened and closed inside this function, and that is the binding rather than a
- * shortcut. A turn has no connection to belong to, so a record that outlived it would be a record
- * nothing will ever close — on a platform that runs no process there is no drop to notice, and on
- * one that does it is a leak per turn. What makes that affordable is that the protocol never asked
- * the server to remember: `RESIDENT` declares what the client holds and `HELD` with `only` declares
- * what it is showing, both in this body, both ahead of whatever they are answering, because
- * `receive` handles frames in the order they arrive. The channel is rebuilt, used, and dropped.
- *
- * 200 rather than the 202 the other half-duplex bindings answer with, and the distinction is the
- * whole point: 202 says the answer went down the other connection, and here there is no other
- * connection for it to have gone down. This response is the answer.
+ * One turn: frames up in the request body, frames down in its own response. The channel is
+ * opened and closed inside this function — a record that outlived it would be a leak per turn.
+ * 200, not the 202 the other half-duplex bindings answer with: this response *is* the answer. See
+ * `spec/kernel/transport.md`.
  */
 async function turn(
   req: IncomingMessage,
@@ -379,8 +330,7 @@ async function turn(
   options.hub.open(sink, id)
   try {
     await options.hub.receive(id, frames)
-    // Taken before the close, because closing is what tells the hub this channel is gone and a
-    // buffer read after it would be reading a channel that no longer exists.
+    // Taken before the close: closing tells the hub this channel is gone.
     const answer = encodeStream([...sink.taken()])
     res
       .writeHead(200, {
@@ -442,12 +392,8 @@ async function readBody(req: IncomingMessage): Promise<Uint8Array> {
 }
 
 /**
- * The upstream body: a preamble and the frames, because a discrete POST is its own stream and
- * has no earlier one to have announced a version in. Eight bytes per POST, which is the price
- * of the half-duplex bindings and is why the socket binding announces itself once.
- *
- * Returned as a Uint8Array over a real ArrayBuffer: Node's typings widen the buffer of most
- * byte arrays to ArrayBufferLike, and `fetch` and `WebSocket.send` both want the narrow one.
+ * The upstream body: a preamble and the frames — a discrete POST is its own stream. Returned over
+ * a real ArrayBuffer: `fetch` and `WebSocket.send` both want the narrow type Node's typings widen.
  */
 export function upFrames(frames: readonly Frame[]): Uint8Array<ArrayBuffer> {
   return new Uint8Array(encodeStream(frames as Frame[]))
