@@ -50,8 +50,8 @@ without knowing what the frame means.
 | `REFRESH` 0x03   | refresh a slot, form negotiable                | `SLOT` 0x12             | open or close a hole                |
 | `WARM` 0x04      | stage templates, a route, or a plan subtree    | `HTML` 0x13             | rendered markup for a slot          |
 | `INTENT` 0x05    | an intent id and its params                    | `TPL` 0x14              | wiring table plus byte segments     |
-| `ACK` 0x06       | applied through epoch                          | `DATA` 0x15             | values for a resident template      |
-| `RESUME` 0x07    | continue from a committed epoch                | `DELTA` 0x16            | changed values against a named base |
+| `RESUME` 0x07    | continue from a committed epoch                | `DATA` 0x15             | values for a resident template      |
+|                  |                                                | `DELTA` 0x16            | changed values against a named base |
 |                  |                                                | `PATCH` 0x17            | DOM operations                      |
 |                  |                                                | `SIGNAL` 0x18           | a signal value                      |
 |                  |                                                | `COMMIT` 0x19           | atomic flip of an epoch             |
@@ -62,6 +62,7 @@ without knowing what the frame means.
 |                  |                                                | `ERROR` 0x1f            | a named failure                     |
 |                  |                                                | `REDIRECT` 0x20         | in-band redirect, after the seal    |
 |                  |                                                | `COOKIE` 0x21           | non-HttpOnly cookie, after the seal |
+|                  |                                                | `ACK` 0x22              | the result of an intent             |
 |                  |                                                | `REGION` 0x23           | a composed region announcing itself |
 
 `REDIRECT` and `COOKIE` arrived in 1.1.0 and are layer three of the envelope design: what a
@@ -69,6 +70,12 @@ sealed response can still carry in its body. Neither is a substitute for the rea
 crawler will not follow a `REDIRECT` frame, and `HttpOnly` is exactly the property a body
 cannot grant — see [the lifecycle](../kernel/lifecycle.md) for what is irreducibly lost once
 the envelope is sealed.
+
+`ACK` travels _down_, not up. It sat at `0x06` in the up range until the first real intent went
+over a socket and a decoder rejected the server's own answer as wrong-direction — the direction
+had been decided by where the name sat in the table, not by which way the bytes go. The design
+pairs `INTENT` with `ACK`, so the name stayed and the code moved to `0x22`; `0x06` is retired
+rather than reused, since no reader can be holding a frame that was never emitted.
 
 The frame sketch in the design notes uses positional shorthand (`SLOT s12 open prio=1`).
 The canonical encoding is all `key=value`; the shorthand is for prose.

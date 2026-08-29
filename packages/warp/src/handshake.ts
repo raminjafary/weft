@@ -4,18 +4,7 @@ import { WARP_SPEC } from './version.ts'
 /** The forms a client may accept. Mirrors the IR's own list, because the wire is the contract. */
 export type WireForm = 'html' | 'bundle' | 'split' | 'patch' | 'delta' | 'remote'
 
-/**
- * How the document itself reached the client. `buffered` is the webview case: an app
- * serving the document through WKURLSchemeHandler or Android's shouldInterceptRequest
- * supplies the bytes itself, and those paths buffer, so "the initial response is the
- * first frames" stops being true and there is no HTTP layer underneath at all.
- *
- * `turn` is the client saying it has no held downstream at all: every frame it will ever receive
- * is the answer to a request it made. Frames still arrive as a length-prefixed stream and every
- * form is still available — a turn is a bounded stream, not a degraded one — so what it changes is
- * not how bytes are read but what the server may assume it can do, which is why the negotiation
- * names it as a downgrade rather than leaving the client to discover that nothing is ever pushed.
- */
+/** How the document itself reached the client. See `spec/warp/warp-1.md`: `buffered` and `turn`. */
 export type Transport = 'stream' | 'buffered' | 'socket' | 'turn'
 
 /** What a client announces: its versions, the forms it accepts, and the templates it holds. */
@@ -48,16 +37,7 @@ export interface ServerCapabilities {
   forms: WireForm[]
 }
 
-/**
- * There is deliberately no default. This package owns the Warp version and nothing else —
- * the template IR is versioned separately, on purpose, and a default here could only ever
- * state an IR version this package cannot see.
- *
- * It did, for a while: `SERVER_DEFAULTS.ir` said `1.0.0` while the emitter had moved to
- * 2.4.0, so every current client negotiated an IR *major* mismatch and was served
- * `html` only. Whoever composes a Warp version with an IR version has to be able to see
- * both, which is the kernel — `serverCapabilities()` there.
- */
+/** No default: this package owns the Warp version, not the IR version. See `spec/FINDINGS.md` for the bug that happened when it tried to. */
 export const WARP_FORMS: WireForm[] = ['html', 'bundle', 'split', 'patch', 'delta']
 
 /** What was settled: the versions, the forms, and the strategy both ends agreed on. */
@@ -95,11 +75,7 @@ function minVersion(a: string, b: string): string {
   return a
 }
 
-/**
- * Capability variance is not a special case: a browser, a webview, and a stale cache
- * are the same problem, and they get the same mechanism. Nothing here fails — every
- * missing capability costs a form, a fill mechanism, or an animation, never correctness.
- */
+/** Capability variance, one mechanism: nothing here fails — a missing capability costs a form, a fill, or an animation, never correctness. */
 export function negotiate(hello: ClientHello, server: ServerCapabilities): Negotiation {
   const downgrades: string[] = []
 
@@ -232,22 +208,9 @@ export function readResident(f: Frame): ClientHello {
   }
 }
 
-/** The first frame the server sends, and the only place versions and strategy are stated on the wire. */
 /**
- * The frame that settles a negotiation — including, now, the case where nothing was settled.
- *
- * `ok` and `fatal` are on the `Negotiation` and were not on the frame, which meant a client whose
- * major this server cannot speak received a `WARP` frame that looked exactly like an ordinary
- * degraded one: `forms=html`, `strategy=collapse`, a downgrade line about the transport. The one
- * thing it did not say is that the stream is unusable and why.
- *
- * That was only reachable by a client that lies about its version — the binary preamble refuses a
- * different major three bytes in, before any of this — but "only reachable by a misbehaving peer"
- * is exactly the case a protocol has to answer clearly, because the peer misbehaving may be a proxy
- * or an old build rather than an attacker.
- *
- * Additive: `ok` is absent from no frame this server has ever sent (it was `true` in every one), and
- * a reader that does not know the header reads the forms it always read.
+ * The first frame the server sends: versions and strategy, and — since `ok`/`fatal` were added —
+ * whether anything was settled at all. See `spec/kernel/transport.md`.
  */
 export function warpFrame(n: Negotiation): Frame {
   return frame('WARP', {
