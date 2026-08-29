@@ -1,16 +1,9 @@
 import { escapeHtml } from './escape.ts'
 
 /**
- * The two things that go in an outline column, written once.
- *
- * Every section's right-hand rail is some arrangement of "the headings on this page" and "a small
- * card saying something true about this page". Six routes were each building both by hand, which is
- * six places for the markup to drift apart and six escapes to remember. They are values here and
- * markup in one place.
- *
- * The contents rail on the left is a sealed template — `fragments/docs/contents.tsx` — because it is
- * byte-identical across a whole section and therefore worth one cache entry. These are not: an
- * outline is different on every page, so a fragment would buy a template nothing reuses.
+ * The two things that go in an outline column, written once — six routes were each hand-building
+ * both. Unlike the left contents rail (a sealed template, byte-identical across a section), these
+ * differ per page, so a fragment would buy a template nothing reuses.
  */
 
 export interface OutlineItem {
@@ -34,10 +27,7 @@ export function onThisPage(items: readonly OutlineItem[], heading = 'On this pag
       .join('')}</nav>`
 }
 
-/**
- * A small card under the outline. The body is authored markup from this repository, so it travels
- * as it is — the same bargain the guide's prose makes.
- */
+/** A small card under the outline. The body is authored markup, so it travels as-is — same bargain the guide's prose makes. */
 export function railCard(title: string, body: string): string {
   return `<div class="rail-card">
     <h2 class="eyebrow">${escapeHtml(title)}</h2>
@@ -52,13 +42,7 @@ export const IS_A_FILE = railCard(
    different requests and wrote it to <code>.weft/static/</code>.</p>`,
 )
 
-/**
- * How far through a sequence you are, as a bar and as a fraction.
- *
- * A number on its own ("4 / 6") is a fact; the bar is the reason it is worth showing — somebody
- * four steps into a tutorial is deciding whether to finish it now, and two thirds of a line answers
- * that faster than a sentence.
- */
+/** How far through a sequence you are, as a bar and a fraction — a bar answers "should I finish now" faster than a sentence. */
 export function progress(at: number, total: number, takes = ''): string {
   const done = total ? Math.round((at / total) * 100) : 0
   return `<div class="rail-card">
@@ -73,13 +57,7 @@ export function progress(at: number, total: number, takes = ''): string {
   </div>`
 }
 
-/**
- * The reader's own application, as it stands at the end of the step they are on.
- *
- * A tutorial adds a file at a time, and by the fourth step nobody has a single view of what they
- * now have. The files this step added are marked, so the same panel also answers "and what did I
- * just change".
- */
+/** The reader's own application at the end of the step they're on. Files this step added are marked, so it also answers "what did I just change". */
 export function soFar(rows: readonly { depth: number; name: string; fresh: boolean }[]): string {
   if (!rows.length) return ''
   return `<div class="rail-card">

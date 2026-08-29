@@ -6,14 +6,7 @@ import { highlight } from './highlight.ts'
 // something twenty call sites should have to care about. See `escape.ts` for why it moved.
 export { escapeHtml }
 
-/**
- * Prose, as one paragraph per string.
- *
- * Deliberately not a markdown renderer. A documentation site that shipped one would be shipping a
- * parser whose output nothing checks, and the thing worth checking here is the examples. Inline
- * `<code>` and links are written as HTML where a sentence needs them, which is the same freedom
- * this repository's specs have.
- */
+/** Prose, one paragraph per string. Deliberately not a markdown renderer — inline `<code>` and links are written as HTML directly, same freedom the specs have. */
 export function prose(...paragraphs: string[]): string {
   return paragraphs.map((text) => `<p>${text}</p>`).join('')
 }
@@ -42,16 +35,9 @@ export function sketch(language: string, code: string): string {
 }
 
 /**
- * An example, as the page shows it: what it rendered, the file, and what the compiler knows.
- *
- * The three panels are one fragment's, which is the property the site is built on — so the caption
- * names the file and the facts are the same sealed template the output came from. A reader who
- * doubts any of it can open the file at that path.
- *
- * Output and source are side by side rather than stacked, which is the only arrangement that lets a
- * reader check the claim the page makes: that the markup on one side is what the file on the other
- * compiled to. Stacked, the two were a screen apart on every example longer than eight lines, and
- * comparing them meant scrolling between them.
+ * An example, as the page shows it: what it rendered, the file, and what the compiler knows — all
+ * three panels are one fragment's. Output and source sit side by side, not stacked, so a reader can
+ * actually check that one compiled to the other without scrolling between them.
  */
 export function example(rendered: RenderedExample): string {
   const holes = rendered.facts.holes.length
@@ -127,13 +113,7 @@ export function example(rendered: RenderedExample): string {
 </section>`
 }
 
-/**
- * The four numbers worth reading before the tables under them.
- *
- * Every one is derived from the same sealed template the output came from, which is why they can be
- * this terse: an empty effect set really does mean the class is static, and it is not a claim this
- * file is making on the compiler's behalf.
- */
+/** The four numbers worth reading before the tables under them, all derived from the same sealed template — an empty effect set really does mean static. */
 function tiles(rendered: RenderedExample): string {
   const { holes, reads, forms } = rendered.facts
   const elided = holes.filter((hole) => hole.escape === 'none').length

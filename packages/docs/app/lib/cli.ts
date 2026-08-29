@@ -3,16 +3,9 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
- * The CLI reference, read out of the string the CLI prints.
- *
- * `weft --help` is already a reference somebody maintains, because a flag that is not in it is a
- * flag nobody can find. A second copy of it on this site would be a second copy that drifts, so
- * this parses the first one: `HELP` in `packages/weft/src/cli.ts`, which is the same text the
- * terminal shows.
- *
- * `test/docs.test.ts` checks it the other way round — every `case` the argument switch handles has
- * to appear here — so a command that is implemented and undocumented fails the build rather than
- * being a command only its author knows about.
+ * The CLI reference, parsed from `HELP` in `packages/weft/src/cli.ts` — the same text the terminal
+ * shows, not a second copy that drifts. `docs.test.ts` checks the reverse too: every `case` the
+ * switch handles must appear here.
  */
 export interface CliCommand {
   /** `dev`, `build`, `why`. The word after `weft`. */
@@ -48,12 +41,7 @@ export function tagline(): string {
   return (helpText().split('\n')[0] ?? '').replace(/^weft — /, '')
 }
 
-/**
- * Every command, in the order the help text lists them.
- *
- * The shape parsed is `weft <name> [args]   summary`, which is a convention the help text keeps
- * because it is meant to be read in a terminal. Two spaces separate the usage from its summary.
- */
+/** Every command, in help-text order. Parses `weft <name> [args]   summary` — two spaces separate usage from summary. */
 export function commands(): CliCommand[] {
   const out: CliCommand[] = []
   for (const line of helpText().split('\n')) {
@@ -69,12 +57,7 @@ export function commands(): CliCommand[] {
   return out
 }
 
-/**
- * Every option, with the command it belongs to when it belongs to one.
- *
- * The help text says "upload only" in the summary, so that is where the association comes from
- * rather than a second table here that could disagree with it.
- */
+/** Every option, with its command when it has one — the association comes from the help text's own summary (e.g. "upload only"), not a second table. */
 export function options(): CliOption[] {
   const out: CliOption[] = []
   let seenOptions = false

@@ -2,19 +2,10 @@ import type { Example } from './example.ts'
 import { votes } from '../intents/feedback.ts'
 
 /**
- * The guide, as a list.
- *
- * Every page names the spec documents it is the introduction to, and `test/docs.test.ts` checks that
- * relation in both directions: a name that does not exist fails, and a spec document no page
- * introduces fails too. So "the guide covers the framework" is a gate rather than a claim, and
- * shipping a mechanism means writing the page that introduces it in the same change.
- *
- * What the three things still are, because covering a document is not being it:
- *
- * - **This site** is the introduction: what the thing is, in order, with examples that run.
- * - **`spec/`** is the reference: the mechanism, its refusals, and what it deliberately does not do.
- * - **`@weftjs/inspector`** is the live version: a station per mechanism, with a control. Its own test
- *   is the one that fails when a capability ships without coverage.
+ * The guide, as a list. Every page names the spec documents it introduces; `docs.test.ts` checks
+ * both directions (a nonexistent name fails, an uncovered spec fails too), so "the guide covers the
+ * framework" is a gate. This site is the introduction, `spec/` the reference, `@weftjs/inspector`
+ * the live version — covering a document is not being it.
  */
 export interface Page {
   /** The URL segment under `/guide`, and the route file's name. */
@@ -384,13 +375,7 @@ export const PAGES: readonly Page[] = [
 
 export const BY_SLUG: Record<string, Page> = Object.fromEntries(PAGES.map((page) => [page.slug, page]))
 
-/**
- * The five groups, and what each one is about.
- *
- * The `says` line is not decoration: the groups are the reading order, and a reader deciding where
- * to start is choosing between "what the thing is" and "the client, and the only thing allowed to
- * write" rather than between two nouns.
- */
+/** The five groups. `says` is not decoration — they're the reading order, and a reader picks between ideas, not nouns. */
 export const GROUPS: { id: Page['group']; label: string; says: string }[] = [
   { id: 'start', label: 'Start here', says: 'what the thing is' },
   { id: 'render', label: 'Rendering', says: 'what a fragment is, and what it compiles to' },
