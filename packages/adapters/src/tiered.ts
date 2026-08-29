@@ -1,16 +1,6 @@
 import type { StorePort } from '@weftjs/kernel'
 
-/**
- * Cache is a topology, not a boolean. "Store it on the server or hook up an external store"
- * should not be a fork in the codebase, so a tiered store is one `StorePort` composed of
- * others rather than a different mechanism.
- *
- * The composite's consistency is the weakest of its tiers, its coherence is the weakest too,
- * and its scope is the most reachable — a stack containing one shared tier is a shared stack. Reporting the strongest would be the comfortable lie: an L1 that cannot be
- * invalidated from outside puts a ceiling on what the whole stack can promise, and the plan
- * refuses a strong-consistency policy against an eventual store at build time on the
- * strength of exactly this number.
- */
+/** Several stores composed as one `StorePort`. See `spec/kernel/ports.md`. */
 const CONSISTENCY_ORDER = { eventual: 0, strong: 1 } as const
 const SCOPE_ORDER = { shared: 0, process: 1 } as const
 const COHERENCE_ORDER = { ttl: 0, generation: 1, warp: 2, pubsub: 3, tracking: 4 } as const
@@ -19,13 +9,7 @@ function weakest<T extends string>(values: T[], order: Record<T, number>): T {
   return values.reduce((worst, value) => (order[value] < order[worst] ? value : worst), values[0] as T)
 }
 
-/**
- * Several stores as one, nearest first.
- *
- * The reported coherence and scope are the *weakest* tier's, not the nearest: a guarantee is only
- * as good as the layer that can break it, and reporting the cache's reach instead would be a
- * promise nobody keeps.
- */
+/** Several stores as one, nearest first. Reports the weakest tier's coherence, not the nearest. */
 export function tieredStore(tiers: readonly StorePort[], name = 'tiered'): StorePort {
   if (!tiers.length) throw new Error('E_NO_TIERS: a tiered store needs at least one tier')
   const ordered = [...tiers]
@@ -40,7 +24,6 @@ export function tieredStore(tiers: readonly StorePort[], name = 'tiered'): Store
       ordered.map((t) => t.coherence),
       COHERENCE_ORDER,
     ),
-    // Shared if any tier is: the composite is as reachable as its most reachable member.
     scope: weakest(
       ordered.map((t) => t.scope),
       SCOPE_ORDER,
@@ -52,11 +35,8 @@ export function tieredStore(tiers: readonly StorePort[], name = 'tiered'): Store
         const tier = ordered[i] as StorePort
         const entry = await tier.get(key, options)
         if (!entry) continue
-        // A stale read does not promote. The tier above holds a fresher answer or nothing, and
-        // writing an expired entry into it would make the next ordinary reader see stale bytes
-        // without asking for them.
+        // A stale read does not promote — the tier above would end up serving expired bytes to a reader who never asked for them.
         if (options?.stale) return entry
-        // A hit deep in the stack fills every tier above it, so the second reader is fast.
         for (let j = 0; j < i; j++) {
           const { storedAt: _storedAt, ...meta } = entry.meta
           await (ordered[j] as StorePort).set(key, entry.value, meta)
@@ -68,9 +48,7 @@ export function tieredStore(tiers: readonly StorePort[], name = 'tiered'): Store
 
     async set(key, value, meta) {
       const bytes = value instanceof Uint8Array ? value : await new Response(value).bytes()
-      // A private entry is keyed by identity and is still one person's bytes. It may live in a
-      // tier nobody else can address and nowhere else, so the filter is on the write rather
-      // than on the read — an entry that never left cannot be served to the wrong person.
+      // Filtered on the write, not the read: an entry that never left cannot reach the wrong person.
       const targets = meta.class === 'private' ? ordered.filter((t) => t.scope === 'process') : ordered
       await Promise.all(targets.map((tier) => tier.set(key, bytes, meta)))
     },

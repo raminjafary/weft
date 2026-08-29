@@ -1,11 +1,6 @@
 import type { RequestFacts, SessionPort, SetCookie } from '@weftjs/kernel'
 
-/**
- * Cookies, tokens, identity — and nothing else. The whole reason this is swappable without
- * consequence is that caching does not depend on it: a cache key comes from the effect
- * signature, so changing where identity comes from cannot change cacheability. That is what
- * "set a cookie without worrying" means here; it is a consequence, not a slogan.
- */
+/** Cookies, tokens, identity — and nothing else. See `spec/kernel/ports.md`: `SessionPort`. */
 export interface CookieSessionOptions {
   cookie?: string
   /** Maps the cookie's value to an identity. A real implementation verifies a signature. */

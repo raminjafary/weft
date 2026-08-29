@@ -8,29 +8,16 @@ import {
   type TransportPort,
 } from '@weftjs/kernel'
 
-/**
- * The kernel takes a Request and returns a Response, and nothing more. This is the whole of
- * what it takes to run one on Node — which is the point of the rule that the kernel imports
- * nothing outside the Minimum Common Web API. A Workers deployment is a different file of
- * about the same size.
- *
- * 103 Early Hints is the one piece that cannot be expressed in the Response object, because
- * it is an informational response that precedes the real one. It goes through the transport
- * port, and `writeEarlyHints` reports whether it actually went out: an HTTP/1.1 client
- * simply waits for the final response, and pretending otherwise would make the measurement
- * a lie.
- */
+/** Request in, Response out — the whole of running the kernel on Node. See `spec/kernel/lifecycle.md` for 103 Early Hints. */
 export function nodeTransport(res: ServerResponse): TransportPort {
   return {
     name: 'node-http',
     earlyHints(links: PreloadLink[]) {
       if (!links.length) return false
-      // Node exposes this on HTTP/1.1 too, where a client is entitled to ignore it.
       const writer = (res as ServerResponse & { writeEarlyHints?: (hints: { link: string[] }) => void })
         .writeEarlyHints
       if (typeof writer !== 'function') return false
-      // An array, not a comma-joined string: Node validates each value and rejects the joined
-      // form outright. A single-link page would never have caught this.
+      // An array, not a comma-joined string: Node rejects the joined form outright.
       writer.call(res, { link: links.map(linkValue) })
       return true
     },

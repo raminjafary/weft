@@ -1,11 +1,6 @@
 import type { TelemetryPort } from '@weftjs/kernel'
 
-/**
- * Every budget outcome is an event class of its own, because the failure mode of graceful
- * degradation is that it hides the problem: a slot silently dropping from a server render
- * to a client one for 4% of requests is a real regression that looks like nothing at all in
- * an aggregate.
- */
+/** Every budget outcome is an event class of its own. See `spec/kernel/locus.md`. */
 export interface Recorded {
   name: string
   ms: number

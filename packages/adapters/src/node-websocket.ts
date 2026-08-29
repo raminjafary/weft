@@ -3,16 +3,9 @@ import type { IncomingMessage } from 'node:http'
 import type { Duplex } from 'node:stream'
 
 /**
- * RFC 6455, server side, and only the part a Warp channel uses: the upgrade handshake,
- * binary and text data frames with continuation, ping/pong, and a close handshake. No
- * extensions and no `permessage-deflate` — Warp frames are already length-prefixed and
- * bodies are compressed by the layer that produced them, so negotiating a second
- * compression would be paying twice for one property.
- *
- * Written rather than depended on because the alternative is a runtime dependency in an
- * adapter whose entire job is to be small and replaceable, and because Node has a WebSocket
- * *client* built in but no server. The client half being built in is what makes the test
- * honest: a real browser-grade client over a real socket.
+ * RFC 6455, server side, only the part a Warp channel uses — upgrade handshake, binary/text
+ * frames with continuation, ping/pong, close. No extensions. Written rather than depended on:
+ * Node ships a WebSocket client but no server. See `spec/kernel/transport.md`.
  */
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 

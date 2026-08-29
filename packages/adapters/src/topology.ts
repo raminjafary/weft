@@ -3,20 +3,7 @@ import { bindingExecutor, svcExecutor, type BoundFetch } from './remote-executor
 import { manifestRegistry, type ManifestRegistry } from './registry.ts'
 import type { KernelExecutor } from '@weftjs/kernel'
 
-/**
- * The design's four named topologies, as configuration rather than as modes.
- *
- * The claim being implemented is "same build output, four deployment shapes", and the honest form
- * of it is smaller than four mechanisms: every one of these produces a registry and a set of
- * executors, and nothing above the registry can tell which it got. `describe()` says which one is
- * in force, because a deployment shape that cannot be printed is a deployment shape somebody will
- * guess at during an incident.
- *
- * Two of the four are the same code with a different address, and saying so is better than
- * inventing a distinction: `edge-regional` is `split-render` whose render tier is somewhere else.
- * The difference is real — a regional tier is near the database and the gateway is not — and it is
- * a URL rather than a topology, so this function does not pretend otherwise.
- */
+/** The design's four named topologies, as configuration rather than as modes. See `spec/kernel/composition.md`. */
 export type TopologyName = 'monolith' | 'split-render' | 'edge-regional' | 'mesh'
 
 /** One region in a named topology: what serves it, and at what revision. */

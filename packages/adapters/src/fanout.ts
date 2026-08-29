@@ -2,20 +2,8 @@ import { randomUUID } from 'node:crypto'
 import type { FanoutPort } from '@weftjs/kernel'
 
 /**
- * Cross-instance invalidation, in memory — the default, and the shape every other one copies.
- *
- * A bus in a process is not cross-instance delivery, and this does not pretend to be: two hubs on
- * one bus are two hubs in one process. What it is for is the two cases that are real. A deployment
- * running one instance binds this and gets exactly what it had, with the wiring already in place
- * for the day it runs two. And a test can put two hubs on one bus and assert that an invalidation
- * handled by one reaches the connections held by the other — which is the property the port exists
- * for, and the one that cannot be tested at all without an implementation.
- *
- * A Redis, Valkey or NATS binding replaces this without touching the hub: the shape below is the
- * whole contract, and `origin` is the part that is easy to get wrong. A broker that echoes to the
- * publisher would have this process notify its own connections twice per write, so a message is
- * dropped when it carries the origin that sent it. Redis pub/sub does echo to a publisher on a
- * second connection, so a binding for it needs this and is not merely inheriting it.
+ * Cross-instance invalidation, in memory — the default, and the shape every other binding copies.
+ * A Redis, Valkey or NATS binding replaces this without touching the hub. See `spec/kernel/transport.md`.
  */
 export interface FanoutBus {
   send(origin: string, keys: readonly string[], reason: string): void
@@ -27,8 +15,7 @@ export function memoryBus(): FanoutBus {
   const listeners = new Set<(origin: string, keys: readonly string[], reason: string) => void>()
   return {
     send(origin, keys, reason) {
-      // Copied before dispatch: a listener is allowed to unsubscribe when it hears something, and
-      // one that unsubscribes another mid-iteration would otherwise decide who else gets told.
+      // Copied before dispatch: a listener may unsubscribe another mid-iteration.
       for (const listener of Array.from(listeners)) listener(origin, keys, reason)
     },
     listen(listener) {
@@ -61,9 +48,7 @@ export function memoryFanout(options: MemoryFanoutOptions = {}): FanoutPort {
     async subscribe(deliver) {
       stop?.()
       stop = bus.listen((from, keys, reason) => {
-        // The contract's one hard rule: a publisher does not hear itself. Without this the hub
-        // that ran the write notifies its own connections a second time, and nothing downstream
-        // can tell that from a second write having happened.
+        // A publisher does not hear itself.
         if (from === origin) return
         deliver(keys, reason)
       })

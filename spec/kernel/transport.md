@@ -79,7 +79,8 @@ connection at all — and both gaps are filled from outside the hub, which takes
 - **`FanoutPort`** carries an invalidation to the instances holding a connection now. Needed by
   any deployment above one instance, whatever binding it serves; a memory implementation ships,
   and Redis, Valkey or NATS replace it without the hub noticing. A publisher must not hear
-  itself, which is what `origin` is for.
+  itself, which is what `origin` is for — Redis pub/sub in particular echoes to the publisher
+  on its own connection, so a binding for it needs the filter rather than merely inheriting it.
 - **`StaleJournal`** writes down what a client with no connection will ask for later. A record
   rather than a queue: reading does not consume, so two tabs are both told, and `since` on the
   turn is what stops one write becoming one refresh per turn. One store entry per key rather

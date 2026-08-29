@@ -2,16 +2,9 @@ import type { EntryMeta, Lease, StoreEntry, StorePort } from '@weftjs/kernel'
 
 /**
  * L1: isolate-local memory. Byte-bounded and LRU-evicted, never an unbounded Map — inside a
- * 128 MB Workers isolate an unbounded cache is not a cache, it is an outage waiting for
- * traffic.
- *
- * Its coherence is `generation`, and saying so is the point of putting coherence in the
- * port interface at all. A process-local tier cannot be addressed from outside, so it
- * cannot be told that something it holds is now wrong. Bounded TTL plus a generation
- * counter is the honest maximum here; a Redis adapter would say `tracking` and mean it.
- *
- * It also holds in-flight leases, so concurrent identical renders coalesce in-process
- * before any distributed lease is taken.
+ * 128 MB Workers isolate an unbounded cache is an outage waiting for traffic. Coherence is
+ * `generation`: a process-local tier can't be told from outside that it holds something wrong.
+ * See `spec/kernel/ports.md`.
  */
 export interface MemoryStoreOptions {
   maxBytes?: number
@@ -26,11 +19,7 @@ interface Slot {
 
 /** An in-process store, plus the drain a deployment has to call for deferred revalidation. */
 export interface MemoryStore extends StorePort {
-  /**
-   * Runs the tasks handed to `revalidateAfterResponse`. On Workers this is `waitUntil`; on
-   * Node it is a task queue somebody has to drain, and pretending otherwise would mean
-   * revalidation silently never happening.
-   */
+  /** Runs the tasks handed to `revalidateAfterResponse`. See `spec/kernel/ports.md`. */
   drain(): Promise<void>
 }
 
@@ -75,10 +64,7 @@ export function memoryStore(options: MemoryStoreOptions = {}): MemoryStore {
       if (!slot) return null
       const { ttlMs, storedAt } = slot.entry.meta
       if (ttlMs !== undefined && clock() - storedAt > ttlMs) {
-        // Expired, and kept rather than dropped: an expired entry is the last good render, which
-        // is what a slot declaring `onExceed: 'stale'` asks for when its own render has failed.
-        // Nothing else is allowed to read it, and eviction reclaims it under pressure like any
-        // other entry — so the cost of keeping it is bounded by the same byte ceiling.
+        // Kept rather than dropped: an expired entry is the last good render for `onExceed: 'stale'`. See `spec/kernel/cache.md`.
         if (!read?.stale) return null
       } else {
         entries.delete(key)

@@ -1,14 +1,6 @@
 import type { FlagPort, FlagValue, RequestFacts } from '@weftjs/kernel'
 
-/**
- * A flag is a graph partition rather than a runtime `if`, which is why `axes()` is on the
- * port and is not optional: knowing every reachable value of every flag is what turns a
- * combinatorial explosion into a small enumerable set, and it is what lets the build prove
- * the losing variant's chunks are unreachable.
- *
- * A flag resolver that cannot enumerate its own values cannot offer that, and the honest
- * response is to say so rather than to degrade quietly.
- */
+/** A flag is a graph partition rather than a runtime `if`. See `spec/kernel/ports.md`: `axes()` is not optional. */
 export interface StaticFlagsOptions {
   /** Flag to every value it can take. The first entry is the default. */
   axes: Record<string, FlagValue[]>
@@ -27,12 +19,7 @@ export class FlagError extends Error {
   }
 }
 
-/**
- * Flags from a declared axis set, which is what makes them plannable.
- *
- * A flag that is not declared cannot be read, so a typo is a build error rather than a branch that
- * silently never runs — and a bucket answering off-axis is refused rather than keyed.
- */
+/** Flags from a declared axis set: an undeclared flag is a build error, not a silent dead branch. */
 export function staticFlags(options: StaticFlagsOptions): FlagPort {
   return {
     name: 'static',
