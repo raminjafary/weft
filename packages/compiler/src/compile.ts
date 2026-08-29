@@ -43,33 +43,17 @@ export interface ExternalFragment {
 
 /** What one module's compilation needs beyond its source: a root, types, and its dependencies. */
 export interface CompileOptions {
-  /**
-   * Template ids are stated relative to this directory. Ids feed the content hash, so
-   * an absolute path would make a template's version depend on where it was checked out.
-   */
+  /** Template ids are stated relative to this directory, so a version does not depend on checkout location. */
   root?: string
   /** Type information for escape elision. Without it the compiler escapes by default. */
   types?: TypeOracle
-  /**
-   * Fragments this module imports and renders, already compiled. Supplied by the build,
-   * which is the only layer that knows the file set and can order compilation by
-   * dependency. Keyed by module specifier and exported name, exactly as written.
-   */
+  /** Fragments this module imports and renders, already compiled. Supplied by the build. */
   external?: (module: string, exported: string) => ExternalFragment | undefined
-  /**
-   * Export names in this module that some other module renders. A composed fragment wires
-   * its props, because a caller may hand one a signal; the module cannot see that on its
-   * own, so the build tells it.
-   */
+  /** Export names in this module that some other module renders, so a composed fragment wires its props. */
   composedElsewhere?: ReadonlySet<string>
   /** Where this file's text comes from. Defaults to reading the path. */
   read?: SourceReader
-  /**
-   * The scope attribute to stamp on every element this module's fragments declare.
-   *
-   * Supplied by the build, which is the only layer that knows whether a scoped stylesheet sits
-   * beside this file. Absent means unscoped, which is what a module with no scoped sheet gets.
-   */
+  /** The scope attribute to stamp on every element this module's fragments declare. Absent means unscoped. */
   cssScope?: string
 }
 
@@ -140,11 +124,7 @@ interface Params {
   ctxParam?: string
 }
 
-/**
- * `fragment((ctx) => …)` takes the context. `fragment(({ a, b }) => …)` takes props.
- * `fragment(({ a }, ctx) => …)` takes both. A bare identifier is always the context,
- * because a fragment that needs props destructures them.
- */
+/** `fragment((ctx) => …)` takes the context, `fragment(({a}) => …)` takes props, both is both. See `spec/compiler/effects.md`. */
 function readParams(params: Node[]): Params {
   const props = new Set<string>()
   const first = params[0]
@@ -228,15 +208,7 @@ function discover(program: Node, imports: Map<string, ImportRef>): Discovered[] 
   return found
 }
 
-/**
- * Stamps the holes whose instances the parent does not render, by the fragment they name.
- * Isolation is decided per child — the parent's own class against the child's — so every
- * instance of one child in one parent gets the same answer, and the id is enough.
- *
- * It reaches into rows and into children markup, because those are the parent's own markup
- * cut into templates of their own, and stops at a component boundary, where another
- * fragment's holes begin and another fragment's class decided them.
- */
+/** Stamps the holes whose instances the parent does not render, by the fragment they name. See `spec/compiler/effects.md`. */
 function markIsolated(lowered: Lowered, isolated: Set<string>, at: Loc): Lowered {
   if (isolated.size === 0) return lowered
   return {
@@ -252,9 +224,6 @@ function markIsolated(lowered: Lowered, isolated: Set<string>, at: Loc): Lowered
         (hole) => hole.kind === 'component' && hole.provenance && isolated.has(hole.provenance),
       )
       if (inside) {
-        // An isolated instance is a cut in the segment stream, and the stream is cut once per
-        // hole. A row repeats its holes and children markup lives inside somebody else's
-        // instance, so neither position has a boundary the kernel could fill.
         throw new CompileError(
           'E_PRIVATE_COMPONENT_NESTED',
           `${inside.provenance} is private and is rendered inside ${nested.kind === 'row' ? 'a list row' : "another component's children"}; a private fragment is cut into its own cache entry, and only a hole at the top level of a template can be cut. Read what it reads above the ${nested.kind === 'row' ? 'list' : 'call site'} and pass it in as a prop`,
@@ -266,11 +235,7 @@ function markIsolated(lowered: Lowered, isolated: Set<string>, at: Loc): Lowered
   }
 }
 
-/**
- * Which fragments are rendered by another fragment in this module. Read syntactically,
- * before anything is lowered, so the answer does not depend on the order the compiler
- * happens to reach them in — a template's version must not depend on that.
- */
+/** Which fragments are rendered by another fragment in this module. Read syntactically, before anything is lowered. */
 function composedNames(declarations: Discovered[]): Set<string> {
   const used = new Set<string>()
   const stack: Node[] = declarations.map((d) => d.call)
@@ -300,13 +265,10 @@ async function sealTree(
   const holes = [...lowered.holes]
 
   for (const nested of lowered.nested) {
-    // A child from another module is already sealed; one from this module is sealed here,
-    // which is what lets a parent name the exact version it projects through.
     const child = nested.sealed
       ? { entry: nested.sealed.entry, all: nested.sealed.templates }
       : await sealTree(nested.lowered as Lowered)
-    // One component used five times is one sealed template, because the version is the
-    // content. Emitting it five times would make a resident client store five copies.
+    // One component used five times is one sealed template. See `spec/ir/template-ir-2.md`.
     for (const template of child.all) {
       if (!all.some((t) => t.version === template.version)) all.push(template)
     }
@@ -318,8 +280,6 @@ async function sealTree(
           `which is a compiler bug rather than anything a fragment can cause`,
       )
     }
-    // One component hole names two templates: the fragment it renders, and the markup the
-    // call site wrote between its tags. They arrive as two requests against one hole.
     holes[nested.holeIndex] =
       nested.kind === 'children'
         ? { ...parentHole, children: child.entry.version }
@@ -342,16 +302,9 @@ async function sealTree(
 }
 
 /**
- * The reads a route's declaration file performs, for the keys of the slots it declares.
- *
- * Exported from here rather than from `effects.ts` because this is the module the framework's
- * barrel re-exports, and because parsing is this file's job: the caller has a path and a string and
- * should not have to know which parser is underneath.
- *
- * A file that will not parse is not a reason to fail a build that is otherwise fine — the route
- * module is `import`ed as well, and Node will report the syntax error with a better message than
- * this could. What it must not do is return an empty set, which would read as "this loader reads
- * nothing" and put the wrong key back. So it throws, and the caller decides.
+ * The reads a route's declaration file performs, for the keys of the slots it declares. Must never
+ * return an empty set on a parse failure — that would read as "this loader reads nothing" and put
+ * the wrong key back — so it throws and the caller decides.
  */
 export function loaderReads(file: string, source: string): string[] {
   const parsed = parseSync(file, source, { sourceType: 'module', preserveParens: false })
@@ -494,13 +447,7 @@ export async function compileSource(
     return outside ? outside.effects : unionEffects([])
   }
 
-  /**
-   * Contagion, and the one place it is deliberately stopped. A fragment's class is its own
-   * reads plus the reads of the children it renders inline. A private child inside a
-   * non-private parent is *not* folded in: it is isolated into its own cache unit, so one
-   * fragment that reads identity does not make a whole shared route private. The parent's
-   * own class decides, so the answer does not depend on which child is looked at first.
-   */
+  /** Contagion, and the one place it is deliberately stopped. See `spec/compiler/effects.md`. */
   const composeWithContagion = (local: string): { effects: EffectSet; isolated: Set<string> } => {
     const ownSet = own.get(local) ?? unionEffects([])
     const ownClass = cacheClassOf(ownSet)
@@ -540,15 +487,7 @@ export async function compileFile(path: string, options?: CompileOptions): Promi
   )
 }
 
-/**
- * Compiles with type information. Building a checker over the whole file set once is
- * far cheaper than one program per file, so this is the entry point a build should use.
- */
-/**
- * What a module exports as a fragment, and which of them it renders from elsewhere. Read
- * by parsing, before anything is compiled, because a parent cannot name a child's version
- * until the child is sealed — so the build has to know the order first.
- */
+/** What a module exports as a fragment, and which of them it renders from elsewhere. Read by parsing, before anything is compiled. */
 interface ModuleFacts {
   file: string
   /** Export name to the props it declares. */
@@ -559,15 +498,7 @@ interface ModuleFacts {
   renders: Set<string>
 }
 
-/**
- * Where a file's text comes from.
- *
- * Every other entry point in this compiler takes a path and reads it, which is right for a build:
- * the file set is a directory tree and the tree is the truth. It is wrong for two callers that do
- * not have one — a documentation page whose examples are source strings, and anything that wants to
- * compile what somebody just typed. Both are the same need, which is a file set that exists only in
- * memory, so it is one option rather than two entry points.
- */
+/** Where a file's text comes from. One option rather than two entry points, for a file set that exists only in memory. */
 export type SourceReader = (file: string) => string | Promise<string>
 
 function readerFor(sources?: ReadonlyMap<string, string>): SourceReader {
@@ -612,9 +543,7 @@ async function readFacts(file: string, read: SourceReader, root?: string): Promi
 /** Resolves a module specifier the way the file set does, rather than the way Node would. */
 function resolveSpecifier(from: string, specifier: string, known: Set<string>): string | undefined {
   if (!specifier.startsWith('.')) return undefined
-  // A virtual file set has no working directory behind it, so a relative path is joined rather
-  // than resolved: `resolve` would anchor it to wherever the process started, and the same source
-  // would compose in one process and not in another.
+  // A virtual file set has no working directory: joined rather than resolved, or the same source would compose differently per process.
   const base = isAbsolute(from)
     ? resolve(dirname(from), specifier)
     : posix.join(posix.dirname(from), specifier)
@@ -624,11 +553,7 @@ function resolveSpecifier(from: string, specifier: string, known: Set<string>): 
   return undefined
 }
 
-/**
- * Compiles in dependency order. A module that renders a fragment from another module is
- * compiled after it, because the parent's hole names the child's sealed version and a
- * version is a hash of content that does not exist until the child is compiled.
- */
+/** Compiles in dependency order: a module rendering another's fragment is compiled after it. */
 function orderByDependency(facts: Map<string, ModuleFacts>): string[] {
   const files = [...facts.keys()]
   const known = new Set(files)
@@ -671,34 +596,19 @@ function orderByDependency(facts: Map<string, ModuleFacts>): string[] {
 }
 
 /**
- * Compiles with type information. Building a checker over the whole file set once is
- * far cheaper than one program per file, so this is the entry point a build should use.
- * It is also the only entry point that can compose across modules: composition needs an
- * order, and an order needs the file set.
+ * Compiles with type information over the whole file set at once — the only entry point that can
+ * compose across modules, since composition needs an order and an order needs the file set.
  */
 export async function compileFiles(
   files: string[],
   options?: Omit<CompileOptions, 'types' | 'external' | 'composedElsewhere' | 'read' | 'cssScope'> & {
     types?: boolean
-    /**
-     * The scope attribute for a file, when a scoped stylesheet sits beside it.
-     *
-     * A function rather than a map because the caller keys it by whatever it has — the build knows
-     * absolute paths, and the file set here is the same set it discovered.
-     */
+    /** The scope attribute for a file, when a scoped stylesheet sits beside it. A function so the caller keys it by whatever it has. */
     cssScopes?: (file: string) => string | undefined
     /**
-     * A file set that exists only in memory, keyed by the same paths passed in `files`.
-     *
-     * With it, nothing here touches the disk. That is what a documentation page's examples need —
-     * they are source strings, and writing them to a temporary directory to compile them would make
-     * the example's identity depend on where the process happened to be running.
-     *
-     * It also turns the type checker off, and that is not a shortcut: the checker opens files
-     * through TypeScript's own project system, which needs a directory. So a virtually compiled
-     * fragment escapes every value rather than eliding by type — which is the safe direction, is
-     * stated by `virtual: true` on the result, and is why the escape-elision examples in the docs
-     * are compiled from real files.
+     * A file set that exists only in memory, keyed by the same paths passed in `files`. Also turns
+     * off the type checker, which needs a real directory — a virtually compiled fragment escapes
+     * every value rather than eliding by type, stated by `virtual: true` on the result.
      */
     sources?: ReadonlyMap<string, string>
   },
@@ -709,15 +619,7 @@ export async function compileFiles(
   let diagnostics: string[] = []
   if (options?.types !== false && !virtual) {
     try {
-      /**
-       * Imported here rather than at the top of the file, and that placement is the whole of what
-       * makes the peer optional.
-       *
-       * `./types.ts` imports `typescript/unstable/*` statically, so a static import of it here fails
-       * at module load — before this `catch` exists to fall back. Which is what it did: `npm create
-       * weft` installs no optional peer and died on `Cannot find package 'typescript'` in a
-       * scaffolder that never needed a checker.
-       */
+      // Imported here, not at the top of the file — that placement is what makes the peer optional. See `spec/compiler/supported-subset.md`.
       const { createTypeOracle } = await import('./types.ts')
       oracle = createTypeOracle(files, options?.root)
       diagnostics = oracle.diagnostics()

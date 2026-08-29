@@ -2,11 +2,7 @@ import type { EffectSet } from '@weftjs/ir'
 import { name, node, nodes, type Node } from './ast.ts'
 import { CompileError, locate } from './errors.ts'
 
-/**
- * The read surface, and nothing else taints. A call on the context that is not in this
- * table is a compile error rather than an untracked read, because the whole cacheability
- * story is derived from this set being complete.
- */
+/** The read surface, and nothing else taints. See `spec/compiler/effects.md`. */
 const READS: Record<string, (argument?: Node) => string> = {
   // A flag is referenced, so an imported identifier is the normal way to name one.
   flag: (a) => `flag:${flagName(a)}`,
@@ -25,11 +21,7 @@ const READS: Record<string, (argument?: Node) => string> = {
 /** Setting a cookie or a status during a render is the thing the envelope phase exists to prevent. */
 const ENVELOPE_METHODS = new Set(['setCookie', 'status', 'redirect', 'header$set'])
 
-/**
- * Ambient reads that would make a render depend on something the compiler cannot see. The
- * design's warning is that one of these punches a hole in the entire cacheability
- * guarantee, so it is a hard error with a named alternative, not a lint note.
- */
+/** Ambient reads that would make a render depend on something the compiler cannot see. See `spec/compiler/effects.md`. */
 const BANNED_OBJECTS: Record<string, string> = {
   process: 'read configuration through a port, or ctx.raw() if it truly is opaque',
   globalThis: 'nothing ambient is visible to the compiler',
@@ -76,11 +68,7 @@ function kebab(value: string): string {
   return value.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
 }
 
-/**
- * Walks the whole fragment, not only its JSX: a read in a variable declaration taints just
- * as much as one in an attribute. Reads are sorted, because a cache key derived from them
- * must not depend on the order somebody happened to write them in.
- */
+/** Walks the whole fragment, not only its JSX. Reads are sorted, so a cache key does not depend on write order. */
 export function inferEffects(input: EffectInput): InferredEffects {
   const reads = new Set<string>()
   const order: string[] = []
@@ -196,48 +184,11 @@ function walk(root: Node, visit: (current: Node) => void): void {
   }
 }
 
-/**
- * The reads a route's own loader performs, which its slots' cache keys have to contain.
- *
- * Deliberately not `inferEffects`, and the difference is the whole reason this exists. A fragment's
- * context is a closed surface: anything on it the table below does not name is a compile error,
- * because a fragment that read something the compiler could not see would make its key a lie. A
- * loader's context is wider on purpose — `ctx.data(...)`, `ctx.revalidate(...)` — so running the
- * fragment walk over a `.data.ts` would refuse every application that has one.
- *
- * What the two share is the table. A read that taints in a fragment taints in a loader, for the
- * same reason and into the same key. This collects exactly those and steps over everything else.
- *
- * The bug it closes: a route's loader lives in a file the compiler never read, so `ctx.query('rows')`
- * tainted nothing, the key could not contain it, and whichever value rendered first answered for
- * every other one until the entry expired. Route params had already been patched around this by
- * being folded into a slot's identity; a query string had not, and there is no bound on one to fold.
- *
- * Per file rather than per slot, and that is the conservative direction rather than a shortcut. A
- * read in one slot's loader taints every slot on the route, which costs a cache entry that could
- * have been shared. The opposite error costs a wrong page.
- */
+/** The reads a route's own loader performs, which its slots' cache keys have to contain. See `spec/compiler/effects.md`. */
 export function inferLoaderReads(input: { file: string; source: string; program: Node }): string[] {
-  /**
-   * Which identifiers are a context, taken from every function in the file.
-   *
-   * A loader is written `(ctx) => …`, `(ctx, params) => …`, `(_ctx, params) => …`, and as a method
-   * shorthand — so the name is whatever that function called its first parameter rather than a word
-   * this can look for. Collected across the file and then matched, which over-collects only when
-   * something unrelated shares the name, and over-collecting taints an extra read: another cache
-   * entry, never a wrong one.
-   */
+  /** Which identifiers are a context, taken from every function in the file. See `spec/compiler/effects.md`. */
   const contexts = new Set<string>()
-  /**
-   * Named local helpers, by the parameter names they take and the arguments they are called with.
-   *
-   * `const slow = (ctx, key, fallback) => Number(ctx.query(key) ?? fallback)` is how a loader with
-   * three sliders is actually written, and the read inside it names a parameter rather than a
-   * string. Refusing that would be refusing the idiom rather than the ambiguity: the *call sites*
-   * name it, every one of them, a few lines further down. So one level of indirection is resolved —
-   * a parameter's name is looked up in the calls to the function that takes it — and anything
-   * beyond one level is refused, because a chain of two is a key nobody can follow either.
-   */
+  /** Named local helpers, by the parameter names they take and the arguments they are called with. See `spec/compiler/effects.md`. */
   const takes = new Map<string, string[]>()
   const calls = new Map<string, Node[][]>()
 

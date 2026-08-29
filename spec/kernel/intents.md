@@ -25,6 +25,13 @@ deliberately. Resolving an id to an implementation is the `registry` port —
 the wiring, because a manifest that spelled its own ids could disagree with the templates and
 the disagreement would look like an intent that silently does nothing.
 
+The module half of that id is project-relative and slash-separated, resolved once, at the
+import site — not the relative specifier an importing fragment happened to write. Two fragments
+at different depths importing one intent as `../intents/cart.ts` and `../../intents/cart.ts` are
+naming the same file, but a relative specifier is where the _importer_ stands, not where the
+intent lives; taken literally, the two produced different ids for one export that no manifest
+could match. It is resolved at the only place that knows both paths.
+
 ## Every refusal has a name and a status
 
 | Code                      | Status  | When                                                   |

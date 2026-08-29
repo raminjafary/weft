@@ -35,13 +35,7 @@ export const VOID_ELEMENTS = new Set([
   'wbr',
 ])
 
-/** Attributes whose presence is the value. */
-/**
- * Attributes that are the *default* rather than the current state. Once a user edits the
- * control, the property and the attribute disagree, and writing the attribute changes
- * nothing the user can see. These bind to the property instead — the IR has carried a
- * `prop` op for exactly this since 2.0.0.
- */
+/** Attributes that bind to the property rather than the attribute, per tag. See `spec/compiler/supported-subset.md`. */
 export const PROPERTY_BOUND: Record<string, ReadonlySet<string>> = {
   input: new Set(['value', 'checked', 'indeterminate']),
   textarea: new Set(['value']),
@@ -106,12 +100,5 @@ export function isSurviving(child: Node): boolean {
   return true
 }
 
-/**
- * The module an application imports the framework from.
- *
- * Lowering recognises `raw()` by where it came from, not by its name, so the specifier is part of
- * the source vocabulary this file holds the rest of. It is a constant because the package is named
- * `@weftjs/core` while the command, the directory and the commit scope are all `weft` — four spellings
- * of one thing, and this is the only one the compiler compares against.
- */
+/** The module an application imports the framework from. See `spec/compiler/supported-subset.md`. */
 export const FRAMEWORK_MODULE = '@weftjs/core'

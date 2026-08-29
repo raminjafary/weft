@@ -23,15 +23,7 @@ interface Resolved {
   source: SourceFile
 }
 
-/**
- * Escape elision is a type question, not a syntax question: `{total}` is safe when
- * `total` is a number and unsafe when it is a string, and nothing in the expression says
- * which. This asks the TypeScript checker.
- *
- * Built on the `typescript/unstable/sync` API, which is where the checker lives in
- * TypeScript 7 — the package's main entry exposes only the version. Unstable means what
- * it says: this is the one place in the repository pinned to an API that can move.
- */
+/** Escape elision is a type question, not a syntax question. Asks the TypeScript checker. See `spec/compiler/supported-subset.md`. */
 export function createTypeOracle(files: string[], root = process.cwd()): TypeOracle {
   const absolute = files.map((f) => (isAbsolute(f) ? f : resolve(root, f)))
   const api = new API({})

@@ -32,15 +32,7 @@ export interface ImportRef {
   /** The specifier exactly as written, which is what resolving a sibling module needs. */
   module: string
   exported: string
-  /**
-   * The module id: project-relative and slash-separated, the same form a template id uses.
-   *
-   * An intent id is derived from where the intent lives, and a relative specifier is not where
-   * it lives — it is where the *importer* is standing. Two fragments at different depths
-   * importing one intent wrote `../intents/cart.ts` and `../../intents/cart.ts` and got two
-   * different ids for one export, neither of which a build's manifest could match. This is the
-   * answer to "which module", asked once, at the only place that knows both paths.
-   */
+  /** The module id: project-relative and slash-separated, the same form a template id uses. See `spec/kernel/intents.md`. */
   id: string
 }
 
@@ -56,40 +48,19 @@ export interface Scope {
   ctxParam?: string
   /** Set inside a list row: the map callback's parameter name. */
   itemParam?: string
-  /**
-   * Set inside a list row that named a second parameter: the row's position.
-   *
-   * A row is its own template and receives only its item, which is what makes a row count a value
-   * and not a re-render. The index is the one exception the position itself justifies: it is a fact
-   * about where the row sits, supplied by whatever renders the rows, so it costs the row no closure
-   * over the outer scope and the list no cache identity.
-   */
+  /** Set inside a list row that named a second parameter: the row's position. See `spec/compiler/supported-subset.md`. */
   indexParam?: string
   /** Fragments this one may render, by the name it refers to them as. */
   components?: Map<string, ComponentRef>
-  /**
-   * Set when some fragment in this module renders this one. A component's props are the
-   * only bindings a caller can hand a signal to, so they are wired; a template nobody
-   * composes carries no wiring it will never use. The client skips a wiring entry with no
-   * source, so a caller that passes a plain value costs nothing.
-   */
+  /** Set when some fragment in this module renders this one, so its props are wired. See `spec/compiler/supported-subset.md`. */
   wireProps?: boolean
 }
 
-/**
- * A template the parent renders. A child in the same module arrives as a lowering the
- * parent seals on its way out; one from another module has already been sealed by its own
- * compilation, and the parent only names the version.
- */
+/** A template the parent renders — lowered here if it's from this module, already sealed if from another. */
 export interface NestedRequest {
   holeIndex: number
   id: string
-  /**
-   * Whose markup this is. A `row` and a `children` template are the parent's own markup cut
-   * into a template of its own; a `component` is another fragment. The difference decides
-   * whether a decision the parent makes about its instances — isolation, above all — reaches
-   * inside it or stops at the boundary.
-   */
+  /** Whose markup this is. Decides whether isolation reaches inside it or stops at the boundary. See `spec/compiler/effects.md`. */
   kind: 'row' | 'component' | 'children' | 'variant'
   lowered?: Lowered
   sealed?: SealedFragment
@@ -101,10 +72,7 @@ export interface SealedFragment {
   templates: TemplateIR[]
 }
 
-/**
- * A fragment another fragment can render. `props` is the set the child declares, so a use
- * site can be checked against it rather than discovering a missing prop at render.
- */
+/** A fragment another fragment can render. `props` is checked against a use site rather than discovered at render. */
 export interface ComponentRef {
   id: string
   props: Set<string>
@@ -123,24 +91,11 @@ export interface Lowered {
   derived: DerivedDecl[]
   nested: NestedRequest[]
   markers: number
-  /**
-   * Ids of the fragments this one renders, so a caller can union their effects. Instances
-   * inside a row or inside children markup are in here too: they are the caller's markup,
-   * and a read does not stop being the caller's because it happened one template down.
-   */
+  /** Ids of the fragments this one renders, including instances inside a row or children markup. See `spec/compiler/effects.md`. */
   components: string[]
-  /**
-   * Set when this template's markup interpolated its list item directly.
-   *
-   * Read by the list hole that owns the row, because the row is lowered before its hole is emitted
-   * and the two are lowered through separate emitters.
-   */
+  /** Set when this template's markup interpolated its list item directly. Read by the list hole that owns the row. */
   rowValue?: string
-  /**
-   * Whether the template is exactly one element and nothing else. An instance occupies one
-   * element position in its caller, so a child with two roots — or with a bare text root —
-   * would shift every sibling after it.
-   */
+  /** Whether the template is exactly one element and nothing else. See `spec/compiler/supported-subset.md`: `E_COMPONENT_NOT_SINGLE_ROOT`. */
   singleRoot: boolean
 }
 
@@ -153,12 +108,7 @@ interface Emitter {
   markers: number
   derived: DerivedDecl[]
   components: string[]
-  /**
-   * Set while lowering a row whose markup interpolates the item itself.
-   *
-   * Read by the list hole that owns the row, so the renderer knows to wrap each item rather than
-   * spread it. It lives on the emitter because the row is lowered before its hole is emitted.
-   */
+  /** Set while lowering a row whose markup interpolates the item itself. See `spec/compiler/supported-subset.md`. */
   rowValue?: string
 }
 
@@ -191,25 +141,9 @@ export interface LowerInput {
   source: string
   /** When present, escaping is decided by the value's type rather than by its syntax. */
   types?: TypeOracle
-  /**
-   * The scope this fragment's stylesheet was rewritten under, when it brought a scoped one.
-   *
-   * Every element the fragment declares gets it as an attribute, so a selector carrying the same
-   * attribute matches this fragment's elements and nothing else on the page. It is stamped here
-   * rather than applied in the browser because a template is data: the attribute becomes part of
-   * the sealed bytes, costs one attribute per element on the wire and nothing at all at runtime.
-   *
-   * It stops at a component boundary. A `<Card/>` is its own sealed template and does not inherit
-   * this, which is the whole point — a parent that could reach into a child's markup would make the
-   * child's shape part of the parent's contract.
-   */
+  /** The scope this fragment's stylesheet was rewritten under, when it brought a scoped one. See `spec/compiler/scoped-styles.md`. */
   cssScope?: string
-  /**
-   * A derived table to append to rather than start. Children markup is lowered into a
-   * template of its own but stays in its caller's binding namespace, so the two share one
-   * table — otherwise both would allocate `d0` for different expressions and the shared
-   * value set would have to hold two of them.
-   */
+  /** A derived table to append to rather than start — children markup shares its caller's binding namespace. */
   derived?: DerivedDecl[]
 }
 
@@ -281,10 +215,7 @@ function classify(expr: Node, input: LowerInput, em: Emitter): Classified {
   return withTypeInformation(expr, input, classifyBySyntax(expr, input, em))
 }
 
-/**
- * Syntax can only prove a value safe in a handful of shapes. A type says so for any
- * expression, which is where the elided escaping the syntax pass gives up comes back.
- */
+/** Syntax can only prove a value safe in a handful of shapes; a type says so for any expression. See `spec/compiler/supported-subset.md`. */
 function withTypeInformation(expr: Node, input: LowerInput, classified: Classified): Classified {
   if (!input.types) return classified
   if (classified.escape !== 'escape' || classified.constant !== undefined) return classified
@@ -308,8 +239,7 @@ function classifyBySyntax(expr: Node, input: LowerInput, em: Emitter): Classifie
       throw fail(input, expr, 'E_SIGNAL_NOT_READ', `${ident} is a signal — read it as ${ident}()`)
     }
     if (scope.itemParam && ident === scope.itemParam) {
-      // The item itself, which a row over primitives has nothing else to name. Recorded on the list
-      // hole so the renderer wraps each one; a row that reads fields never reaches this line.
+      // The item itself, over primitives. See `spec/compiler/supported-subset.md`: rowValue.
       em.rowValue = ident
       return { binding: ident, escape: 'escape' }
     }
@@ -441,15 +371,7 @@ function isReactive(classified: Classified, input: LowerInput): boolean {
   return ids.some((id) => input.scope.props.has(id))
 }
 
-/**
- * Arithmetic and comparison cannot produce markup; `+` and logical operators can.
- *
- * A conditional, a coalesce and a template literal all can, so all three escape. That is stricter
- * than necessary for `on ? 1 : 2`, whose arms are both numbers — but elision here is a claim about a
- * *type*, and the checker answers that question for whole holes rather than for the arms of an
- * expression. Escaping a number produces the same bytes as not escaping it, so the cost of being
- * conservative is nothing, and the cost of being wrong is an injection.
- */
+/** Arithmetic and comparison cannot produce markup; `+` and logical operators can. See `spec/compiler/supported-subset.md`. */
 function provablyNotMarkup(expr: Node): boolean {
   if (expr.type === 'UnaryExpression') return ['!', '-', '+', '~'].includes(String(expr.operator))
   if (expr.type !== 'BinaryExpression') return false
@@ -457,12 +379,7 @@ function provablyNotMarkup(expr: Node): boolean {
   return ['-', '*', '/', '%', '**', '<', '>', '<=', '>=', '===', '!==', '==', '!='].includes(operator)
 }
 
-/**
- * Turns an arithmetic or comparison expression into the encoded tree the IR carries, so
- * the client can evaluate the same expression the server did without being shipped code.
- * Leaves go back through the same classifier every other interpolation uses, which is
- * what keeps scope rules — row scope, context reads, unknown bindings — in one place.
- */
+/** Turns an arithmetic or comparison expression into the encoded tree the IR carries. Leaves go through the same classifier as any other interpolation. */
 function derivedExpr(
   expr: Node,
   input: LowerInput,
@@ -500,18 +417,7 @@ function derivedExpr(
     }
   }
 
-  /**
-   * `??` and `||` are the same node as `? :`, which is why neither has one of its own.
-   *
-   * `a || b` is `a ? a : b` — the left operand is named twice in the tree and evaluated once,
-   * because `cond` is lazy in its arms. `a ?? b` is the same over a `!== null` test rather than a
-   * truthiness one, and one comparison covers both null and undefined because a `ref` to an absent
-   * binding already reads as `null` on both sides.
-   *
-   * `&&` is deliberately not here. `a && b` in a hole is nearly always meant structurally — show
-   * this when that — and lowering it to a value would render the string `false` where the author
-   * expected nothing. It keeps its refusal until a template can hold a shape.
-   */
+  /** `??` and `||` lower to `cond`; `&&` is deliberately refused as a value. See `spec/ir/template-ir-2.md` and `spec/compiler/supported-subset.md`. */
   if (expr.type === 'LogicalExpression') {
     const op = String(expr.operator)
     if (op === '&&') {
@@ -532,13 +438,7 @@ function derivedExpr(
     return { k: 'cond', a: test, b: left, c: right }
   }
 
-  /**
-   * A template literal is a `+` chain, not a node of its own.
-   *
-   * `+` on a string already concatenates — the `as number` in the evaluators is a type assertion and
-   * not a coercion — so the existing binary node covers this and the client needs no new arm for it.
-   * The quasis are literals and the expressions are leaves, in source order.
-   */
+  /** A template literal is a `+` chain, not a node of its own. See `spec/kernel/budgets.md`. */
   if (expr.type === 'TemplateLiteral') {
     const quasis = nodes(expr.quasis)
     const parts = nodes(expr.expressions)
@@ -598,16 +498,8 @@ interface Branch {
 const isMarkup = (n: Node): boolean => n.type === 'JSXElement' || n.type === 'JSXFragment'
 
 /**
- * A conditional whose arms are markup, flattened into the branches a template can seal.
- *
- * Recursive, because `a ? <X/> : b ? <Y/> : <Z/>` is the shape a three-way choice is written in and
- * its alternate is another conditional rather than markup. Each branch collects the tests on the way
- * to it — `<Y/>` renders when `!a && b` — so a chain of any depth becomes a flat list of arms, each
- * with its own conjunction.
- *
- * Returns null for a conditional whose arms are values: those are a `cond` in the derived table and
- * stay one hole, which is cheaper and leaves the markup identical. A conditional mixing a shape and
- * a value is refused by the caller rather than guessed at.
+ * A conditional whose arms are markup, flattened into the branches a template can seal. See
+ * `spec/compiler/supported-subset.md`. Returns null for a conditional whose arms are values.
  */
 function jsxBranches(expr: Node, prefix: Condition[] = []): Branch[] | null {
   if (expr.type === 'LogicalExpression' && String(expr.operator) === '&&') {
@@ -634,13 +526,7 @@ function jsxBranches(expr: Node, prefix: Condition[] = []): Branch[] | null {
 
   // Neither arm is a shape: a value conditional, and not this lowering's business.
   if (!left && !right) return null
-  /**
-   * One arm is a shape and the other is a value, which is refused rather than rendered.
-   *
-   * Silently dropping the value arm is what the first version of this function did, and
-   * `{a ? <i>A</i> : b ? <b>B</b> : <s>C</s>}` rendered nothing at all when `a` was false. A missing
-   * arm is a wrong page, so it is a refusal.
-   */
+  /** One arm is a shape and the other is a value, which is refused rather than rendered. See `spec/compiler/supported-subset.md`. */
   if (!left || !right) {
     return (left ?? right) as Branch[]
   }
@@ -654,17 +540,7 @@ function everyArmIsShape(expr: Node): boolean {
   return everyArmIsShape(node(expr.consequent)) && everyArmIsShape(node(expr.alternate))
 }
 
-/**
- * One branch, sealed as its own template behind a `variant` hole.
- *
- * Lowered in *this* fragment's scope and sharing its derived table, the way a component's children
- * are: the markup was written here, so it reads this fragment's props and signals directly and needs
- * no projection.
- *
- * The conditions become one binding. A single positive test is used as it stands; anything else is
- * built in the derived table out of `cond`, because `&&` is not in the closed operator set and does
- * not need to be — `x && y` is `x ? y : false`, and a negation is `x ? false : true`.
- */
+/** One branch, sealed as its own template behind a `variant` hole. See `spec/compiler/supported-subset.md`. */
 function lowerBranch(branch: Branch, path: number[], em: Emitter, input: LowerInput): void {
   const FALSE: DerivedExpr = { k: 'lit', v: false }
   const TRUE: DerivedExpr = { k: 'lit', v: true }
@@ -752,13 +628,7 @@ function lowerElement(element: Node, path: number[], em: Emitter, input: LowerIn
   emit(em, `</${tag}>`)
 }
 
-/**
- * A component instance is a nested template plus a projection: child prop name to the
- * parent binding that supplies it. Nothing about the child is inlined, so one `<Widget/>`
- * used five times is one sealed template used five times, and the instance occupies
- * exactly one element position in the parent — which is why the child must have a single
- * root, the same rule a list row already lives under.
- */
+/** A component instance is a nested template plus a projection. See `spec/ir/template-ir-2.md`: Components. */
 function lowerComponent(element: Node, tag: string, path: number[], em: Emitter, input: LowerInput): void {
   const ref = input.scope.components?.get(tag)
   if (!ref) {
@@ -781,9 +651,7 @@ function lowerComponent(element: Node, tag: string, path: number[], em: Emitter,
     const prop = name(node(attribute.name))
     if (prop === 'key') continue
     if (/^on[A-Z]/.test(prop)) {
-      // An instance is one element, so an intent has an element to bind to: the instance's
-      // root, addressed by the hole's own path. The child never learns about it, which is
-      // what keeps a listener out of the child's shared template.
+      // Bound to the instance's root, addressed by the hole's own path — the child never learns about it.
       const value = attribute.value === null || attribute.value === undefined ? null : node(attribute.value)
       if (!value || value.type !== 'JSXExpressionContainer') {
         throw fail(
@@ -855,10 +723,7 @@ function lowerComponent(element: Node, tag: string, path: number[], em: Emitter,
     )
   }
 
-  // The children go into a template of their own, sealed like a row, but lowered in *this*
-  // fragment's scope: the markup was written here, so it reads this fragment's props and
-  // signals. That is also why the two share a derived table — one binding namespace, one
-  // set of ids.
+  // Sealed like a row, but lowered in *this* fragment's scope — see `spec/ir/template-ir-2.md`: Children.
   let content: Lowered | undefined
   if (written.length) {
     content = lower({
@@ -967,8 +832,7 @@ function lowerAttribute(attribute: Node, path: number[], em: Emitter, input: Low
     return
   }
 
-  // The server still renders the attribute — it is what the parser builds the control
-  // from. Only the client's write goes to the property.
+  // The server still renders the attribute; only the client's write goes to the property. See `spec/compiler/supported-subset.md`.
   const op = bindsToProperty(tag, attr) ? 'prop' : undefined
 
   if (BOOLEAN_ATTRIBUTES.has(attr)) {
@@ -1050,23 +914,10 @@ function lowerChildren(
 
     const expression = node(child.expression)
 
-    /**
-     * A choice of markup, before it is tried as a value.
-     *
-     * `{on && <A/>}` and `{on ? <A/> : <B/>}` are shapes rather than values, and a hole holds one
-     * value — so each branch is sealed as a template of its own and the hole says which. The layout
-     * does not vary: both holes are always in the parent, and a falsy one writes nothing.
-     */
+    // A choice of markup, before it is tried as a value. See `spec/compiler/supported-subset.md`.
     const branches = jsxBranches(expression)
     if (branches) {
-      /**
-       * Every arm has to be a shape, or the ones that are not would render as nothing.
-       *
-       * This is the refusal the first version of this lowering lacked:
-       * `{a ? <i>A</i> : b ? <b>B</b> : 'C'}` sealed the two elements, dropped the string, and
-       * rendered an empty element when `a` and `b` were both false. A missing arm is a wrong page,
-       * so mixing the two is named rather than resolved.
-       */
+      // Every arm has to be a shape, or the ones that are not would render as nothing. See `spec/compiler/supported-subset.md`.
       if (!everyArmIsShape(expression)) {
         throw fail(
           input,
@@ -1077,14 +928,7 @@ function lowerChildren(
             'conditional a value',
         )
       }
-      /**
-       * The same rule a list lives under, for exactly the same reason.
-       *
-       * A falsy branch writes nothing, so an element after it would sit at a different index
-       * depending on a value — and every path in this template addresses element positions. Making
-       * the conditional the sole child is what keeps a path a fact about the template rather than
-       * about one render of it.
-       */
+      // The same rule a list lives under, for exactly the same reason. See `E_BRANCH_NOT_SOLE_CHILD` in `spec/compiler/supported-subset.md`.
       if (surviving.length !== 1) {
         throw fail(
           input,
@@ -1119,9 +963,7 @@ function lowerChildren(
       return
     }
 
-    // The place a caller's markup goes. It is a boundary rather than a value: the content is
-    // its own sealed template, addressed from this element, so it has to own the element's
-    // child positions outright — the same rule a list lives under, for the same reason.
+    // The place a caller's markup goes: a boundary rather than a value. See `spec/ir/template-ir-2.md`: Children.
     if (
       expression.type === 'Identifier' &&
       name(expression) === 'children' &&
@@ -1246,9 +1088,7 @@ function lowerList(
     },
   })
 
-  // A row may render an instance of its own, and those reads are still this fragment's:
-  // the row template is its markup, cut out so that a row count can change without moving
-  // anything. Contagion follows the markup, not the template boundary.
+  // Contagion follows the markup, not the template boundary. See `spec/compiler/effects.md`.
   em.components.push(...lowered.components)
 
   const holeIndex = hole(em, {
@@ -1257,8 +1097,6 @@ function lowerList(
     binding: arrayBinding.binding,
     path,
     provenance: id,
-    // Named on the hole so the renderer knows to supply them, and absent when unused so the row
-    // loop keeps its fast path.
     ...(indexName ? { rowIndex: indexName } : {}),
     ...(lowered.rowValue ? { rowValue: lowered.rowValue } : {}),
   })

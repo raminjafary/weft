@@ -139,6 +139,31 @@ which is the one thing this whole section exists to prevent.
 The fix the message names is to move the read: take the private value above the list or the call
 site, where it is one hole in one template, and pass it in as a prop.
 
+## A route's loader has a wider context, and the same table
+
+A fragment's context is a closed surface by design: anything on it the read table doesn't name
+is a compile error, because a fragment reading something the compiler can't see would make its
+cache key a lie. A `.data.ts` loader's context is wider on purpose — `ctx.data(...)`,
+`ctx.revalidate(...)` — so running the fragment walk over one would refuse every application
+that has a loader. `inferLoaderReads` collects only the reads the table above names and steps
+over everything else, so a read that taints in a fragment taints in a loader too, into the same
+key, without refusing the reads a loader is allowed that a fragment is not.
+
+The bug this closes: a loader lives in a file the compiler never read, so `ctx.query('rows')`
+tainted nothing, the key could not contain it, and whichever value rendered first answered for
+every other request until the entry expired. Route params had already been folded into a slot's
+identity, which patched around this by accident; a query string has no such bound, so nothing
+protected it.
+
+A loader is written `(ctx) => …`, `(ctx, params) => …`, or as a method shorthand, so its context
+parameter is collected by name per file rather than assumed. And a helper the loader delegates
+to — `const slow = (ctx, key) => ctx.query(key)` — is resolved one level through its call sites:
+the parameter's name is looked up in the literal arguments every call passes it. A second level
+of indirection is refused, because a chain of two is a key nobody can follow either. The read is
+tracked **per file rather than per slot** — deliberately conservative: a read in one slot's
+loader taints every slot on the route, costing a cache entry that could have been shared. The
+opposite error costs a wrong page.
+
 ## What this does not do
 
 Three things this page used to say were missing have since been built, and what they turned into is

@@ -252,6 +252,16 @@ Three consequences worth knowing before touching this file:
 - **The checker is a process.** `dispose()` is not optional, and `compileFiles` shuts it
   down in a `finally`.
 
+**Why `ValueKind`, `TypeOracle` and `cannotBeMarkup` live in their own module (`kinds.ts`),
+apart from everything that builds a checker (`types.ts`).** TypeScript is an optional peer of
+this package, and `types.ts` imports `typescript/unstable/*` at the top level — anything that
+reaches those names statically pulls the checker into its module graph, and an install with no
+checker fails at load, before any `catch` meant to fall back can run. This was not hypothetical:
+`lower.ts` needed one predicate and the barrel re-exported the module, so `npm create weft
+<name>` died on `Cannot find package 'typescript'` inside a scaffolder that never wanted a
+checker. A shape, a predicate over it, and the interface an implementation satisfies have no
+business depending on that implementation.
+
 ## Addressing: what building the compiler changed about the IR
 
 Two IR decisions did not survive contact with a real lowering pass, and both were fixed
@@ -350,6 +360,16 @@ refused rather than shipped as a control that looks live.
 A conditional whose arms are _values_ is still one hole and a `cond` entry. The arms decide which
 lowering applies: markup arms seal templates, value arms do not, and a conditional mixing the two is
 refused rather than guessed at.
+
+A chain — `a ? <X/> : b ? <Y/> : <Z/>` — is the shape a three-way choice is actually written in, and
+it flattens into one `variant` hole per branch rather than a hole per level: each branch collects the
+tests on the way to it, so `<Y/>` renders on `!a && b` and `<Z/>` on `!a && !b`, and a chain of any
+depth becomes a flat list of arms, each with its own conjunction.
+
+An arm that is markup beside an arm that is a plain value is refused rather than rendered. Silently
+dropping the value arm is what an early version of this did, and `{a ? <i>A</i> : b ? <b>B</b> :
+<s>C</s>}` rendered nothing at all when `a` was false — a missing arm is a wrong page, not a
+degradation.
 
 ## A row's position
 
