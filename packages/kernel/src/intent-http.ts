@@ -11,15 +11,9 @@ import { lifecycle } from './request.ts'
 import { createRouter, type RouteEntry, type Router } from './router.ts'
 
 /**
- * A mutation over plain HTTP, which is the part that has to work with no JavaScript at all.
- *
- * A form posts to a path, the intent runs, and the response is a 303 back to where the form
- * was. That is the whole progressive-enhancement story and it is why the intent path is
- * method-aware routing rather than only a channel frame: a client with a working socket takes
- * the fast path, and a client with none takes the one browsers have always had.
- *
- * `fetch` gets the same dispatch and an ACK-shaped JSON body instead of a redirect, chosen by
- * `Accept` rather than by a separate endpoint — one dispatch, two representations.
+ * A mutation over plain HTTP: a form posts, the intent runs, and the response is a 303 back to
+ * where the form was — the no-JavaScript path. `fetch` gets the same dispatch and an ACK-shaped
+ * JSON body, chosen by `Accept`. See `spec/kernel/intents.md`.
  */
 export interface IntentRoute {
   method: string
@@ -79,10 +73,8 @@ export interface IntentServer {
 }
 
 /**
- * Intents over HTTP, in phase A.
- *
- * Which is where a real status, an `HttpOnly` cookie and a crawler-followable redirect are all still
- * possible — the moment they exist in, and the reason an intent runs there rather than in a render.
+ * Intents over HTTP, in phase A — where a real status, an `HttpOnly` cookie and a
+ * crawler-followable redirect are all still possible.
  */
 export function serveIntent(options: ServeIntentOptions): IntentServer {
   const dispatch = createIntentDispatch(options)
@@ -113,22 +105,15 @@ export function serveIntent(options: ServeIntentOptions): IntentServer {
         return json(422, { ok: false, code: 'E_INTENT_PAYLOAD', detail: String(error) })
       }
 
-      /**
-       * The token travels beside the payload, never in it.
-       *
-       * A form has one place to put a field, so a hidden input is the only way a page with no
-       * JavaScript can carry a signature — and it is taken *out* of the payload before dispatch,
-       * because a token that bound a payload containing itself could never verify.
-       */
+      // The token travels beside the payload, never in it: a token that bound a payload
+      // containing itself could never verify.
       const token = request.headers.get(TOKEN_HEADER) ?? take(raw, TOKEN_FIELD)
       const outcome = await dispatch.run(matched.intent, raw, base, token ? { token } : {})
       last = outcome
 
-      // The envelope is still open, so a real status, a real Set-Cookie and a redirect a
-      // crawler will follow are all still available. This is the moment they exist in.
       if (!outcome.ok) envelope.status(statusFor(outcome.code))
-      // The one header a 429 has to carry to be actionable. Seconds, rounded up, because that is
-      // what `Retry-After` is defined in and a zero would tell a caller to come straight back.
+      // Seconds, rounded up: what `Retry-After` is defined in, and a zero would tell a caller
+      // to come straight back.
       if (outcome.retryAfterMs !== undefined) {
         envelope.header('retry-after', String(Math.max(1, Math.ceil(outcome.retryAfterMs / 1000))))
       }
@@ -159,11 +144,9 @@ function bodyOf(outcome: IntentOutcome): Record<string, unknown> {
 }
 
 /**
- * Named refusals map to the status that describes them, rather than everything being a 500.
- *
- * The signed-intent codes are here rather than beside the verifier because a status code is an
- * HTTP fact and the verifier is not: the same refusal over a channel is an `ACK` carrying the code,
- * with no status anywhere in it.
+ * Named refusals map to the status that describes them, rather than everything being a 500. The
+ * signed-intent codes are here rather than beside the verifier: a status code is an HTTP fact and
+ * the verifier is not — the same refusal over a channel is an `ACK` carrying the code, no status.
  */
 function statusFor(code: string | undefined): number {
   switch (code) {
@@ -185,8 +168,8 @@ function statusFor(code: string | undefined): number {
       return 429
     case 'E_INTENT_INPUT':
       return 422
-    // Unsigned and expired are both "authenticate and try again", which is what 401 means and
-    // what 403 does not: a 403 tells a caller that presenting a valid token would not help.
+    // Unsigned and expired are "authenticate and try again" — 401, not 403: a 403 tells a
+    // caller that presenting a valid token would not help.
     case 'E_INTENT_UNSIGNED':
     case 'E_INTENT_EXPIRED':
       return 401

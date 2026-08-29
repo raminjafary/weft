@@ -11,32 +11,21 @@ export interface SlotSplit {
 }
 
 /**
- * How a document is cut into what can be sent now and what has to wait.
- *
- * A type rather than a call, because there is a second implementation: a route wrapped in nested
- * layouts is cut across the whole chain, and that splicing lives in `split-chain.ts` so that a
- * deployment whose layouts are flat does not import it. See `spec/kernel/budgets.md` — this is the
- * third time the byte budget has turned a capability into a seam, and the seam is the better shape
- * each time.
+ * How a document is cut into what can be sent now and what has to wait. A type rather than a
+ * call: a route wrapped in nested layouts is cut across the whole chain in `split-chain.ts`, so a
+ * deployment whose layouts are flat does not import it. See `spec/kernel/budgets.md`.
  */
 export type Splitter = (ir: TemplateIR, values: Values, resolve?: Resolver) => SlotSplit
 
 /**
- * Cuts the shell at its slot holes, and at every instance the compiler isolated. Everything
- * between two of them is bytes the server can send before it knows anything about the slow
- * work, which is the whole reason a slot exists: a fragment that reads something slow
- * becomes a hole by construction, so the shell is never downstream of the query. An
- * isolated instance is the same cut made for a different reason — the child is private and
- * the shell is not, so they cannot share one cache entry.
+ * Cuts the shell at its slot holes, and at every instance the compiler isolated — bytes the
+ * server can send before it knows anything about the slow work. An isolated instance is the same
+ * cut for a different reason: the child is private and the shell is not.
  */
 export function splitAtSlots(ir: TemplateIR, values: Values, resolve?: Resolver): SlotSplit {
-  /**
-   * The derived values, first — the same step `writeTemplate` takes before it writes a byte.
-   *
-   * A shell is cut here rather than rendered, so nothing else was going to take it: a conditional
-   * or a template literal in a layout lowers to a hole bound to `d0`, and `d0` is in `ir.derived`
-   * rather than in the values the route supplied. Without this every one of them rendered empty.
-   */
+  // The derived values, first — the same step `writeTemplate` takes before it writes a byte.
+  // A conditional or template literal lowers to a hole bound to a derived id, in `ir.derived`
+  // rather than in the values the route supplied. Without this it rendered empty.
   const resolved = resolveDerived(ir.derived, values)
   const chunks: Uint8Array[] = []
   const slots: string[] = []
@@ -59,17 +48,15 @@ export function splitAtSlots(ir: TemplateIR, values: Values, resolve?: Resolver)
     pending.push(ir.segments[i] as Uint8Array)
     const hole = ir.holes[i]
     if (!hole) continue
-    // A slot and an isolated instance are the same shape of hole: bytes this render does
-    // not own. One was left for slow work, the other for work with a different cache
-    // class, and the shell is sent before either resolves.
+    // A slot and an isolated instance are the same shape of hole: bytes this render does not
+    // own, sent before either resolves.
     if (hole.kind === 'slot' || hole.isolated) {
       flush()
       slots.push(hole.binding)
       continue
     }
-    // The whole value set, not one value: a component instance projects several of the parent's
-    // bindings through its props, and a variant is gated on one while rendering a nested template.
-    // See `renderHoleIn`, and the note there about what rendering a layout's `<Mark/>` used to do.
+    // The whole value set, not one value: a component instance projects several of the
+    // parent's bindings through its props. See `renderHoleIn`.
     pending.push(renderHoleIn(hole, resolved, resolve))
   }
   flush()

@@ -1,13 +1,7 @@
 /**
- * Matching a URL to a plan.
- *
- * The router knows nothing about plans, fragments or rendering: it maps a path to a value
- * and a set of params, and the params are what the cache key reads through `ctx.param()`.
- * That separation is the whole reason it is fifty lines rather than a subsystem — a route is
- * not a place where behaviour lives, it is a name for a plan.
- *
- * Specificity decides matches, never declaration order. A table whose behaviour depends on
- * the order somebody happened to write it in is a table nobody can safely refactor.
+ * Matching a URL to a plan. Knows nothing about plans, fragments or rendering: it maps a path to
+ * a value and a set of params. Specificity decides matches, never declaration order. See
+ * `spec/kernel/routing.md`.
  */
 export class RouterError extends Error {
   code: string
@@ -36,11 +30,7 @@ export interface Matched<T> {
 /** A path to a value, by specificity rather than by declaration order. */
 export interface Router<T> {
   match(url: URL | string): Matched<T> | null
-  /**
-   * The patterns in the order they will be tried. Where two of them could match one path the
-   * more specific comes first, which is the only ordering guarantee worth making — between
-   * patterns that cannot collide the order is deterministic and uninteresting.
-   */
+  /** The patterns in the order they will be tried. Where two could match one path, the more specific comes first. */
   readonly patterns: readonly string[]
 }
 
@@ -114,10 +104,8 @@ function split(path: string): string[] {
 }
 
 /**
- * Static beats a param, a param beats a wildcard, segment by segment — so `/product/new`
- * wins over `/product/:sku`, and `/a/:id` wins over `/a/*`, without either declaring a
- * priority. Two patterns that can match the same path always disagree at some segment, which
- * is why comparing ranks positionally is enough.
+ * Static beats a param, a param beats a wildcard, segment by segment — so `/product/new` wins
+ * over `/product/:sku`, without either declaring a priority.
  */
 function moreSpecific<T>(a: Compiled<T>, b: Compiled<T>): number {
   const length = Math.max(a.rank.length, b.rank.length)
@@ -130,11 +118,8 @@ function moreSpecific<T>(a: Compiled<T>, b: Compiled<T>): number {
 }
 
 /**
- * A table, checked at construction.
- *
- * Two patterns that can match the same paths are `E_ROUTE_CONFLICT` here rather than a surprise
- * later, and specificity — static over param over wildcard, segment by segment — is what decides,
- * so a table nobody can safely refactor is not a table this produces.
+ * A table, checked at construction. Two patterns that can match the same paths are
+ * `E_ROUTE_CONFLICT` here rather than a surprise later.
  */
 export function createRouter<T>(entries: readonly RouteEntry<T>[]): Router<T> {
   const compiled = entries.map(compile)
@@ -195,10 +180,7 @@ function matchOne<T>(route: Compiled<T>, parts: readonly string[]): Record<strin
   return params
 }
 
-/**
- * A param becomes a cache key component, so a sequence that is not valid percent-encoding
- * has to fail the match rather than reach the key as something the request did not contain.
- */
+/** A param becomes a cache key component, so invalid percent-encoding fails the match rather than reaching the key. */
 function decode(value: string): string | null {
   if (!value.includes('%')) return value
   try {

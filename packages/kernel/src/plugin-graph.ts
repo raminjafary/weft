@@ -1,33 +1,21 @@
 import { PluginError, type Plugin, type PluginSchedule } from './plugins.ts'
 
 /**
- * Build-time, and deliberately not in the request path. The dependency graph is inferred
- * rather than declared: `reads` and `provides` give the kernel everything it needs, so B
- * reads what A provides and the edge exists without anybody writing `after: ['A']`.
- * Hand-declared edges stay for the cases data flow cannot express — a CSP nonce must be
- * injected before analytics adds a script tag, and no read/write relationship captures that.
- *
- * Nothing here depends on a request. Resolve the schedule once, hand it to `createKernel`,
- * and the sort, the cycle check and the ambiguity check are all paid for before the process
- * serves anything.
+ * Build-time, and deliberately not in the request path. The dependency graph is inferred from
+ * `reads` and `provides`; hand-declared edges stay for what data flow cannot express. See
+ * `spec/plan/plan.md`.
  */
 export interface ResolveOptions {
   /**
-   * Capabilities this deployment's roles can actually grant.
-   *
-   * Given, a plugin declaring one nothing can grant is refused where it is registered — the same
-   * rule an intent already lives by, applied at the other registration point rather than becoming a
-   * second gate with its own failure modes. Absent, the declaration is carried and not checked,
-   * which is right for a kernel with no authority model bound.
+   * Capabilities this deployment's roles can actually grant. Given, a plugin declaring one
+   * nothing can grant is refused at registration — the same rule an intent lives by.
    */
   grantable?: readonly string[]
 }
 
 /**
- * Plugins into an order, from what each declares it reads and provides.
- *
- * At build time, because ordering is not a per-request question — so a cycle and an ambiguity are
- * both build errors rather than a race nobody can reproduce.
+ * Plugins into an order, from what each declares it reads and provides. At build time, so a
+ * cycle and an ambiguity are both build errors rather than a race nobody can reproduce.
  */
 export function resolvePlugins(plugins: readonly Plugin[], options: ResolveOptions = {}): PluginSchedule {
   const byName = new Map<string, Plugin>()
@@ -39,8 +27,7 @@ export function resolvePlugins(plugins: readonly Plugin[], options: ResolveOptio
   }
 
   for (const plugin of plugins) {
-    // A residency that is not this side of the wire cannot have a request handler: nothing here
-    // would ever call it, and a declaration nobody reads is how `residency` came to mean nothing.
+    // A residency that is not this side of the wire cannot have a request handler.
     if (plugin.onRequest && (plugin.residency === 'client' || plugin.residency === 'build')) {
       throw new PluginError(
         'E_PLUGIN_RESIDENCY',
@@ -148,14 +135,8 @@ function waveify(plugins: readonly Plugin[], edges: Map<string, Set<string>>): P
 export const NO_PLUGINS: PluginSchedule = { filters: [], waves: [], axes: {} }
 
 /**
- * One schedule per scope, resolved once.
- *
- * Encapsulation is a property of the *graph* rather than a check on the request: plugins scoped to
- * disjoint prefixes are not in each other's ordering, cannot be ambiguous with each other, and
- * cannot see each other's `provides`. So each scope gets its own resolve — over the unscoped
- * plugins plus the ones whose prefix the path is under — and a route carries the schedule that
- * applies to it. The request path is unchanged, which is the point: a page under `/shop` does not
- * pay a prefix comparison for a plugin registered under `/admin`.
+ * One schedule per scope, resolved once. Encapsulation is a property of the graph, not a check on
+ * the request — a page under `/shop` pays no prefix comparison for a plugin under `/admin`.
  */
 export interface ScopedPlugins {
   /** The schedule a path is subject to. Memoised per distinct prefix set, not per path. */

@@ -14,11 +14,8 @@ export interface Route {
   resolve?: Resolver | undefined
   /**
    * How to cut this document, when the flat splitter is not it: a route whose layouts are nested
-   * carries `chainSplitter`. See `split-chain.ts`.
-   *
-   * `| undefined` is deliberate under `exactOptionalPropertyTypes`: the kernel copies this field
-   * across from `KernelRoute` and being allowed to copy it unconditionally is two fewer branches on
-   * the document request path, which has twelve bytes of headroom.
+   * carries `chainSplitter`. See `split-chain.ts`. `| undefined` is deliberate under
+   * `exactOptionalPropertyTypes`, so the kernel can copy this field across unconditionally.
    */
   split?: Splitter | undefined
   /** One resolver per slot. Whatever it awaits is what the shell refused to wait for. */
@@ -34,14 +31,10 @@ export interface StreamOptions {
   prelude?: SlotContent
   postlude?: SlotContent
   /**
-   * Emitted once before the first fill. Defaults to the built-in filler, and that default is not
-   * a convenience: `fillFor` emits a call to `__w`, so an out-of-order stream without a fill
-   * mechanism produces markup that references a function nobody defined.
-   *
-   * It was optional, and `kernel.handle` did not pass it — so every out-of-order response the
-   * kernel produced threw `__w is not defined` in the browser, six times on a four-slot page.
-   * Nothing caught it because every test read the body as bytes. Supplying your own means
-   * supplying something that defines `__w`.
+   * Emitted once before the first fill. Defaults to the built-in filler — not a convenience:
+   * `fillFor` emits a call to `__w`, and without a fill mechanism that markup references a
+   * function nobody defined. Once shipped as `__w is not defined` when this was left optional
+   * and unwired; no test caught it because every test read the body as bytes.
    */
   filler?: SlotContent
 }
@@ -51,15 +44,10 @@ function bytes(value: SlotContent): Uint8Array {
 }
 
 /**
- * Two orders, and the difference between them is not a tuning knob.
- *
- * `in-order` streams each slot where it sits in the document. It needs no JavaScript at
- * all, and a slow slot holds back every slot after it.
- *
- * `out-of-order` sends the whole shell first with an anchor comment at each slot, then
- * fills whichever slot resolves first. Nothing waits on document order, and it costs a
- * fill mechanism — see the note in the kernel's spec about why that mechanism cannot be
- * declarative shadow DOM.
+ * Two orders, and the difference between them is not a tuning knob. `in-order` needs no
+ * JavaScript and a slow slot holds back everything after it; `out-of-order` sends the shell
+ * first and fills whichever slot resolves first, at the cost of a fill mechanism. See
+ * `spec/kernel/streaming.md`.
  */
 export function streamRoute(route: Route, options: StreamOptions): ReadableStream<Uint8Array> {
   const { chunks, slots } = (route.split ?? splitAtSlots)(route.template, route.values, route.resolve)
@@ -84,8 +72,7 @@ export function streamRoute(route: Route, options: StreamOptions): ReadableStrea
         }
         if (slots.length) send(options.filler ?? fillerBytes())
 
-        // Fastest first: the pipe is filled with whatever is ready, not with whatever
-        // comes next in the document.
+        // Fastest first: filled with whatever is ready, not whatever comes next in the document.
         const inflight = new Map<number, Promise<{ index: number; slot: string; content: Uint8Array }>>()
         slots.forEach((slot, index) => {
           inflight.set(
@@ -112,10 +99,7 @@ async function resolveSlot(route: Route, slot: string): Promise<Uint8Array> {
   return bytes(await producer())
 }
 
-/**
- * A region arrives as inert template content plus a call to move it. The content is not
- * inside a string literal, so nothing has to be escaped for JavaScript on the way.
- */
+/** A region arrives as inert template content plus a call to move it. Not inside a string literal, so nothing needs escaping for JavaScript. */
 export function fillFor(slot: string, content: Uint8Array): Uint8Array {
   const open = utf8.encode(`<template data-w="${slot}">`)
   const close = utf8.encode(`</template><script>__w(${JSON.stringify(slot)})</script>`)

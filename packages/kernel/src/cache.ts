@@ -11,15 +11,9 @@ import type { Ports, RequestFacts } from './ports.ts'
 import { deviceOf, localeOf } from './context.ts'
 
 /**
- * Turning an inferred read set into an actual key.
- *
- * This is the piece that makes effect inference load-bearing rather than descriptive. The
- * compiler says a fragment reads `cookie:currency` and `flag:new-cart`; the kernel resolves
- * those two values for this request and hashes them with the fragment's content address.
- * Nothing here is written by hand, which is the entire point: a key that can be hand-set
- * can drift from what the code reads, and that drift is the bug the design exists to remove.
- *
- * The key is resolved *before* the render, never after, because on a hit there is no render.
+ * Turning an inferred read set into an actual key. Nothing here is written by hand — a key that
+ * can be hand-set can drift from what the code reads. Resolved before the render, never after: on
+ * a hit there is no render. See `spec/kernel/cache.md`.
  */
 export class CacheError extends Error {
   code: string
@@ -55,10 +49,7 @@ export interface ResolvedKey {
   reason: string
 }
 
-/**
- * Resolves one taint to the value that has to go in the key. `time` is deliberately absent:
- * the clock is a TTL, not a key component, or every second would be its own entry.
- */
+/** Resolves one taint to the value that has to go in the key. `time` is absent: the clock is a TTL, not a key component. */
 export async function resolveRead(read: string, facts: RequestFacts, ports: Ports): Promise<string> {
   if (read.startsWith('cookie:')) return ports.session.cookie(facts, read.slice(7)) ?? ''
   if (read.startsWith('header:')) return facts.headers.get(read.slice(7)) ?? ''
@@ -77,12 +68,7 @@ export async function resolveRead(read: string, facts: RequestFacts, ports: Port
   )
 }
 
-/**
- * Reads to a key, by asking the ports for their values.
- *
- * The compiler said *which* reads taint; this resolves them. There is no setter and there never
- * will be: a key that can be written by hand is a key that can be written wrongly.
- */
+/** Reads to a key, by asking the ports for their values. There is no setter and there never will be. */
 export async function resolveKey(input: KeyInput, facts: RequestFacts, ports: Ports): Promise<ResolvedKey> {
   const cls = cacheClassOf(input.effects)
   const vary = varyOn(input.effects)
@@ -122,10 +108,7 @@ export async function resolveKey(input: KeyInput, facts: RequestFacts, ports: Po
   }
 }
 
-/**
- * The bytes a key is a hash of. Sorted, because a key that depended on the order somebody
- * happened to write their reads in would miss for no reason.
- */
+/** The bytes a key is a hash of. Sorted, so it never depends on the order reads were written in. */
 export function keyMaterial(
   input: KeyInput,
   components: Record<string, string>,
@@ -175,10 +158,9 @@ export interface CachePolicy {
 }
 
 /**
- * `Cache-Control` and `Vary`, derived from the same effect signature that produced the key,
- * so the CDN, the browser and the store agree on cacheability by construction rather than
- * by convention. A private class can never be emitted as public: that is the one header
- * mistake that turns a caching bug into an identity leak.
+ * `Cache-Control` and `Vary`, derived from the same effect signature that produced the key. A
+ * private class can never be emitted as public — the one header mistake that turns a caching bug
+ * into an identity leak.
  */
 export function cacheHeaders(resolved: ResolvedKey, policy?: CachePolicy): Record<string, string> {
   const headers: Record<string, string> = {}
