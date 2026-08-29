@@ -3,16 +3,10 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
- * The folder convention, read out of the walk that implements it.
- *
- * `convention.ts` opens with the whole convention as an aligned block — the same shape `weft --help`
- * keeps, and for the same reason: it is meant to be read by whoever is about to change the code
- * under it. So this parses the first one rather than the site keeping a second copy, and a path the
- * discovery stops recognising stops appearing on the page in the same commit.
- *
- * The sentences between the rows are kept too. One of them is the rule that a route is a `.tsx`
- * *or* a `.data.ts`, which is the single most surprising thing about the convention and would be
- * lost by a parser that only took the aligned lines.
+ * The folder convention, read out of `convention.ts`'s own opening comment block rather than a
+ * second copy — a path the discovery stops recognising stops appearing on the page in the same
+ * commit. The prose between the rows is kept too, since it carries the convention's most
+ * surprising rule (a route is `.tsx` *or* `.data.ts`).
  */
 export interface ConventionRow {
   /** `app/routes/[slug].tsx`, as written. */
@@ -36,13 +30,7 @@ function block(): string {
     .join('\n')
 }
 
-/**
- * `  app/routes/x.data.ts   what it is` — a path, some spaces, a sentence.
- *
- * The first token has to look like a path, and that is what separates a row from the prose between
- * the rows rather than the column of spaces: the longest path in the block is one character short of
- * the column, so it is followed by a single space and a run-of-two rule silently dropped it.
- */
+/** `  app/routes/x.data.ts   what it is`. First token must look like a path — the column-of-spaces rule alone missed the longest path, one char short of the column. */
 const ROW = /^ {2}(\S*[/.]\S*)\s+(\S.*)$/
 
 export function conventionRows(): ConventionRow[] {
@@ -55,13 +43,7 @@ export function conventionRows(): ConventionRow[] {
   return out
 }
 
-/**
- * The prose in the comment, minus the rows and minus the paragraph about why a convention exists.
- *
- * The first paragraph is the file's own reason for being and the page says that better in its own
- * words; what is worth carrying is the rule stated in the middle of the table, which is about the
- * convention rather than about the module.
- */
+/** The prose in the comment, minus the rows and minus the opening paragraph (the file's own reason for being, which the page states better itself). */
 export function conventionNotes(): string[] {
   const paragraphs: string[] = []
   let current: string[] = []
@@ -94,14 +76,7 @@ export function groupOfPath(path: string): string {
   return 'app/'
 }
 
-/**
- * What each directory is for, in one sentence, and where the rest of the answer is.
- *
- * The one hand-written thing on the page. The convention block says what a *path* means, one line
- * each, because that is what a walk needs to know. It does not say why there are two directories
- * that both hold fragments, or which of them a browser can name — and those are the questions
- * somebody looking at the tree for the first time actually has.
- */
+/** What each directory is for. The one hand-written thing on the page — the convention block says what a *path* means, not why two directories both hold fragments. */
 export const DIRECTORIES: readonly { path: string; what: string }[] = [
   {
     path: 'app/',

@@ -3,16 +3,9 @@ import type { Cell } from '../fragments/docs/table.tsx'
 import { highlight } from './highlight.ts'
 
 /**
- * Blocks, as the builders that used to concatenate strings now produce them.
- *
- * One constructor per block kind, each filling the fields its arm reads and leaving the rest empty.
- * A row has one template, so every block carries every field — writing that out at 40 call sites is
- * what these functions exist to avoid.
- *
- * The order of the arms in `docs/page.tsx` is the order of the flags here, and nothing enforces the
- * agreement beyond both being small and in one file each. A block with no flag set falls through to
- * the bespoke arm, which is the honest default: an unrecognised block renders its `html` rather than
- * rendering nothing.
+ * Blocks, as the builders that used to concatenate strings now produce them. One constructor per
+ * kind, filling the fields its arm reads and leaving the rest empty (one template, every block
+ * carries every field). A block with no flag set falls through to the bespoke arm.
  */
 
 const EMPTY: Block = {
@@ -59,13 +52,7 @@ export function note(kind: 'why' | 'refused' | 'careful', title: string, body: s
   return { ...EMPTY, kind: 'note', isNote: true, noteKind: kind, title, body }
 }
 
-/**
- * A table. This is the block that carries data, and the reason the conversion was worth doing.
- *
- * Its cells hold error codes, file paths, messages extracted from source and exported signatures —
- * values, escaped by the compiler. The `table()` it replaced took pre-built HTML, so each of its
- * call sites assembled its own `<a>` and `<code>` and escaped what went inside, or did not.
- */
+/** A table. Cells hold values escaped by the compiler — the `table()` this replaced took pre-built HTML, so each call site escaped its own or didn't. */
 export function table(headers: readonly string[], rows: readonly (readonly Cell[])[]): Block {
   return {
     ...EMPTY,
@@ -93,12 +80,7 @@ export function sketch(lang: string, source: string): Block {
   return { ...figure(lang, source, 'sketch — not compiled'), kind: 'sketch' }
 }
 
-/**
- * One reference entry: a field, what it accepts, what it is without you, and why.
- *
- * The doc paragraphs arrive already escaped with backticks turned into `<code>` — see `docHtml` in
- * `declared.ts`. Everything else is a value and the compiler escapes it.
- */
+/** One reference entry. Doc paragraphs arrive already escaped with backticks turned into `<code>` — see `docHtml` in `declared.ts`. */
 export function option(entry: {
   name: string
   id: string
@@ -129,13 +111,7 @@ export function option(entry: {
   }
 }
 
-/**
- * Markup this set has no block for.
- *
- * Deliberately named rather than hidden inside a helper, so a page still building its own markup is
- * visible in a diff. The examples showcase is the remaining user: it is three panels and two facts
- * tables, and it wants a component of its own rather than a block flag.
- */
+/** Markup this set has no block for — deliberately named rather than hidden, so a page still building its own markup is visible in a diff. */
 export function bespoke(html: string): Block {
   return { ...EMPTY, kind: 'bespoke', html }
 }
