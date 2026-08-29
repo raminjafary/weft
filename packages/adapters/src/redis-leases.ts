@@ -4,39 +4,13 @@ import { connect as connectTls } from 'node:tls'
 import type { Lease, StorePort } from '@weftjs/kernel'
 
 /**
- * Leases a whole deployment agrees about, over a socket.
- *
- * This is the bottom row of the table in `spec/kernel/authority.md`, and it is the row that was
- * described rather than shipped. `sharedLeases` makes a nonce single-use per **machine** by creating
- * a file nobody else can create; two machines do not share that directory, so behind a load balancer
- * it is single-use per instance and the deployment is told so. What that needs is somewhere outside
- * both processes that can answer "did anybody already take this", and `SET key value NX PX ttl` is
- * exactly that answer: one round trip, atomic, expiring on its own.
- *
- * **Why this is in the framework at all**, given that the port exists so a deployment can bring its
- * own. Because the port existing is not the same as the answer existing: `W_REPLAY_PROCESS_LOCAL`
- * named a fix nobody could apply without writing a Redis client first, and a fix that costs a day is
- * a fix most deployments will decide they do not need. The client below is a hundred lines because
- * the subset it needs is small — this speaks RESP to Redis, Valkey, KeyDB or anything else that
- * answers the same four verbs, and it is not a general-purpose Redis client and does not want to be.
- *
- * **What it does not touch.** `scope`, again. Where an entry may travel is unchanged by this; a
- * process-local cache with networked leases is a perfectly ordinary arrangement and is what most
- * deployments should want, because a shared cache is a much larger decision made for reasons that
- * have nothing to do with replay.
- *
- * **What a failure means.** A store that cannot be reached does not return "free" — it throws, and
- * `verifyIntent` turns that into `E_REPLAY_UNKNOWN`. A signed intent that proceeds on a maybe is a
- * signed intent that can be replayed for the length of an outage, which is the window an attacker
- * would choose. Refusing during an outage is the weaker product and the stronger property.
+ * Leases a whole deployment agrees about, over a socket — the bottom row of the table in
+ * `spec/kernel/authority.md`. `SET key value NX PX ttl` is one round trip, atomic, expiring on
+ * its own. A store that cannot be reached throws rather than returning "free": `E_REPLAY_UNKNOWN`
+ * rather than a signed intent replayable for the length of an outage.
  */
 export interface RedisLeaseOptions {
-  /**
-   * `redis://[user:password@]host[:port][/db]`, or `rediss://` for TLS.
-   *
-   * A URL rather than a bag of fields because it is the string a platform hands you, and the one a
-   * deployment already has in an environment variable.
-   */
+  /** `redis://[user:password@]host[:port][/db]`, or `rediss://` for TLS — the string a platform hands you. */
   url?: string
   host?: string
   port?: number
@@ -44,33 +18,23 @@ export interface RedisLeaseOptions {
   username?: string
   db?: number
   tls?: boolean
-  /**
-   * Prepended to every lease key. Empty by default: the keys arriving here are already namespaced by
-   * whoever asked (`weft:intent-nonce:…`, `render:/feed`), and a second prefix is only worth having
-   * when one server holds more than one deployment's leases.
-   */
+  /** Prepended to every lease key. Empty by default: the keys arriving here are already namespaced. */
   prefix?: string
   /** How long to wait for the connection itself. */
   connectTimeoutMs?: number
   /**
-   * How long to wait for a reply before treating the connection as gone.
-   *
-   * This is on the request path — a lease is taken while somebody is waiting for an answer — so it
-   * is short by default. A timeout destroys the socket rather than abandoning one reply, because
-   * replies are matched to commands by order and a reply nobody is waiting for would be handed to
-   * the next caller: the wrong nonce answered by the wrong lease.
+   * How long to wait for a reply before treating the connection as gone. Short by default: this is
+   * on the request path. A timeout destroys the socket, since replies are matched by order and an
+   * abandoned one would answer the next caller instead.
    */
   timeoutMs?: number
   name?: string
 }
 
 /**
- * Release without stealing, which is the one place this needs more than a single verb.
- *
- * `DEL` would be wrong. A lease that expired and was taken by somebody else is somebody else's, and
- * a late release deleting it hands the same nonce out twice — the exact failure the lease exists to
- * prevent, arriving from the cleanup path. So the value is a token this caller generated and the
- * delete is conditional on it, which is the standard Redis lock idiom and is standard for a reason.
+ * Release without stealing. `DEL` would be wrong: a lease that expired and was taken by somebody
+ * else is theirs, so the delete is conditional on the token this caller generated — the standard
+ * Redis lock idiom.
  */
 const RELEASE = `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end`
 
@@ -80,12 +44,7 @@ export type LeasedStore = StorePort & {
   close(): void
 }
 
-/**
- * Leases over Redis, so stampede coalescing works across processes.
- *
- * The lease is the whole point: the in-process store's is per isolate, which means every replica
- * renders the same cold key once. This is the version that holds across them.
- */
+/** Leases over Redis, so stampede coalescing works across processes rather than once per isolate. */
 export function redisLeases(base: StorePort, options: RedisLeaseOptions = {}): LeasedStore {
   const target = resolve(options)
   const prefix = options.prefix ?? ''
@@ -94,8 +53,7 @@ export function redisLeases(base: StorePort, options: RedisLeaseOptions = {}): L
   return {
     ...base,
     name: options.name ?? `${base.name}+redis-leases`,
-    // Deliberately untouched, exactly as `sharedLeases` leaves it. Only who agrees about a lease has
-    // changed, and a tiered store still refuses to write a private entry to a shared tier.
+    // Deliberately untouched: only who agrees about a lease has changed.
     scope: base.scope,
     leaseScope: 'shared',
 
@@ -104,14 +62,12 @@ export function redisLeases(base: StorePort, options: RedisLeaseOptions = {}): L
       const token = randomUUID()
       const px = String(Math.max(1, Math.ceil(ttlMs)))
       const reply = await connection.command(['SET', name, token, 'NX', 'PX', px])
-      // `+OK` means this caller created it. A nil bulk means somebody else holds it, which for a
-      // nonce is the answer rather than an error: this token has already been used.
+      // A nil bulk means somebody else holds it, which for a nonce is the answer, not an error.
       if (reply === null) return null
       return {
         key,
         release: () => {
-          // Fire and forget, like every other release here: nothing waits on it, and a release that
-          // never lands leaves a lease to expire on its own, which is what the TTL is for.
+          // Fire and forget: a release that never lands expires on its own via the TTL.
           void connection.command(['EVAL', RELEASE, '1', name, token]).catch(() => {})
         },
       }
@@ -162,12 +118,8 @@ interface Waiter {
 }
 
 /**
- * As much of a Redis client as a lease needs, and no more.
- *
- * Replies arrive in the order commands were sent — that is a protocol guarantee and it is why this
- * can be a queue rather than a correlation table. Everything hard about a real client (pub/sub,
- * pipelining policy, cluster redirects, RESP3 push messages) is absent because a lease needs none of
- * it, and pretending otherwise would be a worse trade than the fifty lines below.
+ * As much of a Redis client as a lease needs. Replies arrive in the order commands were sent, so
+ * this can be a queue rather than a correlation table.
  */
 function client(target: Target): { command(args: readonly string[]): Promise<Reply>; close(): void } {
   let socket: Socket | null = null
@@ -218,8 +170,7 @@ function client(target: Target): { command(args: readonly string[]): Promise<Rep
   const send = (on: Socket, args: readonly string[]): Promise<Reply> =>
     new Promise<Reply>((resolve_, reject) => {
       const timer = setTimeout(() => {
-        // The socket goes with it. See `timeoutMs`: an abandoned reply would be handed to whoever
-        // asked next, and for a nonce that is one token answering for another.
+        // The socket goes with it: an abandoned reply would answer the next caller instead.
         fail(new Error(`E_LEASE_TIMEOUT: ${args[0]} to ${target.host}:${target.port} did not answer`))
       }, target.timeoutMs)
       waiting.push({ resolve: resolve_, reject, timer })
@@ -254,7 +205,7 @@ function client(target: Target): { command(args: readonly string[]): Promise<Rep
         clearTimeout(timer)
         socket = s
         // Handshake on the socket rather than through `command`, so it cannot be overtaken by a
-        // lease queued while the connection was still opening.
+        // lease queued while opening.
         const handshake: Promise<Reply>[] = []
         if (target.password !== undefined) {
           handshake.push(

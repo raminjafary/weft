@@ -1,32 +1,16 @@
 import type { EntryMeta, Lease, StoreEntry, StorePort } from '@weftjs/kernel'
 
 /**
- * The host the kernel was written for, and the one it had no adapter for.
- *
- * "The kernel imports nothing but the WinterTC Minimum Common Web API" is the rule that makes
- * "runs on Workers" a property rather than a porting exercise — and this repository had no way to
- * demonstrate it. Everything in here is that demonstration: no `node:` imports, `Request` and
- * `Response` and `crypto` and nothing else, and it runs in Node too, which is how it is tested.
- *
- * Two things a Workers deployment needs that a Node one does not.
- *
- * **`waitUntil` is the only reason work outlives a response.** An isolate is torn down when its
- * response settles, so a revalidation queued and not handed to the platform is a revalidation that
- * never happens. `StorePort.revalidateAfterResponse` collected tasks and `drain` runs them; here the
- * promise goes to `ctx.waitUntil`, which is the platform's own contract for exactly this.
- *
- * **A store with no atomic operation cannot pretend to have one.** `kvStore` refuses `lease` by name
- * rather than approximating it, because a lease that is not atomic is a stampede guard that does not
- * guard and — much worse — a replay guard that reports every nonce fresh. That is the one place in
- * this design where an approximation is a security bug, so the refusal is the implementation.
+ * The host the kernel was written for: no `node:` imports, `Request`/`Response`/`crypto` and
+ * nothing else — the demonstration that "runs on Workers" is a property. `waitUntil` is the only
+ * reason work outlives a response; `kvStore` refuses `lease` by name rather than approximating an
+ * atomic operation it does not have. See `spec/kernel/ports.md`.
  */
 
 /**
- * The shape of an edge key-value namespace, which is deliberately not one provider's client.
- *
- * Workers KV, Deno KV's flat mode, an R2 bucket used as a map, a Redis REST proxy: all of them are
- * this. A binding is passed in rather than constructed, because a framework that constructed one
- * would be a framework that had chosen a provider.
+ * The shape of an edge key-value namespace, deliberately not one provider's client — Workers KV,
+ * Deno KV, an R2 bucket, a Redis REST proxy are all this. A binding is passed in rather than
+ * constructed.
  */
 export interface KvNamespace {
   get(key: string, options?: { type: 'arrayBuffer' }): Promise<ArrayBuffer | null>
@@ -46,13 +30,7 @@ export interface KvNamespace {
 /** What a KV-backed store needs to know about the namespace it was handed. */
 export interface KvStoreOptions {
   name?: string
-  /**
-   * Where a lease is taken, when this deployment needs one.
-   *
-   * Not optional in spirit: an unbound lease is `E_NO_ATOMIC_LEASE` and every caller that needs one
-   * is refused by name. `redisLeases` is the implementation that exists; a Durable Object or a
-   * Postgres advisory lock are the other honest answers.
-   */
+  /** Where a lease is taken, when needed. Unbound is `E_NO_ATOMIC_LEASE`. `redisLeases` is the implementation that exists. */
   leases?: Pick<StorePort, 'lease' | 'leaseScope'>
   /** Bytes a single entry may be, from the platform's own limit. */
   maxValueBytes?: number
@@ -73,8 +51,7 @@ export function kvStore(namespace: KvNamespace, options: KvStoreOptions = {}): S
 
   return {
     name: options.name ?? 'kv',
-    // Stated rather than assumed: an edge KV is a read-through cache of a write that has not
-    // finished propagating. Every consumer of this port that cares reads `consistency`.
+    // An edge KV is a read-through cache of a write that has not finished propagating.
     consistency: 'eventual',
     coherence: 'ttl',
     scope: 'shared',
@@ -94,22 +71,16 @@ export function kvStore(namespace: KvNamespace, options: KvStoreOptions = {}): S
     async set(key, value, meta) {
       const bytes = value instanceof Uint8Array ? value : await collect(value)
       const full: EntryMeta = { ...meta, storedAt: clock() }
-      /**
-       * The TTL goes to the platform *and* into the record.
-       *
-       * `expirationTtl` is what makes the entry go away without anybody sweeping, and the stored
-       * `storedAt` is what makes `get(key, { stale: true })` possible — serving the last good render
-       * on an error needs an entry the platform has not reclaimed yet but this store considers
-       * expired. Two clocks for two questions, and the platform's is the longer one.
-       */
+      // The TTL goes to the platform *and* into the record: `expirationTtl` sweeps it, `storedAt`
+      // is what makes `get(key, { stale: true })` possible before the platform reclaims it.
       const ttlSeconds = full.ttlMs === undefined ? undefined : Math.max(60, Math.ceil(full.ttlMs / 1000) * 2)
       await namespace.put(
         key,
         encode(full, bytes),
         ttlSeconds === undefined ? undefined : { expirationTtl: ttlSeconds },
       )
-      // One index entry per tag, listable by prefix. A tag list stored as one value would be a
-      // read-modify-write on every set, which on an eventually consistent store loses writes.
+      // One index entry per tag, listable by prefix: a tag list as one value would be a
+      // read-modify-write that loses writes on an eventually consistent store.
       for (const tag of meta.tags ?? []) await namespace.put(tagKey(tag, key), '1')
     },
 
@@ -152,20 +123,15 @@ export function kvStore(namespace: KvNamespace, options: KvStoreOptions = {}): S
 
     async drain() {
       const tasks = queued.splice(0, queued.length)
-      // Settled rather than raced: one failing revalidation must not abandon the others, and
-      // `waitUntil` cares only that the promise finishes.
+      // Settled rather than raced: one failing revalidation must not abandon the others.
       await Promise.allSettled(tasks.map((task) => task()))
     },
   }
 }
 
 /**
- * A record is its metadata and then its bytes, in one value.
- *
- * KV metadata exists and is limited to about a kilobyte and is not returned by every
- * implementation of this shape, so the record carries its own: a length-prefixed JSON head and the
- * body after it. The same arrangement the template fingerprint uses, for the same reason — one
- * value, self-describing, no second round trip.
+ * A record is its metadata and then its bytes, in one value: a length-prefixed JSON head and the
+ * body after it, since KV metadata is limited and not returned by every implementation.
  */
 function encode(meta: EntryMeta, value: Uint8Array): ArrayBuffer {
   const head = new TextEncoder().encode(JSON.stringify(meta))
@@ -225,12 +191,9 @@ export interface WorkersHandlerOptions {
 }
 
 /**
- * `export default workersHandler({ serve, store })` and nothing else.
- *
- * The whole adapter is this shape: an isolate is torn down when its response settles, so the one
- * thing a host has to be told is what to stay alive for. A deployment that forgets is not slower,
- * it is a deployment whose revalidation never runs — so an absent `ctx` is reported rather than
- * ignored, and the drain still happens inline where it can.
+ * `export default workersHandler({ serve, store })` and nothing else. An isolate is torn down
+ * when its response settles, so an absent `ctx` is reported rather than ignored — the drain still
+ * happens inline where it can.
  */
 export function workersHandler(options: WorkersHandlerOptions): {
   fetch(request: Request, env?: unknown, ctx?: ExecutionContext): Promise<Response>
@@ -244,13 +207,8 @@ export function workersHandler(options: WorkersHandlerOptions): {
         ctx.waitUntil(drain())
         return response
       }
-      /**
-       * No `ctx`, which happens in a test, behind a shim, or on a host whose signature differs.
-       *
-       * Draining inline delays the response by whatever the revalidation costs, which is the wrong
-       * trade — but it is the *stated* wrong trade, and the alternative is work that vanishes. So it
-       * is done and it is reported.
-       */
+      // No `ctx`: draining inline is the wrong trade, stated rather than silent — the
+      // alternative is work that vanishes.
       options.onOrphaned?.('no execution context: the revalidation queue was drained inline')
       await drain()
       return response
