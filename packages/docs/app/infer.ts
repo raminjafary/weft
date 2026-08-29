@@ -1,27 +1,10 @@
 /**
- * What the compiler will say, worked out while you are still typing.
- *
- * The playground compiles on the server, because the compiler is the only thing entitled to say
- * what a fragment lowers to. A round trip per keystroke is not that, though — so this is the
- * cheaper half, running in the browser: a scan that reads the props interface, finds the holes in
- * the JSX, and pairs them up. It is a *hint*, and the panel says so; the compile beside it is the
- * answer.
- *
- * Two rules keep the hint honest rather than merely encouraging.
- *
- * **It never claims more than it can see.** A binding with no declared type is reported as unknown
- * and gets the conservative escape, which is what the compiler would do with it. A hole whose
- * binding is not in the props at all is reported as unknown *and* flagged, because that is a real
- * mistake and the earlier a reader sees it the better.
- *
- * **It says where it disagrees with the page it is on.** Escape elision is a type question and the
- * playground's file set is virtual, so the compiler there escapes everything. This scan can still
- * read `count: number` and say what elision *would* do with a real file — so it reports both, and
- * the difference is the point rather than a discrepancy somebody has to notice.
- *
- * No parser and no dependency. The playground accepts one module with one default-exported
- * fragment, which is a small enough shape that a scan is honest about it and a 7 MB checker in the
- * browser would be an odd thing to download to be told `count` is a number.
+ * What the compiler will say, worked out while you are still typing — a cheap in-browser scan
+ * (reads the props interface, finds JSX holes, pairs them up) rather than a round trip per
+ * keystroke. A *hint*, not the answer: it never claims more than it can see (unknown types escape
+ * conservatively), and it says where it disagrees with the actual compile — the playground's
+ * virtual file set escapes everything, but this scan reports what elision would do on a real file.
+ * No parser, no dependency: a 7 MB checker would be a strange download to be told `count` is a number.
  */
 
 /** The escape class the compiler assigns, and the reason it assigns it. */
@@ -65,14 +48,7 @@ function escapeFor(type: string, where: Hint['where']): Escape {
   return where === 'attr' ? 'attr' : 'text'
 }
 
-/**
- * Every `name: Type` pair declared anywhere in the module.
- *
- * Deliberately flat: an `interface Props`, an inline `{ a: string }` annotation and a nested
- * interface all contribute to one table. A fragment small enough for this page does not have two
- * different `count`s, and pretending to resolve scopes with a regex would be the kind of accuracy
- * that is wrong in a way nobody can see.
- */
+/** Every `name: Type` pair declared anywhere in the module — deliberately flat, since a fragment this small never has two different `count`s. */
 function declaredTypes(source: string): Map<string, string> {
   const out = new Map<string, string>()
   const field = /(?:^|[{;,])\s*(?:readonly\s+)?([A-Za-z_$][\w$]*)\s*\??\s*:\s*([^;,}\n]+)/g
@@ -102,13 +78,7 @@ const READS: { re: RegExp; taint: (m: RegExpMatchArray) => string }[] = [
 
 const lineOf = (source: string, at: number): number => source.slice(0, at).split('\n').length
 
-/**
- * The holes: `{binding}` between tags, `attr={binding}` on one, and `{rows.map(` for a list.
- *
- * Only the head of a member expression is reported — `{r.price}` inside a row is the row's, and the
- * binding a reader can act on is `rows`. That is also what the compiler records, so the two agree
- * about what a hole is called even where they disagree about its type.
- */
+/** The holes: `{binding}` between tags, `attr={binding}`, `{rows.map(`. Only a member expression's head is reported — `{r.price}` in a row is `rows`, matching what the compiler records. */
 function holes(source: string): { binding: string; where: Hint['where']; at: number }[] {
   const out: { binding: string; where: Hint['where']; at: number }[] = []
   const seen = new Set<string>()
@@ -133,15 +103,8 @@ function holes(source: string): { binding: string; where: Hint['where']; at: num
     lists.add(binding)
     push(binding, 'list', match.index ?? 0)
   }
-  // Every `{binding}`, classified by the character before it: an `=` makes it an attribute, and
-  // anything else makes it text. Scanning for the brace rather than for the tag around it is what
-  // finds the second hole in `<b>{count}</b>{unit}` — a pair the earlier shape missed, because it
-  // looked for the `>` and there is a `}` in the way.
-  //
-  // Two shapes read identically to a scan and are not holes: `import { fragment }` and the
-  // destructured parameter `({ label }: Props)`. Both are decided by what comes *after* the closing
-  // brace — `from` for one, `:` or `)` for the other — so that is what is looked at, rather than
-  // guessing from the name.
+  // Every `{binding}`, classified by the preceding char (`=` → attr, else text). Scans for the brace itself, which is what catches `<b>{count}</b>{unit}`'s second hole.
+  // `import { fragment }` and `({ label }: Props)` read the same to a scan; decided by what follows the closing brace (`from`, or `:`/`)`).
   for (const match of source.matchAll(/([=]?)\{\s*([A-Za-z_$][\w$.]*)\s*\}/g)) {
     const at = match.index ?? 0
     const after = source.slice(at + match[0].length).trimStart()

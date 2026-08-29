@@ -3,16 +3,9 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
- * The published run, read out of `results/` rather than transcribed onto the page.
- *
- * The landing page's three charts are the only place this site prints a competitor's number, which
- * is exactly the place a typed figure would be worst: a benchmark quoted by hand is a benchmark
- * nobody can check. So the run is a file in this repository, the charts are that file, and the
- * environment line under the heading is the environment the harness recorded — not a sentence
- * somebody wrote about it.
- *
- * The run chosen is the most recent one that measured an external candidate. Runs without one are
- * this framework against itself, which cannot carry the comparison the landing page is making.
+ * The published run, read out of `results/` rather than transcribed onto the page — a benchmark
+ * quoted by hand is a benchmark nobody can check. Chosen run is the most recent measuring an
+ * external candidate; runs without one are this framework against itself.
  */
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
@@ -78,18 +71,10 @@ export interface Measured {
 let everything: Map<string, Measured> | undefined
 
 /**
- * Every measured row of every run, newest wins, keyed by axis, candidate and engine.
- *
- * `run()` above answers one question — how does the shell's first byte compare with somebody
- * else's — and it reads a single axis to answer it. Five more axes were being recorded into this
- * directory on every bench run and read by nothing: what an update costs in bytes, what applying
- * one costs on the client, what adopting a region costs, what a repeat visit costs, and what the
- * server renders per second. Every one of those figures was also on a page, typed by hand, and
- * three of them had drifted away from the file sitting beside them.
- *
- * Newest wins per key rather than newest-file-wins, because a run may measure one axis and not
- * another — the harness is usually pointed at the thing being changed — and the alternative is a
- * page that loses a figure whenever somebody benches something narrow.
+ * Every measured row of every run, newest wins, keyed by axis/candidate/engine. `run()` reads only
+ * one axis; five more were recorded and read by nothing, each also typed by hand elsewhere on the
+ * page — three had drifted. Newest wins per key, not per file, since a run may measure one axis and
+ * not another.
  */
 function measurements(): Map<string, Measured> {
   if (everything) return everything
@@ -120,29 +105,16 @@ function measurements(): Map<string, Measured> {
 }
 
 /**
- * The scenario is part of the key, because the same candidate is measured on several of them.
- *
- * It was not, and the day a scenario was added to the harness's default set every figure on this
- * site changed silently: `adopt a server-rendered region` is measured on the 12-row cart, the
- * 50-row feed and the two-hole `derived` page, and with the scenario left out of the key the last
- * one written won. The page saying "adopting a 50-row region costs …" started printing what a
- * two-hole page costs, and nothing failed — a smaller number is exactly what a reader would expect
- * a faster runtime to produce.
- *
- * A default so the callers that do not care do not have to say so: a figure that is measured on one
- * scenario is unambiguous without one, and a figure that is measured on several has to name it.
+ * The scenario is part of the key, because the same candidate is measured on several of them. It
+ * once wasn't: adding a scenario to the harness's default set silently changed every figure on the
+ * site, since the last written row won and nothing failed — a smaller number just looked like a
+ * faster runtime.
  */
 function key(axis: string, name: string, engine?: string, scenario = ''): string {
   return `${axis}\u0000${name}\u0000${engine ?? ''}\u0000${scenario}`
 }
 
-/**
- * One measured figure, or nothing.
- *
- * Nothing rather than a throw: a checkout whose `results/` has not been refreshed should render a
- * page that says a figure is unmeasured, not fail to render. Every call site here decides what to
- * say in that case, and none of them may invent the number.
- */
+/** One measured figure, or nothing rather than a throw — an unrefreshed `results/` should render a page saying "unmeasured", not fail to render. */
 export function measured(
   axis: string,
   name: string,
@@ -151,8 +123,7 @@ export function measured(
 ): Measured | undefined {
   const all = measurements()
   if (scenario) return all.get(key(axis, name, engine, scenario))
-  // No scenario asked for: answer only if exactly one was measured, so an ambiguous lookup is an
-  // absence a page can say out loud rather than whichever row the directory listing ended on.
+  // No scenario asked for: answer only if exactly one was measured, so an ambiguous lookup is a stated absence, not whichever row the listing ended on.
   const prefix = key(axis, name, engine, '')
   const found = [...all].filter(([at]) => at.startsWith(prefix))
   return found.length === 1 ? found[0]?.[1] : undefined
@@ -173,13 +144,7 @@ export function figure(
 
 let cached: Run | undefined
 
-/**
- * The newest run holding an external candidate.
- *
- * Reading the directory rather than naming a file means adding a run publishes it, and there is no
- * second place to remember. Sorting by name is sorting by time, because the harness stamps each
- * file with an ISO instant.
- */
+/** The newest run holding an external candidate. Reads the directory rather than naming a file, so adding a run publishes it with nothing else to update. */
 export function run(): Run {
   if (cached) return cached
   const files = readdirSync(RESULTS)
