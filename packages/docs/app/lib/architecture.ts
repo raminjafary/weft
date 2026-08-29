@@ -8,18 +8,13 @@ import { deltaClients, deltaCost, download } from './measured.ts'
 import { measured as benchRow } from './bench.ts'
 
 /**
- * The architecture, drawn — the top of `/guide`, before the directory of pages.
+ * The architecture, drawn — the top of `/guide`, before the directory of pages: the whole system
+ * at once, since page-by-page order teaches a fragment without ever showing what the framework is.
  *
- * The guide is twenty-two pages and each one takes a single mechanism apart. That order is right
- * for learning it and wrong for deciding whether to: somebody who has read page one knows what a
- * fragment is and still has no idea what the framework *is*. So the index opens with the whole
- * thing at once — ten packages, one request path, three tiers, three wire forms — and every later
- * page is then one box out of these six figures, with its refusals.
- *
- * Nothing here is a picture of the architecture. The dependency graph is checked against the
- * workspace, the wave schedule is computed by the kernel's own scheduler on the slots shown, and
- * the two wire versions are the constants a build stamps. A diagram that could drift from the thing
- * it draws is worse than no diagram, because it is believed.
+ * Nothing here is a picture of the architecture — it's computed. The dependency graph is checked
+ * against the workspace, the wave schedule runs through the kernel's own scheduler, and the wire
+ * versions are the constants a build stamps. A diagram that could drift from what it draws is worse
+ * than no diagram, because it is believed.
  */
 
 const enc = escapeHtml
@@ -55,12 +50,9 @@ const PACKAGES: readonly GraphNode[] = [
 ]
 
 /**
- * The arrows, and every one is checked.
- *
- * `verify()` reads each package's own manifest and refuses to render a dependency that is not
- * declared there — so an arrow on this page cannot outlive the dependency it draws. What the figure
- * deliberately does *not* draw is every edge: `weft` depends on `@weftjs/ir` as well as on the kernel
- * that depends on it, and drawing both says nothing the first one did not. Direction is the claim.
+ * The arrows, and every one is checked: `verify()` refuses to render a dependency no package.json
+ * declares. Transitive edges are omitted deliberately — `weft`→`ir` says nothing `weft`→`kernel`→`ir`
+ * didn't already.
  */
 const DEPENDS: readonly (readonly [string, string])[] = [
   ['compiler', 'ir'],
@@ -85,14 +77,7 @@ function version(what: string): string {
   return artifacts().find((each) => each.what === what)?.version ?? ''
 }
 
-/**
- * A wire form's size, from the run that measured it.
- *
- * The same two figures the landing page draws, and they were typed in both places from one
- * measurement — so the delta's compressed size had drifted to 190 here and stayed 187 there. The
- * patch rung carried a ratio no run in `results/` measures at all, which is why it now says where
- * it sits rather than by how much.
- */
+/** A wire form's size, read from the same measurement the landing page draws — hand-typed copies of this had drifted (190 vs 187). */
 function wireSize(candidate: string): string {
   const found = benchRow('update-bytes', candidate, undefined, 'feed')
   if (!found) return 'not measured'
@@ -100,14 +85,7 @@ function wireSize(candidate: string): string {
   return found.brotli === undefined ? raw : `${raw} · ${found.brotli.toLocaleString('en-US')} brotli`
 }
 
-/**
- * A measured size, or the word for not having one.
- *
- * Both of these were transcribed and both had drifted — the client's by 28 bytes and the kernel's
- * by 155, the latter into disagreeing with the figure `/api/kernel` derives for the same thing.
- * Reading them means the diagram is one commit behind the gate at worst, rather than however many
- * commits it has been since somebody last retyped it.
- */
+/** A measured size, or the word for not having one. Hand-transcribed copies of these had drifted before (28 B and 155 B off). */
 function bytes(measured: number | undefined): string {
   return measured === undefined ? 'measured by pnpm bench budget' : `${measured.toLocaleString('en-US')} B`
 }
@@ -221,14 +199,7 @@ function request(): string {
 
 /* ── 3 · the waves ────────────────────────────────────────────────────────── */
 
-/**
- * Nine slots, and the kernel's own scheduler run over them.
- *
- * The waves, the start times, the critical path and the sequential total are all computed by
- * `schedule()` and `criticalPath()` from `@weftjs/kernel` — the functions the request path itself
- * calls. Nothing on this figure is a number somebody worked out and typed: change a duration here
- * and every bar, every keyframe and both totals move, because they are all derived from it.
- */
+/** Nine slots, run through the kernel's own `schedule()`/`criticalPath()` — the same functions the request path calls, not a hand-drawn figure. */
 export const SLOTS: readonly (DagNode & { reads: string })[] = [
   { name: 'header', ms: 20, reads: 'reads nothing' },
   { name: 'nav', ms: 10.9, reads: 'reads nothing' },
@@ -350,16 +321,10 @@ function waves(): string {
 }
 
 /**
- * The bars' keyframes, generated from the schedule.
- *
- * A bar has to grow while its slot runs and then *hold* until the cycle ends, and how far into the
- * cycle it starts and stops is different for every one of the nine — which a shared keyframe with a
- * per-bar delay cannot express, because a delay moves the whole curve rather than one edge of it.
- *
- * So these nine are computed rather than written, and they are the only CSS on this site that is
- * not in a stylesheet: they are data, they change when a duration changes, and a hand-maintained
- * copy in `styles.css` would be nine chances to disagree with the chart beside it. The playhead
- * reaches the end of the clock at 80% of the cycle, so a slot at `ms` is at `ms / 48 * 80` percent.
+ * The bars' keyframes, generated from the schedule — each of the nine starts and holds at a
+ * different point in the cycle, which a shared keyframe with a per-bar delay can't express. The
+ * only CSS on this site not in a stylesheet, since a hand-maintained copy would just disagree with
+ * the chart beside it. Playhead reaches clock-end at 80% of the cycle: a slot at `ms` sits at `ms / 48 * 80`%.
  */
 function ganttKeyframes(): string {
   const at = starts()
@@ -536,14 +501,7 @@ function negotiation(): string {
 
 /* ── 6 · the delivery ─────────────────────────────────────────────────────── */
 
-/**
- * The four bindings, and what each one costs — computed, not transcribed.
- *
- * The strategy and the downgrade line under each binding come from `negotiate()` itself, run here
- * at build time against `serverCapabilities()`. A page that restated them would be a page that
- * could disagree with the handshake it describes, and this is the one figure where that would
- * matter most: somebody reads it to decide where to deploy.
- */
+/** The four bindings and what each costs — computed from `negotiate()` against `serverCapabilities()`, not transcribed. */
 const BINDINGS: readonly { id: string; transport: Transport; label: string; down: string; up: string }[] = [
   { id: 'socket', transport: 'socket', label: 'socket', down: 'one WebSocket', up: 'the same socket' },
   { id: 'stream', transport: 'stream', label: 'stream', down: 'a held GET response', up: 'discrete POSTs' },
@@ -630,23 +588,13 @@ function bindings(): string {
 }
 
 /**
- * The one difference between the bindings, as the thing it actually is: a delay.
+ * The one difference between the bindings, as the thing it actually is: a delay. Drawn as a
+ * timeline, both rows on one cycle, so the gap between write and telling is the figure. Every
+ * animated element carries `data-wf`, which the site's reduced-motion rule keys on.
  *
- * Drawn as a timeline rather than a diagram because the difference is temporal and nothing static
- * shows it. On a held binding the write and the telling are the same instant. On a turn the write
- * happens, nothing is delivered — there is no connection to deliver on — and the telling waits for
- * the reader's next request. Both rows run on one cycle so the gap is the figure.
- *
- * Every animated element carries `data-wf`, which is what the site's reduced-motion rule keys on:
- * with motion off the whole thing is still a legible diagram of the two orders of events.
- */
-/**
- * When the head reaches a mark, expressed as a delay.
- *
- * `wf-travel` sweeps a playhead across the track over the first 84% of the cycle and holds it at
- * the end for the rest. So a mark standing at `p` percent is reached at `p × 0.84` of the way
- * through, and giving its own animation exactly that delay is what makes the light and the head
- * agree. Derived rather than written down twice, so they still agree when a mark moves.
+ * `wf-travel` sweeps the playhead over the first 84% of the cycle and holds for the rest, so a mark
+ * at `p`% is reached at `p × 0.84`. Derived here rather than written down twice, so a moved mark
+ * can't disagree with its own light.
  */
 const HEAD_SWEEP = 0.84
 const reached = (at: number, cycle: number): string => (cycle * (at / 100) * HEAD_SWEEP).toFixed(2)
@@ -686,14 +634,7 @@ function carried(): string {
   )
 }
 
-/**
- * What each frame is for, in a phrase — the one half of the vocabulary a program cannot supply.
- *
- * The *set* and the direction of travel are read from `FRAMES` itself, so a frame added to the
- * protocol appears here without anybody remembering to add it. What cannot be derived is what it
- * means, so that is written down — and `test/docs.test.ts` asserts this record covers the table
- * exactly, which turns "somebody forgot" into a failing build rather than a gap on the page.
- */
+/** What each frame is for, in a phrase. The set/direction come from `FRAMES` itself; `docs.test.ts` asserts this record covers it exactly. */
 export const FRAME_SAYS: Record<string, string> = {
   RESIDENT: 'what I am: versions, forms, transport, engine',
   HELD: 'what I am showing, per region',
@@ -761,23 +702,13 @@ function vocabulary(): string {
 }
 
 /**
- * An epoch: frames that arrive and deliberately do not paint.
- *
- * The other figure on this page that has to move, and for the same reason as the delivery timeline
- * — the whole idea is an ordering. Data lands, and nothing changes on screen. More data lands.
- * Then one `COMMIT`, and everything appears at once. Drawn statically it is two lists; drawn in
- * time it is the reason a background revalidation cannot disturb a half-typed form.
+ * An epoch: frames that arrive and deliberately do not paint. Animated, like the delivery
+ * timeline, because the idea is an ordering — data lands, nothing changes, more lands, then one
+ * `COMMIT` and everything appears at once. Static, it's two lists; in time, it's why a background
+ * revalidation can't disturb a half-typed form.
  */
 function epochs(): string {
-  /**
-   * One lane, and the thing that makes the two of them different to look at.
-   *
-   * Marks in the same places on both lanes, because the frames arrive at the same times — that is
-   * the premise. What differs is the screen on the right, which flashes once per *paint*: three
-   * times on the lane with no epoch, once on the lane with one. Without it the two rows were the
-   * same drawing in two colours, and the idea being shown — that nothing changes until it all
-   * changes — was the one thing the figure did not do.
-   */
+  // Same marks on both lanes (frames arrive at the same times); the screen flashes once per paint — three times with no epoch, once with one.
   const lane = (
     name: string,
     note: string,
@@ -1099,24 +1030,14 @@ export function architecture(counts: ArchCounts): string {
   </section>`
 }
 
-/**
- * Every arrow in figure 1, checked against the manifest that would have to declare it.
- *
- * Exported so `test/docs.test.ts` can run it: a diagram is the one kind of documentation nobody
- * re-reads, so the drift has to be caught by something that does.
- */
+/** Every arrow in figure 1, checked against the manifest that would have to declare it. Exported so `docs.test.ts` can run it. */
 export function drawnDependencies(): readonly (readonly [string, string])[] {
   return DEPENDS.map(
     ([dependent, on]) => [packageName(dependent as string), packageName(on as string)] as const,
   )
 }
 
-/**
- * A node id back to the name its `package.json` carries.
- *
- * The framework's node is `weft` because that is the command and the directory; the package is
- * `@weftjs/core`, because npm already serves a `weft` belonging to somebody else.
- */
+/** A node id back to the name its `package.json` carries. The node `weft` is the command; the package is `@weftjs/core` (npm's `weft` is taken). */
 function packageName(id: string): string {
   if (id === 'weft') return '@weftjs/core'
   if (id === 'create') return 'create-weft'

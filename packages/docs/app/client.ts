@@ -1,21 +1,11 @@
 import type { Hint } from './infer.ts'
 
 /**
- * The whole of this site's own browser code.
- *
- * The framework's runtime adopts the page; this is what the *documentation* adds on top, and the
- * rule it is written under is that nothing here may be load-bearing. The theme toggle enhances a
- * palette the stylesheet already picks. The finder enhances a `GET` form that already works. The
- * editor enhances a `<textarea>` inside a form that already compiles on submit. Turn scripting off
- * and every one of those still does its job — which is the claim the site makes about the
- * framework, so it had better be true of the site.
- *
- * It is loaded after adoption, which is why the theme is *not* here: a palette applied after paint
- * is a flash, so that one line runs inline in the head. See `BOOT` in `lib/shell.ts`.
- *
- * The highlighter and the type scan are `import()`ed rather than imported, and the budget is the
- * argument: they are 4 KB the playground needs and no other page does, and this site publishes what
- * a page downloads. A static import would have put them on all 375 of them.
+ * The whole of this site's own browser code. Nothing here may be load-bearing: turn scripting off
+ * and the theme toggle, finder, and editor all degrade to the plain control underneath. The theme
+ * itself is not here — it runs inline in the head (see `BOOT` in `lib/shell.ts`) since applying it
+ * after paint would flash. The highlighter and type scan are `import()`ed: 4 KB the playground
+ * needs and no other page does, out of 375 pages.
  */
 
 const root = document.documentElement
@@ -23,18 +13,11 @@ const root = document.documentElement
 /* ── the theme toggle ─────────────────────────────────────────────────────── */
 
 /**
- * Three states internally, two to the reader, and never a click that changes nothing.
- *
- * The obvious cycle — system, light, dark — has a hole in it: when the system says dark, the state
- * *after* explicit dark is "system", which also renders dark. The palette does not move, so the
- * toggle looks broken and the reader clicks again. Cycling by name is the mistake; what a reader is
- * choosing is an appearance.
- *
- * So the click is computed from the appearance in front of them: dark goes to light, light goes to
- * dark, always. `system` is not a third click — it is what *storing nothing* means, and the reader
- * arrives back at it whenever the value they picked is the one the system was already saying. Which
- * is the right default to drift back towards: a reader who matches their system has not opted out
- * of it, and should not have to.
+ * Three states internally, two to the reader, never a click that changes nothing. Cycling by name
+ * (system → light → dark → system) has a hole: after explicit dark when the system is already dark,
+ * "system" renders the same as what's showing, so the click looks broken. Instead the click always
+ * flips the visible appearance; "system" is just what storing nothing means, and a reader who
+ * matches their system drifts back to it naturally.
  */
 function theme(): void {
   const button = document.querySelector<HTMLButtonElement>('[data-theme-toggle]')
@@ -80,15 +63,7 @@ function theme(): void {
   button.addEventListener('click', () => {
     const mode = next()
 
-    /**
-     * The swap happens whether or not the animation does.
-     *
-     * `startViewTransition` takes a callback and runs it at the next rendering opportunity — so if
-     * the transition is aborted before then (a hidden tab, a second one already running, a browser
-     * that decides not to), the callback never runs and the theme never changes. An animation that
-     * cannot play must not take the thing it was decorating with it, so `swap` is idempotent and
-     * every path that can fail calls it.
-     */
+    // `swap` is idempotent and every failure path calls it: if the view transition aborts (hidden tab, one already running), its callback never runs, and the theme must still change.
     let swapped = false
     const swap = () => {
       if (swapped) return
@@ -107,26 +82,14 @@ function theme(): void {
     ).startViewTransition
     if (!start || matchMedia('(prefers-reduced-motion: reduce)').matches) return swap()
 
-    // The corner of the page, not of the button. A circle centred a few pixels inside the viewport
-    // shows a sliver of the old palette down the top and right edges for the whole sweep, which is
-    // the one part of the frame a reader's eye is already on. From the corner itself the arc leaves
-    // nothing behind it.
+    // The corner of the page, not the button: centred a few pixels in, the arc leaves a sliver of the old palette along two edges for the whole sweep.
     const x = innerWidth
     const y = 0
     const reach = Math.hypot(innerWidth, innerHeight)
 
-    /**
-     * Strip the expensive decorations for the length of the sweep.
-     *
-     * `styles.css` has carried the `.theming` rules since the reveal was written, and nothing ever
-     * added the class — so the backdrop-filter behind the header and the halo behind every card
-     * were being re-rasterised on every frame of a whole-page snapshot the entire time, and the
-     * figures kept animating under it. The hitch was at the *end*, where the snapshot is discarded
-     * and the live page repaints all of it at once.
-     *
-     * Removed on `finished` rather than on `ready`, because the tear-down is the frame that was
-     * dropping.
-     */
+    // Strips the expensive decorations for the sweep: backdrop-filter and card halos were being
+    // re-rasterised every frame of the snapshot because `.theming` in styles.css was never applied.
+    // Removed on `finished`, not `ready` — the tear-down was the frame that was dropping.
     root.classList.add('theming')
     const settle = () => root.classList.remove('theming')
 
@@ -140,10 +103,7 @@ function theme(): void {
     transition.finished.then(settle, settle)
     transition.updateCallbackDone?.catch(swap)
     transition.ready.then(() => {
-      // The *radius* is what is animated, and area grows as its square — so an easing with a soft
-      // tail spends its last third covering almost nothing, which reads as the animation stalling
-      // just before it finishes. This curve is close to linear where it matters and eases only at
-      // the very end, which keeps the edge moving at a steady apparent speed.
+      // Radius is animated but area grows as its square, so a soft-tailed easing reads as stalling near the end; this curve stays near-linear until the very end.
       root.animate(
         { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${reach}px at ${x}px ${y}px)`] },
         { duration: 420, easing: 'cubic-bezier(.33,0,.2,1)', pseudoElement: '::view-transition-new(root)' },
@@ -154,15 +114,7 @@ function theme(): void {
 
 /* ── the light that follows the cursor ────────────────────────────────────── */
 
-/**
- * One listener for every hoverable thing on the page.
- *
- * The selector list is the same one `styles.css` paints the wash for — the one duplication between
- * the two files, and both say so. A listener per element would be a hundred listeners on the API
- * page; a single delegated `pointermove` with a `closest()` is one, and it writes two custom
- * properties rather than touching layout, so the browser can keep it off the main thread's critical
- * path entirely.
- */
+/** One delegated `pointermove` listener for every hoverable thing, rather than one per element (a hundred on the API page). Selector list mirrors styles.css. */
 const GLOWS =
   '.glow, a.card, .btn, .chip, .stat, .absence, .verdict, .rail-card, .finder-hit, .top-icon,' +
   ' .contents a, .outline a, .tty-tab span, .pane-tab span, .panel-tab-in'
@@ -219,15 +171,9 @@ function hintRows(inferred: Inferred): string {
 }
 
 /**
- * A textarea over its own highlighted shadow.
- *
- * The oldest trick there is and still the right one: the `<textarea>` keeps its caret, its
- * selection, its undo stack and its accessibility, and a `<pre>` underneath — the same bytes, run
- * through the same highlighter the server used — supplies the colour. Nothing re-implements a text
- * editor, which is the failure mode this avoids rather than the feature it lacks.
- *
- * The hints beside it are `infer.ts` on every keystroke, debounced. The compile is still the
- * server's, on submit; this is what the reader gets in between.
+ * A `<textarea>` over its own highlighted shadow `<pre>` — keeps native caret/selection/undo/a11y,
+ * the shadow only supplies colour. Nothing re-implements a text editor. The hints beside it are
+ * `infer.ts` on every keystroke, debounced; the compile is still the server's, on submit.
  */
 async function editor(): Promise<void> {
   const box = document.querySelector<HTMLElement>('.editor')
@@ -252,10 +198,7 @@ async function editor(): Promise<void> {
     pre.scrollLeft = area.scrollLeft
   }
 
-  // Two rhythms, because the two halves cost different amounts. The colour is repainted on the
-  // next frame — a highlighter over a few hundred bytes is cheaper than the keystroke that caused
-  // it, and anything slower reads as the editor lagging behind the caret. The hint table walks the
-  // whole module and rebuilds a table, so it waits until the typing stops.
+  // Two rhythms: colour repaints next frame (cheap, must track the caret); hints wait until typing stops (rebuilds the whole table).
   let frame = 0
   let timer = 0
   area.addEventListener('input', () => {
@@ -286,18 +229,10 @@ async function editor(): Promise<void> {
 }
 
 /**
- * A rail keeps where it was scrolled to.
- *
- * The contents rail is twenty-two page titles in a column shorter than they are, so a reader four
- * pages down has scrolled it — and every link in it navigates, which brings a new rail scrolled to
- * the top. The page they just left goes with it, and they have to find their place again on every
- * click, which makes the rail actively worse than a flat list.
- *
- * So the offset is remembered per rail and put back. `sessionStorage` rather than a variable
- * because a real document request replaces this module too; keyed by the rail's own label, which is
- * what distinguishes the contents column from the outline beside it. Storage can throw — a private
- * window, or site data switched off — and a rail that fails to remember its scroll offset is not
- * worth an exception, so both halves are wrapped and the fallback is the old behaviour.
+ * A rail keeps where it was scrolled to — without this, every link click resets the contents rail
+ * to the top and the reader has to re-find their place, worse than a flat list. `sessionStorage`
+ * survives a real document request replacing this module; storage can throw (private window), so
+ * both read and write are wrapped and the fallback is just not remembering.
  */
 function rails(): void {
   for (const rail of document.querySelectorAll<HTMLElement>('.rail, .outline-rail')) {
@@ -321,32 +256,14 @@ function rails(): void {
 }
 
 /**
- * Everything, and again after every client-side navigation.
- *
- * A staged navigation of kind `document` replaces the shell — which means the header's button and
- * the search form are new elements, and `data-js` is gone, because it was set by an inline script
- * that ran once at parse time and a swapped document does not re-run it. That is why the theme
- * toggle disappeared after the first click on a link: nothing was broken, the attribute the
- * stylesheet gates on had simply left with the old document.
- *
- * So the flag is re-asserted here and every step is idempotent — the two that bind to an element
- * mark it, the glow is delegated to `document` and binds once, and the editor is *meant* to run
- * again, because `/play` arrives with a textarea that did not exist a moment ago.
- *
- * The inline script still sets `data-js` before paint on a real document request. That is the case
- * this cannot cover, and the one where a control appearing late would be visible.
+ * Everything, and again after every client-side navigation. A `document`-kind staged navigation
+ * replaces the shell, so `data-js` (set by an inline script that only runs once at parse time) and
+ * the header/search elements are new — hence re-asserting the flag and re-running every step here,
+ * idempotently. The inline script still covers first paint on a real document request.
  */
 function wire(): void {
   root.dataset.js = 'on'
-  /**
-   * And the palette, for the same reason.
-   *
-   * `data-theme` is an attribute on `<html>`, and a staged navigation of kind `document` brings a
-   * new `<html>` from the server — which has never heard of a choice this reader made in the
-   * browser two clicks ago. So the theme reverted on the first link they followed. The stored value
-   * is the source of truth and this is the second place that reads it; the first is the inline
-   * script, which covers the case this one cannot: before the first paint.
-   */
+  // Same reason: a fresh `<html>` from the server has never heard the reader's stored theme choice. This is the second place that reads it; the inline script covers before-first-paint.
   try {
     const stored = localStorage.getItem('weft-theme')
     if (stored === 'light' || stored === 'dark') root.dataset.theme = stored
