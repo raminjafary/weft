@@ -4,17 +4,10 @@ import { fileURLToPath } from 'node:url'
 import { parseSync } from 'oxc-parser'
 
 /**
- * The API reference, read out of the source rather than written beside it.
- *
- * A hand-written API page is a second copy of the surface, and a second copy drifts — silently, and
- * in the direction that makes the documentation wrong rather than merely old. So this walks each
- * package's public entry, follows its re-exports, and collects every exported declaration with the
- * doc comment already sitting above it. Adding an export adds a row. Deleting one deletes a row.
- * `test/docs.test.ts` asserts that nothing exported is missing from the page, which is what makes
- * "the whole API is documented" a gate rather than a claim.
- *
- * It reads `.ts`, not `.d.ts`, for the same reason the examples are real files: the doc comment a
- * reader should see is the one the author wrote, and declaration emit does not keep all of them.
+ * The API reference, read out of the source rather than written beside it — walks each package's
+ * public entry, follows re-exports, collects every export with its doc comment. `docs.test.ts`
+ * asserts nothing exported is missing. Reads `.ts`, not `.d.ts`: declaration emit doesn't keep every
+ * doc comment.
  */
 export type ApiKind = 'function' | 'interface' | 'type' | 'const' | 'class' | 'enum' | 'unknown'
 
@@ -123,14 +116,7 @@ function docFor(source: string, comments: readonly Comment[], start: number): st
     .trim()
 }
 
-/**
- * A module specifier, resolved to a file in this repository.
- *
- * Relative paths are joined. Bare specifiers are resolved too, and that is not a convenience: the
- * front door re-exports whole packages — `weft` hands you `redisLeases` and `bindingExecutor` so an
- * application rarely imports `@weftjs/adapters` directly — and a walk that stopped at the package
- * boundary would list the surface an application does not use and omit the one it does.
- */
+/** A module specifier, resolved to a file in this repository. Bare specifiers are resolved too — the front door re-exports whole packages, so a walk stopping at the boundary would miss the surface an application actually uses. */
 function resolveWithin(from: string, specifier: string, root: string): string | undefined {
   const candidates: string[] = []
   if (specifier.startsWith('.')) {
@@ -160,13 +146,7 @@ interface Collected {
   entries: Map<string, ApiEntry>
 }
 
-/**
- * Every exported name reachable from one entry file.
- *
- * `export *` is followed, `export { a as b } from` is followed and renamed, and a file already
- * visited is not visited twice — a barrel that re-exports a sibling barrel is ordinary here. The
- * first declaration of a name wins, which matches what the module system would do.
- */
+/** Every exported name reachable from one entry file. `export *` and renamed re-exports are both followed; a visited file isn't revisited. First declaration of a name wins. */
 function collect(file: string, out: Collected, seen: Set<string>, root: string): void {
   if (seen.has(file)) return
   seen.add(file)

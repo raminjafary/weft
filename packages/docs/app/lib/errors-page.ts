@@ -7,15 +7,7 @@ import { escapeHtml } from './escape.ts'
 
 const REPO = 'https://github.com/raminjafary/weft/blob/main'
 
-/**
- * The error reference, as blocks.
- *
- * This is the page the conversion was worth doing for. It prints 328 codes, their messages and the
- * files that raise them, every one extracted from `packages/* /src` rather than written — so every
- * cell is data, and every cell used to be a string this file assembled and escaped by hand. A `link()`
- * helper existed here for exactly that, wrapping a code in an `<a>` and a `<code>` and remembering
- * `escapeHtml`. The cell constructors replaced it and the compiler does the escaping.
- */
+/** The error reference, as blocks: 328 codes, messages, and raising files, all extracted rather than hand-assembled — a `link()` helper used to wrap each one and remember `escapeHtml`. */
 export function errorsIndexBody(): Block[] {
   const all = errorCodes()
   const own = all.filter((entry) => entry.detail === 'prose').length
@@ -147,16 +139,7 @@ export function errorBody(code: string): Block[] {
   return blocks
 }
 
-/**
- * What a code's page opens with: the refusal itself, and the two facts that place it.
- *
- * One panel rather than a heading, a quotation and two more sections, because the four things a
- * reader who just hit a refusal wants — what the framework said, which package said it, which
- * document argues for it, and which guide page introduces the mechanism — are one thought and were
- * spread over half a page. The specification documents used to have a section of their own headed
- * "The argument for it", whose whole content was the same list this panel's `Specified in` row
- * carries, under a paragraph explaining that a code is a string.
- */
+/** What a code's page opens with: the refusal, plus the package, spec, and guide page that place it — one panel instead of four sections spread over half a page. */
 function refusalPanel(entry: ErrorCode): Block {
   const kind =
     entry.detail === 'prose'
@@ -222,14 +205,7 @@ export function codeIds(): string[] {
   return errorCodes().map((entry) => entry.code)
 }
 
-/**
- * The guide pages that introduce the mechanism this code protects.
- *
- * Matched through the spec documents: a page declares which ones it is the introduction to, and a
- * code carries which ones mention it. Where those two sets meet is a page a reader who has just hit
- * this refusal would actually want. No page names a code, and none should — that list would be the
- * one thing on this site nobody would remember to update.
- */
+/** The guide pages introducing the mechanism this code protects, matched through shared spec documents — no page names a code directly, since that list would go stale. */
 function introducedBy(entry: ErrorCode): { slug: string; title: string; lede: string }[] {
   if (!entry.spec.length) return []
   const specs = new Set(entry.spec.map(bare))
@@ -240,12 +216,7 @@ function introducedBy(entry: ErrorCode): { slug: string; title: string; lede: st
   }))
 }
 
-/**
- * The same document, spelled the same way.
- *
- * A page names `kernel/cache.md` and a code carries `spec/kernel/cache.md`. Both are the same file;
- * only one of the two writes the directory it is already in.
- */
+/** The same document, spelled the same way — a page names `kernel/cache.md`, a code carries `spec/kernel/cache.md`. */
 function bare(doc: string): string {
   return doc.replace(/^spec\//, '')
 }
@@ -253,13 +224,7 @@ function bare(doc: string): string {
 /** How many neighbours are worth listing. Five is a glance; the index is there for the rest. */
 const NEARBY = 5
 
-/**
- * The refusals beside this one.
- *
- * Sharing a specification document first, because that is the same argument seen from another
- * angle; then the same package, which is the same subsystem. Codes with their own sentence come
- * before ones without, since a neighbour that says nothing is not much of a neighbour.
- */
+/** The refusals beside this one: ranked by shared spec document first, then same package, then whether it has its own message. */
 function nearby(entry: ErrorCode): ErrorCode[] {
   const others = errorCodes().filter((other) => other.code !== entry.code)
   const shares = (other: ErrorCode) => other.spec.some((doc) => entry.spec.includes(doc))
