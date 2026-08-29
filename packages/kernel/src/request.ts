@@ -1,9 +1,6 @@
 /**
- * The request lifecycle, as a state machine rather than a convention.
- *
- * Every framework has these phases; almost none of them name the transitions, which is why
- * "you cannot set a cookie there" is documentation instead of a type error. Here the
- * machine is the thing that refuses, and every refusal is a named code.
+ * The request lifecycle, as a state machine rather than a convention — the machine is the thing
+ * that refuses, and every refusal is a named code. See `spec/kernel/lifecycle.md`.
  */
 export type RequestState =
   /** Nothing has run. Early Hints may go out from here. */

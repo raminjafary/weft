@@ -2,10 +2,8 @@ import type { Envelope, DeferredEffect } from './envelope.ts'
 import type { FlagValue, Ports, RequestFacts, SetCookie } from './ports.ts'
 
 /**
- * The runtime half of effect tracking. The compiler records *which* reads taint a
- * fragment; this resolves their values, and it has to mirror the compiler's read surface
- * exactly — a read the compiler tracks and the kernel cannot resolve would produce a cache
- * key that does not describe the render.
+ * The runtime half of effect tracking. The compiler records *which* reads taint a fragment; this
+ * resolves their values, and has to mirror the compiler's read surface exactly.
  */
 export interface Reads {
   flag(name: string): Promise<FlagValue>
@@ -102,9 +100,8 @@ export function localeOf(facts: RequestFacts): string {
 }
 
 /**
- * Phase A. The only context that can touch the envelope, and it is deliberately a
- * different type from the one a render receives rather than the same object with a flag on
- * it — a flag can be checked in the wrong place.
+ * Phase A. The only context that can touch the envelope — deliberately a different type from the
+ * one a render receives, rather than the same object with a flag that could be checked wrongly.
  */
 export interface EnvelopeContext extends Reads {
   readonly phase: 'envelope'
@@ -116,11 +113,7 @@ export interface EnvelopeContext extends Reads {
   setHeader(name: string, value: string): void
 }
 
-/**
- * Phase B. No envelope methods at all, except the one that admits it is late: a deferrable
- * effect is queued for the next request on the connection, and is dropped if there is no
- * next request.
- */
+/** Phase B. No envelope methods, except the one that admits it is late: a deferrable effect queued for the next request. */
 export interface RenderContext extends Reads {
   readonly phase: 'render'
   defer(effect: DeferredEffect): void

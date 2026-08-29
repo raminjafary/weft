@@ -1,17 +1,9 @@
 import { frame, type Frame } from '@weftjs/warp'
 
 /**
- * Fresh data without a changed view.
- *
- * Everywhere else, fetching implies committing: a background revalidation repaints, and a
- * prefetch that warms a shared cache can disturb the view you are looking at. Separating
- * data currency from view currency is the missing primitive, and an epoch is it.
- *
- * `live` is what is painted. Any number of staged epochs may exist alongside it, fully
- * resolved and completely invisible, until a COMMIT flips every slot staged in one of them
- * at once. Prefetch cannot disturb the present, revalidation can sit staged through a
- * half-typed form, and an optimistic update is a staged epoch committed immediately — so
- * rollback is discarding an epoch rather than reconstructing prior state.
+ * Fresh data without a changed view. `live` is what is painted; any number of staged epochs may
+ * exist alongside it, fully resolved and invisible, until a COMMIT flips them all at once. See
+ * `spec/kernel/locus.md`.
  */
 export type Transition = 'view' | 'instant'
 

@@ -2,13 +2,8 @@ import type { EnvelopeContext } from './context.ts'
 import { PluginError, type Plugin } from './plugins.ts'
 
 /**
- * Declared reads, enforced reads. A plugin that touches request state it did not declare
- * throws rather than quietly tainting nothing, because the effect graph has to stay honest.
- *
- * Dev-only, which is what the design specifies, and therefore not in the request entry: a
- * production request should not build a nine-method proxy per plugin to catch a mistake that
- * fails on the first dev run. Wire it explicitly — `createKernel({ guard: guardReads })` —
- * and the check is on in exactly the builds that want it.
+ * Declared reads, enforced reads. Dev-only, so it is not in the request entry — wire it
+ * explicitly: `createKernel({ guard: guardReads })`. See `spec/plan/plan.md`.
  */
 export function guardReads(plugin: Plugin, ctx: EnvelopeContext): EnvelopeContext {
   const declared = new Set(plugin.reads ?? [])
