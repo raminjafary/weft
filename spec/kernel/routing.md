@@ -121,11 +121,22 @@ lowerPlan(plan, { facts }, bindings) → (params) => KernelRoute
 `lowerPlan` **validates before it lowers**, so an invalid plan cannot become a route at all.
 A build error is only a build error if nothing downstream can proceed past it.
 
-It refuses two more things a plan alone cannot catch:
+It refuses what a plan alone cannot catch, because the plan and the bindings are two separate
+objects and only lowering ever sees both:
 
 - `E_SLOT_UNBOUND` — a slot with no binding, so there would be nothing to render it with.
 - `E_UNKNOWN_GUARD` — a guard with no handler. This one matters more than it looks: a guard the
   runtime cannot evaluate would silently pass.
+- `E_NO_REGION_BINDINGS` — a region slot where `bindings.regions` was never passed at all.
+- `E_REGION_BOUND_LOCALLY` — a region declared `remote` that also has a local binding. Both a
+  local and a remote answer to "what renders this" is how a page ends up showing the wrong one.
+- `E_REGION_FALLBACK_UNBOUND` — a region declares `fallback(...)` and `bindings.regions.degraded`
+  supplies no bytes for it.
+- `E_SLOT_NOT_ADDRESSABLE` — a slot on an executor that cannot receive a closure (anything but
+  `inline` or `client`) with no `address` on its binding.
+- `E_SHELL_CHAIN_MISMATCH` — the plan's `shellChain` and the bindings' `nested` list disagree,
+  either in length or in which fragment goes where. The plan says what the chain is and the
+  bindings say what renders it; neither can be inferred from the other.
 
 Two properties are derived rather than defaulted:
 

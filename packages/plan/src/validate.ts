@@ -16,14 +16,7 @@ import {
   type SlotSpec,
 } from './dsl.ts'
 
-/**
- * The plan is checked against what the compiler inferred, never the other way around.
- *
- * A declaration that contradicts a derivation loses, and it loses at build time with the
- * read that caused it named — because the alternative is a `.cache('public')` on a fragment
- * that reads identity, which is not a caching bug, it is one user's bytes in another user's
- * cache.
- */
+/** The plan is checked against what the compiler inferred, never the other way around. See `spec/plan/plan.md`. */
 export interface SlotFacts {
   /** Module and export, as the compiler names it. */
   id: string
@@ -31,18 +24,11 @@ export interface SlotFacts {
   effects: EffectSet
   /** Forms the template can serve, derived by the compiler. */
   forms: readonly WireForm[]
-  /**
-   * Boundary names this fragment leaves for somebody else to fill: its `slot` holes, and any
-   * component instance the compiler isolated. Both are holes this render does not own, which
-   * is why they are one list rather than two.
-   */
+  /** Boundary names this fragment leaves for somebody else to fill: `slot` holes and isolated instances. */
   fillable?: readonly string[]
   /** Derived values a memoized recompute could skip. The design's second memoisation level. */
   derivedCount?: number
-  /**
-   * Nested templates — list rows and component instances — that a content-addressed memo could
-   * reuse. The design's third level, and the one that actually pays on a long list.
-   */
+  /** Nested templates a content-addressed memo could reuse. The design's third level. */
   nestedCount?: number
 }
 
@@ -65,22 +51,9 @@ export interface ValidateContext {
   /** Executor names the deployment actually binds. `inline` and `client` always exist. */
   executors?: readonly string[]
   store?: { consistency: Consistency; name: string; scope?: Scope }
-  /**
-   * How many instances of this deployment run at once.
-   *
-   * A property of the platform rather than of the plan, on the same rule `subrequestCeiling`
-   * follows. The default is 1, so nothing here fires for a deployment that has not said otherwise —
-   * which is right, because one process is the only shape in which a process-scoped store and push
-   * invalidation are both telling the truth.
-   */
+  /** How many instances of this deployment run at once. Defaults to 1. See `spec/plan/plan.md`. */
   instances?: number
-  /**
-   * How many subrequests one request may make where this is deployed, so a fan-out that is about
-   * to hit a platform ceiling is a warning at build time rather than a 500 under load.
-   *
-   * The default is Workers' documented 50. It is a property of the platform rather than of the
-   * plan, which is why it is context and not a plan field.
-   */
+  /** Subrequests one request may make before a platform ceiling. Defaults to Workers' documented 50. */
   subrequestCeiling?: number
 }
 
@@ -167,12 +140,7 @@ export function validatePlan(plan: Plan, context: ValidateContext): Diagnostics 
   return { errors, warnings }
 }
 
-/**
- * What a region may declare, and the three combinations that contradict themselves.
- *
- * All three are the same mistake in different clothes: a declaration about a region that could only
- * be true if the region were somewhere other than where it says it is.
- */
+/** What a region may declare, and the combinations that contradict where it says it is. See `spec/kernel/composition.md`. */
 function checkRegion(spec: SlotSpec, decl: RegionDecl, plan: Plan, errors: Issue[], warnings: Issue[]): void {
   if (decl.critical && decl.locus === 'remote') {
     errors.push({
@@ -203,21 +171,7 @@ function checkRegion(spec: SlotSpec, decl: RegionDecl, plan: Plan, errors: Issue
     }
   }
 
-  /**
-   * Cache tags on a remote region, which nothing on this side can ever fire.
-   *
-   * Push invalidation names connections holding a *key*, and a region's keys are the region's own —
-   * the composite holds a contract. So a tag declared here describes an invalidation that will not
-   * happen: this deployment can drop its own copy of the region's bytes, and it has no way to learn
-   * that the region's data changed. The design's stated fallback for that whole tier is the client's
-   * declared refresh interval, and a region with tags and no interval has neither.
-   *
-   * A warning rather than an error, because a tag on a remote region is not a contradiction — the
-   * region may genuinely be invalidated by that tag on its own side, and this composite simply cannot
-   * see it. What would be wrong is leaving it as a silence: a page whose author declared tags and got
-   * neither mechanism should be told which one they are missing, and told it here rather than by a
-   * region that never updates in production.
-   */
+  /** Cache tags on a remote region, which nothing on this side can ever fire. See `spec/kernel/composition.md`. */
   if (decl.locus === 'remote' && spec.cache?.tags?.length && !spec.refresh) {
     warnings.push({
       code: 'W_REGION_TAGS_UNREACHABLE',
@@ -231,19 +185,7 @@ function checkRegion(spec: SlotSpec, decl: RegionDecl, plan: Plan, errors: Issue
   }
 }
 
-/**
- * The fan-out, as a number the build states rather than a number a deployment discovers.
- *
- * Every hop is latency, and the design is blunt about it: a naive split of a page full of cheap
- * fragments loses to a monolith. So the count is reported for every plan and warned about when it
- * approaches the platform's subrequest ceiling — before it approaches it, because the request that
- * finds the ceiling is a 500 rather than a slow page.
- *
- * What this can and cannot see is worth being exact about. It counts the boundaries *this* plan
- * crosses. A region that fans out further is one this build has no view of — its own plan counts
- * its own — and the composite reports the real total at runtime from what each region announces.
- * The build-time number is therefore a floor, and it is a floor rather than an estimate.
- */
+/** The fan-out, as a number the build states rather than a number a deployment discovers — a floor, not an estimate. See `spec/kernel/composition.md`. */
 export interface HopCount {
   regions: number
   remote: number
@@ -258,15 +200,7 @@ export function hopsOf(plan: Plan): HopCount {
   return { regions: regions.length, remote: remote.length, hops: remote.length }
 }
 
-/**
- * The regions' CSP directives, merged, and the one shape of disagreement that is not a union.
- *
- * A policy is per document — there is one header — so a shell composing regions has to reconcile
- * what each of them needs. Two regions naming different hosts for the same directive is a union and
- * not a conflict. `'none'` beside anything else is the conflict, because it is the one value that
- * means *and nothing else*, and merging it by union would silently turn a region's refusal to load
- * anything into permission to load somebody else's host.
- */
+/** The regions' CSP directives, merged; `'none'` beside anything else is the one shape that's a conflict, not a union. See `spec/kernel/composition.md`. */
 export function cspOf(plan: Plan, errors: Issue[] = []): Record<string, string[]> {
   const merged: Record<string, Set<string>> = {}
   const sources: Record<string, string[]> = {}
@@ -296,20 +230,7 @@ export function cspOf(plan: Plan, errors: Issue[] = []): Record<string, string[]
   return out
 }
 
-/**
- * The document a route renders, as one fact set, however many layouts it is made of.
- *
- * A chain is a document with a document inside it, and every question this file asks about a shell
- * is a question about the whole of it: which boundaries a slot may fill, what the document reads,
- * and therefore what it may advertise. So the layers are merged once, here, and everything
- * downstream sees a single `SlotFacts` — a nested layout that reads a cookie makes the document
- * private exactly as the outer one would, which is the property that would quietly be lost if the
- * chain were checked one layer at a time.
- *
- * The holes a link fills are removed rather than counted: they are where the next layout goes,
- * not boundaries a slot may claim, and a plan that declared one would be filling a hole that no
- * longer exists by the time the document is streamed.
- */
+/** The document a route renders, as one fact set, however many layouts it is made of. See `spec/kernel/routing.md`. */
 function shellFacts(plan: Plan, context: ValidateContext, errors: Issue[]): SlotFacts | undefined {
   const outer = plan.shell ? context.facts[plan.shell] : undefined
   if (!plan.shell) return undefined
@@ -375,11 +296,7 @@ function shellFacts(plan: Plan, context: ValidateContext, errors: Issue[]): Slot
   }
 }
 
-/**
- * The plan's slots and the shell's holes have to agree exactly. Both sides are already
- * written down — one by an author, one by the compiler — so a disagreement is a build error
- * rather than a region that renders empty in production.
- */
+/** The plan's slots and the shell's holes have to agree exactly, or the build refuses rather than rendering empty. */
 function checkShell(plan: Plan, context: ValidateContext, errors: Issue[]): SlotFacts | undefined {
   if (!plan.shell) {
     if (plan.slots.length) {
@@ -421,11 +338,7 @@ function checkShell(plan: Plan, context: ValidateContext, errors: Issue[]): Slot
   return facts
 }
 
-/**
- * The document contains everything, so it may only advertise what the strictest region among
- * them allows. Catching it here rather than at the first request is the difference between a
- * build error and an identity leak.
- */
+/** The document may only advertise `public` if every region it contains would too. See `spec/plan/plan.md`. */
 function checkDocument(
   plan: Plan,
   shell: SlotFacts | undefined,
@@ -509,13 +422,7 @@ function checkExecutor(spec: SlotSpec, context: ValidateContext, errors: Issue[]
   })
 }
 
-/**
- * Where a slot's render actually happens, coarsely, and it is the only distinction that changes
- * what the render can *read*: this process, the browser, or another deployment.
- *
- * Not the same question as a crash domain. `pool:` is a separate crash domain and the same
- * process's view of the request; `client` is neither.
- */
+/** Where a slot's render happens: this process, the browser, or another deployment. Not the same question as a crash domain. See `spec/plan/plan.md`. */
 export type RenderLocus = 'process' | 'client' | 'remote'
 
 /** Where an executor target runs: this thread, a deferred slice, a pool, or another deployment. */
@@ -525,31 +432,7 @@ export function locusOf(target: string): RenderLocus {
   return 'process'
 }
 
-/**
- * Per-slot render-location enforcement: a slot may not be sent somewhere its reads cannot be
- * resolved.
- *
- * The executor already decides where a render runs, and until now nothing checked that against
- * what the compiler saw the fragment read. `executor('client')` on a fragment that reads identity
- * is not a slow page or a cache mistake — it is an island shipped to a browser that has no session
- * to resolve, and the failure arrives at request time, per reader, as an empty region.
- *
- * Both rules are derived from facts that already exist, which is why this is a build error rather
- * than a convention:
- *
- * - **The browser has no request.** A `cookie:` read is refused there whether or not the cookie is
- *   `HttpOnly`, because which one it is is a runtime property and this is a build check — and the
- *   one that matters is exactly the one a session uses. Route params, locale, device and the clock
- *   all exist in a browser and are left alone.
- * - **A closure cannot cross a crash domain**, which is the constraint that made `JobAddress`
- *   necessary in the first place. `ctx.raw()` is a function over the whole request, so a fragment
- *   using the escape hatch cannot render on a `binding:` or `svc:` executor at all.
- *
- * What this deliberately does *not* decide: whether a private fragment may render on another
- * deployment. That is a trust boundary, and only the deployment knows where its own boundaries
- * are — a framework guessing would either refuse a legitimate internal service or wave through a
- * third-party one, and both are worse than saying so.
- */
+/** Per-slot render-location enforcement: a slot may not be sent somewhere its reads cannot be resolved. See `spec/plan/plan.md`. */
 const NOT_IN_A_BROWSER: Record<string, string> = {
   identity: 'the session is resolved from a request the browser cannot see',
   opaque: 'ctx.raw() is a function over the request, and there is no request in a browser',
@@ -585,22 +468,14 @@ function checkRenderLocation(spec: SlotSpec, facts: SlotFacts, errors: Issue[]):
   })
 }
 
-/**
- * Which executor targets are a separate crash domain, derived from the target rather than
- * declared. `isolate`, `pool:`, `binding:` and `svc:` name one by definition; `inline`,
- * `deferred` and anything else on the request thread do not.
- */
+/** Which executor targets are a separate crash domain, derived from the target rather than declared. */
 function isCrashDomain(target: string): boolean {
   return target === 'isolate' || CRASH_DOMAIN_PREFIXES.some((p) => target.startsWith(p))
 }
 
 const CRASH_DOMAIN_PREFIXES = ['pool:', 'binding:', 'svc:']
 
-/**
- * A cpu budget outside a crash domain is advisory, and this used to warn only when the target
- * was the literal string `inline`. A slot on `deferred` — a macrotask on the request thread —
- * got a budget, no warning, and a synchronous render that ran to completion anyway.
- */
+/** A CPU budget outside a crash domain is advisory. Checks `isCrashDomain`, not the literal string `inline` — a `deferred` slot used to get a budget and no warning. */
 function checkBudget(spec: SlotSpec, warnings: Issue[]): void {
   if (spec.budget?.cpuMs === undefined) return
   if (isCrashDomain(spec.executor)) return
@@ -692,28 +567,7 @@ function checkCache(
   }
 }
 
-/**
- * A document held longer than the invalidation that is supposed to reach it.
- *
- * There are two caches on a route and only one of them is usually thought about. A slot's
- * `cache.tags` decide when *its* stored bytes are dropped; the document's own policy decides how
- * long the whole assembled response is held. Invalidate a tag and the slot entry goes — and a
- * reader is still handed the stored document, whose body was rendered once and will not be
- * rendered again until the ttl runs out.
- *
- * The failure is quiet in the worst way: the write succeeded, the invalidation reported the tags it
- * dropped, every layer did its job, and the number on the page did not move. It cost an afternoon
- * on this repository's own documentation site, where the vote count on the intents page was frozen
- * at zero while every mechanism under it worked perfectly.
- *
- * A warning rather than an error, because there is a version of this that is deliberate: a `live`
- * slot is refreshed over the channel, so a connected reader *is* told, and a document that lags for
- * an hour behind them may be exactly the trade a deployment wants at the edge. What is not
- * defensible is arriving at it by accident, which is what naming it prevents.
- *
- * The fix is one of two things and the message says both: carry the tags on the document policy so
- * the write reaches it, or stop giving the document a ttl and let the slot decide.
- */
+/** A document held longer than the invalidation that is supposed to reach it. See `spec/plan/plan.md`. */
 function checkDocumentOutlivesInvalidation(plan: Plan, warnings: Issue[]): void {
   const held = plan.cache
   if (!held?.ttlMs) return

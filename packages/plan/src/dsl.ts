@@ -1,30 +1,13 @@
 import type { WireForm } from '@weftjs/ir'
 import { type ExceedPolicy, type PolicyClass, type RegionContract } from '@weftjs/kernel'
 
-/**
- * The plan.
- *
- * Everything here is a declaration about *placement* — where a slot renders, when it
- * refreshes, what it may cost, which form it prefers. Nothing here can state a cache key,
- * and that absence is the enforcement: the moment a key can be hand-set it can drift from
- * what the code reads, which is the bug the whole design exists to remove. Keys are derived
- * from effects and only from effects.
- *
- * A plan is also data. It is not a function that runs, so it can be diffed in review,
- * generated from a profile, and reordered by a scheduler at runtime.
- */
+/** The plan: a declaration about placement, never a cache key. See `spec/plan/plan.md`. */
 export type ExecutorTarget = string
 
 /** Conditions a refresh waits for, all of which must hold. Order-free, so `and` can sort. */
 export type Condition = { all: string[] }
 
-/**
- * The condition vocabulary a refresh may wait for.
- *
- * Three, deliberately: `visible`, `focused`, `idle`. Each is something only the client can evaluate,
- * which is why they travel as names rather than as predicates — the plan says what to wait for and
- * the runtime says whether it holds.
- */
+/** The condition vocabulary a refresh may wait for — names rather than predicates, since only the client can evaluate them. */
 export const when = {
   get visible(): Condition {
     return condition('visible')
@@ -141,20 +124,7 @@ export interface SlotSpec {
   region?: RegionDecl
 }
 
-/**
- * What a shell declares about a region, which is everything except where it runs.
- *
- * Where it runs is the registry's, and the omission is deliberate rather than an oversight in
- * transcribing the design — whose sketch writes `.remote('svc:search', contract.search)`. A shell
- * naming the tier would make rolling that region a redeploy of every shell that names it, which is
- * the property the registry port exists to provide. So the plan declares the one thing a *build*
- * needs to know — whether this region crosses a boundary — and the deployment decides which one.
- *
- * `locus` is therefore not a target and not a hint. It is what the hop count is computed from, what
- * the render-location check runs against, and what a startup check compares the registry with: a
- * region declared `remote` whose registry entry says `inline` is a misconfiguration somebody should
- * be told about rather than a silently faster page.
- */
+/** What a shell declares about a region — everything except where it runs, which is the registry's. See `spec/kernel/composition.md`. */
 export interface RegionDecl {
   locus: 'local' | 'remote'
   /** What this shell was built expecting the region to serve. */
@@ -185,13 +155,7 @@ export interface GuardSpec {
  */
 export interface ShellSpec {
   shell: string
-  /**
-   * Layouts nested inside it, outermost first: `[{ at: 'body', fragment: 'layout:dashboard' }]`.
-   *
-   * A chain's boundaries are the union of every layer's holes, minus the holes the chain itself
-   * fills — so `at` is named here rather than inferred. Inferring it would mean deciding that
-   * `body` is special in the plan layer, and `body` is a convention of the file layout above it.
-   */
+  /** Layouts nested inside it, outermost first: `[{ at: 'body', fragment: 'layout:dashboard' }]`. See `spec/kernel/routing.md`. */
   nested?: readonly ShellNesting[]
 }
 
@@ -203,53 +167,24 @@ export interface ShellNesting {
   fragment: string
 }
 
-/**
- * A route's placement, delivery and policy, resolved.
- *
- * Generated from the file convention rather than written, and validated against what the compiler
- * inferred before it is lowered — so a plan that contradicts the code fails the build with the read
- * that caused it named. It is not a build configuration.
- */
+/** A route's placement, delivery and policy, resolved. Generated from the file convention, not a build configuration. */
 export interface Plan {
   route: string
   /** The outermost fragment of the document. Absent only for a plan with no slots. */
   shell?: string
-  /**
-   * Layouts nested inside `shell`, outermost first. Absent for the single-document case.
-   *
-   * The document a route renders is the whole chain, so every check that used to read `shell`
-   * alone reads this too: the boundaries a slot may fill, the reads that decide the cache class,
-   * and the identity two routes have to share before they can share a region.
-   */
+  /** Layouts nested inside `shell`, outermost first. Absent for the single-document case. See `spec/kernel/routing.md`. */
   shellChain?: readonly ShellNesting[]
   guards: GuardSpec[]
   slots: SlotSpec[]
-  /**
-   * Signals the shell offers its regions, by name — the design's `expose({ locale, cartCount })`,
-   * and deliberately the only channel between them.
-   *
-   * Declared here rather than discovered because the value of a single channel is that it can be
-   * checked: a region consuming a signal the shell does not expose is a build error, where the
-   * alternative is a region reading a global that happens to exist on one page and not on another.
-   */
+  /** Signals the shell offers its regions, by name — deliberately the only channel between them. See `spec/kernel/composition.md`. */
   exposes: string[]
-  /**
-   * The document's own policy. Per-slot `.cache()` decides what is stored; this decides what
-   * the response advertises, and it is checked against the strictest class among the shell and
-   * its slots rather than trusted.
-   */
+  /** The document's own policy: what the response advertises, checked against the strictest class among the shell and its slots. */
   cache?: CacheSpec
   /** Per-request ceiling. Forty concurrent queries from one page request will melt a database. */
   maxConcurrency: number
 }
 
-/**
- * The chained form of a `SlotSpec`.
- *
- * A builder rather than an object literal because every call is a declaration with a rule attached —
- * `.executor()` has to be checked against what the deployment bound, `.cache()` against what the
- * fragment reads — and a builder is where the argument for each of those can live beside it.
- */
+/** The chained form of a `SlotSpec`. A builder, not a literal, because every call has a rule checked elsewhere attached to it. */
 export interface SlotBuilder {
   readonly spec: SlotSpec
   fragment(id: string): SlotBuilder
@@ -352,21 +287,7 @@ export function slot(name: string): SlotBuilder {
   return builder
 }
 
-/**
- * The region builder: the design's `shell(({ region }) => …)`, as an entry in the same plan
- * everything else is in.
- *
- * A region is a slot. That is the whole implementation strategy and it is not a shortcut — a region
- * fills a hole in the shell, is dispatched in a wave, may be cached, may be refreshed, and degrades
- * on a policy, and every one of those is a slot's behaviour. What a region adds is where its code
- * lives and what happens when the other end is having a bad afternoon, which is exactly what
- * `RegionDecl` holds.
- *
- * The executor is the reserved name `region`, meaning *the registry decides*. A region slot with any
- * other executor, and a non-region slot claiming this one, are both build errors: the point of the
- * sentinel is that the two ways of saying where a render happens cannot both be in play for one
- * slot.
- */
+/** The region builder. A region is a slot — the whole implementation strategy, not a shortcut. See `spec/kernel/composition.md`. */
 export interface RegionBuilder {
   readonly spec: SlotSpec
   /** This process renders it, from the named fragment. The monolith, and the default. */
@@ -470,12 +391,7 @@ export function region(name: string): RegionBuilder {
   return b
 }
 
-/**
- * A guard is a plan-level declaration and it runs in phase A by construction. Nearly every
- * real instance of "I need to set a cookie mid-stream" is actually "I discovered too late
- * that I needed a guard", so moving guards to where the envelope is still open removes the
- * problem rather than working around it.
- */
+/** A plan-level declaration that runs in phase A by construction. See `spec/plan/plan.md`. */
 export function guard(name: string, options: { redirect?: string; status?: number } = {}): GuardSpec {
   return { name, ...options }
 }
@@ -503,12 +419,7 @@ export interface PlanOptions {
   }
 }
 
-/**
- * A plan from its entries.
- *
- * Refuses two shells and a duplicated slot name here rather than at lowering, because both are
- * questions about the declaration itself and neither needs the compiler's facts to answer.
- */
+/** A plan from its entries. Refuses two shells and a duplicated slot name here, since neither needs the compiler's facts to answer. */
 export function plan(route: string, entries: readonly PlanEntry[] = [], options: PlanOptions = {}): Plan {
   const guards: GuardSpec[] = []
   const slots: SlotSpec[] = []

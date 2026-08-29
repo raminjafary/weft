@@ -1,14 +1,7 @@
 import type { Hole, TemplateIR } from '@weftjs/ir'
 import type { SlotFacts } from './validate.ts'
 
-/**
- * What the plan layer is allowed to know about a fragment, taken from what the compiler
- * emitted rather than restated by hand.
- *
- * Every field here is derived. There is nothing an author could get wrong, which is the point:
- * a plan is checked against a fragment's real identity, real read set and real forms, so a
- * refusal is a fact about the code rather than a fact about a fixture.
- */
+/** What the plan layer is allowed to know about a fragment. Every field is derived from what the compiler emitted. See `spec/plan/plan.md`. */
 export interface CompiledEntry {
   entry: TemplateIR
 }
@@ -27,7 +20,7 @@ export function nestedHoles(holes: readonly Hole[]): number {
   return holes.filter((hole) => Boolean(hole.nested) && !hole.isolated).length
 }
 
-/** One fragment's facts, all derived. There is nothing here an author could get wrong. */
+/** One fragment's facts. */
 export function factsOf(entry: TemplateIR): SlotFacts {
   return {
     id: entry.id,
@@ -40,11 +33,7 @@ export function factsOf(entry: TemplateIR): SlotFacts {
   }
 }
 
-/**
- * Keyed by the compiler's own id — `module#export` — because that is what a plan names and
- * what a generated plan would emit. A plan referring to a fragment by any other name would be
- * a second naming scheme to keep in sync.
- */
+/** Keyed by the compiler's own id — `module#export` — because that is what a plan names. */
 export function factsFrom(
   modules: readonly { fragments: readonly { entry: TemplateIR }[] }[],
 ): Record<string, SlotFacts> {

@@ -8,23 +8,7 @@ import {
 import { REGION_EXECUTOR, type Plan } from './dsl.ts'
 import type { Issue } from './validate.ts'
 
-/**
- * The checks a build cannot do, run where the answers exist.
- *
- * A plan says a region is remote; a registry says where it is; a deployment says which executors it
- * binds; the region itself says what it is serving. Those are four facts in four places, and every
- * pair of them can disagree — so this compares them at the two moments where the information is
- * actually available.
- *
- * **At startup**, against the registry: a region nothing resolves, a registry entry naming an
- * executor nobody bound, a plan and a registry that disagree about whether a region crosses a
- * boundary at all. None of these is knowable at build time, because a registry is a deployment's
- * and can be written to without anybody rebuilding.
- *
- * **Against what is running**, by asking: the region answers with the contract it is serving now,
- * which is the window CI cannot close. A contract test against a published type says what was true
- * when the type was published. This says what is true at the moment of the deploy.
- */
+/** The checks a build cannot do, run where the answers exist. See `spec/kernel/composition.md`. */
 export interface VerifyContext {
   registry?: Registry
   /** Executor names this deployment binds. */
@@ -45,14 +29,7 @@ export interface RegionStatus {
   issues: Issue[]
 }
 
-/**
- * One route's regions as a graph, which is the thing a hop count was standing in for.
- *
- * A plan can count the regions a route declares and it stops there, because what a region composes
- * is resolved by *its* registry and this deployment has never seen it. So the graph is assembled
- * from answers rather than from the plan: each tier is asked, each tier asks the tier below it, and
- * what comes back is spliced in where it was asked for.
- */
+/** One route's regions as a graph, which is the thing a hop count was standing in for. See `spec/kernel/composition.md`. */
 export interface RouteGraph {
   route: string
   regions: readonly RegionNode[]
@@ -189,13 +166,7 @@ export async function verifyRegions(
   return { regions, errors, warnings, text: format(regions), graph }
 }
 
-/**
- * The routes as trees, assembled out of what each tier answered about itself.
- *
- * Every node above the first level is spliced rather than resolved — a region two tiers down is a
- * name in somebody else's registry, and this deployment could not resolve it if it tried. That is
- * the property the graph is reporting, not a limitation of it.
- */
+/** The routes as trees, assembled out of what each tier answered about itself. See `spec/kernel/composition.md`. */
 function graphOf(plans: readonly Plan[], regions: readonly RegionStatus[]): readonly RouteGraph[] {
   const out: RouteGraph[] = []
   for (const plan of plans) {
@@ -229,16 +200,7 @@ function graphOf(plans: readonly Plan[], regions: readonly RegionStatus[]): read
   return out
 }
 
-/**
- * The one thing a graph can say that a plan cannot, said as a warning rather than left in a picture.
- *
- * `hopsOf(plan)` counts the regions a route declares, which is every boundary it can see: what a
- * region composes is resolved by that region's registry, so a tier two deep is invisible to the
- * build and to the ceiling the build checked. A route that turns out to cross more boundaries than
- * it was planned to cross is not wrong — a region is entitled to compose regions, and this
- * deployment does not own that decision — but it is the number the latency budget was written
- * against, and finding it out from a graph is better than finding it out under load.
- */
+/** The one thing a graph can say that a plan cannot, said as a warning. See `spec/kernel/composition.md`. */
 function deeperThanPlanned(graph: readonly RouteGraph[]): Issue[] {
   const out: Issue[] = []
   for (const route of graph) {

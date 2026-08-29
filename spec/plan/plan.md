@@ -44,6 +44,7 @@ and a guard is phase A by construction — a real 302, not a body the client has
 | Code                            | When                                                                                                 |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `E_CACHE_POLICY_CONFLICT`       | `.cache('public')` on a fragment the compiler classified private, **naming the read that caused it** |
+| `E_DOCUMENT_POLICY_CONFLICT`    | `cache: { class: 'public' }` on the route while a slot or the shell is private                       |
 | `E_TTL_REQUIRED`                | a policy with no `ttl` on a fragment that reads the clock                                            |
 | `E_CONSISTENCY_MISMATCH`        | `consistency: 'strong'` against a store that reports `eventual`, naming it                           |
 | `E_FORM_UNAVAILABLE`            | preferring a form this template cannot serve, listing the ones it can                                |
@@ -64,6 +65,15 @@ E_PLAN_INVALID — /cart
     classified private. The read that caused it: identity
 ```
 
+### The document is only as public as its strictest region
+
+`E_DOCUMENT_POLICY_CONFLICT` catches it at build time rather than at the first request: the
+document contains everything it composes, so it may only advertise `public` if every slot and the
+shell itself would too. A remote region counts as private unless its contract says its reads are
+neither `identity` nor `opaque` — an undeclared contract is refused rather than advertised on the
+strength of a silence, because the alternative is one reader's bytes served from a cache keyed for
+everybody.
+
 ### Two of these are about invalidation reaching nobody
 
 `E_TAGS_PROCESS_SCOPED` and `W_DOCUMENT_OUTLIVES_INVALIDATION` are the same failure seen from two
@@ -81,6 +91,11 @@ and the slot entry goes — and a reader is still handed the stored document, wh
 once and will not be rendered again until the ttl runs out. It is a warning rather than an error
 because a `live` slot does reach connected readers over the channel, so a document that lags at the
 edge may be the trade a deployment wants; what is not defensible is arriving there by accident.
+
+It cost an afternoon on this repository's own documentation site, where the vote count on the
+intents page was frozen at zero while every mechanism under it — the write, the invalidation, the
+slot cache — worked perfectly. The fix is one of two things: carry the tags on the document policy
+so the write reaches it, or stop giving the document a ttl and let the slot decide.
 
 ## What the build warns about
 

@@ -3,15 +3,7 @@ import { criticalPath, type DagNode, type ResolvedKey, schedule } from '@weftjs/
 import type { Plan, SlotSpec } from './dsl.ts'
 import { hopsOf, validatePlan, type SlotFacts } from './validate.ts'
 
-/**
- * `weft why` — the critical path as a first-class concept rather than something you
- * reconstruct from a flame graph.
- *
- * Two rules apply to what this prints. A timing that was not measured is labelled as an
- * estimate, because a report that quietly mixes the two is worse than one that has no
- * numbers at all. And every budget breach and every degradation is listed: the point of a
- * budget is not only to contain damage, it is to tell you the damage happened.
- */
+/** `weft why` — the critical path as a first-class concept. See `spec/plan/plan.md`. */
 export interface WhyInput {
   plan: Plan
   facts: Record<string, SlotFacts>
@@ -123,11 +115,7 @@ export function why(input: WhyInput): WhyReport {
   }
 }
 
-/**
- * The only suggestion made here is the one that can be derived without guessing: a slot on
- * the critical path that needs exactly one upstream result is a candidate for hoisting that
- * read, and the report says so rather than inventing an estimate for the improvement.
- */
+/** The only suggestion made is one derivable without guessing: hoisting a single-dependency critical-path slot. */
 function suggest(plan: Plan, path: readonly string[]): string | undefined {
   for (const name of path.slice(1)) {
     const spec = plan.slots.find((s) => s.name === name)

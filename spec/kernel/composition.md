@@ -123,6 +123,24 @@ fans out further is one this build has no view of, and its own plan counts its o
 reports the real total at runtime from what each region announces, which is the number to compare the
 floor against.
 
+### Lowering a region: three questions the composite cannot answer for itself
+
+`regionSlotOf` builds the `KernelSlot` the kernel actually schedules, and it decides three things
+a region's own declaration cannot:
+
+- **What the kernel is told the slot reads** — the previous section's `regionEffects`, absent
+  contract turned into `opaque`.
+- **Which executor the kernel sees** — `inline`, always, and it is not a lie: the slot's render
+  _is_ a local async function. The real boundary is one level in, where the composer dispatches
+  through the executor the registry named — which is where the budget and the degradation belong,
+  so neither reaches the kernel a second time under a different name.
+- **What a failure produces** — the composer's, from the declaration: `optional()` is a placeholder
+  with nothing behind it, `fallback(...)` is bytes the binding supplied.
+
+A local region goes through the composer and the registry too, which is what makes moving it a
+registry write rather than a redeploy — nothing downstream knows or cares which locus it is, and
+the same frame check runs either way.
+
 ### One document, one policy
 
 Per-region `csp(...)` is merged into a single header, sorted by directive so two builds of one plan
