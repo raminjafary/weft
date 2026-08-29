@@ -2,14 +2,9 @@ import { intentId } from '@weftjs/compiler'
 import type { Intent, RegionBinding, Registry } from '@weftjs/kernel'
 
 /**
- * A registry built from a manifest, which is the deployment shape a bundler produces: every
- * intent the build found, keyed by the opaque id the compiler derived for its module and
- * export.
- *
- * The id is derived here rather than declared, from the same function the compiler used to
- * write it into the wiring. That is the point — a manifest that spelled its own ids could
- * disagree with the templates, and the disagreement would look like an intent that silently
- * does nothing.
+ * A registry built from a manifest: every intent the build found, keyed by the opaque id the
+ * compiler derived. Derived here, not declared — a manifest that spelled its own ids could
+ * disagree with the templates.
  */
 export interface ManifestEntry {
   module: string
@@ -21,15 +16,7 @@ export interface ManifestEntry {
 export interface ManifestRegistry extends Registry {
   /** The id an entry got, for a build report and for `weft why`. */
   idFor(module: string, exportName: string): string
-  /**
-   * Point a region somewhere else, without rebuilding the shell that composes it.
-   *
-   * This is the sentence the registry port exists for: rolling a region to a new revision is a
-   * write here rather than a redeploy of everything that names it. A checked-in manifest is
-   * immutable on disk and this is the in-memory shape of the same write — a KV namespace or a
-   * control plane implements the identical method against something durable, and nothing above
-   * the port can tell the difference.
-   */
+  /** Point a region somewhere else, without rebuilding the shell that composes it. See `spec/kernel/composition.md`. */
   roll(binding: RegionBinding): void
   /** Narrowed from the port's optional, possibly-async shape: a manifest is a map and answers now. */
   region(name: string): RegionBinding | undefined
@@ -39,22 +26,13 @@ export interface ManifestRegistry extends Registry {
 /** The manifest a registry resolves against, and what a name it does not know does. */
 export interface ManifestOptions {
   /**
-   * Region name to the deployment serving it. A shell says `search`; this is what `search` is.
-   *
-   * Separate from the intent entries above because they answer different questions with different
-   * lifetimes. An intent id is derived from code and changes when the code does; a region binding
-   * is operational and changes when somebody rolls a tier.
+   * Region name to the deployment serving it. Separate from the intent entries: an intent id
+   * changes with the code, a region binding changes when somebody rolls a tier.
    */
   regions?: readonly RegionBinding[]
 }
 
-/**
- * Region names to deployments, from a manifest.
- *
- * Ids are derived with the same function the compiler used, because a manifest that spelled its own
- * would eventually disagree with the templates — and that disagreement looks like a region that
- * silently does nothing.
- */
+/** Region names to deployments, from a manifest. Ids derived with the same function the compiler used. */
 export function manifestRegistry(
   entries: readonly ManifestEntry[],
   options: ManifestOptions = {},

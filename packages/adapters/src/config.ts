@@ -1,17 +1,9 @@
 import type { ConfigPort } from '@weftjs/kernel'
 
 /**
- * What the deployment was configured with.
- *
- * Two implementations because the two shapes are genuinely different, not because one is a test
- * double: a Node process reads its environment, and a Worker is handed an `env` object per request
- * and has no ambient environment at all. Both answer the same three questions, which is what
- * lets everything above them stop caring.
- *
- * A setting is not a tracked read and cannot enter a cache key — see `ConfigPort`. The rule has
- * teeth on this side too: `required` refuses by name rather than returning a default, because a
- * deployment missing its database URL should fail where it is configured rather than render a
- * page that quietly talks to nothing.
+ * What the deployment was configured with. Two implementations, genuinely different shapes: a
+ * Node process reads its environment, a Worker is handed an `env` object per request. See
+ * `ConfigPort` in `@weftjs/kernel`.
  */
 export class ConfigError extends Error {
   code: string
@@ -53,24 +45,15 @@ export function staticConfig(values: Record<string, string | undefined>): Config
 /** Which environment variables are readable, and what a missing one does. */
 export interface EnvConfigOptions {
   /**
-   * Only keys under this prefix are visible, and they are asked for without it.
-   *
-   * The default is `WEFT_`, and the default is not tidiness. A config port with no prefix hands
-   * every fragment of an application the whole environment — every credential the process was
-   * started with, including the ones belonging to something else entirely — through an API whose
-   * whole job is to be easy to call.
+   * Only keys under this prefix are visible, and they are asked for without it. Defaults to
+   * `WEFT_`: no prefix would hand every fragment the whole environment.
    */
   prefix?: string
   /** The environment to read. Defaults to this process's. */
   env?: Record<string, string | undefined>
 }
 
-/**
- * Configuration from the environment, through a declared allow-list.
- *
- * A port rather than `process.env` directly, because a render reading the environment is a read the
- * compiler never saw — so this is bound once and what it exposes is written down.
- */
+/** Configuration from the environment, through a declared allow-list — a render reading `process.env` directly is a read the compiler never saw. */
 export function envConfig(options: EnvConfigOptions = {}): ConfigPort {
   const prefix = options.prefix ?? 'WEFT_'
   const env =

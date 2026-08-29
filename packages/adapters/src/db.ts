@@ -1,20 +1,9 @@
 import type { DbPort, DbQuery, TelemetryPort } from '@weftjs/kernel'
 
 /**
- * Where a loader's data comes from, named rather than anonymous.
- *
- * The framework never sees a loader: a `.data.ts` is application code the compiler does not read,
- * so every query in it is invisible to the machinery that would otherwise bound it. What that
- * absence costs is specific — a slow page with no name for the slow part, a query that hangs for
- * as long as the driver's default allows, and an invalidation nobody can check against what the
- * render actually read. Running the access through a port gives all three back without inventing
- * a query language: what runs is the caller's own function.
- *
- * The deadline is the part worth insisting on. A slot has a CPU budget and it is enforced where a
- * render can be preempted; a query is not CPU and cannot be killed that way, so its bound is a
- * deadline the caller decides and an `AbortSignal` the caller is expected to honour. A `run` that
- * ignores its signal gets a rejected promise and a query that is still running, which is stated
- * rather than hidden — this port cannot cancel work it did not start.
+ * Where a loader's data comes from, named rather than anonymous. See `DbPort` in
+ * `@weftjs/kernel`. The deadline is an `AbortSignal` the caller is expected to honour — this port
+ * cannot cancel work it did not start.
  */
 export interface BoundedDbOptions {
   /** The deadline a query gets when it does not ask for one. Ten seconds, which is generous. */
@@ -54,12 +43,7 @@ export interface BoundedDb extends DbPort {
   forget(): void
 }
 
-/**
- * A database access that has to name a deadline and the tags it reads.
- *
- * Neither is bureaucracy: without a deadline one slow query holds a whole page, and without tags an
- * intent cannot invalidate what the query cached.
- */
+/** A database access that has to name a deadline and the tags it reads. Neither is bureaucracy. */
 export function boundedDb(options: BoundedDbOptions = {}): BoundedDb {
   const timeoutMs = options.timeoutMs ?? 10_000
   const keep = options.history ?? 64
@@ -101,9 +85,7 @@ export function boundedDb(options: BoundedDbOptions = {}): BoundedDb {
         return value
       } catch (error) {
         const ms = record(true)
-        // The signal firing and the query failing on its own are different incidents, and a
-        // deployment reading this at 3am needs to know which: one is a database that is slow and
-        // the other is a database that said no.
+        // The signal firing and the query failing on its own are different incidents worth telling apart.
         if (controller.signal.aborted) {
           throw new DbError(
             'E_QUERY_TIMEOUT',
