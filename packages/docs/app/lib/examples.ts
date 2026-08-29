@@ -1,19 +1,8 @@
 /**
- * A line or two per field, showing the shape.
- *
- * The only hand-written thing in the reference, and it is here rather than in the framework's doc
- * comments for one reason: a doc comment is read in an editor beside the type it documents, and a
- * reader on this page has neither. What a field *accepts* is the type and what it is *for* is the
- * comment; this is the third question, which is what you actually type — and it is the one neither
- * of the other two answers.
- *
- * Keyed by `<reference>.<anchor>`, which is the same id the entry's own URL fragment uses. A field
- * with no entry here shows its type and its argument and nothing else, which is the right answer
- * for `port?: number`.
- *
- * `test/docs.test.ts` walks these for framework names that do not exist, the same walk it does over
- * the guide's sketches — so an example naming an export that has been renamed fails the build
- * rather than becoming a snippet that does not compile.
+ * A line or two per field, showing the shape. The only hand-written thing in the reference — the
+ * type says what a field accepts and the doc comment says what it's for; this answers the third
+ * question, what you actually type. Keyed by `<reference>.<anchor>`. `docs.test.ts` checks these for
+ * renamed exports, same as it does the guide's sketches.
  */
 export const EXAMPLES: Record<string, string> = {
   // ── weft.config.ts ─────────────────────────────────────────────────────────

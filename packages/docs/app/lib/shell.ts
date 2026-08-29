@@ -1,13 +1,9 @@
 import { artifacts } from './versions.ts'
 
 /**
- * The layout values every page supplies, in one place.
- *
- * The framework fills the standard holes — title, description, css, runtime, nav, prelude — and a
- * route fills the rest. Three of the rest are the same on every page of this site: the version
- * pill, the repository link and the boot script. Writing them at eleven call sites would be eleven
- * chances for one page to carry a version the others do not, so they are written here and every
- * route spreads this.
+ * The layout values every page supplies, in one place. Three of them — version pill, repo link,
+ * boot script — are the same on every page, so they're written here once rather than at eleven call
+ * sites that could each carry a different version.
  */
 
 /** `ir 2.6.0 · warp 1.8.0` — the two numbers a build stamps on a document, not two numbers typed. */
@@ -19,15 +15,9 @@ export function versionPill(): string {
 export const REPO = 'https://github.com/raminjafary/weft'
 
 /**
- * The one script that runs before paint, and the whole of what it does.
- *
- * Two jobs, both of which have to happen before the first frame or they are visible as a flash:
- * apply a theme the reader chose on a previous visit, and record that scripting is on. The second
- * is what lets the stylesheet hide the theme toggle from a reader who cannot use it, rather than
- * offering a control that does nothing.
- *
- * It is inline and it is under 200 bytes. A deferred module would run after paint, which for a
- * theme is the same as not running at all.
+ * The one script that runs before paint: applies a stored theme and marks scripting on, both of
+ * which would flash if they ran after paint. Inline and under 200 bytes — a deferred module runs
+ * too late to matter for either.
  */
 export const BOOT =
   `<script>(()=>{try{const r=document.documentElement;r.dataset.js='on';` +
@@ -37,34 +27,17 @@ export interface ShellInput {
   /** The page's `<h1>`. Section layouts render it; the landing page renders its own. */
   heading: string
   lede: string
-  /**
-   * The line above the heading. `kicker` is the accent text or the word on the chip, `kickerClass`
-   * decides which of the two it is, and `kickerNote` is the dim half beside it.
-   */
+  /** The line above the heading. `kicker` is the text, `kickerClass` decides accent-vs-chip, `kickerNote` is the dim half beside it. */
   kicker?: string
   kickerClass?: 'kicker' | 'badge'
   kickerNote?: string
   /** The middle crumb — the group a guide page is in. Empty draws no trail. */
   section?: string
-  /**
-   * Which shell the section's layout draws: `shell`, `shell two`, `shell one`.
-   *
-   * A class name and not a conditional, for the reason `kickerClass` is one — and here there is a
-   * second reason. The nested layout chain is the file tree, so `/tutorial` and `/tutorial/:step`
-   * are the same layout file and cannot be given different ones; the index has no rail and a step
-   * page does, and a hole is how one template serves both.
-   */
+  /** Which shell the section's layout draws: `shell`, `shell two`, `shell one`. A class name, since `/tutorial` and `/tutorial/:step` share one layout file. */
   shellClass?: string
 }
 
-/**
- * What a route hands the layout chain. Spread it, then add whatever that page alone needs.
- *
- * An empty `section` or `kicker` is what a layout's own conditional branches on, rather than a
- * class name decided here: a layout may carry a derived expression, and the branch belongs beside
- * the markup it turns on and off. It briefly could not — see the note in `splitAtSlots` for what
- * that cost and why it is fixed rather than worked around.
- */
+/** What a route hands the layout chain. Spread it, then add whatever that page alone needs. An empty `section`/`kicker` is what the layout's own conditional branches on. */
 export function shell(input: ShellInput): Record<string, unknown> {
   return {
     heading: input.heading,
