@@ -17,15 +17,9 @@ interface Props {
 }
 
 /**
- * The tutorial's layout. The same holes the guide leaves, and a separate file.
- *
- * It has to be a separate file rather than a shared component, and the reason is a refusal worth
- * knowing about: a `<slot>` inside a composed instance is `E_COMPONENT_CHILDREN_UNSUPPORTED`, so a
- * template cannot delegate its own boundaries to a child. A layout's holes are the boundaries the
- * kernel fills, and a boundary has to be a cut point in *this* template's byte stream.
- *
- * The cost is this file looking like the guide's. The benefit is that each of these holes is a real
- * cut, streamed independently, with its own cache policy — which a shared component could not give.
+ * The tutorial's layout — the same holes the guide leaves, in a separate file rather than a shared
+ * component: a `<slot>` inside a composed instance is `E_COMPONENT_CHILDREN_UNSUPPORTED`, since a
+ * layout's holes must be cut points in *this* template's byte stream, not delegated to a child.
  */
 export default fragment(
   ({

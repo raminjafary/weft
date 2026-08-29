@@ -12,12 +12,7 @@ interface PanelProps {
   rows: Row[]
 }
 
-/**
- * The readout every station uses: a caption and a list of measured rows. It exists as a fragment
- * rather than as a template literal in the server so that the numbers on a station page arrive
- * through the same render path as the content, and so a station's readout is a slot the shell can
- * send bytes before.
- */
+/** The readout every station uses. A fragment rather than a template literal, so a number arrives through the same render path as the content. */
 export default fragment(({ caption, rows }: PanelProps) => (
   <div class="readout-table">
     <h3>{caption}</h3>

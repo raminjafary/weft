@@ -12,14 +12,9 @@ import { escapeHtml, field, panel, pick, pre, press, readout } from '../pages.ts
 import { control, type StationHandler } from './kind.ts'
 
 /**
- * Composition, with the region on the other side of a real boundary.
- *
- * The station exists to make one claim touchable and one claim falsifiable. The touchable one is
- * that a region moves between topologies without changing: pick `inline` and the region renders in
- * this process, pick `binding` and it renders through a real `fetch` handler, and the markup that
- * lands in the hole is byte-identical. The falsifiable one is the check — every misbehaving region
- * below is a real module on the real other side, not a hand-built frame stream, so the refusal you
- * see is the refusal a deployment would get.
+ * Composition, with the region on the other side of a real boundary: `inline` renders in this
+ * process, `binding` renders through a real `fetch` handler, byte-identical either way. See
+ * `spec/kernel/composition.md`.
  */
 const utf8 = new TextEncoder()
 

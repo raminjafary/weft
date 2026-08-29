@@ -14,19 +14,9 @@ import { field, panel, pick, pre, press, readout } from '../pages.ts'
 import type { StationHandler } from './kind.ts'
 
 /**
- * L0: the tier where the answer is a file and the kernel is not involved.
- *
- * The station shows the two halves of the decision separately, because the interesting thing
- * about this feature is that either half alone gets it wrong.
- *
- * The **classifier** runs over this repository's own fixture fragments. It is the real
- * `staticVerdict` — the one `weft build` calls — reading the real effect sets the compiler
- * inferred, so the table below is not a description of the rule, it is the rule.
- *
- * The **probe** is the half the effect set cannot do. A route's loader lives in a `.data.ts`,
- * which nothing compiles, so a read in there is invisible: the page is classified `static` and is
- * not. Pick a loader here and watch a page that every static analysis calls invariant come out
- * different under two requests.
+ * L0: the tier where the answer is a file and the kernel is not involved. Shows the classifier
+ * (the real `staticVerdict`, over this repo's own fixtures) and the probe (what the effect set
+ * can't see, since a loader lives in a `.data.ts` nothing compiles) separately. See `spec/kernel/static.md`.
  */
 const ports = (): Ports => ({
   store: memoryStore(),
@@ -63,13 +53,7 @@ interface ProbeResult {
   failed?: string
 }
 
-/**
- * One render, under one request.
- *
- * Everything the build's probe varies, this varies two of: the cookie header and the clock. It is
- * the same idea at a size that fits on a page — and the readout says so rather than implying the
- * page runs the whole thing.
- */
+/** One render, under one request — varies two of the things the build's probe varies: the cookie header and the clock. */
 async function probe(
   loader: (ctx: RenderContext) => Promise<Values>,
   headers: Record<string, string>,

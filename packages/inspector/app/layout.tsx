@@ -26,20 +26,9 @@ interface ShellProps {
 }
 
 /**
- * One shell for every station and every showcase.
- *
- * Three `<slot>` holes, which means the compiler cuts the document at three points and the
- * kernel can send everything before the first cut without knowing anything about what fills it.
- * The nav is a list hole over one sealed row template rather than a loop in a component, so the
- * page weight of thirty stations is thirty rows of content and one template.
- *
- * `<slot>` here is a real element, not shadow DOM. Outside a shadow root it renders its children,
- * so in-order streaming needs no fill mechanism at all and out-of-order needs only the filler
- * that moves a node into it.
- *
- * `heading`, `shows`, `control` and `status` are not values the framework supplies. Each route
- * declares them through `defineRoute({ layoutValues })`, and a hole here that no route supplies
- * fails the build with its own name — which is how this file can grow a hole safely.
+ * One shell for every station and every showcase. Three `<slot>` holes, a real element rather
+ * than shadow DOM (see `spec/kernel/streaming.md`). `heading`, `shows`, `control` and `status`
+ * come from each route's own `defineRoute({ layoutValues })`; an unsupplied one fails the build.
  */
 export default fragment(
   ({

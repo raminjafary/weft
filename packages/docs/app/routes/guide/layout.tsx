@@ -15,26 +15,13 @@ interface Props {
 }
 
 /**
- * The guide subtree's layout, nested inside the application's document.
+ * The guide subtree's layout, nested inside the application's document. Wraps every route at or
+ * under `/guide` with a contents column and an outline, both regions of their own so they are one
+ * cache entry across the guide rather than a copy per page.
  *
- * It wraps every route at or under `/guide`, and it exists because those pages share a shape the
- * landing page and the playground do not: a contents column, the page, and an outline of what the
- * page covers in the specs. Three holes reach the plan from here and one from `app/layout.tsx`, and
- * nothing in a guide page's declaration says which came from where.
- *
- * The heading and the lede moved here from the document. They belong to the article rather than to
- * the page: the design puts them in the middle column beside the rails, and a heading rendered
- * above the grid cannot be inside it.
- *
- * `contents` is a region of its own rather than markup inside the body, which is the whole reason
- * to make it a hole: it is identical on every page under this layout, so it is one cache entry
- * across the guide instead of a copy per page.
- *
- * The breadcrumb and the kicker are always in the markup and hidden by a class when the page has
- * none. That is not a shortcut: a layout may not carry a derived expression — its holes are filled
- * from the route's `layoutValues`, and there is no render in which to evaluate one — so
- * `E_LAYOUT_HOLE_UNFILLED` is the right refusal for `{section ? … : …}` here. A whole class name as
- * a plain hole says the same thing for one hole instead of two sealed templates.
+ * The breadcrumb and kicker are always in the markup, hidden by a class when the page has none —
+ * a layout's holes come from `layoutValues`, with no render to evaluate `{section ? … : …}` in, so
+ * a whole class name as a plain hole is the only way to make this conditional.
  */
 export default fragment(
   ({ heading, lede, section, kickerClass, kicker, kickerNote, contents, body, outline }: Props) => (

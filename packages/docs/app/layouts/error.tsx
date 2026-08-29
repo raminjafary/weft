@@ -16,20 +16,12 @@ interface Props {
 }
 
 /**
- * This site's 404 and 500, replacing the framework's own.
+ * This site's 404 and 500, replacing the framework's own. A named layout under `app/layouts/` —
+ * the framework looks for one called `error` and renders it instead of its default, handed the
+ * values `packages/weft/src/assets/error.tsx` documents.
  *
- * A named layout under `app/layouts/`, which is the whole of the registration: the framework looks
- * for one called `error` and renders it instead of the page it ships, handed exactly the values
- * `packages/weft/src/assets/error.tsx` documents. It is here rather than left as the default for
- * the reason any application would write one — the framework's page is drawn with the framework's
- * palette, and on a site with its own it reads as somebody else's page.
- *
- * It is deliberately not the site's full chrome. A reader who asked for a page that does not exist
- * wants to know that, and one link out; a header, a nav and a search box are five more things to
- * read before the sentence that matters. The mark is inline for a reason that is specific to this
- * page: an error page cannot depend on a request succeeding, and a 404 with a broken image on it is
- * worse than one with no image.
- *
+ * Deliberately not the site's full chrome — no header, nav, or search box before the sentence that
+ * matters. The mark is inline because an error page can't depend on a request succeeding.
  * `stack` is empty outside `weft dev`, and `stackClass` hides the block that would have held it.
  */
 export default fragment(

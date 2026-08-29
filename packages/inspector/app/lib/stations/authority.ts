@@ -17,14 +17,7 @@ import {
 import { escapeHtml, field, panel, pick, pre, press, readout } from '../pages.ts'
 import type { StationHandler } from './kind.ts'
 
-/**
- * The authority stations: who may run an intent, and whether this deployment issued the call.
- *
- * Both pages run the real model and the real verifier over a real Ed25519 key generated when the
- * page renders. Nothing here is a table of what would happen — every row is a decision that was
- * actually taken while the page was being served, which is the only version worth showing for a
- * mechanism whose entire job is to say no.
- */
+/** The authority stations: who may run an intent, and whether this deployment issued the call. Runs the real model and verifier over a real Ed25519 key. */
 const ports = (): Ports => ({
   store: memoryStore(),
   session: cookieSession({ cookie: 'sid' }),
@@ -220,13 +213,7 @@ export const discovery: StationHandler = async (ctx) => {
   const prefix = ctx.query('prefix') ?? '/s/*'
   const max = Math.min(64, Math.max(1, Number(ctx.query('max') ?? 8)))
 
-  /**
-   * A route table that is this page's own, described rather than rendered.
-   *
-   * The inspector's stations are its routes, so the subtree asked about below is real. What the
-   * extender returns is what a client would otherwise have to fetch a document to learn — and none
-   * of it runs a loader, which is the whole difference between describing a route and staging one.
-   */
+  // A route table that is this page's own, described rather than rendered. See `spec/kernel/routing.md`.
   const catalogue: DiscoveredRoute[] = [
     { pattern: '/', shell: 'sh-index', shared: false, slots: ['body'], css: '/_weft/s/index.css' },
     { pattern: '/s/authority', shell: 'sh-station', shared: true, slots: ['panel', 'body', 'readout'] },

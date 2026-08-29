@@ -1,14 +1,7 @@
 import { defineIntent } from '@weftjs/core'
 import { advance } from '../lib/data.ts'
 
-/**
- * One tick of the feed.
- *
- * It writes `feed`, and that declaration is the whole mechanism: the store drops the keys tagged
- * with it, every connection holding one is told, and each of them asks for a delta. The first to
- * ask pays for it and the rest are handed the memoized one. Nothing here knows how many
- * connections there are.
- */
+/** One tick of the feed. `writes: ['feed']` is the whole mechanism — see `spec/kernel/transport.md`. */
 export const tick = defineIntent({
   name: 'inspect.feed.tick',
   writes: ['feed'],

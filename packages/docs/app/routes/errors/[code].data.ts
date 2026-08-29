@@ -5,13 +5,7 @@ import { codeIds, errorBody } from '../../lib/errors-page.ts'
 import { errorsOutline } from '../../lib/outlines.ts'
 import { errorsContents } from '../../lib/contents.ts'
 
-/**
- * One page per code, and one route for all of them.
- *
- * `params` is every code the source raises, so the build writes a file per refusal — three hundred
- * odd documents from one sealed template, none of which needs the kernel at serve time. That is the
- * case the L0 tier was built for, and it fell out of declaring the set rather than being asked for.
- */
+/** One page per code, and one route for all of them: `params` names every code, so `weft build` writes each as a file (L0). See `spec/kernel/static.md`. */
 export default defineRoute({
   head: (params) => ({
     title: `${params.code ?? 'Unknown'} · weft errors`,
@@ -36,13 +30,7 @@ export default defineRoute({
   },
 })
 
-/**
- * What the page says before the refusal itself.
- *
- * Not the message: the message is the panel's, and printing it twice made the top of every one of
- * these pages a sentence and then the same sentence in a quotation box. This says which of the
- * three states the code is in, which is the thing the panel below is about to demonstrate.
- */
+/** What the page says before the refusal itself — which of the three states the code is in, not the message (that's the panel's). */
 function lede(code: string): string {
   const entry = errorByCode(code)
   if (!entry) return 'This code is not raised anywhere in the framework.'

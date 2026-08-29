@@ -12,15 +12,9 @@ import { conventionRows } from '../lib/conventions.ts'
 import { TERMS } from '../lib/glossary.ts'
 
 /**
- * The landing page, and the only page that says what this site is.
- *
- * Every number on it is counted rather than typed: the exports come from walking the packages, the
- * error codes from walking their `src/`, the examples from the guide's own registry, and the
- * template count from the fragments this build sealed. A landing page that claimed a figure somebody
- * had to remember to update is a landing page that lies within a month.
- *
- * It is the one page with no rail on either side, so it fills the shell itself and brings its own
- * stylesheet — `index.css`, which the framework links here and on no other page.
+ * The landing page. Every number on it is counted rather than typed — a landing page that claimed
+ * a figure somebody had to remember to update is a landing page that lies within a month. The one
+ * page with no rail on either side, and its own stylesheet (`index.css`).
  */
 export default defineRoute({
   head: {

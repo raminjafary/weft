@@ -1,13 +1,7 @@
 import { defineRoute } from '@weftjs/core'
 import { indexBody } from '../lib/index-page.ts'
 
-/**
- * The inspector's index: a station per mechanism.
- *
- * It is a route like any other, rendered through the kernel with the same document as every
- * station — an inspector whose own chrome came from somewhere else would have exempted itself
- * from what it is inspecting.
- */
+/** The inspector's index: a station per mechanism, rendered through the kernel like any other route. */
 export default defineRoute({
   head: { title: 'Every capability, running · weft' },
   layoutValues: {

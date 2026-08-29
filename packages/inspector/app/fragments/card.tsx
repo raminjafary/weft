@@ -8,13 +8,7 @@ interface CardProps {
   available: boolean
 }
 
-/**
- * An ordinary component. Props in, markup out, no ceremony.
- *
- * It is sealed once. Rendering it three times on a page adds three cards of content and not one
- * byte of template, and it is not re-parsed, re-evaluated or re-mounted per instance — the parent
- * projects the values into the child's holes. Nothing about that requires the page to stream.
- */
+/** An ordinary component, sealed once: three instances cost three cards of content and not one byte of template. See `spec/ir/template-ir-2.md`. */
 export default fragment(({ name, price, unit, badge, available }: CardProps) => (
   <article class="product">
     <h3>{name}</h3>

@@ -1,17 +1,7 @@
 import type { RenderContext } from '@weftjs/core'
 import type { PageParts } from '../pages.ts'
 
-/**
- * A station handler.
- *
- * It receives the render context, because a control on a server-rendered page is a query parameter
- * and the framework's way to read one is `ctx.query()`. Reading it there rather than parsing a URL
- * in the server is the point: the read taints `route:<key>`, so a station's own controls land in
- * its own cache key exactly the way an application's would.
- *
- * It is called once per request, from inside the page's body slot — so a handler that measures
- * something expensive measures it once.
- */
+/** A station handler. Receives the render context — a control is a query param read via `ctx.query()`, tainting `route:<key>`. Called once per request. */
 export type StationHandler = (ctx: RenderContext) => Promise<PageParts>
 
 /** What a handler reads its controls through. Narrowed so a station cannot reach for anything else. */

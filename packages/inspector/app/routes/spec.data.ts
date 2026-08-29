@@ -1,13 +1,7 @@
 import { defineRoute } from '@weftjs/core'
 import { coverageBody } from '../lib/index-page.ts'
 
-/**
- * Every spec document, and the station that claims to be its live version.
- *
- * A gate rendered as a table, and it only means anything inside this repository: it walks `spec/`
- * relative to the working directory. Run from somewhere with no specs and it says so rather than
- * showing an empty table that looks like full coverage.
- */
+/** Every spec document, and the station that claims to be its live version — a gate rendered as a table. */
 export default defineRoute({
   head: { title: 'Coverage · weft' },
   layoutValues: {

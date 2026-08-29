@@ -7,15 +7,9 @@ import { adoptScript, allTemplates, fragmentIR } from '@weftjs/core'
 const n = (v: number): string => v.toLocaleString('en-US')
 
 /**
- * The client stations.
- *
- * Each one server-renders the same interactive fragment and ships the client's view of its
- * template beside it — everything except the bytes the browser already has. Adoption then happens
- * in the browser, from the real runtime, and the readout is what it cost.
- *
- * There is no component code on the wire. `interactive.tsx` has a signal, two derived values and an
- * intent reference, and what the client receives is a wiring table, an expression tree and a
- * six-character id.
+ * The client stations: each server-renders the interactive fragment and ships the client's view
+ * of its template beside it, then adopts in the browser from the real runtime. No component code
+ * on the wire — see `spec/client/adoption.md`.
  */
 async function interactive(values: Values): Promise<{ html: string; adopt: string; base: string }> {
   const fragment = fragmentIR('fragment:interactive')
@@ -411,13 +405,7 @@ INTENT i=cart.add epoch=… → ACK ok=false                            (discard
   }
 }
 
-/**
- * Navigation, which is the one station whose subject is the act of arriving at it.
- *
- * There is nothing to render: what it demonstrates is what happened between the last page and
- * this one. So the readouts are the runtime's own counters, and the control is a pair of links —
- * one the framework may stage and one the markup has told it to leave alone.
- */
+/** Navigation: the one station whose subject is the act of arriving at it. The readouts are the runtime's own counters. */
 export const navigation: StationHandler = async () => {
   return {
     panel: panel(

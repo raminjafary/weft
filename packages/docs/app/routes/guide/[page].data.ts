@@ -5,16 +5,8 @@ import { guideContents } from '../../lib/contents.ts'
 import { BY_SLUG, groupOf, PAGES } from '../../lib/pages.ts'
 
 /**
- * Every guide page: one route, one plan, one sealed template.
- *
- * A file per page would be twelve files that each say the same thing, and the page's identity is its
- * slug rather than its path on disk. Declaring `params` is what matters here: the set of pages is
- * something this application knows, so the build writes each one as a file and serves it without the
- * kernel being invoked at all.
- *
- * Four slots reach the plan — `contents`, `body` and `outline` from `guide/layout.tsx`, and nothing
- * from `app/layout.tsx` except the `body` hole this chain fills. Nothing below says which layer left
- * which hole.
+ * Every guide page: one route, one plan, one sealed template. Declaring `params` lets `weft build`
+ * write each page out as a file, served without the kernel being invoked at all.
  */
 const titleOf = (slug: string): string => BY_SLUG[slug]?.title ?? 'Not found'
 
@@ -30,15 +22,8 @@ export default defineRoute({
       section: groupOf(params.page ?? ''),
     }),
   cache: { class: 'public', ttl: '1h' },
-  /**
-   * Every guide slug except `intents`, which has a route of its own.
-   *
-   * A static segment beats a parameter when a request is matched, so `/guide/intents` would reach
-   * the dedicated route either way — but this list is also what `weft build` walks to decide what
-   * to write out, and leaving the slug in wrote a *file* for it. A file is served before routing,
-   * so the live page would have been shadowed by a frozen copy of itself and the count would have
-   * gone back to never moving, with nothing anywhere saying why.
-   */
+  // Every guide slug except `intents`, which has its own live route — see `spec/plan/plan.md`.
+  // A file would be served before routing and shadow the live page.
   params: { page: PAGES.map((page) => page.slug).filter((slug) => slug !== 'intents') },
   slots: {
     contents: { fragment: 'docs/contents', load: (_ctx, params) => ({ groups: guideContents(params.page) }) },

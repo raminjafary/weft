@@ -3,13 +3,7 @@ import { join } from 'node:path'
 import { escapeHtml, explain, panel } from './pages.ts'
 import { GROUPS, STATIONS, type Station } from './stations.ts'
 
-/**
- * The specs of the project being inspected, not of the inspector.
- *
- * Read from the working directory, because the coverage gate is a statement about *a* project: it
- * asks which of that project's spec documents have no station claiming them. Run somewhere with no
- * `spec/` and it says so rather than showing an empty table, which would read as full coverage.
- */
+/** The specs of the project being inspected, not of the inspector — read from the working directory, since the coverage gate is about *a* project. */
 const SPEC = join(process.cwd(), 'spec')
 
 export function hasSpecs(): boolean {

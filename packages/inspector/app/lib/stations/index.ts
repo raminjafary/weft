@@ -30,13 +30,7 @@ import {
   workerPoolStation,
 } from './runtime.ts'
 
-/**
- * The station handlers, by id.
- *
- * `demo/test/stations.test.ts` asserts both directions: a station marked `live` must have a
- * handler here, and a handler here must belong to a station marked `live`. That is what stops the
- * index from advertising a page that does not run.
- */
+/** The station handlers, by id. `demo/test/stations.test.ts` asserts both directions between this and `live` status. */
 export const HANDLERS: Record<string, StationHandler> = {
   composition,
   'scoped-styles': scopedStyles,

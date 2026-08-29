@@ -8,15 +8,9 @@ export interface MarkProps {
 }
 
 /**
- * The mark: a weft crossing a warp.
- *
- * Three warp threads held still, and the weft crossing them twice — over once as a single line,
- * under once as the four segments between them. Six rectangles on a 24-unit grid, which is what
- * lets the same geometry be the favicon at 16px and the wordmark's companion at 76.
- *
- * The two colours are custom properties rather than attributes, so the tone is a class on the
- * element and not a second copy of the geometry. `currentColor` would not do: the mark is
- * deliberately two-tone, and the whole idea it draws is that the two threads are different.
+ * The mark: a weft crossing a warp. Six rectangles on a 24-unit grid — the favicon at 16px and the
+ * wordmark's companion at 76 are the same geometry. Colours are custom properties, not
+ * `currentColor`: the mark is deliberately two-tone.
  */
 export default fragment(({ size, cls }: MarkProps) => (
   <svg class={cls} width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">

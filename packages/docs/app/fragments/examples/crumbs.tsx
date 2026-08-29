@@ -6,16 +6,9 @@ interface Crumb {
 }
 
 /**
- * What a wildcard route renders: the segments it matched, as one row template.
- *
- * The route file is `app/routes/docs/[...].tsx` and the path it matched is data, so a breadcrumb is
- * a list hole rather than a component that walks something at runtime. Nothing here knows how deep
- * the URL was.
- *
- * The `<ol>` is not decoration. A list has to be the only child of its element — otherwise a
- * sibling's position would move with the row count — so the trail gets its own element and the
- * current page sits outside it. Written the other way round, this file is
- * `E_LIST_NOT_SOLE_CHILD` at build time.
+ * What a wildcard route renders: the segments it matched, as one row template. The `<ol>` is not
+ * decoration — a list must be the only child of its element, so the trail gets its own element and
+ * the current page sits outside it (`E_LIST_NOT_SOLE_CHILD`). See `spec/compiler/supported-subset.md`.
  */
 export default fragment(({ trail, here }: { trail: Crumb[]; here: string }) => (
   <nav class="crumbs" aria-label="Breadcrumb">

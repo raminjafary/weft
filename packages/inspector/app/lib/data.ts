@@ -1,12 +1,6 @@
 import type { Values } from '@weftjs/ir'
 
-/**
- * The demo's data, generated deterministically from a seed.
- *
- * Deterministic on purpose: a content-addressed delta memo only shares work between clients that
- * are genuinely on the same base render, so a feed built from `Math.random()` would make every
- * visitor their own cache entry and quietly turn the shared-delta station into a lie.
- */
+/** The demo's data, generated deterministically from a seed — `Math.random()` would make every visitor their own cache entry and break the shared-delta station. */
 function seeded(seed: number): () => number {
   let state = seed >>> 0
   return () => {
@@ -39,11 +33,7 @@ export interface FeedItem {
   updated: string
 }
 
-/**
- * `tick` is what changes. Everything else is a pure function of the index, so two ticks differ in
- * exactly the rows the tick touched — which is what makes the incremental station's arithmetic
- * checkable rather than assertable.
- */
+/** `tick` is what changes; everything else is a pure function of the index, so two ticks differ in exactly the rows touched. */
 export function feedItems(count: number, tick = 0, changeEvery = 8): FeedItem[] {
   const random = seeded(count * 7919 + 13)
   return Array.from({ length: count }, (_, i) => {
@@ -177,11 +167,7 @@ export function dashPanel(
   } as unknown as Values
 }
 
-/**
- * The feed's clock. It lives here rather than in a route so that the intent that advances it and
- * the loader that reads it are looking at one number — a demo where those two disagree is a demo
- * whose deltas describe a page nobody was shown.
- */
+/** The feed's clock. Lives here so the intent that advances it and the loader that reads it look at one number. */
 let tick = 0
 
 export function advance(): number {

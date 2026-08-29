@@ -4,16 +4,9 @@ import { escapeHtml, field, panel, pick, pre, press, readout } from '../pages.ts
 import type { StationHandler } from './kind.ts'
 
 /**
- * Scoped stylesheets, taken apart.
- *
- * The page shows the two halves that have to agree and never speak to each other: the attribute the
- * compiler stamps into a sealed template, and the attribute the asset build derives from the sheet
- * beside it. Both are computed here by the real functions the build calls, over this repository's
- * own fragments — so what you read is the mechanism rather than a description of it.
- *
- * The control is the selector, because its placement is the whole of the transform and the only
- * part that can be silently wrong: a selector narrowed in the wrong compound still parses and still
- * matches something.
+ * Scoped stylesheets, taken apart. Shows the two halves that must agree without speaking to each
+ * other: the attribute the compiler stamps into a template, and the one the asset build derives
+ * from the sheet beside it. See `spec/compiler/scoped-styles.md`.
  */
 
 /** Selectors worth seeing narrowed. Each is a case the transform has to get right. */

@@ -1,16 +1,7 @@
 import { defineIntent } from '@weftjs/core'
 import { CATALOGUE_SKUS, cartOf, catalogue } from '../lib/data.ts'
 
-/**
- * The demo's mutations, and the module the compiler derives their ids from.
- *
- * `interactive.tsx` imports `setQuantity` from this file, so `onInput={setQuantity}` lowers to a
- * wiring entry naming the same six hex characters the intent manifest generated from
- * `app/intents/cart.ts#setQuantity`. Nothing states the id twice — that agreement is the whole
- * reason the client can carry an opaque id rather than the name of server code.
- *
- * Moving this file changes those ids, deliberately: an intent's location is part of the wire.
- */
+/** The demo's mutations. `onInput={setQuantity}` lowers to the same opaque id the manifest derives from this module. See `spec/kernel/intents.md`. */
 function skuOf(raw: unknown): string {
   const body = raw as { sku?: unknown }
   const sku = String(body.sku ?? '')

@@ -2,19 +2,8 @@ import { render, type Values } from '@weftjs/ir'
 import { fragmentIR, type CompiledFragment, type RenderContext } from '@weftjs/core'
 import type { StationStatus } from './stations.ts'
 
-/**
- * What a station page is made of: a control panel, a body, and a readout of what was measured.
- *
- * These are markup helpers and nothing more. Building `KernelRoute` objects, filling the shell's
- * three slots and assembling the nav all used to live here; they are the framework's now, and
- * `demo/src/station.ts` is the twenty lines that turn a station into a route.
- */
-/**
- * A slot's content. The function form receives the render context, which is how a station's
- * controls reach it: a control on a server-rendered page is a query parameter, and the framework's
- * way to read one is `ctx.query()`. That is not incidental — the read taints `route:<key>`, so a
- * station's own controls appear in its own cache key, which the cache-keys station shows.
- */
+/** What a station page is made of: a control panel, a body, and a readout of what was measured. Markup helpers only. */
+/** A slot's content. The function form receives the render context — a control is a query param read via `ctx.query()`, which taints `route:<key>`. See `spec/kernel/cache.md`. */
 export type SlotContent = string | ((ctx: RenderContext) => string | Promise<string>)
 
 export interface PageParts {
@@ -24,10 +13,7 @@ export interface PageParts {
   readout?: SlotContent
 }
 
-/**
- * What the numbers on a page are. Every station prints one of these above its readout, because a
- * figure with no statement of what it measures and where it came from is decoration.
- */
+/** What the numbers on a page are. Every station prints one above its readout — a figure with no provenance is decoration. */
 export interface Explainer {
   /** What you are looking at, in one or two sentences. */
   what: string
@@ -69,11 +55,7 @@ export interface ReadoutRow {
   state?: 'within' | 'over' | 'plain'
 }
 
-/**
- * The readout every station uses, rendered through the compiled `panels.tsx` fragment rather than
- * assembled as a string. A number on a station page therefore arrives through the same render
- * path as the content next to it.
- */
+/** The readout every station uses, rendered through the compiled `panels.tsx` fragment rather than assembled as a string. */
 export async function readout(
   caption: string,
   rows: readonly ReadoutRow[],
@@ -106,15 +88,7 @@ export function field(label: string, control: string): string {
   return `<label>${label}${control}</label>`
 }
 
-/**
- * Which query parameter a control owns, taken from its own id.
- *
- * Every control in this demo is named `<station>-<parameter>`, so the parameter is the id after
- * the first dash. That convention used to live in the client as a forty-entry table mapping ids
- * to parameter names — one the framework could not have guessed and the demo had to keep in step
- * with every slider it added. Stated here, once, it is the same fact in the place that already
- * knows both halves.
- */
+/** Which query parameter a control owns: the id after its first dash, by the `<station>-<parameter>` naming convention. */
 function paramOf(id: string): string {
   const dash = id.indexOf('-')
   return dash < 0 ? id : id.slice(dash + 1)
@@ -134,10 +108,7 @@ export function pick(id: string, options: readonly string[], selected?: string):
   return `<select id="${id}" data-weft-control="${paramOf(id)}">${opts}</select>`
 }
 
-/**
- * A button. One whose name ends in `-go`, `-run`, `-reload` or `-reschedule` applies the page's
- * controls, which the framework wires — so no code here or in the client knows its id.
- */
+/** A button. One whose name ends in `-go`, `-run`, `-reload` or `-reschedule` applies the page's controls, wired by the framework. */
 export function press(id: string, label: string): string {
   const applies = /-(go|run|reschedule|reload)$/.test(id) ? ' data-weft-apply' : ''
   return `<button type="button" id="${id}"${applies}>${label}</button>`

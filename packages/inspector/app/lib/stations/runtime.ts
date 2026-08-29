@@ -25,11 +25,7 @@ import { fragmentIR, listHole } from '@weftjs/core'
 const n = (v: number): string => v.toLocaleString('en-US')
 const utf8 = new TextEncoder()
 
-/**
- * The behaviour stations: things that only mean something when they run. Each one executes the real
- * mechanism on this request rather than describing it, which is why several of them are slow on
- * purpose — a budget you cannot breach and a stampede you cannot cause are not demonstrations.
- */
+/** The behaviour stations: each one executes the real mechanism on this request rather than describing it. */
 
 // ── waves ────────────────────────────────────────────────────────────────────────────
 

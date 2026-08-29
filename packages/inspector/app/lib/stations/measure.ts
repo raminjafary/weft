@@ -5,11 +5,7 @@ import type { StationHandler } from './kind.ts'
 
 const n = (value: number): string => value.toLocaleString('en-US')
 
-/**
- * The measurement stations. Everything on them comes out of `@weftjs/bench`, which is the rule the
- * design's build notes state and the reason these pages are worth trusting: a demo with its own
- * measurement path is a demo that will disagree with the harness.
- */
+/** The measurement stations. Everything on them comes out of `@weftjs/bench` — a demo with its own measurement path would disagree with the harness. */
 export const byteBudgets: StationHandler = async () => {
   const report = await budgets()
   return {
@@ -143,14 +139,7 @@ export const devices: StationHandler = async () => {
   }
 }
 
-/**
- * The station whose subject is a recording, and which has nothing to show without one.
- *
- * A profile is evidence: it says what this deployment's renders cost and what that decides about
- * delivery. So the page reads the live one rather than describing the idea — and when there is no
- * recording it says so and says how to make one, because a page that invented plausible numbers
- * for a demonstration would be the exact mistake the whole feature exists to avoid.
- */
+/** The station whose subject is a recording: reads the live profile rather than describing the idea, and says so plainly when there is none. */
 export const profileStation: StationHandler = async () => {
   const app = appProfile()
   const rows = app

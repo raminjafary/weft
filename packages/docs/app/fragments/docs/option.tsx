@@ -3,16 +3,10 @@ import Table from './table.tsx'
 import type { Cell } from './table.tsx'
 
 /**
- * One option, as a reference entry: the name, what it accepts, what it defaults to, and why.
- *
- * The shape is the one every API reference converged on — Nuxt's config page, MDN, the Rust book —
- * and it converged there because it answers the three questions somebody with a config file open
- * actually has, in the order they have them. A table row cannot: the `documents` option's argument
- * is eleven hundred characters, and a cell that wide is a cell nobody reads.
- *
- * Every value here goes through a hole and is escaped by the compiler. The one exception is the
- * doc's paragraphs, which arrive already escaped with backticks turned into `<code>` — the same
- * bargain the guide's prose makes, made in `declared.ts` rather than at a call site.
+ * One option, as a reference entry: the name, what it accepts, what it defaults to, and why. A
+ * table row can't hold this — the `documents` option's argument alone is eleven hundred
+ * characters. Every value goes through a hole and is escaped by the compiler, except the doc's
+ * paragraphs, which arrive pre-escaped with backticks turned into `<code>` (in `declared.ts`).
  */
 export interface OptionProps {
   name: string
@@ -30,13 +24,7 @@ export interface OptionProps {
   memberRows: { cells: Cell[] }[]
   /** Non-empty draws the nested table. */
   hasMembers: string
-  /**
-   * A line or two showing the shape, highlighted before it got here.
-   *
-   * Written by hand, and the only thing on these pages that is — a type says what a field accepts
-   * and a doc comment says why, and neither of them shows you what to type. Every one of them is
-   * checked: the test that walks the guide's sketches for imports that do not exist walks these too.
-   */
+  /** A line or two showing the shape, highlighted before it got here. Written by hand, checked by the same test that walks the guide's sketches. */
   example: string
   /** Non-empty draws the example. */
   hasExample: string

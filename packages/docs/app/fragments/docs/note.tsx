@@ -8,15 +8,10 @@ export interface NoteProps {
 }
 
 /**
- * The aside the guide uses to say why, refuse something, or warn.
- *
- * Replaced `markup.ts`'s `note()`, whose `body` was HTML a call site assembled — which is why every
- * note on the site hand-wrote its own `<strong>` and `<code>`. Here the body is one hole and escapes,
- * so a note can carry a term or a message without anybody remembering `escapeHtml`.
- *
- * `kind` reaches the class through a template literal rather than three branches. That is one hole
- * and no extra sealed templates, where a conditional shape would be three of each for a difference
- * CSS already knows how to make.
+ * The aside the guide uses to say why, refuse something, or warn. `body` is one hole that escapes,
+ * replacing `markup.ts`'s `note()` where every call site hand-escaped its own HTML. `kind` reaches
+ * the class through a template literal rather than three branches — one hole, not three sealed
+ * templates, for a difference CSS already knows how to make.
  */
 export default fragment(({ kind, title, body }: NoteProps) => (
   <aside class={`note note-${kind}`}>

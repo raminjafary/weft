@@ -1,24 +1,12 @@
 import { defineIntent } from '@weftjs/core'
 
 /**
- * What makes the signals example on `/guide/the-client` respond to typing.
+ * What makes the signals example on `/guide/the-client` respond to typing. A DOM event can only
+ * write a signal through an intent — there's no op that does it directly, since the alternative is
+ * a closure on the wire. See `spec/ir/template-ir-2.md`: Wiring table.
  *
- * The example is a client-owned signal read by four nodes, and it was one-way: the signal wrote the
- * input, and nothing wrote the signal. That is not a gap in the example so much as the architecture
- * being consistent — `WiringOp` has exactly one inbound op, `event`, and `adopt.ts` refuses an
- * `event` entry that does not name an intent:
- *
- *     if (!entry.event || !entry.intent) continue
- *
- * There is no op that writes a signal from a DOM event directly, because the alternative is a
- * closure on the wire. So a signal a reader can change needs an intent, and without one the example
- * on the page about adoption was a control that could not be operated.
- *
- * This intent does nothing on the server, and that is the honest shape rather than a shortcut. The
- * repaint a reader sees is `boot.ts`'s local half of an optimistic write — the control that fired
- * updates the signal now, and the four bindings that read it recompute — so what this module
- * supplies is the *binding*, not the arithmetic. `writes: []` says so: nothing is cached on the
- * strength of a quantity, so there is nothing to invalidate and no tag to declare.
+ * This intent does nothing on the server: the repaint is `boot.ts`'s local half of an optimistic
+ * write, so this module supplies only the binding. `writes: []` — nothing is cached on a quantity.
  */
 export const quantity = defineIntent<{ qty: number }>({
   name: 'docs.quantity',

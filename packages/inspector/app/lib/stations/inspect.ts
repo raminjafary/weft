@@ -15,11 +15,7 @@ import { escapeHtml, field, panel, pick, pre, press, readout } from '../pages.ts
 import type { StationHandler } from './kind.ts'
 import { allFragments, appPorts, fragmentIR } from '@weftjs/core'
 
-/**
- * The introspection stations: what the compiler inferred, what the kernel derived from it, and
- * what the plan layer refuses. Nothing on these pages is written down twice — each one reads the
- * real IR of a real fragment in this repository and shows you what fell out of it.
- */
+/** The introspection stations: what the compiler inferred, what the kernel derived, what the plan layer refuses — read from real IR, not restated. */
 const ports = (): Ports => ({
   store: memoryStore(),
   session: cookieSession({ cookie: 'sid' }),
@@ -27,14 +23,7 @@ const ports = (): Ports => ({
   executors: {},
 })
 
-/**
- * The fixtures this station lets you switch between, each one a case worth seeing.
- *
- * `static` reads nothing, so its class resolves at build time. `clock` reads the clock, which is
- * what forces a ttl. `private` reads identity and a cookie, so it can never be a shared entry.
- * `identity` is the smallest fragment that changes a page's class. `composed` renders a component
- * three times, and `panels` is an ordinary list.
- */
+/** The fixtures this station lets you switch between: `static` reads nothing, `clock` forces a ttl, `private` reads identity, `composed`/`panels` show composition and lists. */
 const FRAGMENT_CHOICES = ['static', 'clock', 'private', 'identity', 'composed', 'panels'] as const
 
 export const effects: StationHandler = async (ctx) => {
@@ -309,9 +298,7 @@ export const shellBoundaries: StationHandler = async () => {
   const facts = factsFrom(
     Object.values(allFragments()).map((fragment) => ({ fragments: [{ entry: fragment.entry }] })),
   )
-  // The shell is a fragment like any other, so its boundaries reach the validator through the
-  // same `facts` map. There is no second channel for shell information, which is why a shell
-  // boundary check cannot disagree with the shell's own IR.
+  // The shell is a fragment like any other, so its boundaries reach the validator through the same `facts` map.
   const cases: { label: string; build: () => ReturnType<typeof validatePlan> }[] = [
     {
       label: 'every hole filled',
@@ -413,13 +400,7 @@ export const shellBoundaries: StationHandler = async () => {
   }
 }
 
-/**
- * What each port is, when this application is the one being described.
- *
- * Read from the live record rather than reconstructed: the store row is the store that answered
- * the request that rendered this page, and the deployment row is the build serving it. A station
- * that built its own ports would be a page about a plausible application.
- */
+/** What each port is, read from the live record rather than reconstructed — the store row is the store that answered this request. */
 function describe(name: PortName, bound: Ports): string {
   switch (name) {
     case 'store':

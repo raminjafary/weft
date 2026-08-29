@@ -11,15 +11,10 @@ export interface FigureProps {
 }
 
 /**
- * A code block: the caption, and the highlighted source.
- *
- * The one component here that takes markup rather than text, and the exception is narrow enough to
- * be safe: `html` is what `highlight()` produced, which is token spans over text it escaped itself.
- * That is the same bargain `markup.ts`'s `raw()` makes, declared in one place instead of at four
- * call sites.
- *
- * The caption and the sketch marker are variants, so a block without a caption emits no caption bar
- * and an ordinary block carries no marker element — rather than both always being present and hidden.
+ * A code block: the caption, and the highlighted source. `html` is what `highlight()` produced —
+ * token spans over text it escaped itself, the same bargain `raw()` makes elsewhere, declared once
+ * here instead of at four call sites. Caption and sketch marker are variants, so a plain block
+ * carries no hidden marker element.
  */
 export default fragment(({ caption, html, lang, sketch }: FigureProps) => (
   <figure class="code">

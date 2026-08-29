@@ -17,19 +17,12 @@ export interface ProvProps {
 }
 
 /**
- * The provenance list the outline columns use: a label, a value, and where it came from.
+ * The provenance list the outline columns use: a label, a value, and where it came from. Replaced
+ * three hand-built copies across `errors-page.ts`, `gallery.ts` and `glossary.ts`.
  *
- * Replaced the hand-built `<dl class="prov">` in `errors-page.ts`, `gallery.ts` and `glossary.ts` —
- * three copies of the same markup, each escaping its own values or forgetting to.
- *
- * The closing link is a `variant` rather than always-present-and-empty, so an outline without one
- * emits no `<p>` at all instead of an empty paragraph the CSS then has to hide. It sits in a wrapper
- * because `E_BRANCH_NOT_SOLE_CHILD` is right to refuse it beside the `h2` and the `dl`: a falsy
- * branch writes nothing, and a sibling after it would move.
- *
- * `.prov-row` exists because a mapped row must be a single element, and it is `display: contents` in
- * the stylesheet so the `dt` and `dd` stay direct children of the grid and the labels keep aligning
- * across rows.
+ * The closing link is a `variant`, wrapped since a falsy branch can't sit beside the `h2` and `dl`
+ * (`E_BRANCH_NOT_SOLE_CHILD`). `.prov-row` is `display: contents` so `dt`/`dd` stay direct grid
+ * children and labels keep aligning. See `spec/compiler/supported-subset.md`.
  */
 export default fragment(({ heading, facts, moreHref, moreLabel }: ProvProps) => (
   <div class="prov-block">

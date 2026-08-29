@@ -1,17 +1,8 @@
 /**
- * The station list, and the honest part of this whole directory.
- *
- * The design's demo is explicitly **not a subset**: if a capability is in the specs, it has a
- * station here. That is only a meaningful promise if it is checked, so every station names the
- * spec documents it covers and `demo/test/stations.test.ts` fails the build when a spec document
- * has no station pointing at it. A capability that ships without one is a broken build rather
- * than a gap somebody notices in six months.
- *
- * `status` is the second half of the honesty. `live` means the mechanism runs when you open the
- * page — and the same test refuses to let a station claim it without a handler registered, so it
- * cannot be aspirational. `planned` means the capability is built and this page is not.
- * `refused` means the capability does not exist, and the page says so rather than mocking it.
- * Better an honest empty station than a mock.
+ * The station list: every capability in the specs gets a station, checked by
+ * `demo/test/stations.test.ts` which fails the build on an uncovered spec document. `status` is
+ * the other half — `live` needs a registered handler, `planned` is built with no page yet,
+ * `refused` says the capability doesn't exist rather than mocking it.
  */
 export type StationStatus = 'live' | 'planned' | 'refused'
 

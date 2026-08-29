@@ -8,14 +8,7 @@ import { fragmentIR, listHole } from '@weftjs/core'
 
 const n = (v: number): string => v.toLocaleString('en-US')
 
-/**
- * Streaming, and the two stations that only mean anything next to each other.
- *
- * These pages report the shape of the response rather than simulating it: the shell of this very
- * page was cut at its slot holes by `splitAtSlots`, and the numbers below are the sizes of those
- * cuts. A latency slider changes what the server waits for, so the effect is in the response you
- * are reading rather than in an animation.
- */
+/** Streaming, and the two stations that only mean anything next to each other. Reports the real shape of this page's own response, not a simulation. */
 export const streaming: StationHandler = async (ctx) => {
   const slow = numeric(ctx, 'slow', 400, 0, 2000)
   const shell = fragmentIR('layout')
@@ -92,13 +85,11 @@ export const streamingOrder: StationHandler = async (ctx) => {
   const q = `slow=${slow}&fast=${fast}&medium=${medium}`
 
   /**
-   * Two real streams, side by side. Not an animation: each frame is a live route on this server
-   * with the same three latencies, served once in each order, and every region reports the
-   * millisecond it was rendered at so the arrival order is still legible after the load finishes.
+   * Two real streams, side by side. Each frame is a live route on this server with the same three
+   * latencies, served once in each order; every region reports its render timestamp so arrival
+   * order stays legible after the load finishes.
    */
-  // The order is a route parameter, so each frame is a URL rather than a query the server had to
-  // smuggle past the router. Applying the sliders refreshes this region, which re-renders both
-  // frames with the new latencies — so nothing on the client has to know these two iframes exist.
+  // The order is a route parameter, so each frame is a URL rather than a smuggled query.
   const race = `<div class="race-frames">
       <iframe id="race-ooo" title="out-of-order" src="/live/race/out-of-order?${q}"></iframe>
       <iframe id="race-io" title="in-order" src="/live/race/in-order?${q}"></iframe>

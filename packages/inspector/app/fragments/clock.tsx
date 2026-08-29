@@ -15,15 +15,9 @@ interface FeedProps {
   items: Item[]
 }
 
-/**
- * The content-heavy case. Hundreds of rows, one sealed row template, and nothing on it reads
- * identity — so the whole fragment is a shared cache entry and every reader on the same base
- * render gets the same delta out of the memo rather than their own diff.
- */
+/** The content-heavy case: hundreds of rows, one sealed row template, nothing reads identity, so it's a shared cache entry. */
 export default fragment(({ heading, count, items }: FeedProps, ctx: Ctx) => {
-  // Reading the clock taints `time`, which forces a TTL: a cache policy without one would never
-  // expire. Declaring `.cache('public')` on this fragment with no ttl is a build error, and that
-  // is the compiler contradicting the plan rather than the plan being trusted.
+  // Reading the clock taints `time`, forcing a TTL. See `spec/kernel/cache.md`.
   const generated = ctx.now()
 
   return (

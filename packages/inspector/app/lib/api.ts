@@ -11,15 +11,9 @@ import { TEMPLATE_IR_VERSION } from '@weftjs/ir'
 import { WARP_VERSION } from '@weftjs/warp'
 
 /**
- * Every number this demo shows comes from here, and everything here calls the benchmark harness.
- *
- * That is a rule from the design's own build notes and it is the difference between a demo and a
- * brochure: a demo with its own measurement path is a demo that will disagree with the harness,
- * and the disagreement will be discovered by somebody who trusted the demo.
- *
- * Each endpoint returns its own provenance — which function produced the number and what the
- * number does not cover — so a station can print that next to the figure instead of asking you to
- * take it on faith.
+ * Every number this demo shows comes from here, and everything here calls the benchmark harness —
+ * a demo with its own measurement path is one that will disagree with it. Each endpoint returns
+ * its own provenance (which function produced the number, what it doesn't cover) to print beside the figure.
  */
 export interface Provenance {
   /** The function that produced these numbers. */

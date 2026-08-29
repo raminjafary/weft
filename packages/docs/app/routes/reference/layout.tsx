@@ -16,14 +16,7 @@ interface Props {
   prov: string
 }
 
-/**
- * The reference's layout: what you write on the left, this page's fields on the right.
- *
- * Three columns, which the guide and the API page also have and the error reference deliberately
- * does not. The argument is the same as the guide's: the outline column here is not a courtesy, it
- * is the section's index — a config page is twenty-nine entries and the only way to use it as a
- * reference rather than as an essay is to be able to see every option name at once and jump to one.
- */
+/** The reference's layout: what you write on the left, this page's fields on the right. The outline column is the section's index, not a courtesy — a config page is 29 entries. */
 export default fragment(
   ({ heading, lede, section, kickerClass, kicker, kickerNote, contents, body, outline, prov }: Props) => (
     <div class="shell">
