@@ -24,14 +24,7 @@ function anchor(name: string): string {
   return name.replace(/[^A-Za-z0-9]+/g, '-').toLowerCase()
 }
 
-/**
- * Which named refusals are raised in a given file.
- *
- * Built once from the error registry, which has already walked every package source tree for them. A file
- * is a coarse unit — an export's file may raise a code some *other* export in it throws — so the
- * page says "raised in this file" rather than "raised by this function", which is what the data
- * actually supports.
- */
+/** Which named refusals are raised in a given file. A file is a coarse unit, so the page says "raised in this file", not "by this function". */
 let raisedIn: Map<string, string[]> | undefined
 
 function raises(file: string): string[] {
@@ -105,15 +98,7 @@ export function moduleBody(id: string): string {
     (a, b) => (KIND_ORDER[a] ?? 9) - (KIND_ORDER[b] ?? 9),
   )
 
-  /**
-   * What the build gates this package at, where it gates it at all.
-   *
-   * Only two packages have byte budgets — the client, which a browser downloads, and the kernel,
-   * which a deployment does. The other seven have none, and say nothing rather than a zero. The
-   * ceiling shown is the tightest of the package's entries, because that is the one a deployment
-   * pays at minimum; the measured figure is not here, because `pnpm bench budget` computes it with
-   * a bundler and prints it, and a page that shelled out to that would take twenty seconds to render.
-   */
+  // Only client and kernel have byte budgets; others say nothing rather than zero. Shown ceiling is the tightest entry. No measured figure — that needs a bundler and twenty seconds.
   const ceiling = ceilingFor(module.specifier)
 
   const brotli = ceiling?.brotli === undefined ? undefined : `${ceiling.brotli.toLocaleString('en-US')} B`
@@ -227,17 +212,7 @@ export function apiIndexBody(): string {
   )
 }
 
-/**
- * The module's rail: the first names on the page, and how many more there are.
- *
- * Capped, because a 282-entry outline is not something anybody scrolls — the ⌘K panel is the way to
- * a name you already know, and this column is for seeing what kind of module you are in. The number
- * it stops at is stated rather than silently truncated.
- *
- * It used to open with a card repeating the specifier, the entry, the export count and the
- * documented count. Three of those four are the strip at the top of the article now, and the fourth
- * is in the sentence beside it, so the card was the same page twice in two columns.
- */
+/** The module's rail: the first names, and how many more there are. Capped — a 282-entry outline is not something anybody scrolls; ⌘K is for a name you already know. */
 export function moduleOutline(id: string): string {
   const module = moduleById(id)
   if (!module) return ''

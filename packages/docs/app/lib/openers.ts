@@ -8,12 +8,7 @@ import { criticalPath } from '@weftjs/kernel'
 /** The scheduler's own answer for the nine-slot example, rather than two numbers typed beside it. */
 const WAVES = criticalPath([...SLOTS])
 
-/**
- * The three client figures this file quotes, read once from the recorded run.
- *
- * Chromium because the sentence names it. All three were typed here — 0.047, 0.076 and 0.0017 —
- * and the first and last had drifted from what `results/` measures.
- */
+/** The three client figures this file quotes, read once from the recorded run — hand-typed values here once drifted (two of three). */
 const IN_CHROMIUM = {
   adopt: benchFigure('tti-server-rendered', 'adopt a server-rendered region', {
     engine: 'chromium',
@@ -29,16 +24,9 @@ import { hero } from './heroes.ts'
 import { staticPages } from './counts.ts'
 
 /**
- * What every guide page opens with, before its prose.
- *
- * Three things, in this order: a figure of the mechanism moving, what it accepts against what it
- * refuses, and the whole page in four sentences. The order is the argument — a reader should be
- * able to stop after any one of them and have learnt something true, and the one most likely to be
- * read is the one that costs the least, so it goes last where a scroll lands.
- *
- * The refusal is beside the acceptance rather than at the foot of the page because the constraints
- * are the design here. Somebody deciding whether this framework will fight them should meet the
- * boundary on the way in.
+ * What every guide page opens with, before its prose: the mechanism moving, what it accepts versus
+ * refuses, then the page in four sentences — in that order, so a reader can stop after any one and
+ * have learnt something true. The refusal sits beside the acceptance, not at the foot of the page.
  */
 
 export interface Opener {
@@ -116,13 +104,7 @@ const OPENERS: Record<string, Opener> = {
     caption:
       'Composition happens in the byte stream. At runtime there is no tree to walk and no component to instantiate — the child’s segments are simply part of the parent’s.',
   },
-  /**
-   * The one page with no verdict pair.
-   *
-   * Scoped styles are a mechanism Vue, Svelte and Angular already have, so the page has no refusal
-   * to open with — what is interesting about it is *when* the attribute is stamped, which is what
-   * the figure and this caption say. A pair invented to fill the slot would be furniture.
-   */
+  // The one page with no verdict pair — scoped styles have no refusal to open with; what's interesting is *when* the attribute is stamped.
   'scoped-styles': {
     plain: '',
     caption:
@@ -386,13 +368,7 @@ const OPENERS: Record<string, Opener> = {
   },
 }
 
-/**
- * The opening of one page: its figure, then whichever of the other two it has.
- *
- * Every page has a figure. `scoped-styles` has neither a verdict pair nor a plain-terms panel,
- * because its subject is a mechanism three other frameworks already have and the interesting part
- * is in the figure. A missing piece writes nothing rather than an empty frame.
- */
+/** The opening of one page: its figure, then whichever of the other two it has. A missing piece writes nothing rather than an empty frame. */
 export function opener(slug: string): string {
   const figure = hero(slug, staticPages())
   const found = OPENERS[slug]
