@@ -2,22 +2,12 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 /**
- * The five measurements that are not benchmark axes, read out of the file that records them.
- *
- * `bench.ts` reads `results/` — the report `weft-bench run` writes, one file per run, which is the
- * right shape for a comparison against a control. Four of the site's most-quoted figures are not
- * that: the streaming race, the thousand-client diff, the staged click and the served document each
- * come from their own command, and each is a single current fact rather than a series.
- *
- * Those four commands used to print to a terminal and write nothing, so every page that quoted them
- * had the figure typed into it — the race in three files, the staged click in three more. They were
- * transcribed once and then stood still while the framework moved. `packages/bench/measured.json`
- * is now written by `--write` on each of those commands, and this reads it, on exactly the rule the
- * rest of this site already follows: a figure a reader is shown is a figure something measured.
- *
- * Every accessor answers `not measured` rather than throwing when a section is absent. A page with
- * an honest gap on it is a page; a build that dies because somebody has not run the harness on this
- * machine is not.
+ * Five measurements that aren't benchmark axes — `bench.ts` reads `results/`, one file per run, but
+ * the streaming race, thousand-client diff, staged click, and served document are each a single
+ * current fact from their own command. Those four used to print to a terminal and write nothing,
+ * so every page quoting them had the figure hand-typed and frozen. `--write` on each now writes
+ * `packages/bench/measured.json`, read here. Every accessor answers `not measured` rather than
+ * throwing when absent.
  */
 
 const FILE = fileURLToPath(new URL('../../../bench/measured.json', import.meta.url))
@@ -94,12 +84,7 @@ function p50(values: number[]): number {
   return sorted[Math.floor(sorted.length / 2)] ?? NaN
 }
 
-/**
- * When the fast region became visible, in one engine, in one of the two document orders.
- *
- * The slow region is first in document order, which is the only arrangement that separates the two
- * — with the fast one first, both orders look identical and the mechanism is invisible.
- */
+/** When the fast region became visible. The slow region is first in document order — reversed, both orders look identical and the mechanism is invisible. */
 export function raceFigure(engine: string, order: 'in-order' | 'out-of-order'): string {
   const run = section<SlotsSection>('slots')?.runs.find((r) => r.engine === engine)
   if (!run) return 'not measured'
@@ -127,12 +112,7 @@ export function raceDelays(): { slow: number; fast: number } | undefined {
   return delays ? { slow: delays.feed, fast: delays.recs } : undefined
 }
 
-/**
- * What a thousand clients cost, by where the previous state lives and whether they share a base.
- *
- * `staggered` is the block where the shared path loses, and it is here for the same reason it is in
- * the specification: quoting only the win would be advocacy.
- */
+/** What a thousand clients cost. `staggered` is where the shared path loses — kept, same as in the spec, because quoting only the win would be advocacy. */
 export function deltaCost(
   strategy: DeltaResult['strategy'],
   arrival: DeltaResult['arrival'],
@@ -160,12 +140,7 @@ export function deltaClients(scenario = 'feed'): string {
   return report ? report.clients.toLocaleString('en-US') : 'not measured'
 }
 
-/**
- * A staged click against the same click handed back to the browser, on the route named.
- *
- * The dashboard by default: it is the one page in the demo whose slots are slow on purpose, so it
- * is the row where the ratio is about the mechanism rather than about how fast loopback is.
- */
+/** A staged click against the same click handed to the browser. Defaults to the dashboard — the one demo page whose slots are slow on purpose. */
 export function stagedClick(
   route = 'dashboard',
   latencyMs = 0,
@@ -174,9 +149,7 @@ export function stagedClick(
     ?.find((report) => report.engine === 'chromium' && report.latencyMs === latencyMs)
     ?.pairs.find((p) => p.to.includes(route))
   if (!pair) return { staged: 'not measured', browser: 'not measured', ratio: 'not measured' }
-  // One decimal, which is what the harness itself prints: ten samples of a millisecond-resolution
-  // clock land on halves often enough that rounding them away turns 17.5 into 18 and loses the only
-  // digit separating two of these routes.
+  // One decimal, matching the harness: rounding away halves once turned 17.5 into 18, losing the only digit separating two routes.
   return {
     staged: `${pair.staged.summary.p50.toFixed(1)} ms`,
     browser: `${pair.browser.summary.p50.toFixed(1)} ms`,
@@ -195,13 +168,7 @@ export function l0Rows(): { path: string; bytes: string; l0: string; kernel: str
   }))
 }
 
-/**
- * What a page downloads, and how closely the build's own walk agrees with the wire.
- *
- * Two independent walks of one graph: `weft build` reads the files, `weft-bench download` asks the
- * running server. The agreement is what makes either publishable, and it was a sentence quoting a
- * hand-made measurement until the command existed.
- */
+/** What a page downloads, and how closely the build's own walk agrees with the wire — two independent walks of one graph, whose agreement is what makes either publishable. */
 export function download(): { served: string; built: string; drift: string; modules: string } {
   const report = section<DownloadReport>('download')
   if (!report) return { served: 'not measured', built: 'not measured', drift: 'not measured', modules: '?' }

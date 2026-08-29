@@ -5,24 +5,17 @@ import { highlight } from './highlight.ts'
 import { infer } from '../infer.ts'
 
 /**
- * The playground: compile what somebody typed.
+ * The playground: compile what somebody typed. The one thing on the site needing a virtual file
+ * set — `compileFiles({ sources })` takes the file set in memory, since request-arriving source has
+ * no real directory to compile against.
  *
- * This is the one thing on the site that genuinely needed a virtual file set. Every example in the
- * guide is a real file, because a real file is type-checked and compiled by the build — but source
- * that arrives with a request has no directory behind it, and writing it to a temporary one to
- * compile it would make the result depend on where the process happened to be running.
- * `compileFiles({ sources })` takes the file set in memory instead.
+ * Nothing here evaluates the source: the compiler parses and lowers it, a sealed template is data,
+ * and a derived expression is a tree the renderer interprets, never code it runs. The worst a
+ * submission can do is be large, which is what the size cap below is for.
  *
- * **Nothing here evaluates the source.** The compiler parses and lowers it; a sealed template is
- * data, and rendering one walks that data. A derived expression is an expression *tree* the renderer
- * interprets, not code it runs. So the worst a submission can do is be large, which is what the
- * size cap below is for.
- *
- * The page has two halves and they answer different questions. The right-hand panel is the
- * compiler's answer, which arrives on submit and is authoritative. The block under the editor is
- * `infer.ts`, which runs in the browser on every keystroke and is a hint — it is rendered here too,
- * from the same module, so the first paint already has it and the client is not the only way to see
- * it.
+ * The right-hand panel is the compiler's authoritative answer, on submit. The block under the
+ * editor is `infer.ts`'s browser-side hint, rendered here too from the same module so first paint
+ * already has it.
  */
 const MAX_BYTES = 8 * 1024
 
@@ -249,38 +242,18 @@ function result(outcome: Outcome | null): string {
 }
 
 /**
- * The playground's body: the source, what it compiles to, and what a scan can say in between.
- *
- * `reset` carries `data-weft-scroll="preserve"` because it re-renders this page with no source
- * rather than going anywhere — the reader is still on the playground, and the top is not where they
- * were. Compile needs no attribute: a `method="get"` submit preserves by default, since a form
- * re-renders the page it is on.
+ * The playground's body. `reset` carries `data-weft-scroll="preserve"` since it re-renders this
+ * page with no source rather than navigating; compile needs no attribute, as `method="get"`
+ * preserves by default.
  */
 /**
- * How much source this page can carry, and why it is a number rather than nothing.
+ * How much source this page can carry. The source is a query parameter deliberately, so a compiled
+ * result has a shareable URL and the page works with no runtime — but a URL has a length limit
+ * enforced before the request arrives, and past it the reader once got the platform's own
+ * unstyled error page. So the limit is stated at `maxlength`, which holds with JS off.
  *
- * The source is a query parameter, deliberately: a compiled result then has a URL somebody can
- * share, and the page works with the runtime switched off. The cost is a ceiling nobody chose — a
- * URL has a length limit, it belongs to whatever is in front of the deployment rather than to this
- * application, and it is enforced *before* the request arrives. Past it the reader got the
- * platform's own error page: no styling, no explanation, and nothing this site could say about it.
- *
- * So the limit is stated where the typing happens. `maxlength` is the right primitive because it is
- * the browser's: it holds with JavaScript switched off, which is the one thing this page must not
- * give up, and it stops a paste at the boundary instead of accepting it and failing on submit.
- *
- * The number is derived rather than guessed, from three facts.
- *
- * The ceiling in front of this deployment is 32 KB of URL. Percent-encoding costs three bytes for
- * every character that is not URL-safe, and a fragment is dense with `<`, `>`, `/` and newlines, so
- * the worst case is three times what was typed. And the source is not the only thing in the URL:
- * there is an origin and a path before it, and a reader may have arrived with parameters of their
- * own or added some — a ceiling divided by three exactly would be a box that fits only when nothing
- * else does, which is a limit that holds until the day somebody shares a link with a fragment on it.
- *
- * So a quarter of the ceiling is kept back for everything that is not the source, and what is left
- * is divided by three. Eight thousand characters is around a hundred and sixty lines, which is more
- * than a playground fragment ever is.
+ * The number: a 32 KB URL ceiling, minus a quarter reserved for origin/path/other params, divided
+ * by three for percent-encoding's worst case (`<`, `>`, `/`, newlines are dense in a fragment).
  */
 const URL_CEILING = 32_000
 /** Room for the origin, the path, and whatever else the reader is carrying in the query. */
