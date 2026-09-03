@@ -255,6 +255,41 @@ function rails(): void {
   }
 }
 
+/* ── the benchmark charts ─────────────────────────────────────────────────── */
+
+/**
+ * A measurement chart draws itself once, the first time it is scrolled to, and stays drawn.
+ *
+ * The bars used to loop, which for a figure whose whole point is a number meant the number kept
+ * erasing itself — a reader comparing two rows found the comparison gone mid-sentence. So the class
+ * goes on once and is never taken off, and the chart is unobserved the moment it lands. A chart
+ * already on screen at load counts as reached, which the observer reports on its first callback.
+ *
+ * `-12% 0px` waits for the chart to be properly in view rather than one pixel past the fold, and
+ * without `IntersectionObserver` every chart is simply already seen.
+ */
+function charts(): void {
+  const pending = [...document.querySelectorAll<HTMLElement>('[data-chart]')].filter(
+    (chart) => chart.dataset.watched !== 'yes',
+  )
+  for (const chart of pending) chart.dataset.watched = 'yes'
+  if (!('IntersectionObserver' in window)) {
+    for (const chart of pending) chart.classList.add('seen')
+    return
+  }
+  const watch = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue
+        entry.target.classList.add('seen')
+        watch.unobserve(entry.target)
+      }
+    },
+    { rootMargin: '-12% 0px' },
+  )
+  for (const chart of pending) watch.observe(chart)
+}
+
 /**
  * Everything, and again after every client-side navigation. A `document`-kind staged navigation
  * replaces the shell, so `data-js` (set by an inline script that only runs once at parse time) and
@@ -272,6 +307,7 @@ function wire(): void {
   theme()
   glow()
   rails()
+  charts()
   void editor()
 }
 

@@ -583,37 +583,29 @@ h2.hint {
  *
  * The pair is two keyframes rather than one because they are two claims: the bar draws the
  * comparison and the value states it, and the value should land when the bar it labels arrives
- * rather than counting up beside it. So `wf-val` comes on at 42%, just as `wf-bar` reaches full.
+ * rather than counting up beside it — so the two are timed apart at the call site rather than
+ * folded into one curve.
  *
- * The bar spends 40% of the cycle growing, which is slow for a bar and deliberate: these three
- * charts measure a response crossing a network, and a bar that snaps to length draws a number
- * rather than a transfer. The remaining half is the hold — long enough that a reader arriving
- * mid-loop finds a settled chart, short enough that the next play is not a wait.
+ * Both run once and stay, filled forwards by the rule that starts them: unlike every other figure
+ * on the site these carry a measured number, and a number that erases and redraws itself reads as
+ * a thing still loading. The growth is slow for a bar and deliberate: the charts measure a response
+ * crossing a network, and a bar that snaps to length draws a number rather than a transfer.
  */
 @keyframes wf-bar {
-  0% {
+  from {
     transform: scaleX(0);
   }
-  40%,
-  88% {
+  to {
     transform: scaleX(1);
-  }
-  100% {
-    transform: scaleX(0);
   }
 }
 
 @keyframes wf-val {
-  0%,
-  32% {
+  from {
     opacity: 0;
   }
-  42%,
-  88% {
+  to {
     opacity: 1;
-  }
-  100% {
-    opacity: 0;
   }
 }
 

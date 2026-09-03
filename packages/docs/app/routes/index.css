@@ -336,6 +336,7 @@
   height: 100%;
   border-radius: 2px;
   transform-origin: left;
+  transform: scaleX(0);
   background: var(--dim);
 }
 
@@ -349,6 +350,34 @@
   white-space: nowrap;
   opacity: 0;
   color: var(--ink-soft);
+}
+
+/**
+ * The chart plays once, when it first reaches the viewport, and stays played.
+ *
+ * `.seen` is set by the observer in `client.ts` and never removed, so scrolling back past a chart
+ * finds it settled rather than starting over. `forwards` is what makes "stays" true: the bar's
+ * resting style is `scaleX(0)`, and without the fill it would collapse the frame the animation
+ * ends. The value trails its own bar by the growth duration so the number lands as the bar
+ * arrives, and `--at` (written per row by `barChart`) offsets both so the rows come in order.
+ *
+ * Nothing here is load-bearing: without scripting `.seen` is never set, so the two rules below
+ * hand the chart straight to its settled state — the same conclusion the animation ends on.
+ */
+.chart.seen .chart-bar {
+  animation: wf-bar 0.62s cubic-bezier(0.35, 0.12, 0.3, 1) var(--at, 0s) forwards;
+}
+
+.chart.seen .chart-val {
+  animation: wf-val 0.34s linear calc(var(--at, 0s) + 0.42s) forwards;
+}
+
+:root:not([data-js='on']) .chart-bar {
+  transform: none;
+}
+
+:root:not([data-js='on']) .chart-val {
+  opacity: 1;
 }
 
 .chart-row.lit .chart-val {

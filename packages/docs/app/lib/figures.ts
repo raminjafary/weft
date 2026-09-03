@@ -208,13 +208,15 @@ export interface BarRow {
 }
 
 /**
- * A measurement chart: one row per candidate, bar length carrying the number. Bars grow on a
- * stagger and hold their value for most of the 3.4s cycle (shortened from 6.4s so three stacked on
- * the landing page don't make a scrolling reader wait out a hold). Share-of-longest is scoped per
- * chart, never across charts — three charts can measure ms, bytes, and ms again.
+ * A measurement chart: one row per candidate, bar length carrying the number. Bars grow once, when
+ * the chart first reaches the viewport, and hold — a measurement is a fact, and a fact that redraws
+ * itself every few seconds reads as a loading state. `data-chart` is the handle the observer in
+ * `client.ts` keys on; the stagger rides on `--at` because the animation itself is declared in CSS,
+ * where the played-once state can be expressed. Share-of-longest is scoped per chart, never across
+ * charts — three charts can measure ms, bytes, and ms again.
  */
 export function barChart(rows: readonly BarRow[], scale = ''): string {
-  return `<div class="chart">${rows
+  return `<div class="chart" data-chart>${rows
     .map(
       (row, at) => `<div class="chart-row${row.lit ? ' lit' : ''}">
         <div class="chart-say">
@@ -222,13 +224,13 @@ export function barChart(rows: readonly BarRow[], scale = ''): string {
           ${row.note ? `<div class="chart-note">${enc(row.note)}</div>` : ''}
         </div>
         <div class="chart-track">
-          <div data-wf class="chart-bar" style="width:${(row.share * 100).toFixed(
-            1,
-          )}%;animation:wf-bar 3.4s cubic-bezier(.35,.12,.3,1) ${(at * 0.14).toFixed(2)}s infinite"></div>
+          <div data-wf class="chart-bar" style="width:${(row.share * 100).toFixed(1)}%;--at:${(
+            at * 0.14
+          ).toFixed(2)}s"></div>
         </div>
-        <div data-wf class="chart-val" style="animation:wf-val 3.4s linear ${(at * 0.14).toFixed(
-          2,
-        )}s infinite">${enc(row.value)}<span class="chart-unit"> ${enc(row.unit)}</span></div>
+        <div data-wf class="chart-val" style="--at:${(at * 0.14).toFixed(2)}s">${enc(
+          row.value,
+        )}<span class="chart-unit"> ${enc(row.unit)}</span></div>
       </div>`,
     )
     .join('')}${scale ? `<p class="chart-scale">${enc(scale)}</p>` : ''}</div>`
